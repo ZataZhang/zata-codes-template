@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv add:*)",
+      "Bash(uv run python:*)",
+      "Bash(cat:*)",
+      "Bash(powershell -Command:*)"
+    ]
+  }
+}
