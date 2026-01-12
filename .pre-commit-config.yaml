@@ -1,3 +1,19 @@
+# -*- coding: utf-8 -*-
+#
+# 项目初始化命令
+# 1. 添加 pre-commit 作为开发依赖
+# 2. 安装 pre-commit 钩子
+# 3. 检查当前所有文件（建议首次配置或依赖升级后执行）
+#
+# 执行顺序建议参考下方说明：
+
+
+# uv add --dev pre-commit        # 添加 pre-commit 为开发依赖
+# uv run pre-commit install      # 初始化 pre-commit 钩子
+# uv run pre-commit run --all-files  # 对所有文件执行预提交检测
+
+
+
 # 排除生成的文档或特定目录不检查 (可选)
 exclude: '^docs/|/migrations/'
 

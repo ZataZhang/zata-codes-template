@@ -12,3 +12,4 @@ wheels/
 # Logs
 logs/
 *.log
+*.env

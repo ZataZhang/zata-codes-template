@@ -1,0 +1,37 @@
+{
+  "dashscope": {
+    "api_key_env": "DASHSCOPE_API_KEY",
+    "base_url": {
+      "beijing": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "singapore": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+    },
+    "omni_models": [
+      {
+        "name": "qwen3-omni-flash",
+        "description": "Real-time general-purpose multimodal reasoning for interactive sessions"
+      },
+      {
+        "name": "qwen-omni-turbo",
+        "description": "Balanced-speed multimodal model suited for batch processing"
+      }
+    ],
+    "vision_models": [
+      {
+        "name": "qwen3-vl-plus-2025-12-19",
+        "description": "Enhanced visual-language understanding for complex image analysis"
+      }
+    ],
+    "text_embeddings": [
+      {
+        "name": "qwen3-rerank",
+        "description": "Text retrieval and ranking embeddings"
+      }
+    ],
+    "multimodal_embeddings": [
+      {
+        "name": "qwen2.5-vl-embedding",
+        "description": "Unified vector representation for mixed image+text content"
+      }
+    ]
+  }
+}
