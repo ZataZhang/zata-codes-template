@@ -33,5 +33,83 @@
         "description": "Unified vector representation for mixed image+text content"
       }
     ]
+  },
+  "openrouter": {
+    "api_key_env": "OPENROUTER_API_KEY",
+    "base_url": "https://openrouter.ai/api/v1",
+    "omni_models": [
+      {
+        "name": "anthropic/claude-3.5-sonnet",
+        "description": "Claude 3.5 Sonnet - Advanced reasoning and coding capabilities"
+      },
+      {
+        "name": "openai/gpt-4o",
+        "description": "GPT-4o - Multimodal model with excellent reasoning"
+      },
+      {
+        "name": "google/gemini-3-pro-preview",
+        "description": "Google Gemini 3 Pro Preview - Advanced multimodal AI model"
+      }
+    ],
+    "vision_models": [
+      {
+        "name": "anthropic/claude-3.5-sonnet",
+        "description": "Claude 3.5 Sonnet with vision capabilities"
+      },
+      {
+        "name": "openai/gpt-4o",
+        "description": "GPT-4o with vision capabilities"
+      },
+      {
+        "name": "google/gemini-3-pro-preview",
+        "description": "Google Gemini 3 Pro Preview with vision capabilities"
+      }
+    ],
+    "text_embeddings": [
+      {
+        "name": "openai/text-embedding-3-large",
+        "description": "High-quality text embeddings for retrieval"
+      }
+    ],
+    "multimodal_embeddings": [
+      {
+        "name": "openai/text-embedding-3-large",
+        "description": "Multimodal embeddings for mixed content"
+      }
+    ]
+  },
+  "vectorengine":{
+    "api_key_env": "VECTORENGINE_API_KEY",
+    "base_url": "https://api.vectorengine.ai/",
+    "models": [
+      {
+        "name": "gemini-3-pro-preview-11-2025",
+        "description": "Google Gemini 3 Pro Preview - Advanced multimodal AI model"
+      }
+    ]
+  },
+  "azhexing":{
+    "api_key_env": "AZHEXING_API_KEY",
+    "base_url": "https://azhexing.com/v1/",
+    "omni_models": [
+      {
+        "name": "[Vex]gemini-3-pro-preview",
+        "description": "Azhexing Gemini 3 Pro Preview - Advanced multimodal AI model"
+      }
+    ]
+  },
+  "redbox": {
+    "api_key_env": "REDBOX_API_KEY",
+    "base_url": "https://www.redbox.ink/v1",
+    "omni_models": [
+      {
+        "name": "gemini-3-pro-preview",
+        "description": "Redbox Gemini 3 Pro Preview - Advanced multimodal AI model"
+      },
+      {
+        "name": "[1刀/次]gemini-3-pro-preview-think",
+        "description": "Redbox Gemini 3 Pro Preview Think（1刀/次）- 高级多模态AI模型"
+      }
+    ]
   }
 }
