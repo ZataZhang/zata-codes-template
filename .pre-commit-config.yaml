@@ -13,7 +13,6 @@
 # uv run pre-commit run --all-files  # 对所有文件执行预提交检测
 
 
-
 # 排除生成的文档或特定目录不检查 (可选)
 exclude: '^docs/|/migrations/'
 
@@ -56,3 +55,10 @@ repos:
         language: system
         files: ^(AGENTS\.md|CLAUDE\.md|\.cursor/commands/cursor\.md)$
         pass_filenames: false
+      - id: archive-tasks
+        name: Archive task markdown files
+        entry: uv run python hooks/archive_tasks.py
+        language: system
+        pass_filenames: false
+        stages: [commit]
+        always_run: true
