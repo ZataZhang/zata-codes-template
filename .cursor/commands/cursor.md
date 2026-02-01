@@ -1,52 +1,57 @@
 # AI Agent Guidelines
 
-> 本文档为 Cursor AI 使用的项目指南，**通用与权威规范请参考根目录中的 `AGENTS.md`（以及 `CLAUDE.md` 的补充说明）**。
+> This document is a project guide for conversational AI such as Claude. For the complete and authoritative specifications, please refer to `AGENTS.md` in the root directory.
 
-## 项目配置
+## Project Configuration
 
-### Python 包管理
-- **包管理器**: 使用 `uv` 来管理 Python 项目和依赖
-- **项目结构**: 遵循标准的 Python 项目布局
-- **依赖声明**: 所有依赖都在 `pyproject.toml` 中正确声明
+### Python Package Management
+- **Package Manager**: Use `uv` to manage the Python project and dependencies.
+- **Project Structure**: Follow standard Python project layouts.
+- **Dependency Declaration**: All dependencies must be correctly declared in `pyproject.toml`.
 
-### 开发环境设置
-- **依赖安装**: `uv pip install`
-- **运行脚本**: `uv run python script.py`
-- **虚拟环境**: `uv venv`
-- **锁定文件**: 使用 `uv lock` 更新依赖锁定文件
+### Development Environment Setup
+- **Install Dependencies**: `uv pip install`
+- **Run Scripts**: `uv run python script.py`
+- **Virtual Environment**: `uv venv`
+- **Lock File**: Use `uv lock` to update the dependency lock file.
 
-## 代码规范
+## Code Standards
 
-### 注释规范 (Google Style)
-- **模块文档字符串**: 每个模块必须包含模块级文档字符串，描述模块的功能和用途
-- **函数文档字符串**: 所有公共函数必须包含完整的 docstring，包括参数说明、返回值和异常
-- **类文档字符串**: 类必须包含描述其用途的文档字符串
-- **类型注解**: 使用类型注解来标注函数参数和返回值类型
-- **内联注释**: 对于复杂的逻辑，使用内联注释解释代码意图，但避免过度注释
-- **TODO 注释**: 使用 `# TODO: 说明` 格式标记待完成的任务
+### Input/Output & Encoding Standards (CRITICAL FOR WINDOWS)
+- **Explicit Encoding**: When reading or writing files using `open()`, `pathlib.Path.read_text()`, or `pathlib.Path.write_text()`, you **MUST** explicitly set `encoding="utf-8"`.
+  - *Incorrect*: `open("file.txt", "w")` (Do not use system default)
+  - *Correct*: `open("file.txt", "w", encoding="utf-8")`
+- **Console Output**: Be aware that Windows consoles (cmd/PowerShell) may default to legacy encodings (CP936/CP1252). Ensure logs and print statements use UTF-8 compatible handling or sanitize special characters if necessary to avoid `????` output.
 
+### Documentation Style (Google Style)
+- **Module Docstrings**: Every module must include a module-level docstring describing its function and purpose.
+- **Function Docstrings**: All public functions must include a complete docstring, including arguments, return values, and exceptions.
+- **Class Docstrings**: Classes must include a docstring describing their purpose.
+- **Type Annotations**: Use type annotations for all function arguments and return types.
+- **Inline Comments**: Use inline comments to explain the intent behind complex logic, but avoid over-commenting.
+- **TODO Comments**: Use the format `# TODO: Description` to mark tasks to be completed.
 
-### AI 友好型代码构建 (AI-Native Patterns)
+### AI-Native Code Patterns
 
-为了提升 LLM (Large Language Model) 阅读和维护代码的准确性，本项目采用以下 AI 原生编程设计模式。
+To improve the accuracy of LLMs (Large Language Models) in reading and maintaining code, this project adopts the following AI-Native programming design patterns.
 
-核心原则
-全限定变量命名 (Fully Qualified Naming): 拒绝 data, item, res 等通用命名，必须包含数据的来源、类型或状态（如 raw_user_query_text）。
+#### Core Principles
+1.  **Fully Qualified Naming**: Reject generic names like `data`, `item`, or `res`. Variable names must include the source, type, or state of the data (e.g., `raw_user_query_text`).
+2.  **Types as Prompts**: Leverage Pydantic models and type annotations as strong logical constraints for the AI.
+3.  **Single Static Assignment (SSA) & Immutability**: Avoid repeatedly modifying the same variable. Each processing step should generate a new variable name to keep the data flow clear.
 
-类型即 Prompt (Types as Prompts): 利用 Pydantic 模型和类型注解作为 AI 的强逻辑约束。
-
-单一赋值与不可变性 (SSA & Immutability): 避免反复修改同一个变量，每个处理步骤应生成新的变量名，保持数据流清晰。
-AI Agent 标准代码模版
-以下代码展示了如何结合 Pydantic 与 Google Style Docstrings 实现清晰的 Agent 逻辑：
+#### AI Agent Standard Code Template
+The following code demonstrates how to combine Pydantic with Google Style Docstrings to implement clear Agent logic:
 
 ```python
 from typing import List
 from enum import Enum
 from pydantic import BaseModel, Field
 from datetime import datetime
+import pathlib
 
 # ==========================================
-# 1. 类型定义 (Type Definitions as Anchors)
+# 1. Type Definitions as Anchors
 # ==========================================
 
 class AgentTaskStatus(str, Enum):
@@ -56,77 +61,77 @@ class AgentTaskStatus(str, Enum):
     FAILED = "failed"
 
 class UserQueryContext(BaseModel):
-    """定义用户输入的原始上下文。
+    """Defines the raw context of user input.
 
     Attributes:
-        query_text (str): 用户输入的原始文本。
-        user_id (str): 发起请求的用户唯一标识。
-        request_timestamp (datetime): 请求发起的时间戳。
+        query_text (str): The raw text input by the user.
+        user_id (str): The unique identifier of the user initiating the request.
+        request_timestamp (datetime): The timestamp when the request was initiated.
     """
-    query_text: str = Field(..., description="用户输入的原始文本")
-    user_id: str = Field(..., description="发起请求的用户唯一标识")
+    query_text: str = Field(..., description="The raw text input by the user")
+    user_id: str = Field(..., description="The unique identifier of the user initiating the request")
     request_timestamp: datetime = Field(default_factory=datetime.now)
 
 class ExternalToolOutput(BaseModel):
-    """定义外部工具（如搜索、数据库）返回的原始数据结构。"""
+    """Defines the raw data structure returned by external tools (e.g., search, database)."""
     source_tool_name: str
     raw_content_payload: str
     confidence_score: float
 
 class FinalAgentResponse(BaseModel):
-    """定义 Agent 最终输出给用户的结构化回复。"""
-    reasoning_trace: str = Field(..., description="Agent 的思考链过程")
-    final_answer_text: str = Field(..., description="呈现给用户的最终答案")
+    """Defines the structured response output by the Agent to the user."""
+    reasoning_trace: str = Field(..., description="The chain of thought process of the Agent")
+    final_answer_text: str = Field(..., description="The final answer presented to the user")
     status: AgentTaskStatus
 
 # ==========================================
-# 2. Agent 逻辑实现 (SSA Logic Flow)
+# 2. Agent Logic Implementation (SSA Logic Flow)
 # ==========================================
 
 class KnowledgeRetrievalAgent:
-    """负责执行知识检索和问答生成的智能体。"""
+    """Agent responsible for executing knowledge retrieval and QA generation."""
 
     def execute_task(self, incoming_user_context: UserQueryContext) -> FinalAgentResponse:
-        """执行知识检索任务的主流程。
+        """The main flow for executing the knowledge retrieval task.
 
-        采用单一赋值形式 (SSA) 编写，确保 AI 能够清晰追踪数据流向。
+        Written in Single Static Assignment (SSA) form to ensure the AI can clearly trace data flow.
 
         Args:
-            incoming_user_context (UserQueryContext): 包含用户查询和元数据的上下文对象。
+            incoming_user_context (UserQueryContext): The context object containing user query and metadata.
 
         Returns:
-            FinalAgentResponse: 包含思考过程和最终答案的结构化响应。
+            FinalAgentResponse: The structured response containing the reasoning process and final answer.
         """
 
-        # [STEP 1] - 意图解析
-        # 不复用变量，创建明确的 "sanitized" 版本
+        # [STEP 1] - Intent Parsing
         sanitized_search_intent: str = self._sanitize_input(incoming_user_context.query_text)
 
-        # [STEP 2] - 工具调用
-        # 明确区分 "search_results" 的来源和状态
+        # [STEP 2] - Tool Invocation
         raw_tool_outputs_list: List[ExternalToolOutput] = self._call_search_tool(sanitized_search_intent)
 
-        # [STEP 3] - 信息合成
-        # 将原始工具数据转换为 AI 可读的上下文块
+        # [STEP 3] - Information Synthesis
         synthesized_context_str: str = self._format_context(raw_tool_outputs_list)
 
-        # [STEP 4] - 生成最终回复
-        # 变量名明确指出了它是 "final_response_object"
+        # [STEP 4] - Final Response Generation
         final_agent_response_obj: FinalAgentResponse = self._generate_llm_response(
             context=synthesized_context_str,
             original_query=incoming_user_context.query_text
         )
 
+        # [STEP 5] - Logging (Windows Safe)
+        # Ensure encoding is explicitly handled if writing to file
+        self._log_execution(final_agent_response_obj)
+
         return final_agent_response_obj
 
-    # --- 辅助方法 (Internal Methods) ---
+    # --- Internal Methods ---
 
     def _sanitize_input(self, text: str) -> str:
-        """清洗用户输入文本。"""
+        """Sanitizes user input text."""
         return text.strip().lower()
 
     def _call_search_tool(self, query: str) -> List[ExternalToolOutput]:
-        """模拟调用外部搜索工具。"""
+        """Simulates calling an external search tool."""
         return [
             ExternalToolOutput(
                 source_tool_name="google_search",
@@ -136,35 +141,43 @@ class KnowledgeRetrievalAgent:
         ]
 
     def _format_context(self, tools_data: List[ExternalToolOutput]) -> str:
-        """格式化工具输出为字符串上下文。"""
+        """Formats tool outputs into a string context."""
         return "\n".join([t.raw_content_payload for t in tools_data])
 
     def _generate_llm_response(self, context: str, original_query: str) -> FinalAgentResponse:
-        """调用 LLM 生成最终回复。"""
+        """Calls the LLM to generate the final response."""
         return FinalAgentResponse(
             reasoning_trace="Analyzed search results...",
             final_answer_text=f"Based on context, here is the answer to '{original_query}'",
             status=AgentTaskStatus.COMPLETED
         )
+
+    def _log_execution(self, response: FinalAgentResponse) -> None:
+        """Logs execution details to a file with explicit UTF-8 encoding."""
+        log_path = pathlib.Path("agent_execution.log")
+        # IMPORTANT: encoding='utf-8' is required for Windows compatibility
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(f"[{datetime.now()}] {response.model_dump_json()}\n")
+
 ```
 
+### Docstring Format Example
 
-### 文档字符串格式
 ```python
 def function_name(param1: str, param2: int) -> bool:
-    """执行某个功能的函数。
+    """Executes a specific function.
 
-    这是一个详细描述函数用途的段落。
+    This is a paragraph describing the detailed purpose of the function.
 
     Args:
-        param1 (str): 参数1的描述
-        param2 (int): 参数2的描述
+        param1 (str): Description of parameter 1.
+        param2 (int): Description of parameter 2.
 
     Returns:
-        bool: 返回值的描述
+        bool: Description of the return value.
 
     Raises:
-        ValueError: 当参数无效时抛出
+        ValueError: Raised when the parameters are invalid.
 
     Examples:
         >>> function_name("hello", 42)
@@ -174,13 +187,19 @@ def function_name(param1: str, param2: int) -> bool:
         True
     """
     pass
+
 ```
 
-## 平台特定说明
+## Platform Specifics
 
-### Windows 环境
-- **Shell 语法**: 在 Windows 上运行时，一切 shell 命令请用 PowerShell 语法
-- **文件编码**: 在读取文件时请使用 `-Encoding utf8` 参数 例如 : Get-Content -Path dwcrawler\core\crawler.py -Encoding utf8
+### Windows Environment
 
-### 开发优先级
-- 优先使用 `uv` 命令而不是 `pip` 或 `conda`
+* **Shell Syntax**: When running on Windows, use PowerShell syntax for all shell commands.
+* **File Encoding (PowerShell)**: When reading files in PowerShell scripts, use `-Encoding utf8` (e.g., `Get-Content ... -Encoding utf8`).
+* **Python Output**: To avoid `????` characters in logs or files, always assume the system default encoding is NOT UTF-8. Force `encoding='utf-8'` in all Python I/O operations.
+
+### Development Priorities
+
+* **Tool Priority**: Prioritize using `uv` commands over `pip` or `conda`.
+
+```
