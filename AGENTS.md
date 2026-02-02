@@ -13,17 +13,42 @@
 - **Virtual Environment**: `uv venv`
 - **Lock File**: Use `uv lock` to update the dependency lock file.
 
+### Documentation Tools (MkDocs)
+- **Engine**: Use `mkdocs` with the `mkdocs-material` theme for project documentation.
+- **API Reference**: Use `mkdocstrings[python]` to auto-generate API documentation from Python source code docstrings.
+- **Preview**: Use `uv run mkdocs serve` to preview documentation changes locally.
+
+## Documentation Management (MkDocs)
+
+### Documentation Standards
+- **Source of Truth**: The `docs/` directory and `mkdocs.yml` are integral parts of the codebase. Treat documentation bugs with the same severity as code bugs.
+- **Synchronization**: Any change to business logic, function signatures, or configuration **MUST** be accompanied by a corresponding update in the `docs/` folder.
+- **Markdown Encoding**: All Markdown (`.md`) files **MUST** be encoded in UTF-8.
+
+### Structure & Navigation
+- **`mkdocs.yml`**: Ensure the `nav` section in `mkdocs.yml` is updated whenever a new module or topic is added.
+- **API Docs**: Do not duplicate function descriptions in Markdown. Instead, use the `mkdocstrings` directive to reference the Python object:
+    ```markdown
+    ::: my_package.core.agent.KnowledgeRetrievalAgent
+        handler: python
+        options:
+          members:
+            - execute_task
+    ```
+
 ## Code Standards
 
 ### Input/Output & Encoding Standards (CRITICAL FOR WINDOWS)
-- **Explicit Encoding**: When reading or writing files using `open()`, `pathlib.Path.read_text()`, or `pathlib.Path.write_text()`, you **MUST** explicitly set `encoding="utf-8"`.
-  - *Incorrect*: `open("file.txt", "w")` (Do not use system default)
-  - *Correct*: `open("file.txt", "w", encoding="utf-8")`
-- **Console Output**: Be aware that Windows consoles (cmd/PowerShell) may default to legacy encodings (CP936/CP1252). Ensure logs and print statements use UTF-8 compatible handling or sanitize special characters if necessary to avoid `????` output.
+- **Explicit Encoding**: When reading or writing files (including `.txt`, `.json`, `.md`, `.log`) using `open()`, `pathlib.Path.read_text()`, or `pathlib.Path.write_text()`, you **MUST** explicitly set `encoding="utf-8"`.
+  - *Incorrect*: `open("README.md", "r")`
+  - *Correct*: `open("README.md", "r", encoding="utf-8")`
+- **Console Output**: Be aware that Windows consoles (cmd/PowerShell) may default to legacy encodings (CP936/CP1252). Ensure logs and print statements use UTF-8 compatible handling.
 
-### Documentation Style (Google Style)
-- **Module Docstrings**: Every module must include a module-level docstring describing its function and purpose.
-- **Function Docstrings**: All public functions must include a complete docstring, including arguments, return values, and exceptions.
+### Documentation Style (Google Style for MkDocs)
+*Since we use `mkdocstrings`, adherence to this style is mandatory for proper rendering.*
+
+- **Module Docstrings**: Every module must include a module-level docstring describing its function.
+- **Function Docstrings**: All public functions must include a complete docstring (Args, Returns, Raises).
 - **Class Docstrings**: Classes must include a docstring describing their purpose.
 - **Type Annotations**: Use type annotations for all function arguments and return types.
 - **Inline Comments**: Use inline comments to explain the intent behind complex logic, but avoid over-commenting.
@@ -36,10 +61,10 @@ To improve the accuracy of LLMs (Large Language Models) in reading and maintaini
 #### Core Principles
 1.  **Fully Qualified Naming**: Reject generic names like `data`, `item`, or `res`. Variable names must include the source, type, or state of the data (e.g., `raw_user_query_text`).
 2.  **Types as Prompts**: Leverage Pydantic models and type annotations as strong logical constraints for the AI.
-3.  **Single Static Assignment (SSA) & Immutability**: Avoid repeatedly modifying the same variable. Each processing step should generate a new variable name to keep the data flow clear.
+3.  **Single Static Assignment (SSA) & Immutability**: Avoid repeatedly modifying the same variable. Each processing step should generate a new variable name.
 
 #### AI Agent Standard Code Template
-The following code demonstrates how to combine Pydantic with Google Style Docstrings to implement clear Agent logic:
+The following code demonstrates how to combine Pydantic with Google Style Docstrings to implement clear Agent logic that renders perfectly in MkDocs:
 
 ```python
 from typing import List
@@ -87,7 +112,10 @@ class FinalAgentResponse(BaseModel):
 # ==========================================
 
 class KnowledgeRetrievalAgent:
-    """Agent responsible for executing knowledge retrieval and QA generation."""
+    """Agent responsible for executing knowledge retrieval and QA generation.
+
+    This class serves as the primary entry point for RAG (Retrieval-Augmented Generation) tasks.
+    """
 
     def execute_task(self, incoming_user_context: UserQueryContext) -> FinalAgentResponse:
         """The main flow for executing the knowledge retrieval task.
@@ -166,6 +194,7 @@ def function_name(param1: str, param2: int) -> bool:
     """Executes a specific function.
 
     This is a paragraph describing the detailed purpose of the function.
+    It will be rendered prominently in the MkDocs API reference.
 
     Args:
         param1 (str): Description of parameter 1.
@@ -193,11 +222,10 @@ def function_name(param1: str, param2: int) -> bool:
 ### Windows Environment
 
 * **Shell Syntax**: When running on Windows, use PowerShell syntax for all shell commands.
-* **File Encoding (PowerShell)**: When reading files in PowerShell scripts, use `-Encoding utf8` (e.g., `Get-Content ... -Encoding utf8`).
+* **File Encoding**: When reading files (especially `.md` docs and `.log` files) in PowerShell scripts, use `-Encoding utf8`.
 * **Python Output**: To avoid `????` characters in logs or files, always assume the system default encoding is NOT UTF-8. Force `encoding='utf-8'` in all Python I/O operations.
 
 ### Development Priorities
 
 * **Tool Priority**: Prioritize using `uv` commands over `pip` or `conda`.
-
-```
+* **Documentation Priority**: Never commit code changes without verifying `uv run mkdocs build` passes without warnings.
