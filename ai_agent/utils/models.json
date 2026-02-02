@@ -3,8 +3,275 @@
     "api_key_env": "DASHSCOPE_API_KEY",
     "base_url": {
       "beijing": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-      "singapore": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+      "singapore": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+      "us": "https://dashscope-us.aliyuncs.com/compatible-mode/v1"
     },
+    "chat_models": [
+      {
+        "name": "qwen3-max",
+        "description": "Qwen3-Max flagship (global)"
+      },
+      {
+        "name": "qwen3-max-preview",
+        "description": "Qwen3-Max preview (global)"
+      },
+      {
+        "name": "qwen3-max-2025-09-23",
+        "description": "Qwen3-Max snapshot (global)"
+      },
+      {
+        "name": "qwen-max",
+        "description": "Qwen-Max (international, China)"
+      },
+      {
+        "name": "qwen-max-latest",
+        "description": "Qwen-Max latest (international, China)"
+      },
+      {
+        "name": "qwen-max-2025-01-25",
+        "description": "Qwen-Max snapshot (international)"
+      },
+      {
+        "name": "qwen-max-2024-09-19",
+        "description": "Qwen-Max snapshot (China mainland)"
+      },
+      {
+        "name": "qwen-plus",
+        "description": "Qwen-Plus (global, international, China)"
+      },
+      {
+        "name": "qwen-plus-latest",
+        "description": "Qwen-Plus latest (global, international, China)"
+      },
+      {
+        "name": "qwen-plus-2025-01-25",
+        "description": "Qwen-Plus snapshot (global, international)"
+      },
+      {
+        "name": "qwen-plus-2024-12-20",
+        "description": "Qwen-Plus snapshot (China mainland)"
+      },
+      {
+        "name": "qwen-plus-us",
+        "description": "Qwen-Plus (US region)"
+      },
+      {
+        "name": "qwen-plus-2025-12-01-us",
+        "description": "Qwen-Plus snapshot (US region)"
+      },
+      {
+        "name": "qwen-flash",
+        "description": "Qwen-Flash (global, international, China)"
+      },
+      {
+        "name": "qwen-flash-2025-07-28",
+        "description": "Qwen-Flash snapshot (global, international, China)"
+      },
+      {
+        "name": "qwen-flash-us",
+        "description": "Qwen-Flash (US region)"
+      },
+      {
+        "name": "qwen-flash-2025-07-28-us",
+        "description": "Qwen-Flash snapshot (US region)"
+      },
+      {
+        "name": "qwen-turbo",
+        "description": "Qwen-Turbo (international, China)"
+      },
+      {
+        "name": "qwen-turbo-latest",
+        "description": "Qwen-Turbo latest (international, China)"
+      },
+      {
+        "name": "qwen-turbo-2024-11-01",
+        "description": "Qwen-Turbo snapshot (international)"
+      },
+      {
+        "name": "qwen-turbo-2025-04-28",
+        "description": "Qwen-Turbo snapshot (China mainland)"
+      }
+    ],
+    "coder_models": [
+      {
+        "name": "qwen3-coder-plus",
+        "description": "Qwen3-Coder Plus (international, China)"
+      },
+      {
+        "name": "qwen3-coder-plus-2025-07-22",
+        "description": "Qwen3-Coder Plus snapshot (international, China)"
+      },
+      {
+        "name": "qwen3-coder-flash",
+        "description": "Qwen3-Coder Flash (international, China)"
+      },
+      {
+        "name": "qwen3-coder-flash-2025-07-28",
+        "description": "Qwen3-Coder Flash snapshot (international, China)"
+      },
+      {
+        "name": "qwen-coder-plus",
+        "description": "Qwen-Coder Plus (China mainland)"
+      },
+      {
+        "name": "qwen-coder-plus-latest",
+        "description": "Qwen-Coder Plus latest (China mainland)"
+      },
+      {
+        "name": "qwen-coder-plus-2024-11-06",
+        "description": "Qwen-Coder Plus snapshot (China mainland)"
+      },
+      {
+        "name": "qwen-coder-turbo",
+        "description": "Qwen-Coder Turbo (China mainland)"
+      },
+      {
+        "name": "qwen-coder-turbo-latest",
+        "description": "Qwen-Coder Turbo latest (China mainland)"
+      },
+      {
+        "name": "qwen-coder-turbo-2024-09-19",
+        "description": "Qwen-Coder Turbo snapshot (China mainland)"
+      }
+    ],
+    "reasoning_models": [
+      {
+        "name": "qwq-plus",
+        "description": "QwQ Plus (international, China)"
+      },
+      {
+        "name": "qwq-plus-latest",
+        "description": "QwQ Plus latest (China mainland)"
+      },
+      {
+        "name": "qwq-plus-2025-03-05",
+        "description": "QwQ Plus snapshot (China mainland)"
+      }
+    ],
+    "math_models": [
+      {
+        "name": "qwen-math-plus",
+        "description": "Qwen-Math Plus (China mainland)"
+      },
+      {
+        "name": "qwen-math-plus-latest",
+        "description": "Qwen-Math Plus latest (China mainland)"
+      },
+      {
+        "name": "qwen-math-plus-2024-08-16",
+        "description": "Qwen-Math Plus snapshot (China mainland)"
+      },
+      {
+        "name": "qwen-math-turbo",
+        "description": "Qwen-Math Turbo (China mainland)"
+      },
+      {
+        "name": "qwen-math-turbo-latest",
+        "description": "Qwen-Math Turbo latest (China mainland)"
+      },
+      {
+        "name": "qwen-math-turbo-2024-09-19",
+        "description": "Qwen-Math Turbo snapshot (China mainland)"
+      }
+    ],
+    "open_source_models": [
+      {
+        "name": "qwen3-next-80b-a3b-thinking",
+        "description": "Qwen3 open-source thinking model"
+      },
+      {
+        "name": "qwen3-next-80b-a3b-instruct",
+        "description": "Qwen3 open-source instruct model"
+      },
+      {
+        "name": "qwen3-235b-a22b-thinking-2507",
+        "description": "Qwen3 open-source thinking snapshot"
+      },
+      {
+        "name": "qwen3-235b-a22b-instruct-2507",
+        "description": "Qwen3 open-source instruct snapshot"
+      },
+      {
+        "name": "qwen3-30b-a3b-thinking-2507",
+        "description": "Qwen3 open-source thinking snapshot"
+      },
+      {
+        "name": "qwen3-30b-a3b-instruct-2507",
+        "description": "Qwen3 open-source instruct snapshot"
+      },
+      {
+        "name": "qwen3-235b-a22b",
+        "description": "Qwen3 open-source base model"
+      },
+      {
+        "name": "qwen3-32b",
+        "description": "Qwen3 open-source base model"
+      },
+      {
+        "name": "qwen3-30b-a3b",
+        "description": "Qwen3 open-source base model"
+      },
+      {
+        "name": "qwen3-14b",
+        "description": "Qwen3 open-source base model"
+      },
+      {
+        "name": "qwen3-8b",
+        "description": "Qwen3 open-source base model"
+      },
+      {
+        "name": "qwen3-4b",
+        "description": "Qwen3 open-source base model"
+      },
+      {
+        "name": "qwen3-1.7b",
+        "description": "Qwen3 open-source base model"
+      },
+      {
+        "name": "qwen3-0.6b",
+        "description": "Qwen3 open-source base model"
+      },
+      {
+        "name": "qwen2.5-14b-instruct-1m",
+        "description": "Qwen2.5 open-source instruct (1M context)"
+      },
+      {
+        "name": "qwen2.5-7b-instruct-1m",
+        "description": "Qwen2.5 open-source instruct (1M context)"
+      },
+      {
+        "name": "qwen2.5-72b-instruct",
+        "description": "Qwen2.5 open-source instruct model"
+      },
+      {
+        "name": "qwen2.5-32b-instruct",
+        "description": "Qwen2.5 open-source instruct model"
+      },
+      {
+        "name": "qwen2.5-14b-instruct",
+        "description": "Qwen2.5 open-source instruct model"
+      },
+      {
+        "name": "qwen2.5-7b-instruct",
+        "description": "Qwen2.5 open-source instruct model"
+      },
+      {
+        "name": "qwen2.5-3b-instruct",
+        "description": "Qwen2.5 open-source instruct model"
+      },
+      {
+        "name": "qwen2.5-1.5b-instruct",
+        "description": "Qwen2.5 open-source instruct model"
+      },
+      {
+        "name": "qwen2.5-0.5b-instruct",
+        "description": "Qwen2.5 open-source instruct model"
+      },
+      {
+        "name":"kimi-k2-thinking",
+        "description": "Kimi K2 Thinking model"
+      }
+    ],
     "omni_models": [
       {
         "name": "qwen3-omni-flash",
@@ -16,6 +283,10 @@
       }
     ],
     "vision_models": [
+      {
+        "name": "qwen3-vl-plus",
+        "description": "Multimodal visual-language model"
+      },
       {
         "name": "qwen3-vl-plus-2025-12-19",
         "description": "Enhanced visual-language understanding for complex image analysis"
