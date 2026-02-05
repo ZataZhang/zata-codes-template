@@ -5,6 +5,7 @@
 
 import logging
 import sys
+from logging.handlers import TimedRotatingFileHandler
 from typing import Optional
 
 from utils.settings import config
@@ -71,11 +72,17 @@ class Logger:
                 pass  # 如果reconfigure失败，继续使用默认编码
         self._logger.addHandler(console_handler)
 
-        # 文件处理器
+        # 文件处理器 - 按天切分日志文件，避免所有日志写入同一个文件
         try:
-            file_handler = logging.FileHandler(
-                config.LOG_FILE, encoding="utf-8", mode="a"
+            file_handler = TimedRotatingFileHandler(
+                filename=str(config.LOG_FILE),
+                when="midnight",
+                interval=1,
+                backupCount=14,
+                encoding="utf-8",
+                utc=False,
             )
+            file_handler.suffix = "%Y-%m-%d"
             file_handler.setLevel(getattr(logging, config.LOG_LEVEL))
             file_handler.setFormatter(formatter)
             self._logger.addHandler(file_handler)
