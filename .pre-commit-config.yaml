@@ -26,6 +26,7 @@ repos:
       - id: trailing-whitespace    # 自动删除行尾多余的空格
       - id: end-of-file-fixer      # 确保文件以一个空行结尾 (POSIX标准)
       - id: check-yaml             # 检查 .yaml/.yml 文件的语法合法性
+        args: ['--unsafe']         # 允许 PyYAML 特殊标签（如 !!python/name:）
       - id: check-toml             # 检查 .toml 文件的语法合法性
       - id: check-added-large-files # 防止不小心提交巨大的文件
         args: ['--maxkb=50000']     # 限制单文件最大 50MB
