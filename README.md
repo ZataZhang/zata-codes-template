@@ -2,6 +2,12 @@
 
 一套极简的 Python 项目骨架，带好用的 hooks 与通用工具集合，方便你在任何新项目里直接复用。
 
+## 快速开始（uv + just）
+```bash
+just dev
+```
+`just dev` 会执行完整依赖同步并安装 pre-commit hooks，适合作为开发环境的一键启动命令。
+
 ## Hooks 安装
 本模板使用 [`pre-commit`](https://pre-commit.com/) 统一管理代码提交前的质量保障，配置在 `.pre-commit-config.yaml` 中，涵盖基础文件卫生检查与 Ruff（Lint + Format）。第一次克隆模板后的推荐流程：
 
