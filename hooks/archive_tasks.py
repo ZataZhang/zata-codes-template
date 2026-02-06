@@ -18,24 +18,63 @@ def _repo_root() -> Path:
 
     return Path(__file__).resolve().parents[1]
 
+def _staged_task_paths(
+    repo_root: Path, tasks_dir: Path, archive_dir: Path
+) -> list[Path]:
+    """Collect staged markdown files under tasks, excluding the archive directory.
 
-def _task_paths(tasks_dir: Path, archive_dir: Path) -> list[Path]:
-    """Collect markdown files under tasks, excluding the archive directory.
+    This inspects the git index rather than the working tree so that only
+    already staged files are archived.
 
     Args:
-        tasks_dir (Path): The tasks directory to scan.
+        repo_root (Path): Repository root used as subprocess cwd.
+        tasks_dir (Path): The tasks directory to constrain results.
         archive_dir (Path): The archive directory to exclude.
 
     Returns:
-        list[Path]: Markdown file paths to be archived.
+        list[Path]: Staged markdown file paths to be archived.
     """
 
-    files: list[Path] = []
-    for path in tasks_dir.rglob("*.md"):
-        if archive_dir in path.parents:
+    git_diff_process = subprocess.run(
+        [
+            "git",
+            "diff",
+            "--name-only",
+            "--cached",
+            "--diff-filter=ACMR",
+            "--",
+            "tasks",
+        ],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    staged_files: list[Path] = []
+    for line in git_diff_process.stdout.splitlines():
+        relative_path = line.strip()
+        if not relative_path:
             continue
-        files.append(path)
-    return files
+        relative_path_obj = Path(relative_path)
+        if relative_path_obj.suffix.lower() != ".md":
+            continue
+
+        full_path = repo_root / relative_path_obj
+        if not full_path.exists():
+            # File might be deleted or renamed; skip to avoid filesystem errors.
+            continue
+        if not full_path.is_file():
+            continue
+        if archive_dir in full_path.parents:
+            continue
+        if tasks_dir not in full_path.parents and full_path != tasks_dir:
+            # Constrain to paths under tasks_dir.
+            continue
+
+        staged_files.append(full_path)
+
+    return staged_files
 
 
 def _ensure_archive_dir(archive_dir: Path) -> None:
@@ -104,7 +143,7 @@ def main() -> int:
         return 0
 
     try:
-        files = _task_paths(tasks_dir, archive_dir)
+        files = _staged_task_paths(repo_root, tasks_dir, archive_dir)
         if not files:
             return 0
         _ensure_archive_dir(archive_dir)
