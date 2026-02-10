@@ -14,7 +14,7 @@ Examples:
     >>> from utils.database import SessionLocal, init_database
     >>> from utils.helpers import parse_datetime, safe_json_loads
     >>>
-    >>> logger.info(f"应用名称: {config.APP_NAME}")
+    >>> logger.info(f"应用名称: {config.app_name}")
     >>> logger.debug("这是一条调试日志")
     >>>
     >>> # 初始化数据库

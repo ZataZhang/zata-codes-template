@@ -77,6 +77,7 @@ Filesystem = Disk (persistent, unlimited)
 | File | Purpose | When to Update |
 |------|---------|----------------|
 | `task_plan.md` | Phases, progress, decisions | After each phase |
+| `task_plan.md` - **Completion Summary** | Final retrospective, deliverables, lessons learned | **After task is complete** |
 | `findings.md` | Research, discoveries | After ANY discovery |
 | `progress.md` | Session log, test results | Throughout session |
 
@@ -99,7 +100,27 @@ After completing any phase:
 - Log any errors encountered
 - Note files created/modified
 
-### 5. Log ALL Errors
+### 5. Summarize On Completion
+After the **entire task** is complete, fill in the **Completion Summary** section in `task_plan.md`.
+
+**For Simple Tasks** (< 10 tool calls, single file change):
+```markdown
+## Completion Summary
+- **Status:** ✅ Complete (2026-02-10)
+- **Deliverables:** `src/file1.ts`, `docs/readme.md`
+- **Notes:** [关键决策或坑点，可选]
+```
+
+**For Complex Tasks** (multi-phase, research, feature development):
+- Use the full Completion Summary template
+- List all deliverables and their locations
+- Document key achievements and challenges
+- Capture lessons learned for future reference
+- Note any follow-up items
+
+Use your judgment: if the Completion Summary feels like overkill, use the simple format.
+
+### 6. Log ALL Errors
 Every error goes in the plan file. This builds knowledge and prevents repetition.
 
 ```markdown
@@ -110,7 +131,7 @@ Every error goes in the plan file. This builds knowledge and prevents repetition
 | API timeout | 2 | Added retry logic |
 ```
 
-### 6. Never Repeat Failures
+### 7. Never Repeat Failures
 ```
 if action_failed:
     next_action != same_action

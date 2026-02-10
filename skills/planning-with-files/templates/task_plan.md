@@ -119,6 +119,59 @@ Phase 1
 |-------|---------|------------|
 |       | 1       |            |
 
+## Completion Summary
+<!--
+  WHAT: A retrospective summary written after the task is fully completed.
+  WHY: Captures lessons learned, final state, and deliverables for future reference.
+  WHEN: Fill this in AFTER all phases are marked complete, before delivering to user.
+
+  CHOOSE YOUR FORMAT:
+  - Simple tasks (< 10 tool calls, single change): Use SIMPLE format
+  - Complex tasks (multi-phase, research, features): Use FULL format
+-->
+
+### SIMPLE Format (for quick tasks)
+<!-- Uncomment and fill this for simple tasks -->
+<!--
+- **Status:** ✅ Complete (YYYY-MM-DD)
+- **Deliverables:** `path/to/file1`, `path/to/file2`
+- **Notes:** [任何值得记录的关键决策或坑点]
+-->
+
+### FULL Format (for complex tasks)
+<!-- Use this for multi-phase tasks that need detailed retrospective -->
+
+#### Final Status
+<!-- Overall completion status -->
+- **Completed:** [YES / PARTIAL / BLOCKED]
+- **Completion Date:** [YYYY-MM-DD]
+
+#### Deliverables
+<!-- List all files, documents, or outputs produced -->
+| Deliverable | Location | Status |
+|-------------|----------|--------|
+|             |          |        |
+
+#### Key Achievements
+<!-- What was successfully accomplished -->
+-
+
+#### Challenges & Solutions
+<!-- Major obstacles encountered and how they were resolved -->
+| Challenge | Solution Applied |
+|-----------|------------------|
+|           |                  |
+
+#### Lessons Learned
+<!-- Insights for future similar tasks -->
+-
+
+#### Follow-up Items
+<!-- Anything that needs to be done later -->
+- [ ] [Follow-up task or improvement idea]
+
+---
+
 ## Notes
 <!--
   REMINDERS:

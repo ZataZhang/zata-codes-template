@@ -1,0 +1,83 @@
+# =============================================================================
+# Configuration File - Non-Sensitive Defaults
+# =============================================================================
+# This file contains non-sensitive configuration defaults organized by section.
+# Sensitive values (passwords, API keys) should be set in .env file.
+#
+# To override any value, either:
+# 1. Set the corresponding environment variable (highest priority)
+# 2. Modify this file
+# 3. Accept the code default (lowest priority)
+# =============================================================================
+
+# =============================================================================
+# Application Settings
+# =============================================================================
+[app]
+name = "zata-codes-template"
+log_level = "INFO"
+
+# =============================================================================
+# Database Settings (PostgreSQL)
+# =============================================================================
+[database]
+backend = "postgresql"
+host = "localhost"
+port = 5432
+name = "chameleon_meta"
+driver = "psycopg2"
+
+# =============================================================================
+# Chat Model Settings
+# =============================================================================
+[chat_model]
+name = "qwen-flash"
+provider = "dashscope"
+temperature = 0.2
+
+# =============================================================================
+# MinIO Object Storage Settings
+# =============================================================================
+[minio]
+endpoint = "localhost:9000"
+secure = false
+bucket_raw_documents = "raw-documents"
+
+# =============================================================================
+# Qdrant Vector Database Settings
+# =============================================================================
+[qdrant]
+host = "localhost"
+port = 6333
+collection_name = "document_vectors"
+
+# =============================================================================
+# Embedding Model Settings
+# =============================================================================
+[embedding]
+model = "sentence-transformers/all-MiniLM-L6-v2"
+dim = 384
+offline_mode = true
+model_dir = "resources/models"
+
+# =============================================================================
+# Document Chunking Settings
+# =============================================================================
+[chunking]
+# Chunk size in characters
+size = 512
+# Overlap between chunks in characters
+overlap = 50
+
+# =============================================================================
+# Timeout Settings (in seconds)
+# =============================================================================
+[timeouts]
+# Timeout for embedding model loading
+embedding_model_load_seconds = 300
+# Timeout for single document processing
+ingestion_document_seconds = 600
+# Timeout for overall ingestion job
+ingestion_job_seconds = 7200
+# Timeout for MinIO operations
+minio_seconds = 60

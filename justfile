@@ -36,3 +36,18 @@ clean:
 
 staged_changes:
     git diff --cached > staged_changes.diff
+
+# Run tests (usage: just test [all|local|real])
+#   just test        - Run local tests (no API keys needed)
+#   just test all    - Run all tests
+#   just test real   - Run tests requiring API keys
+@test type="local":
+    #!/usr/bin/env bash
+    set -e
+    if [ "{{type}}" = "all" ]; then
+        uv run pytest tests/ -v
+    elif [ "{{type}}" = "real" ]; then
+        uv run pytest tests/ -v -k "expensive or not expensive"
+    else
+        uv run pytest tests/ -v --ignore=tests/test_model_loader_real.py -m "not expensive"
+    fi

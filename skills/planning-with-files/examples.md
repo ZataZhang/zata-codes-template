@@ -200,3 +200,76 @@ Success!
 ```
 
 This is why Manus can handle ~50 tool calls without losing track. The plan file acts as a "goal refresh" mechanism.
+
+---
+
+## Example 5: Task Completion Summary
+
+When a task is fully complete, fill in the **Completion Summary** section.
+
+### Simple Task Example (< 10 tool calls)
+
+**Scenario:** Fix a typo in a config file
+
+```markdown
+## Completion Summary
+- **Status:** ✅ Complete (2026-02-10)
+- **Deliverables:** `config/settings.yaml`
+- **Notes:** Fixed typo in database URL, no other changes needed
+```
+
+**When to use this format:**
+- Single file changes
+- Bug fixes with minimal scope
+- Quick documentation updates
+- Simple refactors
+
+---
+
+### Complex Task Example (multi-phase)
+
+**Scenario:** Implement dark mode feature
+
+```markdown
+## Completion Summary
+
+### Final Status
+- **Completed:** YES
+- **Completion Date:** 2026-02-10
+
+### Deliverables
+| Deliverable | Location | Status |
+|-------------|----------|--------|
+| Dark mode toggle component | src/components/DarkModeToggle.tsx | ✓ Complete |
+| useTheme hook | src/hooks/useTheme.ts | ✓ Complete |
+| Theme provider update | src/App.tsx | ✓ Complete |
+| Documentation | docs/dark-mode.md | ✓ Complete |
+
+### Key Achievements
+- Implemented smooth theme transition animation
+- Persisted user preference in localStorage
+- Added system preference detection
+- Maintained backward compatibility with existing light mode
+
+### Challenges & Solutions
+| Challenge | Solution Applied |
+|-----------|------------------|
+| Flash of unstyled content on load | Added theme initialization script to index.html |
+| CSS variables not updating | Used CSS custom properties with React state synchronization |
+
+### Lessons Learned
+- Using CSS custom properties makes theme switching performant
+- localStorage is reliable for simple preferences but consider async storage for more complex state
+- Test theme changes across different browser color schemes
+
+### Follow-up Items
+- [ ] Add automated visual regression tests for dark mode
+- [ ] Consider adding "follow system" option alongside light/dark toggle
+```
+
+**When to use this format:**
+- Multi-phase tasks
+- Research projects
+- Feature development
+- Tasks with many moving parts
+- Projects where lessons learned are valuable for future reference

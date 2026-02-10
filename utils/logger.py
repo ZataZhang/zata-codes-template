@@ -47,8 +47,8 @@ class Logger:
 
     def _setup_logger(self) -> None:
         """设置日志器 - 配置控制台和文件处理器"""
-        self._logger = logging.getLogger(config.APP_NAME)
-        self._logger.setLevel(getattr(logging, config.LOG_LEVEL))
+        self._logger = logging.getLogger(config.app_name)
+        self._logger.setLevel(getattr(logging, config.log_level))
 
         # 避免重复添加处理器
         if self._logger.handlers:
@@ -62,7 +62,7 @@ class Logger:
 
         # 控制台处理器 - 处理Unicode编码问题
         console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setLevel(getattr(logging, config.LOG_LEVEL))
+        console_handler.setLevel(getattr(logging, config.log_level))
         console_handler.setFormatter(formatter)
         # 在Windows上处理UTF-8编码
         if hasattr(console_handler.stream, "reconfigure"):
@@ -75,7 +75,7 @@ class Logger:
         # 文件处理器 - 按天切分日志文件，避免所有日志写入同一个文件
         try:
             file_handler = TimedRotatingFileHandler(
-                filename=str(config.LOG_FILE),
+                filename=str(config.log_file),
                 when="midnight",
                 interval=1,
                 backupCount=14,
@@ -83,7 +83,7 @@ class Logger:
                 utc=False,
             )
             file_handler.suffix = "%Y-%m-%d"
-            file_handler.setLevel(getattr(logging, config.LOG_LEVEL))
+            file_handler.setLevel(getattr(logging, config.log_level))
             file_handler.setFormatter(formatter)
             self._logger.addHandler(file_handler)
         except (OSError, PermissionError) as e:

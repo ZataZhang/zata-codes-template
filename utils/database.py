@@ -15,7 +15,7 @@ from utils.logger import logger
 Base = declarative_base()
 
 # 从配置中获取数据库URL
-DATABASE_URL = config.DATABASE_URL
+DATABASE_URL = config.resolved_database_url
 
 # 如果是 MySQL 数据库，确保使用 pymysql 驱动
 if DATABASE_URL.startswith("mysql://"):

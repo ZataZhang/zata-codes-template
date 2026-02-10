@@ -4,7 +4,13 @@
       "Bash(uv add:*)",
       "Bash(uv run python:*)",
       "Bash(cat:*)",
-      "Bash(powershell -Command:*)"
+      "Bash(powershell -Command:*)",
+      "Bash(uv lock:*)",
+      "Bash(uv run pytest:*)",
+      "Bash(just --list:*)",
+      "Bash(just test-smoke:*)",
+      "Bash(just test-config:*)",
+      "Bash(just test:*)"
     ]
   }
 }
