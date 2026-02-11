@@ -51,3 +51,40 @@ staged_changes:
     else
         uv run pytest tests/ -v --ignore=tests/test_model_loader_real.py -m "not expensive"
     fi
+
+
+# Export all .env* files recursively into a zip archive
+export-env-zip output="":
+    #!/usr/bin/env bash
+    uv run python - <<'PY'
+    from pathlib import Path
+    import sys
+    import zipfile
+
+    project_root_path = Path(r"{{justfile_directory()}}")
+    configured_output_name = r"{{output}}".strip()
+    output_file_name = configured_output_name or f"{project_root_path.name}.zip"
+    output_zip_path = project_root_path / output_file_name
+    env_file_paths = sorted(
+        path
+        for path in project_root_path.rglob("*")
+        if path.is_file() and path.name.startswith(".env")
+    )
+    env_file_paths = [path for path in env_file_paths if path != output_zip_path]
+
+    if not env_file_paths:
+        sys.exit("No files starting with .env were found in this project.")
+
+    if output_zip_path.exists():
+        output_zip_path.unlink()
+
+    with zipfile.ZipFile(output_zip_path, "w", zipfile.ZIP_DEFLATED) as zip_archive_file:
+        for env_file_path in env_file_paths:
+            archived_relative_path = env_file_path.relative_to(project_root_path)
+            zip_archive_file.write(env_file_path, arcname=str(archived_relative_path))
+
+    print(f"Created {output_zip_path} with {len(env_file_paths)} files:")
+    for env_file_path in env_file_paths:
+        archived_relative_path = env_file_path.relative_to(project_root_path)
+        print(f" - {archived_relative_path}")
+    PY
