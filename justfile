@@ -63,8 +63,18 @@ export-env-zip output="":
 
     project_root_path = Path(r"{{justfile_directory()}}")
     configured_output_name = r"{{output}}".strip()
-    output_file_name = configured_output_name or f"{project_root_path.name}.zip"
-    output_zip_path = project_root_path / output_file_name
+    default_output_directory_path = project_root_path.parent / "mysecrets"
+    default_output_zip_path = default_output_directory_path / f"{project_root_path.name}.zip"
+    if configured_output_name:
+        configured_output_path = Path(configured_output_name)
+        output_zip_path = (
+            configured_output_path
+            if configured_output_path.is_absolute()
+            else project_root_path / configured_output_path
+        )
+    else:
+        output_zip_path = default_output_zip_path
+    output_zip_path.parent.mkdir(parents=True, exist_ok=True)
     env_file_paths = sorted(
         path
         for path in project_root_path.rglob("*")
