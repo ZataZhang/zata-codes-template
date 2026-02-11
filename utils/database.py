@@ -3,7 +3,7 @@
 此模块提供 SQLAlchemy 数据库连接和会话管理功能。
 """
 
-from typing import Generator
+from typing import Any, Generator
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session, declarative_base
 from sqlalchemy.pool import StaticPool
@@ -22,7 +22,7 @@ if DATABASE_URL.startswith("mysql://"):
     DATABASE_URL = DATABASE_URL.replace("mysql://", "mysql+pymysql://")
 
 
-def create_database_engine(**kwargs):
+def create_database_engine(**kwargs: Any) -> Any:
     """创建数据库引擎
 
     Args:
@@ -51,7 +51,7 @@ engine = create_database_engine()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
-def create_tables(base=None):
+def create_tables(base: Any = None) -> None:
     """创建所有表
 
     Args:
@@ -91,7 +91,7 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 
-def init_database(base=None):
+def init_database(base: Any = None) -> None:
     """初始化数据库
 
     创建所有表结构

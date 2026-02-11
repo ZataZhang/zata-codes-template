@@ -6,7 +6,7 @@
 import logging
 import sys
 from logging.handlers import TimedRotatingFileHandler
-from typing import Optional
+from typing import Any, Optional
 
 from utils.settings import config
 
@@ -40,7 +40,7 @@ class Logger:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self):
+    def __init__(self) -> None:
         """初始化日志管理器"""
         if self._logger is None:
             self._setup_logger()
@@ -100,7 +100,7 @@ class Logger:
             self._setup_logger()
         return self._logger
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         """委托属性访问到底层的 logger 实例
 
         允许直接调用 logger.info()、logger.error() 等方法。

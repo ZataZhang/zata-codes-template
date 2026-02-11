@@ -3,6 +3,7 @@
 提供常用的纯函数工具，保持无状态、可复用。
 """
 
+from collections.abc import Callable
 from datetime import datetime
 from typing import Optional, Any, Dict, List
 import json
@@ -156,12 +157,12 @@ def chunks(lst: List, n: int) -> List[List]:
 
 
 def retry_on_exception(
-    func,
+    func: Callable[[], Any],
     max_retries: int = 3,
     delay: float = 1.0,
     exceptions: tuple = (Exception,),
-    default=None,
-):
+    default: Any = None,
+) -> Any:
     """对函数进行重试装饰
 
     Args:
