@@ -9,9 +9,13 @@ DATE=$(date +%Y-%m-%d)
 
 echo "Initializing planning files for: $PROJECT_NAME"
 
-# Create task_plan.md if it doesn't exist
-if [ ! -f "task_plan.md" ]; then
-    cat > task_plan.md << 'EOF'
+# Create or overwrite task_plan.md
+if [ -f "task_plan.md" ]; then
+    echo "Overwriting task_plan.md"
+else
+    echo "Creating task_plan.md"
+fi
+cat > task_plan.md << 'EOF'
 # Task Plan: [Brief Description]
 
 ## Goal
@@ -56,14 +60,14 @@ Phase 1
 | Error | Resolution |
 |-------|------------|
 EOF
-    echo "Created task_plan.md"
-else
-    echo "task_plan.md already exists, skipping"
-fi
 
-# Create findings.md if it doesn't exist
-if [ ! -f "findings.md" ]; then
-    cat > findings.md << 'EOF'
+# Create or overwrite findings.md
+if [ -f "findings.md" ]; then
+    echo "Overwriting findings.md"
+else
+    echo "Creating findings.md"
+fi
+cat > findings.md << 'EOF'
 # Findings & Decisions
 
 ## Requirements
@@ -83,14 +87,14 @@ if [ ! -f "findings.md" ]; then
 ## Resources
 -
 EOF
-    echo "Created findings.md"
-else
-    echo "findings.md already exists, skipping"
-fi
 
-# Create progress.md if it doesn't exist
-if [ ! -f "progress.md" ]; then
-    cat > progress.md << EOF
+# Create or overwrite progress.md
+if [ -f "progress.md" ]; then
+    echo "Overwriting progress.md"
+else
+    echo "Creating progress.md"
+fi
+cat > progress.md << EOF
 # Progress Log
 
 ## Session: $DATE
@@ -110,10 +114,6 @@ if [ ! -f "progress.md" ]; then
 | Error | Resolution |
 |-------|------------|
 EOF
-    echo "Created progress.md"
-else
-    echo "progress.md already exists, skipping"
-fi
 
 echo ""
 echo "Planning files initialized!"
