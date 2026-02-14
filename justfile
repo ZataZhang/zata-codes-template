@@ -102,3 +102,48 @@ export-env-zip output="":
         archived_relative_path = env_file_path.relative_to(project_root_path)
         print(f" - {archived_relative_path}")
     PY
+
+# Copy template to a new directory (excluding .git and cache directories)
+# Usage: just copy <new-directory-name>
+copy name:
+    #!/usr/bin/env bash
+    set -e
+
+    if [ -z "{{name}}" ]; then
+        echo "Error: Please provide a directory name"
+        echo "Usage: just copy <new-directory-name>"
+        exit 1
+    fi
+
+    TEMPLATE_DIR="{{justfile_directory()}}"
+    NEW_DIR="$(dirname "$TEMPLATE_DIR")/{{name}}"
+
+    if [ -d "$NEW_DIR" ]; then
+        echo "Error: Directory '$NEW_DIR' already exists"
+        exit 1
+    fi
+
+    echo "Copying template to $NEW_DIR..."
+
+    rsync -av \
+        --exclude='.git' \
+        --exclude='.venv' \
+        --exclude='.uv-cache' \
+        --exclude='.pytest_cache' \
+        --exclude='.ruff_cache' \
+        --exclude='logs' \
+        --exclude='site' \
+        --exclude='*.egg-info' \
+        --exclude='__pycache__' \
+        "$TEMPLATE_DIR/" "$NEW_DIR/"
+
+    NEW_JUSTFILE="$NEW_DIR/justfile"
+
+    sed -i '/^# Copy template to a new directory/,$d' "$NEW_JUSTFILE"
+
+    echo ""
+    echo "✓ Copy complete!"
+    echo ""
+    echo "Next steps:"
+    echo "  cd ../{{name}}"
+    echo "  git init (if needed)"
