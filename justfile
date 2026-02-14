@@ -103,6 +103,7 @@ export-env-zip output="":
         print(f" - {archived_relative_path}")
     PY
 
+
 # Copy template to a new directory (excluding .git and cache directories)
 # Usage: just copy <new-directory-name>
 copy name:
@@ -117,6 +118,7 @@ copy name:
 
     TEMPLATE_DIR="{{justfile_directory()}}"
     NEW_DIR="$(dirname "$TEMPLATE_DIR")/{{name}}"
+    OLD_NAME="zata-codes-template"
 
     if [ -d "$NEW_DIR" ]; then
         echo "Error: Directory '$NEW_DIR' already exists"
@@ -138,8 +140,15 @@ copy name:
         "$TEMPLATE_DIR/" "$NEW_DIR/"
 
     NEW_JUSTFILE="$NEW_DIR/justfile"
-
     sed -i '/^# Copy template to a new directory/,$d' "$NEW_JUSTFILE"
+
+    echo "Updating project name in config files..."
+    sed -i "s/$OLD_NAME/{{name}}/g" "$NEW_DIR/config.toml"
+    sed -i "s/$OLD_NAME/{{name}}/g" "$NEW_DIR/mkdocs.yml"
+    sed -i "s/$OLD_NAME/{{name}}/g" "$NEW_DIR/pyproject.toml"
+
+    echo "Removing task markdown files..."
+    find "$NEW_DIR/tasks" -type f -name "*.md" -delete 2>/dev/null || true
 
     echo ""
     echo "✓ Copy complete!"
