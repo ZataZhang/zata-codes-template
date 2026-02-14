@@ -137,6 +137,8 @@ copy name:
         --exclude='site' \
         --exclude='*.egg-info' \
         --exclude='__pycache__' \
+        --exclude='prompt' \
+        --exclude='skills' \
         "$TEMPLATE_DIR/" "$NEW_DIR/"
 
     NEW_JUSTFILE="$NEW_DIR/justfile"
@@ -147,12 +149,5 @@ copy name:
     sed -i "s/$OLD_NAME/{{name}}/g" "$NEW_DIR/mkdocs.yml"
     sed -i "s/$OLD_NAME/{{name}}/g" "$NEW_DIR/pyproject.toml"
 
-    echo "Removing task markdown files..."
-    find "$NEW_DIR/tasks" -type f -name "*.md" -delete 2>/dev/null || true
-
-    echo ""
-    echo "✓ Copy complete!"
-    echo ""
-    echo "Next steps:"
-    echo "  cd ../{{name}}"
-    echo "  git init (if needed)"
+    echo "Resetting README.md to template..."
+    uv run python "$TEMPLATE_DIR/scripts/generate_readme.py" "{{name}}" "$NEW_DIR/README.md"
