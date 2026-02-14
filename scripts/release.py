@@ -111,7 +111,8 @@ def build_release_zip(repo_root: Path) -> Path:
     """
     version = _read_project_version(repo_root)
     ts = time.strftime("%Y%m%d-%H%M%S")
-    base_name = "dwcrawler" + (f"-v{version}" if version else "") + f"-{ts}.zip"
+    project_name = repo_root.name.replace(" ", "-")
+    base_name = project_name + (f"-v{version}" if version else "") + f"-{ts}.zip"
 
     dist_dir = repo_root / "dist"
     dist_dir.mkdir(parents=True, exist_ok=True)

@@ -105,6 +105,86 @@ def update_phase_status(plan_path: Path, phase_name: str, new_status: str) -> bo
     old_status = match.group(3)
     new_content = content[: match.start(3)] + new_status + content[match.end(3) :]
 
+    # Also update Started/Completed timestamps within the matched phase block.
+    block_pattern = rf"(### {re.escape(phase_name)}[^\n]*\n(.*?))(?=### Phase|\n## |$)"
+    block_match = re.search(block_pattern, new_content, re.DOTALL)
+
+    if block_match:
+        block_full = block_match.group(1)
+
+        def replace_started_completed(
+            block_text: str, started: str | None, completed: str | None
+        ) -> str:
+            """Replace or insert Started/Completed lines in the phase block."""
+            # Use [^\n]* to match only within current line (not across lines like .* with DOTALL)
+            # Replace existing Started line if present
+            if re.search(r"- \*\*Started:\*\*[^\n]*", block_text):
+                block_text = re.sub(
+                    r"- \*\*Started:\*\*[^\n]*",
+                    f"- **Started:** {started if started else ''}",
+                    block_text,
+                )
+            else:
+                block_text = re.sub(
+                    r"(\*\*Status:\*\*[^\n]*\n)",
+                    rf"\1- **Started:** {started if started else ''}\n",
+                    block_text,
+                )
+
+            # Replace existing Completed line if present
+            if re.search(r"- \*\*Completed:\*\*[^\n]*", block_text):
+                block_text = re.sub(
+                    r"- \*\*Completed:\*\*[^\n]*",
+                    f"- **Completed:** {completed if completed else ''}",
+                    block_text,
+                )
+            else:
+                # Ensure Completed line exists after Started
+                block_text = re.sub(
+                    r"(\- \*\*Started:\*\*[^\n]*\n)",
+                    rf"\1- **Completed:** {completed if completed else ''}\n",
+                    block_text,
+                )
+
+            return block_text
+
+        now_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        if new_status == "in_progress":
+            # Set Started to now (if empty) and clear Completed
+            started_val = now_ts
+            completed_val = ""
+            # If a Started already exists with content, keep it
+            # Use [ \t]* to match only spaces/tabs (not newlines), and [^\n]+ for the value
+            started_search = re.search(r"- \*\*Started:\*\*[ \t]*([^\n]+)", block_full)
+            if started_search and started_search.group(1).strip():
+                started_val = started_search.group(1).strip()
+
+        elif new_status == "complete":
+            # Ensure Started exists (use existing or now) and set Completed to now
+            completed_val = now_ts
+            # Use [ \t]* to match only spaces/tabs (not newlines), and [^\n]+ for the value
+            started_search = re.search(r"- \*\*Started:\*\*[ \t]*([^\n]+)", block_full)
+            if started_search and started_search.group(1).strip():
+                started_val = started_search.group(1).strip()
+            else:
+                started_val = now_ts
+
+        else:  # pending or other
+            started_val = ""
+            completed_val = ""
+
+        updated_block = replace_started_completed(
+            block_full, started_val, completed_val
+        )
+
+        # Replace the old block with updated block in the content
+        new_content = (
+            new_content[: block_match.start(1)]
+            + updated_block
+            + new_content[block_match.end(1) :]
+        )
+
     # Update the file
     plan_path.write_text(new_content, encoding="utf-8")
 
