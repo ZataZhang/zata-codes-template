@@ -38,6 +38,10 @@ clean:
     @find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
     @echo "Clean complete!"
 
+# Build a release zip (does NOT modify local workspace)
+release:
+    uv run python scripts/release.py
+
 staged_changes:
     git diff --cached > staged_changes.diff
 
@@ -139,6 +143,7 @@ copy name:
         --exclude='__pycache__' \
         --exclude='prompt' \
         --exclude='skills' \
+        --exclude='scripts/generate_readme.py' \
         "$TEMPLATE_DIR/" "$NEW_DIR/"
 
     NEW_JUSTFILE="$NEW_DIR/justfile"
