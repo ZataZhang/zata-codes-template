@@ -294,8 +294,14 @@
     ],
     "text_embeddings": [
       {
+        "name": "text-embedding-v4",
+        "description": "DashScope text embedding v4 model"
+      }
+    ],
+    "rerank_models": [
+      {
         "name": "qwen3-rerank",
-        "description": "Text retrieval and ranking embeddings"
+        "description": "Qwen3 rerank model (for retrieval ranking, not embedding)"
       }
     ],
     "multimodal_embeddings": [
@@ -356,30 +362,6 @@
       {
         "name": "gemini-3-pro-preview-11-2025",
         "description": "Google Gemini 3 Pro Preview - Advanced multimodal AI model"
-      }
-    ]
-  },
-  "azhexing":{
-    "api_key_env": "AZHEXING_API_KEY",
-    "base_url": "https://azhexing.com/v1/",
-    "omni_models": [
-      {
-        "name": "[Vex]gemini-3-pro-preview",
-        "description": "Azhexing Gemini 3 Pro Preview - Advanced multimodal AI model"
-      }
-    ]
-  },
-  "redbox": {
-    "api_key_env": "REDBOX_API_KEY",
-    "base_url": "https://www.redbox.ink/v1",
-    "omni_models": [
-      {
-        "name": "gemini-3-pro-preview",
-        "description": "Redbox Gemini 3 Pro Preview - Advanced multimodal AI model"
-      },
-      {
-        "name": "[1刀/次]gemini-3-pro-preview-think",
-        "description": "Redbox Gemini 3 Pro Preview Think（1刀/次）- 高级多模态AI模型"
       }
     ]
   }
