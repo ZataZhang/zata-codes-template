@@ -1,6 +1,6 @@
 ---
 name: planning-with-files
-version: "2.1.2"
+version: "2.2.0"
 description: Implements Manus-style file-based planning for complex tasks. Creates task_plan.md, findings.md, and progress.md. Use when starting complex multi-step tasks, research projects, or any task requiring >5 tool calls.
 user-invocable: true
 allowed-tools:
@@ -17,6 +17,8 @@ hooks:
     - hooks:
         - type: command
           command: "echo '[planning-with-files] Ready. Auto-activates for complex tasks, or invoke manually with /planning-with-files'"
+        - type: command
+          command: "python ${CLAUDE_PLUGIN_ROOT}/scripts/update_phase_status.py --status-report 2>/dev/null || true"
   PreToolUse:
     - matcher: "Write|Edit|Bash"
       hooks:
@@ -26,11 +28,17 @@ hooks:
     - matcher: "Write|Edit"
       hooks:
         - type: command
-          command: "echo '[planning-with-files] File updated. If this completes a phase, update task_plan.md status.'"
+          command: "echo '[planning-with-files] File updated. Checking phase status...'"
+        - type: command
+          command: "python ${CLAUDE_PLUGIN_ROOT}/scripts/update_phase_status.py --auto-advance 2>/dev/null || true"
+        - type: command
+          command: "python ${CLAUDE_PLUGIN_ROOT}/scripts/update_phase_status.py --status-report 2>/dev/null || true"
   Stop:
     - hooks:
         - type: command
           command: "${CLAUDE_PLUGIN_ROOT}/scripts/check-complete.sh"
+        - type: command
+          command: "python ${CLAUDE_PLUGIN_ROOT}/scripts/update_phase_status.py --status-report 2>/dev/null || true"
 ---
 
 # Planning with Files
@@ -213,6 +221,37 @@ Helper scripts for automation:
 
 - `scripts/init-session.sh` — Initialize all planning files
 - `scripts/check-complete.sh` — Verify all phases complete
+- `scripts/update_phase_status.py` — **NEW!** Auto-update phase status
+
+### Using update_phase_status.py
+
+This script provides automatic phase status management:
+
+```bash
+# Show current status report
+python scripts/update_phase_status.py --status-report
+
+# Mark a phase as complete
+python scripts/update_phase_status.py --phase "Phase 1" --status complete
+
+# Auto-advance to next phase (if current is complete)
+python scripts/update_phase_status.py --auto-advance
+
+# Log a progress message
+python scripts/update_phase_status.py --log "Completed API integration"
+```
+
+### Automatic Status Updates (v2.2.0+)
+
+The skill now includes automatic status tracking:
+
+1. **Session Start**: Shows current status report
+2. **After File Changes**:
+   - Checks if current phase can auto-advance
+   - Displays updated status report
+3. **Session End**: Shows final status report
+
+> **Note**: The auto-advance feature works by detecting when a phase is marked `complete` and automatically setting the next phase to `in_progress`.
 
 ## Advanced Topics
 
