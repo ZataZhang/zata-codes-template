@@ -48,6 +48,9 @@ nav:
       - 配置说明: guides/configuration.md
       - 部署指南: guides/deployment.md
       - PRD 编写规范: guides/prd-standard.md
+  - 原型演示:
+      - 概览: prototypes/index.md
+      - PRD Demo UI: prototypes/prd-demo.html
   - 核心概念:
       - Prompt 工程: core/prompt_engineering.md
   - 数据库:

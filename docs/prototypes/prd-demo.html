@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PRD Demo Prototype</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="assets/prototype.css" />
+  </head>
+  <body>
+    <div class="prototype-shell">
+      <header class="prototype-header">
+        <div class="title-wrap">
+          <p class="eyebrow">Interactive Prototype</p>
+          <h1>PRD Flow Simulator</h1>
+        </div>
+        <div class="header-links">
+          <a href="../guides/prd-standard/" class="ghost-link">PRD 规范</a>
+          <a href="./" class="ghost-link">原型目录</a>
+        </div>
+      </header>
+
+      <main class="layout-grid">
+        <aside class="left-panel card">
+          <h2>Scenario</h2>
+          <p>切换用例观察流程状态变化。</p>
+          <div class="toggle-group" role="tablist" aria-label="Scenario Selector">
+            <button class="toggle-btn is-active" type="button" data-scenario="normal">Normal</button>
+            <button class="toggle-btn" type="button" data-scenario="edge">Edge Case</button>
+          </div>
+
+          <h3>Controls</h3>
+          <div class="control-grid">
+            <button class="control-btn start" id="startBtn" type="button">Start</button>
+            <button class="control-btn next" id="nextBtn" type="button">Next</button>
+            <button class="control-btn reset" id="resetBtn" type="button">Reset</button>
+          </div>
+        </aside>
+
+        <section class="main-panel card" aria-live="polite">
+          <h2 id="phaseTitle">待开始</h2>
+          <p id="phaseDescription">点击 Start 开始模拟需求到交付的流程。</p>
+          <div class="progress-track">
+            <div class="progress-fill" id="progressFill"></div>
+          </div>
+          <div class="pill-row">
+            <span class="pill">Current Step: <strong id="stepNumber">0 / 4</strong></span>
+            <span class="pill">Risk Level: <strong id="riskLabel">Low</strong></span>
+          </div>
+        </section>
+
+        <section class="timeline-panel card">
+          <h2>Event Timeline</h2>
+          <ol id="timelineList" class="timeline-list"></ol>
+        </section>
+      </main>
+    </div>
+
+    <script src="assets/prototype.js"></script>
+  </body>
+</html>

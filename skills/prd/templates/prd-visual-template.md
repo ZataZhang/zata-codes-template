@@ -77,6 +77,21 @@ If no schema/state model changes:
 |---|---|---|
 | `[path/to/file]` | Modify/Add/Delete | [What changes and why] |
 
+### 2.8 Interactive Prototype Change Log (Required when prototype files changed)
+
+| File Path | Change Type | Before | After | Why |
+|---|---|---|---|---|
+| `docs/prototypes/[feature]-demo.html` | Modify/Add | [Old behavior] | [New behavior] | [Reason] |
+| `docs/prototypes/assets/[feature].js` | Modify/Add | [Old behavior] | [New behavior] | [Reason] |
+
+If no prototype changes:
+- No interactive prototype file changes in this PRD.
+
+### 2.9 Interactive Prototype Link (Required for UI/prototype requests)
+
+- Prototype page: `docs/prototypes/[feature]-demo.html`
+- Optional index link: `docs/prototypes/index.md`
+
 ---
 
 ## 3. Global Definition of Done (DoD)
@@ -89,6 +104,9 @@ If no schema/state model changes:
 - [ ] Mermaid diagram included
 - [ ] Low-fidelity prototype included
 - [ ] ER diagram included when required
+- [ ] Interactive prototype change log included when prototype files changed
+- [ ] Interactive prototype link included for UI/prototype requests
+- [ ] `uv run mkdocs build` passed after prototype/doc changes
 
 ---
 

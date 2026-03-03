@@ -61,5 +61,5 @@ repos:
         entry: uv run python hooks/archive_tasks.py
         language: system
         pass_filenames: false
-        stages: [commit]
+        stages: [pre-commit]
         always_run: true

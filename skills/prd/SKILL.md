@@ -14,8 +14,9 @@ The output PRD must make changes explicit via visual artifacts (tables + diagram
 
 1. **Analyze Project Context:** Read project files to understand the tech stack and patterns.
 2. **Clarify:** Ask 3-5 *context-aware* questions with recommendations.
-3. **Generate:** Create a structured PRD with technical implementation details and mandatory visuals.
-4. **Save:** Write to `tasks/prd-[feature-name].md`.
+3. **Execute Prototype Changes (when needed):** If prototype/UI changes are required, modify prototype files first.
+4. **Generate:** Create a structured PRD with technical implementation details, mandatory visuals, and change logs.
+5. **Save:** Write to `tasks/prd-[feature-name].md`.
 
 ---
 
@@ -62,7 +63,35 @@ C. [Option C]
 
 ---
 
-## Step 3: PRD Structure
+## Step 3: Prototype-Aware Execution (Conditional Mandatory)
+
+Before writing the final PRD, detect whether prototype page modifications are required.
+
+### Trigger Conditions
+Execute prototype file changes in the same turn when any of these are true:
+- User asks for interactive UI/prototype/wireframe updates.
+- Change Matrix includes `docs/prototypes/*.html` or `docs/prototypes/assets/*`.
+- Requirement needs behavior demonstration (state transitions, button flows, step simulation).
+
+### Required Actions When Triggered
+1. Create/modify prototype files under:
+   - `docs/prototypes/*.html`
+   - `docs/prototypes/assets/*.css`
+   - `docs/prototypes/assets/*.js`
+2. Ensure prototype has at least:
+   - One interaction control (button/toggle/tab)
+   - One visible state change in the page
+3. If new prototype page is added, update `mkdocs.yml` nav.
+4. Run `uv run mkdocs build`.
+5. Record actual modifications in the generated PRD section:
+   - `2.8 Interactive Prototype Change Log`
+
+If trigger conditions are not met, explicitly state in PRD:
+- `No interactive prototype file changes in this PRD.`
+
+---
+
+## Step 4: PRD Structure
 
 Generate the PRD with these sections. Sections 2.1-2.4 are mandatory.
 
@@ -83,6 +112,12 @@ Based on your analysis in Step 1, outline the technical path:
 - **2.2 Flow Diagram (MANDATORY):** At least one Mermaid flowchart or architecture diagram.
 - **2.3 Low-Fidelity Prototype (MANDATORY):** ASCII wireframe or Mermaid layout diagram.
 - **2.4 ER Diagram (CONDITIONAL MANDATORY):** Include Mermaid `erDiagram` when data model/schema/state structure changes are involved.
+- **2.8 Interactive Prototype Change Log (CONDITIONAL MANDATORY):**
+  - Required when prototype files are created or modified.
+  - Must include: file path, what changed, before behavior, after behavior.
+- **2.9 Interactive Prototype Link (CONDITIONAL MANDATORY):**
+  - Required for UI/prototype related requests.
+  - Must point to actual page path under `docs/prototypes/`.
 
 ### 3. Global Definition of Done (DoD)
 Criteria applicable to **all** User Stories:
@@ -115,7 +150,7 @@ What is explicitly out of scope.
 
 ---
 
-## Step 4: Visual Artifact Rules (Mandatory)
+## Step 5: Visual Artifact Rules (Mandatory)
 
 ### A. Change Matrix Template
 Use this exact structure (add rows as needed):
@@ -148,9 +183,18 @@ Include an ER diagram if any of these are true:
 
 When ER is required, use Mermaid `erDiagram` and ensure entity names match the text/table.
 
+### E. Interactive Prototype Change Log Template
+Use this structure when prototype files changed:
+
+| File Path | Change Type | Before | After | Why |
+|---|---|---|---|---|
+| `docs/prototypes/prd-demo.html` | Modify | Static content only | Added Start/Next/Reset interactions | Support behavior review |
+
+Include at least one path under `docs/prototypes/`.
+
 ---
 
-## Step 5: Save Location
+## Step 6: Save Location
 
 Write the PRD to:
 - `tasks/prd-[feature-name].md`
@@ -168,5 +212,8 @@ Feature slug should be lowercase with hyphens.
 * [ ] Included at least one **Mermaid** flow/architecture diagram
 * [ ] Included a **Low-Fidelity Prototype** (ASCII or Mermaid)
 * [ ] Added **ER diagram** when schema/data model changes are present
+* [ ] Executed prototype file edits when UI/prototype triggers are present
+* [ ] Added **Interactive Prototype Change Log** with real file paths and before/after behavior
+* [ ] Added **Interactive Prototype Link** when UI/prototype related
 * [ ] Listed specific file paths in "Implementation Guide"
 * [ ] Saved to `tasks/prd-[feature-name].md`

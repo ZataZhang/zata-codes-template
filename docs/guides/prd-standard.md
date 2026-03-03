@@ -43,6 +43,25 @@ flowchart TD
 +--------------------------------------------------+
 ```
 
+## 交互原型（可操作 UI）规则
+
+当需求评审需要验证流程交互（而不仅是结构布局）时，建议追加可交互原型页面。
+
+- 原型页面路径：`docs/prototypes/*.html`
+- 资源路径：`docs/prototypes/assets/`
+- PRD 中必须明确写出原型入口路径和用途
+- 页面必须提供最小交互（建议 `Start` / `Next` / `Reset`）
+- 页面必须支持移动端基础可操作性
+
+推荐在 PRD 的 `Implementation Guide` 中补一节：
+- `Interactive Prototype Link`：`docs/prototypes/<feature>-demo.html`
+
+如果由 `prd` 技能执行且触发 UI/原型改动条件，要求：
+
+- 在生成 PRD 之前先实际修改原型文件
+- 在 PRD 中增加 `Interactive Prototype Change Log`，记录前后行为变化
+- 日志需包含真实文件路径（如 `docs/prototypes/*.html`、`docs/prototypes/assets/*.js`）
+
 ## ER 图触发条件
 
 当存在以下任一情况时，必须提供 Mermaid `erDiagram`：
@@ -65,3 +84,5 @@ flowchart TD
 - 技能说明：`skills/prd/SKILL.md`
 - 可复用模板：`skills/prd/templates/prd-visual-template.md`
 - 示例 PRD：`tasks/prd-visual-change-spec.md`
+- 原型规范入口：`docs/prototypes/index.md`
+- 原型示例：`docs/prototypes/prd-demo.html`
