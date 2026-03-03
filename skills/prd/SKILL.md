@@ -6,6 +6,7 @@ description: "Generate a technical Product Requirements Document (PRD). Triggers
 # PRD Generator (Context-Aware)
 
 Create detailed Product Requirements Documents that are clear, actionable, and deeply integrated with the existing codebase.
+The output PRD must make changes explicit via visual artifacts (tables + diagrams), not only text.
 
 ---
 
@@ -13,7 +14,7 @@ Create detailed Product Requirements Documents that are clear, actionable, and d
 
 1. **Analyze Project Context:** Read project files to understand the tech stack and patterns.
 2. **Clarify:** Ask 3-5 *context-aware* questions with recommendations.
-3. **Generate:** Create a structured PRD with technical implementation details.
+3. **Generate:** Create a structured PRD with technical implementation details and mandatory visuals.
 4. **Save:** Write to `tasks/prd-[feature-name].md`.
 
 ---
@@ -63,7 +64,7 @@ C. [Option C]
 
 ## Step 3: PRD Structure
 
-Generate the PRD with these sections:
+Generate the PRD with these sections. Sections 2.1-2.4 are mandatory.
 
 ### 1. Introduction & Goals
 Brief description and bulleted list of measurable objectives.
@@ -73,6 +74,15 @@ Based on your analysis in Step 1, outline the technical path:
 - **Core Logic:** How data flows through the **existing** system.
 - **Database/State Changes:** Specific fields/tables to modify (e.g., "Add `is_active` to `User` table").
 - **Affected Files:** Predict specific file paths (e.g., `src/components/Navbar.tsx`, `server/routers/user.ts`).
+- **2.1 Change Matrix (MANDATORY):** A table with columns:
+  - `Change Target`
+  - `Current State`
+  - `Target State`
+  - `How to Modify`
+  - `Affected Files`
+- **2.2 Flow Diagram (MANDATORY):** At least one Mermaid flowchart or architecture diagram.
+- **2.3 Low-Fidelity Prototype (MANDATORY):** ASCII wireframe or Mermaid layout diagram.
+- **2.4 ER Diagram (CONDITIONAL MANDATORY):** Include Mermaid `erDiagram` when data model/schema/state structure changes are involved.
 
 ### 3. Global Definition of Done (DoD)
 Criteria applicable to **all** User Stories:
@@ -105,41 +115,47 @@ What is explicitly out of scope.
 
 ---
 
-## Example PRD (Context-Aware)
+## Step 4: Visual Artifact Rules (Mandatory)
 
-```markdown
-# PRD: Task Priority System
+### A. Change Matrix Template
+Use this exact structure (add rows as needed):
 
-## Introduction & Goals
-Add priority levels (High/Medium/Low) to tasks.
+| Change Target | Current State | Target State | How to Modify | Affected Files |
+|---|---|---|---|---|
+| Example: Task priority data field | No priority field | Priority enum available | Add enum + wire validation + render badge | `prisma/schema.prisma`, `src/server/routers/task.ts`, `src/components/TaskItem.tsx` |
 
-## Implementation Guide
-- **Analysis:** Project uses Prisma + tRPC + Tailwind.
-- **Database:** Edit `prisma/schema.prisma`: Add enum `Priority` { HIGH, MEDIUM, LOW }.
-- **Backend:** Update `src/server/routers/task.ts` input validation (Zod schema).
-- **Frontend:**
-    - Update `src/components/TaskItem.tsx` to use `Badge` component.
-    - Add logic to `src/utils/priority-colors.ts`.
+### B. Flow Diagram Template
+At least one Mermaid diagram:
 
-## Global Definition of Done
-- [ ] Typecheck passes
-- [ ] Verify in browser
-
-## User Stories
-
-### US-001: Schema Update
-**Description:** Update data model to support priorities.
-**Acceptance Criteria:**
-- [ ] Prisma migration generated and applied
-- [ ] Zod schema updated to accept priority field
-
-### US-002: UI Display
-**Description:** Show priority badge on tasks.
-**Acceptance Criteria:**
-- [ ] Use existing `Badge` component (found in `src/ui/Badge`)
-- [ ] Red=High, Yellow=Medium, Gray=Low (matches theme)
-
+```mermaid
+flowchart TD
+    A[User Request] --> B[Analyze Existing Code]
+    B --> C[Define Change Matrix]
+    C --> D[Implement Affected Files]
+    D --> E[Validate + Deliver]
 ```
+
+### C. Low-Fidelity Prototype Template
+Use one of:
+- ASCII wireframe in code block, or
+- Mermaid layout (flowchart/subgraph) showing module/screen blocks.
+
+### D. ER Diagram Trigger Rule
+Include an ER diagram if any of these are true:
+- New table/model/entity added
+- Existing fields/relationships changed
+- Persistent state schema modified (DB or structured storage)
+
+When ER is required, use Mermaid `erDiagram` and ensure entity names match the text/table.
+
+---
+
+## Step 5: Save Location
+
+Write the PRD to:
+- `tasks/prd-[feature-name].md`
+
+Feature slug should be lowercase with hyphens.
 
 ---
 
@@ -148,7 +164,9 @@ Add priority levels (High/Medium/Low) to tasks.
 * [ ] **Analyzed project structure FIRST**
 * [ ] Skipped questions already answered by existing code
 * [ ] Included recommendations based on current project patterns
+* [ ] Included a **Change Matrix** with explicit "How to Modify"
+* [ ] Included at least one **Mermaid** flow/architecture diagram
+* [ ] Included a **Low-Fidelity Prototype** (ASCII or Mermaid)
+* [ ] Added **ER diagram** when schema/data model changes are present
 * [ ] Listed specific file paths in "Implementation Guide"
 * [ ] Saved to `tasks/prd-[feature-name].md`
-
-```
