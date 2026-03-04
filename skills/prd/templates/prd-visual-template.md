@@ -27,11 +27,13 @@
 
 ### 2.3 Core Logic Flow (Mandatory)
 
+Use quoted Mermaid labels when text includes special characters (for example API paths with `{}`): `F["POST /agents/{agent_id}/evaluation-runs"]`.
+
 ```mermaid
 flowchart TD
     USER[User Input] --> ANALYZE[Analyze Existing System]
     ANALYZE --> DESIGN[Design Change Plan]
-    DESIGN --> IMPLEMENT[Apply Changes]
+    DESIGN --> IMPLEMENT["POST /agents/{agent_id}/evaluation-runs"]
     IMPLEMENT --> VALIDATE[Run Validation]
     VALIDATE --> OUTPUT[Deliver]
 ```

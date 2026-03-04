@@ -162,11 +162,16 @@ Use this exact structure (add rows as needed):
 ### B. Flow Diagram Template
 At least one Mermaid diagram:
 
+Mermaid label safety rule:
+- If a node label contains special characters such as `/`, `{}`, `[]`, `()`, `:`, or `-` (common in API paths), wrap the label with double quotes.
+- Correct: `F["POST /agents/{agent_id}/evaluation-runs"]`
+- Incorrect: `F[POST /agents/{agent_id}/evaluation-runs]`
+
 ```mermaid
 flowchart TD
     A[User Request] --> B[Analyze Existing Code]
     B --> C[Define Change Matrix]
-    C --> D[Implement Affected Files]
+    C --> D["POST /agents/{agent_id}/evaluation-runs"]
     D --> E[Validate + Deliver]
 ```
 

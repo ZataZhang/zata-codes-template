@@ -6,9 +6,17 @@ default:
 prod-sync:
     uv sync --no-dev
 
-# 安装全部（主依赖 + dev + 所有 extras）
-full-sync:
+# 安装全部（主依赖 + dev + 所有 extras）并安装全局 worktree 补全
+# Usage:
+#   just full-sync
+#   just full-sync install_completion=false
+full-sync install_completion="true":
+    #!/usr/bin/env bash
+    set -euo pipefail
     uv sync --all-extras
+    if [ "{{install_completion}}" = "true" ] && [ -z "${CI:-}" ]; then
+        just install-worktree-completion
+    fi
 
 # Sync dependencies from lock file (including dev)
 sync:
@@ -44,6 +52,74 @@ release:
 
 staged_changes:
     git diff --cached > staged_changes.diff
+
+# Git worktree helper (wrapper for scripts/git_worktree.sh)
+# Usage:
+#   just worktree <branch_name>
+#   just worktree <branch_name> vscode_add=true
+#   just worktree <branch_name> vscode_add=true code_cmd=code-insiders
+#   just worktree <branch_name> enter_shell=false
+worktree branch_name vscode_add="false" code_cmd="code" enter_shell="true":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    worktree_command=(./scripts/git_worktree.sh "{{branch_name}}")
+    if [ "{{vscode_add}}" = "true" ]; then
+        worktree_command+=(--vscode-add --code-cmd "{{code_cmd}}")
+    fi
+    "${worktree_command[@]}"
+    if [ "{{enter_shell}}" = "true" ]; then
+        target_worktree_path="$(dirname "$(git rev-parse --show-toplevel)")/{{branch_name}}"
+        echo "Entering worktree shell: $target_worktree_path"
+        echo "Run 'exit' to return to previous shell."
+        cd "$target_worktree_path"
+        exec "${SHELL:-bash}" -i
+    fi
+
+# Git worktree merge helper (wrapper for scripts/git_worktree_merge.sh)
+# Usage:
+#   just worktree-merge <feature_branch>
+#   just worktree-merge <feature_branch> <base_branch>
+#   just worktree-merge <feature_branch> <base_branch> flags="--cleanup --delete-remote"
+#   just worktree-merge <feature_branch> flags="-d"
+worktree-merge feature_branch base_branch="main" flags="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ -n "{{flags}}" ]; then
+        ./scripts/git_worktree_merge.sh "{{feature_branch}}" "{{base_branch}}" {{flags}}
+    else
+        ./scripts/git_worktree_merge.sh "{{feature_branch}}" "{{base_branch}}"
+    fi
+
+# Delete-only cleanup for a feature worktree/branch
+# Usage:
+#   just worktree-delete <feature_branch>
+worktree-delete feature_branch:
+    ./scripts/git_worktree_merge.sh "{{feature_branch}}" -d
+
+# Install global bash completion for just worktree recipes (one-time setup)
+# Usage:
+#   just install-worktree-completion
+install-worktree-completion:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    completion_script_source_path="{{justfile_directory()}}/scripts/just_worktree_completion.bash"
+    completion_directory_path="$HOME/.config/just"
+    completion_script_path="$completion_directory_path/worktree_completion.bash"
+    shell_rc_path="$HOME/.bashrc"
+    source_line="[ -f \"$completion_script_path\" ] && source \"$completion_script_path\""
+    mkdir -p "$completion_directory_path"
+    cp "$completion_script_source_path" "$completion_script_path"
+    if [ ! -f "$shell_rc_path" ]; then
+        touch "$shell_rc_path"
+    fi
+    if ! grep -Fqx "$source_line" "$shell_rc_path"; then
+        printf '\n%s\n' "$source_line" >> "$shell_rc_path"
+        echo "Added completion source line to $shell_rc_path"
+    else
+        echo "Completion source line already exists in $shell_rc_path"
+    fi
+    echo "Installed completion script at $completion_script_path"
+    echo "Run: source \"$shell_rc_path\""
 
 # Run tests (usage: just test [all|local|real])
 #   just test        - Run local tests (no API keys needed)
