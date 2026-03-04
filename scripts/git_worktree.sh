@@ -105,7 +105,7 @@ function ai_worktree() {
     fi
 
     echo "🔗 正在处理 .env ..."
-    # 2. 复制仓库中的所有 .env（保持相对路径），避免子目录 .env 丢失
+    # 2. 复制仓库中所有以 .env 结尾的文件（保持相对路径），避免子目录环境文件丢失
     copied_env_file_count=0
     while IFS= read -r source_env_file_path; do
         relative_env_file_path="${source_env_file_path#"$repo_root_path"/}"
@@ -114,7 +114,7 @@ function ai_worktree() {
         cp "$source_env_file_path" "$target_env_file_path"
         copied_env_file_count=$((copied_env_file_count + 1))
     done < <(
-        find "$repo_root_path" -type f -name ".env" \
+        find "$repo_root_path" -type f -name "*.env" \
             -not -path "$repo_root_path/.git/*" \
             -not -path "$repo_root_path/.venv/*" \
             -not -path "$repo_root_path/.uv-cache/*" \
