@@ -2,25 +2,27 @@
 
 # 将此函数放入 .zshrc 或 .bashrc
 # 用法:
-#   source ./scripts/git_worktree.sh && ai_worktree <新分支名> [--vscode-add]
+#   source ./scripts/git_worktree.sh && ai_worktree <新分支名> [--cmd [code_cmd]]
 #   或直接执行:
-#   ./scripts/git_worktree.sh <新分支名> [--vscode-add]
+#   ./scripts/git_worktree.sh <新分支名> [--cmd [code_cmd]]
 
 ai_worktree_usage() {
     cat <<'EOF'
 Usage:
-  ai_worktree <new_branch_name> [--vscode-add] [--code-cmd <cmd>]
+  ai_worktree <new_branch_name> [--cmd [code_cmd]]
 
 Options:
-  --vscode-add      创建完成后自动执行: <code_cmd> --add <worktree_path>
-  --code-cmd <cmd>  指定 VSCode CLI 命令，默认: code
+  --cmd [code_cmd]  创建完成后自动执行: <code_cmd> --add <worktree_path>
+                    不传 code_cmd 时默认使用: code
   -h, --help        显示帮助
 
 Examples:
   ai_worktree feature-login
-  ai_worktree feature-login --vscode-add
+  ai_worktree feature-login --cmd
+  ai_worktree feature-login --cmd code-insiders
   ./scripts/git_worktree.sh feature-login
-  ./scripts/git_worktree.sh feature-login --vscode-add
+  ./scripts/git_worktree.sh feature-login --cmd
+  ./scripts/git_worktree.sh feature-login --cmd code-insiders
 EOF
 }
 
@@ -43,16 +45,20 @@ function ai_worktree() {
                 ai_worktree_usage
                 return 0
                 ;;
-            --vscode-add)
+            --cmd)
                 enable_vscode_add="true"
+                if [ "$#" -gt 1 ] && [[ "$2" != -* ]]; then
+                    vscode_command_name="$2"
+                    shift
+                fi
                 ;;
-            --code-cmd)
-                shift
-                if [ "$#" -eq 0 ]; then
-                    echo "❌ --code-cmd 需要一个命令名，例如: --code-cmd code-insiders"
+            --cmd=*)
+                enable_vscode_add="true"
+                vscode_command_name="${1#--cmd=}"
+                if [ -z "$vscode_command_name" ]; then
+                    echo "❌ --cmd= 后需要提供命令名，例如: --cmd=code-insiders"
                     return 1
                 fi
-                vscode_command_name="$1"
                 ;;
             -*)
                 echo "❌ 未知参数: $1"
@@ -147,16 +153,16 @@ function ai_worktree() {
     # fi
 
     if [ "$enable_vscode_add" = "true" ]; then
-        if command -v "$vscode_command_name" >/dev/null 2>&1; then
-            if "$vscode_command_name" --add "$target_abs_path"; then
-                echo "🧩 已尝试将目录加入 VSCode 工作区: $target_abs_path"
-            else
-                echo "⚠️ VSCode 自动加入失败，请手动执行: $vscode_command_name --add \"$target_abs_path\""
-            fi
-        else
-            echo "⚠️ 未找到 VSCode 命令: $vscode_command_name"
-            echo "   可手动执行: code --add \"$target_abs_path\""
+        if ! command -v "$vscode_command_name" >/dev/null 2>&1; then
+            echo "❌ 未找到命令: $vscode_command_name"
+            echo "   请确认该 CLI 已安装并在 PATH 中。"
+            return 1
         fi
+        if ! "$vscode_command_name" --add "$target_abs_path"; then
+            echo "❌ 执行失败: $vscode_command_name --add \"$target_abs_path\""
+            return 1
+        fi
+        echo "🧩 已将目录加入工作区: $target_abs_path"
     fi
 
     echo "✅ 准备完毕！AI 可以开始在 $target_abs_path 愉快地写代码了。"

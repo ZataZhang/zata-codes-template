@@ -56,18 +56,62 @@ staged_changes:
 # Git worktree helper (wrapper for scripts/git_worktree.sh)
 # Usage:
 #   just worktree <branch_name>
-#   just worktree <branch_name> vscode_add=true
-#   just worktree <branch_name> vscode_add=true code_cmd=code-insiders
+#   just worktree <branch_name> --cmd
+#   just worktree <branch_name> --cmd code-insiders
+#   just worktree <branch_name> --cmd trae
 #   just worktree <branch_name> enter_shell=false
-worktree branch_name vscode_add="false" code_cmd="code" enter_shell="true":
+#   just worktree <branch_name> --cmd trae enter_shell=false
+worktree branch_name arg2="" arg3="" arg4="":
     #!/usr/bin/env bash
     set -euo pipefail
+
     worktree_command=(./scripts/git_worktree.sh "{{branch_name}}")
-    if [ "{{vscode_add}}" = "true" ]; then
-        worktree_command+=(--vscode-add --code-cmd "{{code_cmd}}")
-    fi
+    enter_shell_value="true"
+    expect_code_command="false"
+
+    for raw_arg in "{{arg2}}" "{{arg3}}" "{{arg4}}"; do
+        if [ -z "$raw_arg" ]; then
+            continue
+        fi
+
+        if [ "$expect_code_command" = "true" ]; then
+            case "$raw_arg" in
+                --cmd|--cmd=*|enter_shell=true|enter_shell=false)
+                    expect_code_command="false"
+                    ;;
+                *)
+                    worktree_command+=("$raw_arg")
+                    expect_code_command="false"
+                    continue
+                    ;;
+            esac
+        fi
+
+        case "$raw_arg" in
+            --cmd)
+                worktree_command+=(--cmd)
+                expect_code_command="true"
+                ;;
+            --cmd=*)
+                worktree_command+=("$raw_arg")
+                ;;
+            enter_shell=true)
+                enter_shell_value="true"
+                ;;
+            enter_shell=false)
+                enter_shell_value="false"
+                ;;
+            *)
+                echo "❌ Invalid argument: $raw_arg"
+                echo "Usage: just worktree <branch_name> [--cmd [code_cmd]] [enter_shell=false]"
+                exit 1
+                ;;
+        esac
+    done
+
     "${worktree_command[@]}"
-    if [ "{{enter_shell}}" = "true" ]; then
+
+    if [ "$enter_shell_value" = "true" ]; then
         target_worktree_path="$(dirname "$(git rev-parse --show-toplevel)")/{{branch_name}}"
         echo "Entering worktree shell: $target_worktree_path"
         echo "Run 'exit' to return to previous shell."
