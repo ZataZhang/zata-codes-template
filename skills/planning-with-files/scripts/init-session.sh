@@ -1,20 +1,69 @@
 #!/bin/bash
-# Initialize planning files for a new session
-# Usage: ./init-session.sh [project-name]
+# Initialize planning files for a new session.
+# Usage: ./init-session.sh [--force] [project-name]
 
-set -e
+set -euo pipefail
 
-PROJECT_NAME="${1:-project}"
-DATE=$(date +%Y-%m-%d)
+FORCE_RESET=false
+PROJECT_NAME="project"
+SCRIPT_NAME="$(basename "$0")"
+
+print_usage() {
+    echo "Usage: ${SCRIPT_NAME} [--force] [project-name]"
+    echo ""
+    echo "Default mode is safe: if planning files already exist, the script exits"
+    echo "without overwriting anything. Use --force to reset existing files."
+}
+
+parse_args() {
+    local arg
+    for arg in "$@"; do
+        case "$arg" in
+            --force|-f)
+                FORCE_RESET=true
+                ;;
+            --help|-h)
+                print_usage
+                exit 0
+                ;;
+            *)
+                if [ "$PROJECT_NAME" = "project" ]; then
+                    PROJECT_NAME="$arg"
+                else
+                    echo "Error: unexpected argument '$arg'"
+                    print_usage
+                    exit 2
+                fi
+                ;;
+        esac
+    done
+}
+
+parse_args "$@"
+
+DATE="$(date +%Y-%m-%d)"
+PLANNING_FILES=(task_plan.md findings.md progress.md)
+EXISTING_FILES=()
+
+for planning_file in "${PLANNING_FILES[@]}"; do
+    if [ -f "$planning_file" ]; then
+        EXISTING_FILES+=("$planning_file")
+    fi
+done
+
+if [ "${#EXISTING_FILES[@]}" -gt 0 ] && [ "$FORCE_RESET" = false ]; then
+    echo "Detected existing planning files: ${EXISTING_FILES[*]}"
+    echo "Safe mode is active: no files were overwritten."
+    echo "To reset planning files, run: ${SCRIPT_NAME} --force [project-name]"
+    exit 0
+fi
 
 echo "Initializing planning files for: $PROJECT_NAME"
 
-# Create or overwrite task_plan.md
-if [ -f "task_plan.md" ]; then
-    echo "Overwriting task_plan.md"
-else
-    echo "Creating task_plan.md"
+if [ "$FORCE_RESET" = true ] && [ "${#EXISTING_FILES[@]}" -gt 0 ]; then
+    echo "Force mode enabled: overwriting existing planning files."
 fi
+
 cat > task_plan.md << 'EOF'
 # Task Plan: [Brief Description]
 
@@ -61,12 +110,6 @@ Phase 1
 |-------|------------|
 EOF
 
-# Create or overwrite findings.md
-if [ -f "findings.md" ]; then
-    echo "Overwriting findings.md"
-else
-    echo "Creating findings.md"
-fi
 cat > findings.md << 'EOF'
 # Findings & Decisions
 
@@ -88,12 +131,6 @@ cat > findings.md << 'EOF'
 -
 EOF
 
-# Create or overwrite progress.md
-if [ -f "progress.md" ]; then
-    echo "Overwriting progress.md"
-else
-    echo "Creating progress.md"
-fi
 cat > progress.md << EOF
 # Progress Log
 
@@ -116,5 +153,5 @@ cat > progress.md << EOF
 EOF
 
 echo ""
-echo "Planning files initialized!"
+echo "Planning files initialized."
 echo "Files: task_plan.md, findings.md, progress.md"

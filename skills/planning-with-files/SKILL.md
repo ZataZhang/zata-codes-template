@@ -1,6 +1,6 @@
 ---
 name: planning-with-files
-version: "2.2.0"
+version: "2.2.1"
 description: Implements Manus-style file-based planning for complex tasks. Creates task_plan.md, findings.md, and progress.md. Use when starting complex multi-step tasks, research projects, or any task requiring >5 tool calls.
 user-invocable: true
 allowed-tools:
@@ -17,6 +17,8 @@ hooks:
     - hooks:
         - type: command
           command: "echo '[planning-with-files] Ready. Auto-activates for complex tasks, or invoke manually with /planning-with-files'"
+        - type: command
+          command: "if [ -f task_plan.md ] || [ -f findings.md ] || [ -f progress.md ]; then echo '[planning-with-files] Planning files already exist. To reset intentionally, run: ${CLAUDE_PLUGIN_ROOT}/scripts/init-session.sh --force'; else echo '[planning-with-files] No planning files found. Initialize with: ${CLAUDE_PLUGIN_ROOT}/scripts/init-session.sh'; fi"
         - type: command
           command: "python ${CLAUDE_PLUGIN_ROOT}/scripts/update_phase_status.py --status-report 2>/dev/null || true"
   PreToolUse:
@@ -63,11 +65,13 @@ This ensures your planning files live alongside your code, not buried in the ski
 
 Before ANY complex task:
 
-1. **Create `task_plan.md`** in your project — Use [templates/task_plan.md](templates/task_plan.md) as reference
-2. **Create `findings.md`** in your project — Use [templates/findings.md](templates/findings.md) as reference
-3. **Create `progress.md`** in your project — Use [templates/progress.md](templates/progress.md) as reference
-4. **Re-read plan before decisions** — Refreshes goals in attention window
-5. **Update after each phase** — Mark complete, log errors
+1. **Initialize planning files safely** — Run `${CLAUDE_PLUGIN_ROOT}/scripts/init-session.sh` in your project root
+2. **If you need a hard reset, use explicit force** — Run `${CLAUDE_PLUGIN_ROOT}/scripts/init-session.sh --force`
+3. **Create or review `task_plan.md`** in your project — Use [templates/task_plan.md](templates/task_plan.md) as reference
+4. **Create or review `findings.md`** in your project — Use [templates/findings.md](templates/findings.md) as reference
+5. **Create or review `progress.md`** in your project — Use [templates/progress.md](templates/progress.md) as reference
+6. **Re-read plan before decisions** — Refreshes goals in attention window
+7. **Update after each phase** — Mark complete, log errors
 
 > **Note:** All three planning files should be created in your current working directory (your project root), not in the skill's installation folder.
 
@@ -219,9 +223,19 @@ Copy these templates to start:
 
 Helper scripts for automation:
 
-- `scripts/init-session.sh` — Initialize all planning files
+- `scripts/init-session.sh` — Initialize planning files in safe mode (no overwrite if files already exist)
 - `scripts/check-complete.sh` — Verify all phases complete
 - `scripts/update_phase_status.py` — **NEW!** Auto-update phase status
+
+### Using init-session.sh safely
+
+```bash
+# Safe mode (default): creates files only when none exist
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/init-session.sh"
+
+# Force reset (explicit): overwrites task_plan.md, findings.md, progress.md
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/init-session.sh" --force
+```
 
 ### Using update_phase_status.py
 
