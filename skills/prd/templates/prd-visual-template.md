@@ -91,6 +91,8 @@ If no prototype changes:
 
 ### 2.9 Interactive Prototype Link (Required for UI/prototype requests)
 
+Use the user-requested prototype target when explicitly provided. Do not default to `prd-demo.html` when a target is given.
+
 - Prototype page: `docs/prototypes/[feature]-demo.html`
 - Optional index link: `docs/prototypes/index.md`
 

@@ -67,6 +67,19 @@ C. [Option C]
 
 Before writing the final PRD, detect whether prototype page modifications are required.
 
+### Prototype Target Resolution (Mandatory)
+Resolve prototype target before any file edits:
+- If user explicitly provides a prototype name/path/screen target, you MUST use that exact target.
+- NEVER replace an explicit user target with `prd-demo.html`.
+- If user gives only feature intent (no path), derive slug from that feature and use `docs/prototypes/<feature>-demo.html`.
+- Only use a generic fallback when no explicit target exists.
+
+### Working Tree Independence (Mandatory)
+Do not anchor output to unrelated local modifications:
+- Ignore uncommitted workspace changes unless the user explicitly asks to include or continue those exact changes.
+- Do not infer prototype target from recently modified files.
+- Treat user request text as the primary source of truth for target selection and scope.
+
 ### Trigger Conditions
 Execute prototype file changes in the same turn when any of these are true:
 - User asks for interactive UI/prototype/wireframe updates.
@@ -193,7 +206,7 @@ Use this structure when prototype files changed:
 
 | File Path | Change Type | Before | After | Why |
 |---|---|---|---|---|
-| `docs/prototypes/prd-demo.html` | Modify | Static content only | Added Start/Next/Reset interactions | Support behavior review |
+| `docs/prototypes/<requested-feature>-demo.html` | Modify | Static content only | Added Start/Next/Reset interactions | Support behavior review |
 
 Include at least one path under `docs/prototypes/`.
 
