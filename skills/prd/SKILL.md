@@ -16,7 +16,7 @@ The output PRD must make changes explicit via visual artifacts (tables + diagram
 2. **Clarify:** Ask 3-5 *context-aware* questions with recommendations.
 3. **Execute Prototype Changes (when needed):** If prototype/UI changes are required, modify prototype files first.
 4. **Generate:** Create a structured PRD with technical implementation details, mandatory visuals, and change logs.
-5. **Save:** Write to `tasks/prd-[feature-name].md`.
+5. **Save:** Write to `tasks/[YYYYMMDD-HHMMSS]-prd-[feature-name].md`.
 
 ---
 
@@ -202,9 +202,10 @@ Include at least one path under `docs/prototypes/`.
 ## Step 6: Save Location
 
 Write the PRD to:
-- `tasks/prd-[feature-name].md`
+- `tasks/[YYYYMMDD-HHMMSS]-prd-[feature-name].md`
 
 Feature slug should be lowercase with hyphens.
+Timestamp must use local current time in `YYYYMMDD-HHMMSS` format.
 
 ---
 
@@ -221,4 +222,4 @@ Feature slug should be lowercase with hyphens.
 * [ ] Added **Interactive Prototype Change Log** with real file paths and before/after behavior
 * [ ] Added **Interactive Prototype Link** when UI/prototype related
 * [ ] Listed specific file paths in "Implementation Guide"
-* [ ] Saved to `tasks/prd-[feature-name].md`
+* [ ] Saved to `tasks/[YYYYMMDD-HHMMSS]-prd-[feature-name].md`

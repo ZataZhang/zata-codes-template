@@ -116,7 +116,24 @@ worktree branch_name arg2="" arg3="" arg4="":
         echo "Entering worktree shell: $target_worktree_path"
         echo "Run 'exit' to return to previous shell."
         cd "$target_worktree_path"
-        exec "${SHELL:-bash}" -i
+        # Rename terminal tab/title for the active worktree shell when supported.
+        if [ -n "${TERM:-}" ] && [ "${TERM}" != "dumb" ]; then
+            printf '\033]0;%s\007' "wt:{{branch_name}}"
+        fi
+        worktree_shell_rcfile="$(mktemp)"
+        printf '%s\n' \
+            'if [ -f "$HOME/.bashrc" ]; then' \
+            '    source "$HOME/.bashrc"' \
+            'fi' \
+            'if [ -n "${WORKTREE_BRANCH_NAME:-}" ]; then' \
+            '    PS1="(wt:${WORKTREE_BRANCH_NAME}) ${PS1:-\u@\h:\w\$ }"' \
+            'fi' \
+            'if [ -n "${WORKTREE_SHELL_RCFILE:-}" ] && [ -f "${WORKTREE_SHELL_RCFILE}" ]; then' \
+            '    rm -f "${WORKTREE_SHELL_RCFILE}" 2>/dev/null || true' \
+            '    unset WORKTREE_SHELL_RCFILE' \
+            'fi' \
+            > "$worktree_shell_rcfile"
+        exec env WORKTREE_BRANCH_NAME="{{branch_name}}" WORKTREE_SHELL_RCFILE="$worktree_shell_rcfile" bash --rcfile "$worktree_shell_rcfile" -i
     fi
 
 # Git worktree merge helper (wrapper for scripts/git_worktree_merge.sh)
