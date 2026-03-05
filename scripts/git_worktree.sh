@@ -26,6 +26,97 @@ Examples:
 EOF
 }
 
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+install_frontend_dependencies() {
+    # Priority: lock-file driven install for reproducible frontend environments.
+    if [ -f pnpm-lock.yaml ]; then
+        if ! command_exists pnpm; then
+            echo "⚠️ 检测到 pnpm-lock.yaml，但未找到 pnpm，跳过前端依赖安装。"
+            return 0
+        fi
+        echo "📦 检测到 pnpm-lock.yaml，正在执行 pnpm install --ignore-scripts ..."
+        if ! pnpm install --ignore-scripts; then
+            echo "❌ pnpm install 失败。"
+            return 1
+        fi
+        return 0
+    fi
+
+    if [ -f package-lock.json ]; then
+        if ! command_exists npm; then
+            echo "⚠️ 检测到 package-lock.json，但未找到 npm，跳过前端依赖安装。"
+            return 0
+        fi
+        echo "📦 检测到 package-lock.json，正在执行 npm ci --ignore-scripts ..."
+        if ! npm ci --ignore-scripts; then
+            echo "❌ npm ci 失败。"
+            return 1
+        fi
+        return 0
+    fi
+
+    if [ -f yarn.lock ]; then
+        if ! command_exists yarn; then
+            echo "⚠️ 检测到 yarn.lock，但未找到 yarn，跳过前端依赖安装。"
+            return 0
+        fi
+        echo "📦 检测到 yarn.lock，正在执行 yarn install --ignore-scripts ..."
+        if ! yarn install --ignore-scripts; then
+            echo "❌ yarn install 失败。"
+            return 1
+        fi
+        return 0
+    fi
+
+    if [ -f bun.lock ] || [ -f bun.lockb ]; then
+        if ! command_exists bun; then
+            echo "⚠️ 检测到 bun lock 文件，但未找到 bun，跳过前端依赖安装。"
+            return 0
+        fi
+        echo "📦 检测到 bun lock 文件，正在执行 bun install --ignore-scripts ..."
+        if ! bun install --ignore-scripts; then
+            echo "❌ bun install 失败。"
+            return 1
+        fi
+        return 0
+    fi
+
+    if [ -f package.json ]; then
+        if ! command_exists npm; then
+            echo "⚠️ 检测到 package.json，但未找到 npm，跳过前端依赖安装。"
+            return 0
+        fi
+        echo "📦 检测到 package.json（无 lock 文件），正在执行 npm install --ignore-scripts ..."
+        if ! npm install --ignore-scripts; then
+            echo "❌ npm install 失败。"
+            return 1
+        fi
+    fi
+
+    return 0
+}
+
+install_python_dependencies() {
+    if [ ! -f pyproject.toml ]; then
+        return 0
+    fi
+
+    if ! command_exists uv; then
+        echo "⚠️ 检测到 pyproject.toml，但未找到 uv，跳过 Python 依赖安装。"
+        return 0
+    fi
+
+    echo "📦 检测到 pyproject.toml，正在执行 uv sync --all-extras ..."
+    if ! uv sync --all-extras; then
+        echo "❌ uv sync 失败。"
+        return 1
+    fi
+    return 0
+}
+
 function ai_worktree() {
     local branch_name=""
     local enable_vscode_add="false"
@@ -114,7 +205,7 @@ function ai_worktree() {
         cp "$source_env_file_path" "$target_env_file_path"
         copied_env_file_count=$((copied_env_file_count + 1))
     done < <(
-        find "$repo_root_path" -type f -name "*.env" \
+        find "$repo_root_path" -type f -name ".env*" \
             -not -path "$repo_root_path/.git/*" \
             -not -path "$repo_root_path/.venv/*" \
             -not -path "$repo_root_path/.uv-cache/*" \
@@ -138,19 +229,13 @@ function ai_worktree() {
         return 1
     fi
 
-    # 【前端方案】：使用 pnpm (耗时约1-3秒)
-    if [ -f pnpm-lock.yaml ]; then
-        if command -v pnpm >/dev/null 2>&1; then
-            pnpm install --ignore-scripts
-        else
-            echo "⚠️ 未找到 pnpm，跳过安装依赖。"
-        fi
+    if ! install_frontend_dependencies; then
+        return 1
     fi
 
-    # 【Python方案】：如果用 uv 取消下面的注释 (耗时约0.5秒)
-    # if [ -f pyproject.toml ]; then
-    #     uv sync
-    # fi
+    if ! install_python_dependencies; then
+        return 1
+    fi
 
     if [ "$enable_vscode_add" = "true" ]; then
         if ! command -v "$vscode_command_name" >/dev/null 2>&1; then
