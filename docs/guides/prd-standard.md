@@ -49,6 +49,7 @@ flowchart TD
 
 - 原型页面路径：`docs/prototypes/*.html`
 - 资源路径：`docs/prototypes/assets/`
+- 通用入口资源：`docs/prototypes/assets/prototype.css`、`docs/prototypes/assets/prototype.js`
 - 若用户明确指定原型页面名称/路径，必须优先使用该目标，禁止自动回退到 `prd-demo.html`
 - PRD 中必须明确写出原型入口路径和用途
 - 页面必须提供最小交互

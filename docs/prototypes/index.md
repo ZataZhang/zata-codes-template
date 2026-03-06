@@ -7,10 +7,12 @@
 1. 在对应 PRD 的 `Implementation Guide` 中写明原型文件路径。
 2. 原型页面放在 `docs/prototypes/`，静态资源放在 `docs/prototypes/assets/`。
 3. 原型页面应提供最小交互（例如 Start / Next / Reset）和可见状态变化。
+4. 资源命名使用通用约定，优先引用 `assets/prototype.css` 与 `assets/prototype.js`。
 
 ## 示例入口
 
 - [PRD Demo 可交互原型](prd-demo.html)
+- [Assets 命名规范](assets/README.md)
 
 ## 设计约束
 

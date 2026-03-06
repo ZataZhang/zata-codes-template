@@ -1,7 +1,7 @@
 ---
 name: planning-with-files
-version: "2.2.1"
-description: Implements Manus-style file-based planning for complex tasks. Creates task_plan.md, findings.md, and progress.md. Use when starting complex multi-step tasks, research projects, or any task requiring >5 tool calls.
+version: "2.3.0"
+description: Implements Manus-style file-based planning for complex tasks. Creates task_plan.md, findings.md, and progress.md. Must pass tests before completion. Use when starting complex multi-step tasks, research projects, or any task requiring >5 tool calls.
 user-invocable: true
 allowed-tools:
   - Read
@@ -47,239 +47,254 @@ hooks:
 
 Work like Manus: Use persistent markdown files as your "working memory on disk."
 
-## Important: Where Files Go
+## Why This Skill Exists
 
-When using this skill:
+Large tasks exceed context windows. This skill keeps state on disk so progress is stable across long sessions.
 
-- **Templates** are stored in the skill directory at `${CLAUDE_PLUGIN_ROOT}/templates/`
-- **Your planning files** (`task_plan.md`, `findings.md`, `progress.md`) should be created in **your project directory** — the folder where you're working
+Core model:
 
-| Location | What Goes There |
-|----------|-----------------|
+- Context window = RAM (volatile, limited)
+- Filesystem = disk (persistent, durable)
+- Rule: important state must be written to disk
+
+## File Locations
+
+Use two locations correctly:
+
+| Location | Contents |
+| --- | --- |
 | Skill directory (`${CLAUDE_PLUGIN_ROOT}/`) | Templates, scripts, reference docs |
-| Your project directory | `task_plan.md`, `findings.md`, `progress.md` |
+| Project directory (current workspace root) | `task_plan.md`, `findings.md`, `progress.md` |
 
-This ensures your planning files live alongside your code, not buried in the skill installation folder.
+Planning files must live in the project directory, alongside code.
 
 ## Quick Start
 
-Before ANY complex task:
+Before any complex task:
 
-1. **Initialize planning files safely** — Run `${CLAUDE_PLUGIN_ROOT}/scripts/init-session.sh` in your project root
-2. **If you need a hard reset, use explicit force** — Run `${CLAUDE_PLUGIN_ROOT}/scripts/init-session.sh --force`
-3. **Create or review `task_plan.md`** in your project — Use [templates/task_plan.md](templates/task_plan.md) as reference
-4. **Create or review `findings.md`** in your project — Use [templates/findings.md](templates/findings.md) as reference
-5. **Create or review `progress.md`** in your project — Use [templates/progress.md](templates/progress.md) as reference
-6. **Re-read plan before decisions** — Refreshes goals in attention window
-7. **Update after each phase** — Mark complete, log errors
+1. Initialize files in the project root: `${CLAUDE_PLUGIN_ROOT}/scripts/init-session.sh`
+2. If you need a hard reset: `${CLAUDE_PLUGIN_ROOT}/scripts/init-session.sh --force`
+3. Confirm the three files exist in the project root:
+   - `task_plan.md`
+   - `findings.md`
+   - `progress.md`
+4. Start work only after `task_plan.md` has clear phases.
 
-> **Note:** All three planning files should be created in your current working directory (your project root), not in the skill's installation folder.
+Reference templates:
 
-## The Core Pattern
+- [templates/task_plan.md](templates/task_plan.md)
+- [templates/findings.md](templates/findings.md)
+- [templates/progress.md](templates/progress.md)
 
-```
-Context Window = RAM (volatile, limited)
-Filesystem = Disk (persistent, unlimited)
+## Working Loop
 
-→ Anything important gets written to disk.
-```
+Repeat this loop through the task:
 
-## File Purposes
+1. Read `task_plan.md` before major decisions.
+2. Execute a small batch of actions.
+3. Write new findings into `findings.md`.
+4. Log progress and test outcomes in `progress.md`.
+5. Update phase status in `task_plan.md`.
 
-| File | Purpose | When to Update |
-|------|---------|----------------|
-| `task_plan.md` | Phases, progress, decisions | After each phase |
-| `task_plan.md` - **Completion Summary** | Final retrospective, deliverables, lessons learned | **After task is complete** |
-| `findings.md` | Research, discoveries | After ANY discovery |
-| `progress.md` | Session log, test results | Throughout session |
+## File Responsibilities
 
-## Critical Rules
+| File | Role | Update Trigger |
+| --- | --- | --- |
+| `task_plan.md` | Phases, decisions, status tracking | At phase start/end and after major pivots |
+| `task_plan.md` / Completion Summary | Final recap, deliverables, test evidence | After all implementation and tests complete |
+| `findings.md` | Research notes, evidence, discovered constraints | After each meaningful discovery |
+| `progress.md` | Chronological execution log and test runs | Throughout execution |
 
-### 1. Create Plan First
-Never start a complex task without `task_plan.md`. Non-negotiable.
+## Operating Rules
 
-### 2. The 2-Action Rule
-> "After every 2 view/browser/search operations, IMMEDIATELY save key findings to text files."
+### 1) Plan First
 
-This prevents visual/multimodal information from being lost.
+Do not start a complex task without `task_plan.md`.
 
-### 3. Read Before Decide
-Before major decisions, read the plan file. This keeps goals in your attention window.
+### 2) 2-Action Capture Rule
 
-### 4. Update After Act
-After completing any phase:
-- Mark phase status: `in_progress` → `complete`
-- Log any errors encountered
-- Note files created/modified
+After every two `view`/browser/search actions, persist key findings to disk immediately.
 
-### 5. Summarize On Completion
-After the **entire task** is complete, fill in the **Completion Summary** section in `task_plan.md`.
+### 3) Read Before Decision
 
-**For Simple Tasks** (< 10 tool calls, single file change):
-```markdown
-## Completion Summary
-- **Status:** ✅ Complete (2026-02-10)
-- **Deliverables:** `src/file1.ts`, `docs/readme.md`
-- **Notes:** [关键决策或坑点，可选]
-```
+Before architectural or high-impact choices, reread `task_plan.md` to maintain alignment.
 
-**For Complex Tasks** (multi-phase, research, feature development):
-- Use the full Completion Summary template
-- List all deliverables and their locations
-- Document key achievements and challenges
-- Capture lessons learned for future reference
-- Note any follow-up items
+### 4) Update After Action
 
-Use your judgment: if the Completion Summary feels like overkill, use the simple format.
+After each phase:
 
-### 6. Log ALL Errors
-Every error goes in the plan file. This builds knowledge and prevents repetition.
+- transition status (`in_progress` -> `complete`)
+- record errors and resolutions
+- list files added/changed
+
+### 5) Log Every Error
+
+Track each failure explicitly to avoid repeated dead ends.
 
 ```markdown
 ## Errors Encountered
 | Error | Attempt | Resolution |
-|-------|---------|------------|
+| --- | --- | --- |
 | FileNotFoundError | 1 | Created default config |
-| API timeout | 2 | Added retry logic |
+| Pytest AssertionError | 2 | Fixed off-by-one logic |
 ```
 
-### 7. Never Repeat Failures
-```
+### 6) Never Repeat the Same Failed Action
+
+```python
 if action_failed:
-    next_action != same_action
+    next_action_must_differ = True
 ```
-Track what you tried. Mutate the approach.
 
-## The 3-Strike Error Protocol
+### 7) Mandatory Testing Before Completion
 
+Never mark work complete without verification.
+
+- check whether `tests/` exists
+- run relevant test commands (unit/integration/e2e as applicable)
+- if a test fails, log it in `progress.md`, fix it, and rerun
+- record exact command + pass/fail status in `progress.md` and Completion Summary
+
+## Completion Summary Rules
+
+Only fill Completion Summary after:
+
+1. all planned phases are complete
+2. required tests are green
+
+Simple task example:
+
+```markdown
+## Completion Summary
+- **Status:** Complete (2026-02-10)
+- **Tests:** Passed (`pytest tests/test_core.py`)
+- **Deliverables:** `src/file1.ts`, `docs/readme.md`
+- **Notes:** Optional key decisions and caveats
 ```
-ATTEMPT 1: Diagnose & Fix
-  → Read error carefully
-  → Identify root cause
-  → Apply targeted fix
 
-ATTEMPT 2: Alternative Approach
-  → Same error? Try different method
-  → Different tool? Different library?
-  → NEVER repeat exact same failing action
+For complex tasks, include:
 
-ATTEMPT 3: Broader Rethink
-  → Question assumptions
-  → Search for solutions
-  → Consider updating the plan
+- full deliverable list with locations
+- final test commands and outcomes
+- key tradeoffs and lessons learned
+- follow-up items
 
-AFTER 3 FAILURES: Escalate to User
-  → Explain what you tried
-  → Share the specific error
-  → Ask for guidance
-```
+## 3-Strike Error Protocol
+
+If blocked, escalate methodically:
+
+1. Attempt 1: Diagnose root cause and apply targeted fix.
+2. Attempt 2: Use a different approach/tool/library.
+3. Attempt 3: Rethink assumptions and update plan.
+
+After 3 failed attempts, escalate to the user with:
+
+- what you tried
+- concrete error output
+- the decision point requiring guidance
 
 ## Read vs Write Decision Matrix
 
-| Situation | Action | Reason |
-|-----------|--------|--------|
-| Just wrote a file | DON'T read | Content still in context |
-| Viewed image/PDF | Write findings NOW | Multimodal → text before lost |
-| Browser returned data | Write to file | Screenshots don't persist |
-| Starting new phase | Read plan/findings | Re-orient if context stale |
-| Error occurred | Read relevant file | Need current state to fix |
-| Resuming after gap | Read all planning files | Recover state |
+| Situation | Action | Why |
+| --- | --- | --- |
+| Just wrote a file | Usually do not reread immediately | Content is still in context |
+| Viewed image/PDF | Write findings now | Multimodal details are easy to lose |
+| Browser returned data | Persist summary to file | Remote content is transient |
+| Starting a new phase | Read plan/findings first | Re-establish context |
+| Test failure or runtime error | Read relevant files now | Need current state for diagnosis |
+| Resuming after interruption | Read all planning files | Recover full task state |
 
-## The 5-Question Reboot Test
+## 5-Question Reboot Check
 
-If you can answer these, your context management is solid:
+If these are answerable, context management is healthy:
 
-| Question | Answer Source |
-|----------|---------------|
-| Where am I? | Current phase in task_plan.md |
-| Where am I going? | Remaining phases |
-| What's the goal? | Goal statement in plan |
-| What have I learned? | findings.md |
-| What have I done? | progress.md |
+| Question | Source |
+| --- | --- |
+| Where am I? | Current phase in `task_plan.md` |
+| Where am I going? | Remaining phases in `task_plan.md` |
+| What is the goal? | Goal statement in `task_plan.md` |
+| What have I learned? | `findings.md` |
+| Did tests pass? | `progress.md` + terminal logs |
 
-## When to Use This Pattern
+## When to Use
 
-**Use for:**
-- Multi-step tasks (3+ steps)
-- Research tasks
-- Building/creating projects
-- Tasks spanning many tool calls
-- Anything requiring organization
+Use this pattern for:
 
-**Skip for:**
-- Simple questions
-- Single-file edits
-- Quick lookups
+- multi-step tasks (3+ steps)
+- research-heavy work
+- feature implementation across many files
+- sessions with many tool calls
 
-## Templates
+Skip for:
 
-Copy these templates to start:
-
-- [templates/task_plan.md](templates/task_plan.md) — Phase tracking
-- [templates/findings.md](templates/findings.md) — Research storage
-- [templates/progress.md](templates/progress.md) — Session logging
+- simple one-shot questions
+- trivial single-file edits
+- quick lookups without execution flow
 
 ## Scripts
 
-Helper scripts for automation:
+- `scripts/init-session.sh`: initialize planning files safely (no overwrite by default)
+- `scripts/check-complete.sh`: verify phase completion state
 
-- `scripts/init-session.sh` — Initialize planning files in safe mode (no overwrite if files already exist)
-- `scripts/check-complete.sh` — Verify all phases complete
-- `scripts/update_phase_status.py` — **NEW!** Auto-update phase status
+## Minimum Completion Checklist
 
-### Using init-session.sh safely
+Before ending a task, confirm:
 
-```bash
-# Safe mode (default): creates files only when none exist
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/init-session.sh"
+1. `task_plan.md` phases are complete.
+2. `findings.md` contains key discoveries.
+3. `progress.md` includes test commands and results.
+4. Completion Summary is filled with deliverables and verification.
 
-# Force reset (explicit): overwrites task_plan.md, findings.md, progress.md
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/init-session.sh" --force
-```
+## Automation
 
-### Using update_phase_status.py
+`scripts/update_phase_status.py` supports status reporting and phase transitions.
 
-This script provides automatic phase status management:
+Common commands:
 
 ```bash
 # Show current status report
-python scripts/update_phase_status.py --status-report
+python "${CLAUDE_PLUGIN_ROOT}/scripts/update_phase_status.py" --status-report
 
-# Mark a phase as complete
-python scripts/update_phase_status.py --phase "Phase 1" --status complete
+# Mark a phase complete
+python "${CLAUDE_PLUGIN_ROOT}/scripts/update_phase_status.py" --phase "Phase 1" --status complete
 
-# Auto-advance to next phase (if current is complete)
-python scripts/update_phase_status.py --auto-advance
+# Auto-advance if current phase is complete
+python "${CLAUDE_PLUGIN_ROOT}/scripts/update_phase_status.py" --auto-advance
 
-# Log a progress message
-python scripts/update_phase_status.py --log "Completed API integration"
+# Append a progress log line
+python "${CLAUDE_PLUGIN_ROOT}/scripts/update_phase_status.py" --log "Completed API integration and passed tests"
 ```
 
-### Automatic Status Updates (v2.2.0+)
+Safe initialization commands:
 
-The skill now includes automatic status tracking:
+```bash
+# Safe mode: create only if planning files do not already exist
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/init-session.sh"
 
-1. **Session Start**: Shows current status report
-2. **After File Changes**:
-   - Checks if current phase can auto-advance
-   - Displays updated status report
-3. **Session End**: Shows final status report
+# Force mode: overwrite all planning files
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/init-session.sh" --force
+```
 
-> **Note**: The auto-advance feature works by detecting when a phase is marked `complete` and automatically setting the next phase to `in_progress`.
+## Auto-Update Behavior (v2.3.0+)
 
-## Advanced Topics
-
-- **Manus Principles:** See [reference.md](reference.md)
-- **Real Examples:** See [examples.md](examples.md)
+- Session start: show status report
+- After `Write`/`Edit`: attempt auto-advance and show updated status
+- Session end: show final status report
 
 ## Anti-Patterns
 
 | Don't | Do Instead |
-|-------|------------|
-| Use TodoWrite for persistence | Create task_plan.md file |
+| --- | --- |
+| Use ephemeral todo memory only | Persist plan in `task_plan.md` |
 | State goals once and forget | Re-read plan before decisions |
-| Hide errors and retry silently | Log errors to plan file |
-| Stuff everything in context | Store large content in files |
-| Start executing immediately | Create plan file FIRST |
-| Repeat failed actions | Track attempts, mutate approach |
-| Create files in skill directory | Create files in your project |
+| Retry failures silently | Log failures and resolutions |
+| Overload transient context | Store large content in files |
+| Execute before planning | Create plan first |
+| Repeat failed actions | Change strategy each attempt |
+| Finish without verification | Run tests and record results |
+| Write planning files in skill dir | Write planning files in project root |
+
+## Additional References
+
+- `reference.md`: Manus principles and deeper guidance
+- `examples.md`: concrete usage examples

@@ -74,6 +74,8 @@ Phase 1
   WHAT: Verify everything works and meets requirements.
   WHY: Catching issues early saves time. Document test results in progress.md.
 -->
+- [ ] Run unit tests (`pytest tests/`)
+- [ ] Run integration tests (Docker/compose if applicable)
 - [ ] Verify all requirements met
 - [ ] Document test results in progress.md
 - [ ] Fix any issues found

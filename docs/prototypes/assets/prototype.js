@@ -1,172 +1,230 @@
-(function initPrototype() {
-  "use strict";
+const scenarioStepsMap = {
+  normal: [
+    {
+      phaseTitle: "需求确认",
+      phaseDescription: "完成目标确认和边界梳理，输出可执行范围。",
+      riskLabel: "Low",
+    },
+    {
+      phaseTitle: "技术拆解",
+      phaseDescription: "拆分任务并确认依赖，形成实施路径。",
+      riskLabel: "Low",
+    },
+    {
+      phaseTitle: "开发与联调",
+      phaseDescription: "完成主干功能并执行联调验证。",
+      riskLabel: "Medium",
+    },
+    {
+      phaseTitle: "验收交付",
+      phaseDescription: "执行验收清单并完成交付确认。",
+      riskLabel: "Low",
+    },
+  ],
+  edge: [
+    {
+      phaseTitle: "需求确认",
+      phaseDescription: "关键决策人缺席，范围暂定为最小可行版本。",
+      riskLabel: "Medium",
+    },
+    {
+      phaseTitle: "技术拆解",
+      phaseDescription: "出现外部接口未文档化，需补齐对接策略。",
+      riskLabel: "High",
+    },
+    {
+      phaseTitle: "开发与联调",
+      phaseDescription: "上游服务返回格式变化，触发兼容处理。",
+      riskLabel: "High",
+    },
+    {
+      phaseTitle: "验收交付",
+      phaseDescription: "以降级策略交付并记录后续收敛计划。",
+      riskLabel: "Medium",
+    },
+  ],
+};
 
-  const scenarioStateMap = {
-    normal: [
-      {
-        title: "需求输入",
-        description: "业务方提交需求并明确目标。",
-        risk: "Low",
-      },
-      {
-        title: "上下文分析",
-        description: "扫描代码和文档，确定改动边界。",
-        risk: "Low",
-      },
-      {
-        title: "改动设计",
-        description: "输出 Change Matrix、流程图与原型链接。",
-        risk: "Medium",
-      },
-      {
-        title: "实现与验证",
-        description: "落地代码并执行构建验证。",
-        risk: "Low",
-      },
-    ],
-    edge: [
-      {
-        title: "需求输入",
-        description: "输入信息不完整，目标模糊。",
-        risk: "Medium",
-      },
-      {
-        title: "上下文分析",
-        description: "发现跨模块改动和潜在兼容风险。",
-        risk: "High",
-      },
-      {
-        title: "改动设计",
-        description: "需要补充例外流程与回滚策略。",
-        risk: "High",
-      },
-      {
-        title: "实现与验证",
-        description: "优先做分阶段发布和回归验证。",
-        risk: "Medium",
-      },
-    ],
-  };
+const prototypeUiState = {
+  selectedScenarioKey: "normal",
+  currentStepNumber: 0,
+};
 
-  const phaseTitleElement = document.getElementById("phaseTitle");
-  const phaseDescriptionElement = document.getElementById("phaseDescription");
-  const progressFillElement = document.getElementById("progressFill");
-  const stepNumberElement = document.getElementById("stepNumber");
-  const riskLabelElement = document.getElementById("riskLabel");
-  const timelineListElement = document.getElementById("timelineList");
-  const startButtonElement = document.getElementById("startBtn");
-  const nextButtonElement = document.getElementById("nextBtn");
-  const resetButtonElement = document.getElementById("resetBtn");
-  const toggleButtonElements = document.querySelectorAll(".toggle-btn");
+const phaseTitleElement = document.getElementById("phaseTitle");
+const phaseDescriptionElement = document.getElementById("phaseDescription");
+const stepNumberElement = document.getElementById("stepNumber");
+const riskLabelElement = document.getElementById("riskLabel");
+const progressFillElement = document.getElementById("progressFill");
+const timelineListElement = document.getElementById("timelineList");
+const startButtonElement = document.getElementById("startBtn");
+const nextButtonElement = document.getElementById("nextBtn");
+const resetButtonElement = document.getElementById("resetBtn");
+const scenarioButtonElements = Array.from(document.querySelectorAll(".toggle-btn[data-scenario]"));
 
-  let currentScenarioKey = "normal";
-  let currentStepIndex = -1;
+function getSelectedScenarioSteps() {
+  return scenarioStepsMap[prototypeUiState.selectedScenarioKey] || scenarioStepsMap.normal;
+}
 
-  function getCurrentScenarioSteps() {
-    return scenarioStateMap[currentScenarioKey];
+function getCurrentStepRecord() {
+  if (prototypeUiState.currentStepNumber === 0) {
+    return null;
   }
 
-  function getNowTimeLabel() {
-    const nowDate = new Date();
-    return nowDate.toLocaleTimeString("zh-CN", {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: false,
-    });
-  }
+  const selectedScenarioSteps = getSelectedScenarioSteps();
+  const selectedStepRecord = selectedScenarioSteps[prototypeUiState.currentStepNumber - 1];
+  return selectedStepRecord || null;
+}
 
-  function appendTimelineEntry(eventMessageText) {
-    const timelineItemElement = document.createElement("li");
-    const timelineTimeLabel = getNowTimeLabel();
-    timelineItemElement.innerHTML =
-      "<span class='timeline-time'>" +
-      timelineTimeLabel +
-      "</span><br />" +
-      eventMessageText;
-    timelineListElement.prepend(timelineItemElement);
-  }
+function renderScenarioButtons() {
+  scenarioButtonElements.forEach((scenarioButtonElement) => {
+    const scenarioKey = scenarioButtonElement.getAttribute("data-scenario");
+    const isActiveScenario = scenarioKey === prototypeUiState.selectedScenarioKey;
+    scenarioButtonElement.classList.toggle("is-active", isActiveScenario);
+    scenarioButtonElement.setAttribute("aria-pressed", isActiveScenario ? "true" : "false");
+  });
+}
 
-  function renderIdleState() {
+function renderMainPanel() {
+  const selectedScenarioSteps = getSelectedScenarioSteps();
+  const totalStepCount = selectedScenarioSteps.length;
+  const currentStepRecord = getCurrentStepRecord();
+
+  if (!currentStepRecord) {
     phaseTitleElement.textContent = "待开始";
     phaseDescriptionElement.textContent = "点击 Start 开始模拟需求到交付的流程。";
-    progressFillElement.style.width = "0%";
-    stepNumberElement.textContent = "0 / 4";
     riskLabelElement.textContent = "Low";
+  } else {
+    phaseTitleElement.textContent = currentStepRecord.phaseTitle;
+    phaseDescriptionElement.textContent = currentStepRecord.phaseDescription;
+    riskLabelElement.textContent = currentStepRecord.riskLabel;
   }
 
-  function renderCurrentStep() {
-    const currentScenarioSteps = getCurrentScenarioSteps();
-    if (currentStepIndex < 0 || currentStepIndex >= currentScenarioSteps.length) {
-      renderIdleState();
-      return;
+  stepNumberElement.textContent = `${prototypeUiState.currentStepNumber} / ${totalStepCount}`;
+  const progressPercent = Math.round((prototypeUiState.currentStepNumber / totalStepCount) * 100);
+  progressFillElement.style.width = `${progressPercent}%`;
+
+  startButtonElement.disabled = prototypeUiState.currentStepNumber > 0;
+  nextButtonElement.disabled =
+    prototypeUiState.currentStepNumber === 0 ||
+    prototypeUiState.currentStepNumber >= totalStepCount;
+  resetButtonElement.disabled = prototypeUiState.currentStepNumber === 0;
+}
+
+function buildTimelineItemElement(stepRecord, itemStatusLabel, itemClassName) {
+  const timelineItemElement = document.createElement("li");
+  timelineItemElement.className = `timeline-item ${itemClassName}`;
+
+  const timelineTitleElement = document.createElement("p");
+  timelineTitleElement.className = "timeline-item-title";
+  timelineTitleElement.textContent = stepRecord.phaseTitle;
+
+  const timelineDescriptionElement = document.createElement("p");
+  timelineDescriptionElement.className = "timeline-item-note";
+  timelineDescriptionElement.textContent = stepRecord.phaseDescription;
+
+  const timelineStatusElement = document.createElement("p");
+  timelineStatusElement.className = "timeline-item-status";
+  timelineStatusElement.textContent = itemStatusLabel;
+
+  timelineItemElement.appendChild(timelineTitleElement);
+  timelineItemElement.appendChild(timelineDescriptionElement);
+  timelineItemElement.appendChild(timelineStatusElement);
+
+  return timelineItemElement;
+}
+
+function renderTimelinePanel() {
+  const selectedScenarioSteps = getSelectedScenarioSteps();
+  timelineListElement.innerHTML = "";
+
+  selectedScenarioSteps.forEach((stepRecord, stepIndex) => {
+    const stepNumber = stepIndex + 1;
+    const isCompletedStep = stepNumber < prototypeUiState.currentStepNumber;
+    const isCurrentStep = stepNumber === prototypeUiState.currentStepNumber;
+
+    let itemStatusLabel = "Pending";
+    let itemClassName = "is-upcoming";
+
+    if (isCompletedStep) {
+      itemStatusLabel = "Completed";
+      itemClassName = "is-complete";
+    } else if (isCurrentStep) {
+      itemStatusLabel = "In Progress";
+      itemClassName = "is-current";
     }
 
-    const currentPhaseObject = currentScenarioSteps[currentStepIndex];
-    const progressPercent = ((currentStepIndex + 1) / currentScenarioSteps.length) * 100;
-    phaseTitleElement.textContent = currentPhaseObject.title;
-    phaseDescriptionElement.textContent = currentPhaseObject.description;
-    progressFillElement.style.width = progressPercent + "%";
-    stepNumberElement.textContent = String(currentStepIndex + 1) + " / " + String(currentScenarioSteps.length);
-    riskLabelElement.textContent = currentPhaseObject.risk;
-  }
-
-  function setScenario(nextScenarioKey) {
-    currentScenarioKey = nextScenarioKey;
-    currentStepIndex = -1;
-    renderCurrentStep();
-    toggleButtonElements.forEach((buttonElement) => {
-      const buttonScenarioKey = buttonElement.getAttribute("data-scenario");
-      buttonElement.classList.toggle("is-active", buttonScenarioKey === nextScenarioKey);
-    });
-    appendTimelineEntry("切换场景为 " + nextScenarioKey + "。");
-  }
-
-  function startFlow() {
-    if (currentStepIndex === -1) {
-      currentStepIndex = 0;
-      renderCurrentStep();
-      appendTimelineEntry("流程已启动。");
-      return;
-    }
-    appendTimelineEntry("流程已在运行，继续点击 Next。");
-  }
-
-  function nextFlowStep() {
-    const currentScenarioSteps = getCurrentScenarioSteps();
-    if (currentStepIndex === -1) {
-      appendTimelineEntry("请先点击 Start。");
-      return;
-    }
-
-    if (currentStepIndex < currentScenarioSteps.length - 1) {
-      currentStepIndex += 1;
-      renderCurrentStep();
-      appendTimelineEntry("进入下一阶段。");
-      return;
-    }
-
-    appendTimelineEntry("流程已完成。");
-  }
-
-  function resetFlow() {
-    currentStepIndex = -1;
-    renderCurrentStep();
-    appendTimelineEntry("流程已重置。");
-  }
-
-  toggleButtonElements.forEach((toggleButtonElement) => {
-    toggleButtonElement.addEventListener("click", function onToggleClick() {
-      const selectedScenarioKey = toggleButtonElement.getAttribute("data-scenario");
-      if (selectedScenarioKey && selectedScenarioKey !== currentScenarioKey) {
-        setScenario(selectedScenarioKey);
-      }
-    });
+    const timelineItemElement = buildTimelineItemElement(stepRecord, itemStatusLabel, itemClassName);
+    timelineListElement.appendChild(timelineItemElement);
   });
-  startButtonElement.addEventListener("click", startFlow);
-  nextButtonElement.addEventListener("click", nextFlowStep);
-  resetButtonElement.addEventListener("click", resetFlow);
+}
 
-  renderCurrentStep();
-  appendTimelineEntry("原型已加载，可开始操作。");
-})();
+function renderPrototypeView() {
+  renderScenarioButtons();
+  renderMainPanel();
+  renderTimelinePanel();
+}
+
+function onStartButtonClick() {
+  if (prototypeUiState.currentStepNumber === 0) {
+    prototypeUiState.currentStepNumber = 1;
+    renderPrototypeView();
+  }
+}
+
+function onNextButtonClick() {
+  const selectedScenarioSteps = getSelectedScenarioSteps();
+  const totalStepCount = selectedScenarioSteps.length;
+
+  if (
+    prototypeUiState.currentStepNumber > 0 &&
+    prototypeUiState.currentStepNumber < totalStepCount
+  ) {
+    prototypeUiState.currentStepNumber += 1;
+    renderPrototypeView();
+  }
+}
+
+function onResetButtonClick() {
+  prototypeUiState.currentStepNumber = 0;
+  renderPrototypeView();
+}
+
+function onScenarioButtonClick(event) {
+  const selectedScenarioKey = event.currentTarget.getAttribute("data-scenario");
+  if (!selectedScenarioKey || selectedScenarioKey === prototypeUiState.selectedScenarioKey) {
+    return;
+  }
+
+  prototypeUiState.selectedScenarioKey = selectedScenarioKey;
+  prototypeUiState.currentStepNumber = 0;
+  renderPrototypeView();
+}
+
+function bindPrototypeEvents() {
+  startButtonElement.addEventListener("click", onStartButtonClick);
+  nextButtonElement.addEventListener("click", onNextButtonClick);
+  resetButtonElement.addEventListener("click", onResetButtonClick);
+
+  scenarioButtonElements.forEach((scenarioButtonElement) => {
+    scenarioButtonElement.addEventListener("click", onScenarioButtonClick);
+  });
+}
+
+function bootstrapPrototype() {
+  bindPrototypeEvents();
+  renderPrototypeView();
+}
+
+if (
+  phaseTitleElement &&
+  phaseDescriptionElement &&
+  stepNumberElement &&
+  riskLabelElement &&
+  progressFillElement &&
+  timelineListElement &&
+  startButtonElement &&
+  nextButtonElement &&
+  resetButtonElement
+) {
+  bootstrapPrototype();
+}
