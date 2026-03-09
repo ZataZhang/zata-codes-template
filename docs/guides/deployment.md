@@ -7,7 +7,25 @@
 - 确保 `uv lock` 与 `uv sync` 能正常执行。
 - 校验环境变量完整性，特别是数据库和模型 API Key。
 - 执行测试：`just test`。
-- 构建文档：`just docs-build`。
+- 构建文档：`uv run mkdocs build --strict`。
+
+## GitHub Actions 模板
+
+模板仓库内置两条 GitHub Actions 工作流，默认放在 `.github/workflows/`：
+
+1. `ci.yml`
+   - 触发时机：`pull_request`、推送到 `main`、手动触发。
+   - 执行内容：`uv sync --all-groups --frozen`、`pre-commit`、本地测试集、`mkdocs build --strict`、发布包烟雾构建。
+2. `cd.yml`
+   - 触发时机：推送 `v*` 标签、手动触发。
+   - 执行内容：重复执行发布前校验，生成 `dist/*.zip`，上传构建产物；当事件来自标签推送时，同时创建 GitHub Release。
+
+如果下游项目直接继承此模板，通常只需要根据自身情况调整：
+
+- `PYTHON_VERSION`
+- 标签规则（默认 `v*`）
+- 测试命令或额外构建步骤
+- 是否保留 GitHub Release 发布逻辑
 
 ## 推荐部署流程
 
@@ -31,4 +49,3 @@
 ## TODO
 
 - TODO: 补充容器化部署模板。
-- TODO: 补充 CI/CD 流程示例。

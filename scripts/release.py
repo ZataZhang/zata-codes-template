@@ -80,6 +80,7 @@ def _should_exclude(rel_path: str) -> bool:
         bool: True if excluded.
     """
     normalized = rel_path.replace("\\", "/")
+    normalized_path = Path(normalized)
 
     # Exclude obvious local/CI artifacts even if accidentally tracked.
     exclude_globs = [
@@ -95,9 +96,20 @@ def _should_exclude(rel_path: str) -> bool:
         "*.log",
         # uv lock is useful for dev reproducibility but not required in release zip.
         "uv.lock",
+        ".claude/**",
+        "findings.md",
+        "progress.md",
+        "task_plan.md",
     ]
 
-    return any(fnmatch.fnmatch(normalized, pat) for pat in exclude_globs)
+    if any(fnmatch.fnmatch(normalized, pat) for pat in exclude_globs):
+        return True
+
+    # Never ship real environment files, while keeping example files available.
+    if normalized_path.name == ".env":
+        return True
+
+    return False
 
 
 def build_release_zip(repo_root: Path) -> Path:
