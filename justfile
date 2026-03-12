@@ -33,7 +33,7 @@ run:
 
 # Serve MkDocs site locally with live reload (configurable port, default 8000)
 docs-serve port="8000":
-    uv run mkdocs serve -a 0.0.0.0:{{port}}
+    WATCHDOG_USE_POLLING=1 uv run mkdocs serve -a 127.0.0.1:{{port}}
 
 # Remove cache files and build artifacts
 clean:

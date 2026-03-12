@@ -51,6 +51,7 @@ nav:
   - 原型演示:
       - 概览: prototypes/index.md
       - PRD Demo UI: prototypes/prd-demo.html
+      - Worktree 前端依赖策略: prototypes/worktree-frontend-demo.html
       - Assets 命名规范: prototypes/assets/README.md
   - 核心概念:
       - Prompt 工程: core/prompt_engineering.md

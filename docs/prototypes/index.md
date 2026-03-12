@@ -12,6 +12,7 @@
 ## 示例入口
 
 - [PRD Demo 可交互原型](prd-demo.html)
+- [Worktree 前端依赖策略 Demo](worktree-frontend-demo.html)
 - [Assets 命名规范](assets/README.md)
 
 ## 设计约束

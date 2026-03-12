@@ -30,6 +30,90 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
+resolve_frontend_dependency_strategy() {
+    # WORKTREE_FRONTEND_STRATEGY 可选值:
+    #   - install-per-worktree: 在新 worktree 中执行一次前端依赖安装（默认行为）
+    #   - symlink-from-main: 复用源仓库前端目录中的 node_modules（符号链接）
+    local configured_strategy="${WORKTREE_FRONTEND_STRATEGY:-}"
+
+    if [ -z "$configured_strategy" ]; then
+        echo "install-per-worktree"
+        return 0
+    fi
+
+    case "$configured_strategy" in
+        install-per-worktree|symlink-from-main)
+            echo "$configured_strategy"
+            ;;
+        *)
+            echo "⚠️ 未知的 WORKTREE_FRONTEND_STRATEGY: $configured_strategy，回退为 install-per-worktree。" >&2
+            echo "install-per-worktree"
+            ;;
+    esac
+}
+
+setup_frontend_node_modules_symlinks() {
+    # 在新 worktree 中为前端工程目录创建 node_modules 符号链接，复用源仓库的依赖目录。
+    # 参数:
+    #   $1: 源仓库根目录（包含已安装依赖的 worktree）
+    #   $2: 新建 worktree 的根目录
+    local source_root_path="$1"
+    local target_root_path="$2"
+
+    if [ -z "$source_root_path" ] || [ -z "$target_root_path" ]; then
+        return 0
+    fi
+
+    if [ ! -d "$source_root_path" ] || [ ! -d "$target_root_path" ]; then
+        return 0
+    fi
+
+    local linked_project_count=0
+
+    # 约定：将包含 package.json 且存在 node_modules 的目录视为前端工程目录。
+    # 避免遍历 .git 等内部目录。
+    while IFS= read -r source_package_json_path; do
+        # 相对路径示例: admin-frontend/package.json
+        local relative_frontend_path="${source_package_json_path#"$source_root_path"/}"
+        relative_frontend_path="${relative_frontend_path%/package.json}"
+
+        local source_frontend_dir="$source_root_path/$relative_frontend_path"
+        local target_frontend_dir="$target_root_path/$relative_frontend_path"
+
+        local source_node_modules_path="$source_frontend_dir/node_modules"
+        local target_node_modules_path="$target_frontend_dir/node_modules"
+
+        if [ ! -d "$source_node_modules_path" ]; then
+            echo "ℹ️ 源前端目录缺少 node_modules，跳过符号链接: $source_frontend_dir"
+            continue
+        fi
+
+        if [ -e "$target_node_modules_path" ]; then
+            # 目标目录已存在 node_modules（目录或链接）时不覆盖，避免误删本地安装。
+            continue
+        fi
+
+        if [ ! -d "$target_frontend_dir" ]; then
+            mkdir -p "$target_frontend_dir"
+        fi
+
+        if ln -s "$source_node_modules_path" "$target_node_modules_path"; then
+            echo "🔗 已为前端目录创建 node_modules 符号链接:"
+            echo "   $target_node_modules_path -> $source_node_modules_path"
+            linked_project_count=$((linked_project_count + 1))
+        else
+            echo "⚠️ 创建符号链接失败: $target_node_modules_path" >&2
+        fi
+    done < <(
+        find "$source_root_path" -mindepth 2 -maxdepth 6 -type f -name "package.json" \
+            -not -path "$source_root_path/.git/*"
+    )
+
+    if [ "$linked_project_count" -eq 0 ]; then
+        echo "ℹ️ 未在源仓库中找到适合创建符号链接的前端项目（package.json + node_modules）。"
+    fi
+}
+
 install_frontend_dependencies() {
     # Priority: lock-file driven install for reproducible frontend environments.
     if [ -f pnpm-lock.yaml ]; then
@@ -222,15 +306,29 @@ function ai_worktree() {
         echo "⚠️ 仓库根目录未找到 .env/.env.example，跳过。"
     fi
 
-    # 3. 自动安装依赖 (极速模式)
+    # 3. 自动安装依赖 / 或复用前端依赖 (极速模式)
     echo "📦 正在使用全局缓存安装依赖 ..."
     if ! cd "$target_abs_path"; then
         echo "❌ 无法进入目录: $target_abs_path"
         return 1
     fi
 
-    if ! install_frontend_dependencies; then
-        return 1
+    local frontend_dependency_strategy
+    frontend_dependency_strategy="$(resolve_frontend_dependency_strategy)"
+    echo "🧩 前端依赖策略: $frontend_dependency_strategy"
+
+    if [ "$frontend_dependency_strategy" = "symlink-from-main" ]; then
+        # 复用源仓库前端依赖目录（优先避免重复安装）
+        setup_frontend_node_modules_symlinks "$repo_root_path" "$target_abs_path"
+    else
+        # install-per-worktree: 保持现有“极速安装”行为，可通过环境变量禁用
+        if [ "${WORKTREE_SKIP_FRONTEND_INSTALL:-false}" = "true" ]; then
+            echo "⚠️ 已设置 WORKTREE_SKIP_FRONTEND_INSTALL=true，跳过前端依赖安装。"
+        else
+            if ! install_frontend_dependencies; then
+                return 1
+            fi
+        fi
     fi
 
     if ! install_python_dependencies; then
