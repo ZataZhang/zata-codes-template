@@ -45,10 +45,139 @@ resolve_worktree_path_by_branch() {
     printf '%s' "$resolved_worktree_path"
 }
 
+run_worktree_doctor() {
+    # Worktree doctor / cleanup-check mode.
+    # When called without arguments: scan all registered worktrees for obvious inconsistencies.
+    # When called with a feature branch: focus on that branch's expected worktree path.
+    local doctor_feature_branch="${1:-}"
+
+    if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        echo "❌ Current directory is not inside a Git repository."
+        exit 1
+    fi
+
+    local repo_root=""
+    repo_root="$(git rev-parse --show-toplevel)"
+    cd "$repo_root"
+
+    local git_dir=""
+    git_dir="$(git rev-parse --git-dir)"
+    if [[ "$git_dir" != /* ]]; then
+        git_dir="$repo_root/$git_dir"
+    fi
+
+    local worktrees_dir="$git_dir/worktrees"
+
+    echo "🩺 Worktree cleanup doctor"
+    echo "   Repository root: $repo_root"
+    echo "   Git dir        : $git_dir"
+    echo
+
+    if [[ -z "$doctor_feature_branch" ]]; then
+        # Global scan: registered worktrees whose directories are missing.
+        if [[ ! -d "$worktrees_dir" ]]; then
+            echo "No '.git/worktrees' directory found. No registered worktrees to inspect."
+            return 0
+        fi
+
+        echo "Scanning registered worktrees for missing directories..."
+
+        local found_issue="false"
+        local current_worktree_path=""
+        local current_branch_name=""
+
+        while IFS= read -r line; do
+            case "$line" in
+                worktree\ *)
+                    current_worktree_path="${line#worktree }"
+                    ;;
+                branch\ refs/heads/*)
+                    current_branch_name="${line#branch refs/heads/}"
+                    if [[ -n "$current_worktree_path" ]]; then
+                        if [[ ! -d "$current_worktree_path" ]]; then
+                            found_issue="true"
+                            echo "⚠️ Metadata present but directory missing for branch '$current_branch_name':"
+                            echo "   - registered worktree path: $current_worktree_path"
+                        fi
+                    fi
+                    current_worktree_path=""
+                    current_branch_name=""
+                    ;;
+            esac
+        done < <(git worktree list --porcelain)
+
+        if [[ "$found_issue" == "false" ]]; then
+            echo "✅ No obvious stale worktrees with missing directories were found."
+        else
+            echo
+            echo "You can clean up metadata-only entries using:"
+            echo "  git worktree prune"
+        fi
+    else
+        # Branch-specific scan: examine the expected worktree path and metadata state.
+        local resolved_cleanup_worktree_path=""
+        resolved_cleanup_worktree_path="$(resolve_worktree_path_by_branch "$doctor_feature_branch")"
+        if [[ -z "$resolved_cleanup_worktree_path" ]]; then
+            resolved_cleanup_worktree_path="$(dirname "$repo_root")/$doctor_feature_branch"
+        fi
+
+        echo "Checking worktree for feature branch '$doctor_feature_branch'..."
+        echo "   Expected worktree path: $resolved_cleanup_worktree_path"
+
+        local dir_exists="false"
+        if [[ -d "$resolved_cleanup_worktree_path" ]]; then
+            dir_exists="true"
+            echo "   - Worktree directory exists on disk."
+        else
+            echo "   - Worktree directory does NOT exist on disk."
+        fi
+
+        local has_metadata="false"
+        local metadata_dir_for_branch=""
+        if [[ -d "$worktrees_dir" ]]; then
+            local entry_path=""
+            for metadata_dir_for_branch in "$worktrees_dir"/*; do
+                [[ -d "$metadata_dir_for_branch" ]] || continue
+                if [[ -f "$metadata_dir_for_branch/gitdir" ]]; then
+                    entry_path="$(dirname "$(cat "$metadata_dir_for_branch/gitdir" 2>/dev/null || echo "")")"
+                    if [[ "$entry_path" == "$resolved_cleanup_worktree_path" ]]; then
+                        has_metadata="true"
+                        break
+                    fi
+                fi
+            done
+        fi
+
+        if [[ "$has_metadata" == "true" ]]; then
+            echo "   - Metadata entry exists under: $metadata_dir_for_branch"
+        else
+            echo "   - No metadata entry under '.git/worktrees' for this path."
+        fi
+
+        echo
+        echo "Diagnosis:"
+        if [[ "$dir_exists" == "true" && "$has_metadata" == "false" ]]; then
+            echo "   ➜ Residual worktree directory detected (metadata already removed)."
+            echo "     You can remove it manually if you're sure it's safe:"
+            echo "       rm -rf \"$resolved_cleanup_worktree_path\""
+        elif [[ "$dir_exists" == "false" && "$has_metadata" == "true" ]]; then
+            echo "   ➜ Metadata exists but directory is missing."
+            echo "     You can clean it up with:"
+            echo "       git worktree prune"
+        elif [[ "$dir_exists" == "true" && "$has_metadata" == "true" ]]; then
+            echo "   ➜ Worktree appears consistent (directory + metadata present)."
+            echo "     If 'git worktree remove' fails, rerun this doctor to inspect the state."
+        else
+            echo "   ➜ No worktree directory or metadata found for this branch/path."
+        fi
+    fi
+}
+
 usage() {
     cat <<'EOF'
 Usage:
   git_worktree_merge.sh <feature_branch> [base_branch] [--remote <name>] [-d|--delete|--delete-only] [--cleanup] [--delete-remote] [--worktree-path <path>]
+  git_worktree_merge.sh --doctor [<feature_branch>]
 
 Arguments:
   <feature_branch>       Required. The feature branch to merge.
@@ -62,6 +191,9 @@ Options:
   --delete-remote        Delete <remote>/<feature_branch> (works with --cleanup/-d/--delete/--delete-only).
   --worktree-path <path> Explicit worktree path to remove during cleanup.
                          Default: auto-detect by <feature_branch>, fallback parent_of_repo_root/<feature_branch>
+  --doctor               Doctor / cleanup-check mode. Without arguments, scans all registered worktrees
+                         for missing directories. With <feature_branch>, inspects the state of the
+                         expected worktree path and its metadata under .git/worktrees.
   -h, --help             Show this help message.
 
 Checks before merge:
@@ -76,11 +208,19 @@ Examples:
   ./scripts/git_worktree_merge.sh feature-login --delete
   ./scripts/git_worktree_merge.sh feature-login main --remote zata --cleanup
   ./scripts/git_worktree_merge.sh feature-login main --cleanup --delete-remote
+  ./scripts/git_worktree_merge.sh --doctor
+  ./scripts/git_worktree_merge.sh --doctor feature-login
 EOF
 }
 
 if [[ $# -ge 1 && ( "$1" == "-h" || "$1" == "--help" ) ]]; then
     usage
+    exit 0
+fi
+
+if [[ $# -ge 1 && ( "$1" == "--doctor" || "$1" == "--cleanup-check" ) ]]; then
+    shift
+    run_worktree_doctor "${1:-}"
     exit 0
 fi
 
@@ -157,6 +297,87 @@ fi
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
 
+preflight_check_worktree_permissions() {
+    # Scan a worktree directory for potential permission problems before attempting removal.
+    local target_worktree_path="$1"
+
+    if [[ -z "$target_worktree_path" || ! -d "$target_worktree_path" ]]; then
+        return 0
+    fi
+
+    local current_user_name=""
+    current_user_name="$(id -un 2>/dev/null || whoami)"
+
+    echo "🔎 Preflight: scanning worktree for files not owned by '$current_user_name' or not user-writable:"
+    echo "   $target_worktree_path"
+
+    # First, check if there is at least one suspicious path.
+    if find "$target_worktree_path" \( ! -user "$current_user_name" -o ! -perm -u+w \) -print -quit 2>/dev/null | grep -q .; then
+        echo "⚠️ Found paths that may cause 'Permission denied' during removal:"
+        # Re-run to list all problematic paths, indented for readability.
+        find "$target_worktree_path" \( ! -user "$current_user_name" -o ! -perm -u+w \) -print 2>/dev/null | sed 's/^/    /'
+        echo "   Consider fixing ownership/permissions (chown/chmod) before retrying removal."
+    else
+        echo "✅ No obvious ownership/permission issues detected in worktree."
+    fi
+}
+
+diagnose_failed_worktree_remove() {
+    # After a failed 'git worktree remove', check .git/worktrees metadata vs the on-disk directory.
+    local target_worktree_path="$1"
+
+    local git_dir=""
+    git_dir="$(git rev-parse --git-dir)"
+    if [[ "$git_dir" != /* ]]; then
+        git_dir="$repo_root/$git_dir"
+    fi
+
+    local worktrees_dir="$git_dir/worktrees"
+    local dir_exists="false"
+
+    if [[ -d "$target_worktree_path" ]]; then
+        dir_exists="true"
+    fi
+
+    local has_metadata="false"
+    local metadata_dir_for_branch=""
+
+    if [[ -d "$worktrees_dir" ]]; then
+        local entry_path=""
+        for metadata_dir_for_branch in "$worktrees_dir"/*; do
+            [[ -d "$metadata_dir_for_branch" ]] || continue
+            if [[ -f "$metadata_dir_for_branch/gitdir" ]]; then
+                entry_path="$(dirname "$(cat "$metadata_dir_for_branch/gitdir" 2>/dev/null || echo "")")"
+                if [[ "$entry_path" == "$target_worktree_path" ]]; then
+                    has_metadata="true"
+                    break
+                fi
+            fi
+        done
+    fi
+
+    echo "🔍 Post-failure diagnostics for worktree: $target_worktree_path"
+
+    if [[ "$dir_exists" == "true" && "$has_metadata" == "false" ]]; then
+        echo "   ➜ It looks like .git/worktrees metadata has already been removed, but the directory remains."
+        echo "     You can remove the residual directory manually if you're sure it's safe:"
+        echo "       rm -rf \"$target_worktree_path\""
+    elif [[ "$dir_exists" == "false" && "$has_metadata" == "true" ]]; then
+        echo "   ➜ Metadata exists under '.git/worktrees', but the worktree directory is gone."
+        echo "     You can clean up metadata-only entries using:"
+        echo "       git worktree prune"
+    elif [[ "$dir_exists" == "true" && "$has_metadata" == "true" ]]; then
+        echo "   ➜ Both the worktree directory and metadata still exist."
+        echo "     A typical next step is to fix filesystem permissions in:"
+        echo "       $target_worktree_path"
+        echo "     and then retry:"
+        echo "       git worktree remove \"$target_worktree_path\""
+    else
+        echo "   ➜ No worktree directory or metadata found for this path."
+        echo "     Nothing to clean up, but the previous failure may have been unrelated to worktree state."
+    fi
+}
+
 cleanup_feature_branch() {
     local resolved_cleanup_worktree_path="$worktree_path"
     local current_checked_out_branch=""
@@ -180,7 +401,13 @@ cleanup_feature_branch() {
 
     echo "🧹 Cleanup enabled."
     if git worktree list --porcelain | grep -Fq "worktree $resolved_cleanup_worktree_path"; then
-        git worktree remove "$resolved_cleanup_worktree_path"
+        preflight_check_worktree_permissions "$resolved_cleanup_worktree_path"
+        if ! git worktree remove "$resolved_cleanup_worktree_path"; then
+            echo "❌ git worktree remove failed for: $resolved_cleanup_worktree_path"
+            diagnose_failed_worktree_remove "$resolved_cleanup_worktree_path"
+            echo "❌ Aborting cleanup because worktree removal failed."
+            return 1
+        fi
         echo "✅ Removed worktree: $resolved_cleanup_worktree_path"
     else
         echo "⚠️ Worktree not found, skipped: $resolved_cleanup_worktree_path"

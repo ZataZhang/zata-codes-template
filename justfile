@@ -157,6 +157,19 @@ worktree-merge feature_branch base_branch="main" flags="":
 worktree-delete feature_branch:
     ./scripts/git_worktree_merge.sh "{{feature_branch}}" -d
 
+# Doctor / cleanup-check for worktrees
+# Usage:
+#   just worktree-doctor                # global scan
+#   just worktree-doctor <feature_branch>  # focus on a single feature worktree
+worktree-doctor feature_branch="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ -n "{{feature_branch}}" ]; then
+        ./scripts/git_worktree_merge.sh --doctor "{{feature_branch}}"
+    else
+        ./scripts/git_worktree_merge.sh --doctor
+    fi
+
 # Install global bash completion for just worktree recipes (one-time setup)
 # Usage:
 #   just install-worktree-completion
