@@ -30,6 +30,26 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
+discover_frontend_project_directories() {
+    local search_root_path="$1"
+
+    if [ -z "$search_root_path" ] || [ ! -d "$search_root_path" ]; then
+        return 0
+    fi
+
+    if [ -f "$search_root_path/package.json" ]; then
+        printf '%s\n' "$search_root_path"
+    fi
+
+    while IFS= read -r nested_package_json_path; do
+        dirname "$nested_package_json_path"
+    done < <(
+        find "$search_root_path" \
+            \( -type d \( -name ".git" -o -name ".venv" -o -name "node_modules" -o -name "site" \) -prune \) -o \
+            -mindepth 2 -type f -name "package.json" -print
+    )
+}
+
 resolve_frontend_dependency_strategy() {
     # WORKTREE_FRONTEND_STRATEGY 可选值:
     #   - install-per-worktree: 在新 worktree 中执行一次前端依赖安装（默认行为）
@@ -70,21 +90,21 @@ setup_frontend_node_modules_symlinks() {
 
     local linked_project_count=0
 
-    # 约定：将包含 package.json 且存在 node_modules 的目录视为前端工程目录。
-    # 避免遍历 .git 等内部目录。
-    while IFS= read -r source_package_json_path; do
-        # 相对路径示例: admin-frontend/package.json
-        local relative_frontend_path="${source_package_json_path#"$source_root_path"/}"
-        relative_frontend_path="${relative_frontend_path%/package.json}"
+    while IFS= read -r source_frontend_dir; do
+        local relative_frontend_path="${source_frontend_dir#"$source_root_path"/}"
+        local target_frontend_dir="$target_root_path"
+        local frontend_display_path="."
 
-        local source_frontend_dir="$source_root_path/$relative_frontend_path"
-        local target_frontend_dir="$target_root_path/$relative_frontend_path"
+        if [ "$source_frontend_dir" != "$source_root_path" ]; then
+            target_frontend_dir="$target_root_path/$relative_frontend_path"
+            frontend_display_path="$relative_frontend_path"
+        fi
 
         local source_node_modules_path="$source_frontend_dir/node_modules"
         local target_node_modules_path="$target_frontend_dir/node_modules"
 
         if [ ! -d "$source_node_modules_path" ]; then
-            echo "ℹ️ 源前端目录缺少 node_modules，跳过符号链接: $source_frontend_dir"
+            echo "ℹ️ 源前端目录缺少 node_modules，跳过符号链接: $frontend_display_path"
             continue
         fi
 
@@ -98,23 +118,20 @@ setup_frontend_node_modules_symlinks() {
         fi
 
         if ln -s "$source_node_modules_path" "$target_node_modules_path"; then
-            echo "🔗 已为前端目录创建 node_modules 符号链接:"
+            echo "🔗 已为前端目录创建 node_modules 符号链接: $frontend_display_path"
             echo "   $target_node_modules_path -> $source_node_modules_path"
             linked_project_count=$((linked_project_count + 1))
         else
             echo "⚠️ 创建符号链接失败: $target_node_modules_path" >&2
         fi
-    done < <(
-        find "$source_root_path" -mindepth 2 -maxdepth 6 -type f -name "package.json" \
-            -not -path "$source_root_path/.git/*"
-    )
+    done < <(discover_frontend_project_directories "$source_root_path")
 
     if [ "$linked_project_count" -eq 0 ]; then
         echo "ℹ️ 未在源仓库中找到适合创建符号链接的前端项目（package.json + node_modules）。"
     fi
 }
 
-install_frontend_dependencies() {
+install_frontend_dependencies_in_current_directory() {
     # Priority: lock-file driven install for reproducible frontend environments.
     if [ -f pnpm-lock.yaml ]; then
         if ! command_exists pnpm; then
@@ -178,6 +195,61 @@ install_frontend_dependencies() {
             echo "❌ npm install 失败。"
             return 1
         fi
+    fi
+
+    return 0
+}
+
+install_frontend_dependencies_in_directory() {
+    local frontend_project_path="$1"
+    local frontend_display_path="$2"
+
+    if [ -z "$frontend_project_path" ] || [ ! -d "$frontend_project_path" ]; then
+        return 0
+    fi
+
+    if [ ! -f "$frontend_project_path/package.json" ]; then
+        return 0
+    fi
+
+    echo "🧩 正在处理前端目录: $frontend_display_path"
+    if ! (
+        cd "$frontend_project_path" &&
+        install_frontend_dependencies_in_current_directory
+    ); then
+        echo "❌ 前端依赖安装失败: $frontend_display_path"
+        return 1
+    fi
+
+    return 0
+}
+
+install_frontend_dependencies_for_worktree() {
+    local worktree_root_path="$1"
+    local discovered_project_count=0
+    local frontend_project_path=""
+    local relative_frontend_path=""
+    local frontend_display_path=""
+
+    while IFS= read -r frontend_project_path; do
+        if [ -z "$frontend_project_path" ]; then
+            continue
+        fi
+
+        discovered_project_count=$((discovered_project_count + 1))
+        relative_frontend_path="${frontend_project_path#"$worktree_root_path"/}"
+        frontend_display_path="."
+        if [ "$frontend_project_path" != "$worktree_root_path" ]; then
+            frontend_display_path="$relative_frontend_path"
+        fi
+
+        if ! install_frontend_dependencies_in_directory "$frontend_project_path" "$frontend_display_path"; then
+            return 1
+        fi
+    done < <(discover_frontend_project_directories "$worktree_root_path")
+
+    if [ "$discovered_project_count" -eq 0 ]; then
+        echo "ℹ️ 未检测到 package.json，跳过前端依赖安装。"
     fi
 
     return 0
@@ -325,7 +397,7 @@ function ai_worktree() {
         if [ "${WORKTREE_SKIP_FRONTEND_INSTALL:-false}" = "true" ]; then
             echo "⚠️ 已设置 WORKTREE_SKIP_FRONTEND_INSTALL=true，跳过前端依赖安装。"
         else
-            if ! install_frontend_dependencies; then
+            if ! install_frontend_dependencies_for_worktree "$target_abs_path"; then
                 return 1
             fi
         fi

@@ -23,6 +23,19 @@
 - 推荐在 `config.toml` 中维护非敏感默认项。
 - 所有业务代码统一从 `config` 实例读取，不直接散落调用 `os.getenv`。
 
+## Worktree 相关环境变量
+
+`just worktree` / `scripts/git_worktree.sh` 支持以下环境变量来控制新 worktree 的依赖准备行为：
+
+- `WORKTREE_FRONTEND_STRATEGY`
+  - `install-per-worktree`：默认值。扫描 worktree 根目录和子目录中的前端项目，并在各自目录执行锁文件驱动的依赖安装。
+  - `symlink-from-main`：不重新安装依赖，而是尝试把新 worktree 中的前端项目 `node_modules` 链接到源仓库对应目录。
+- `WORKTREE_SKIP_FRONTEND_INSTALL`
+  - 仅在 `WORKTREE_FRONTEND_STRATEGY=install-per-worktree` 时生效。
+  - 设为 `true` 后，跳过前端依赖安装步骤。
+
+对包含多个前端子项目的仓库，默认策略会覆盖类似 `demo-frontend/`、`admin-frontend/` 这类嵌套目录，而不是只处理仓库根目录。
+
 ## 日志相关配置
 
 日志位于 `logs/` 目录，默认文件为 `logs/app.log`，并通过 `TimedRotatingFileHandler` 按天切分。

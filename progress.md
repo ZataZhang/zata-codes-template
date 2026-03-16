@@ -1,33 +1,35 @@
 # Progress Log
 
-## Session: 2026-03-09
+## Session: 2026-03-15
 
 ### Current Status
-- **Phase:** 2 - Planning & Structure
-- **Started:** 2026-03-09
+- **Phase:** 4 - Delivery
+- **Started:** 2026-03-15
 
 ### Actions Taken
-- Inspected `.github/workflows/ci.yml` and `.github/workflows/cd.yml`.
-- Confirmed the copied workflows reference non-existent frontends, Dockerfiles, Dokploy hooks, and a private registry.
-- Inspected `pyproject.toml`, `README.md`, `justfile`, and `.pre-commit-config.yaml` to determine the real automation surface of this repository.
-- Initialized planning files and captured requirements/findings for the workflow rewrite.
-- Confirmed the template’s stable automation contract is `uv sync`, `pre-commit`, local `pytest`, strict MkDocs build, and release zip generation.
-- Identified a documentation gap in `docs/guides/deployment.md`, which still has a TODO for CI/CD and references a non-existent `just docs-build` command.
-- Replaced the copied CI workflow with a generic template validation pipeline for PRs, `main`, and manual dispatch.
-- Replaced the copied Dokploy CD workflow with a tag-driven GitHub Release pipeline that builds and uploads the template zip.
-- Updated deployment docs to describe the new GitHub Actions template and the main knobs downstream repos should customize.
+- Read the active `AGENTS.md` instructions and the `planning-with-files` skill.
+- Inspected repository structure and confirmed the worktree helper lives in `scripts/git_worktree.sh`.
+- Located the current frontend installation logic and confirmed it runs only once at the new worktree root.
+- Confirmed the script already has nested frontend traversal logic for `symlink-from-main`, which can be used as a model for nested install discovery.
+- Identified a relevant design note in `tasks/20260312-180937-prd-worktree-frontend-deps.md`.
+- Added `discover_frontend_project_directories` and refactored worktree frontend installation to process each discovered frontend project directory individually.
+- Reused the same frontend discovery logic for `symlink-from-main`, so root-level and nested frontend projects follow the same detection path.
+- Updated `docs/getting-started.md` and `docs/guides/configuration.md` to explain nested frontend installs and worktree environment variables.
+- Updated `docs/prototypes/worktree-frontend-demo.html` so `install-per-worktree` now represents a successful but slower path instead of `vite: not found`.
 
 ### Test Results
 | Test | Expected | Actual | Status |
 |------|----------|--------|--------|
-| `UV_CACHE_DIR=/tmp/uv-cache uv sync --all-groups --frozen` | Dependencies resolve from lock file | Passed | ✅ |
-| `UV_CACHE_DIR=/tmp/uv-cache uv run pytest tests/ -v --ignore=tests/test_model_loader_real.py -m "not expensive"` | Local CI test selection passes | 39 passed, 10 skipped, 2 deselected | ✅ |
-| `UV_CACHE_DIR=/tmp/uv-cache uv run mkdocs build --strict` | Docs build without warnings promoted to errors | Passed | ✅ |
-| `UV_CACHE_DIR=/tmp/uv-cache uv run python scripts/release.py` | Release zip builds successfully | Passed | ✅ |
-| `yaml.safe_load()` for `.github/workflows/ci.yml` and `.github/workflows/cd.yml` | Workflow YAML parses cleanly | Passed | ✅ |
+| `bash -n scripts/git_worktree.sh` | Updated script remains valid bash syntax | Passed | ✅ |
+| Targeted shell harness for `install_frontend_dependencies_for_worktree` | Root and nested frontend directories each trigger local dependency installation | Logged `npm ci --ignore-scripts` for `.` / `demo-frontend` / `admin-frontend` | ✅ |
+| Targeted shell harness for `setup_frontend_node_modules_symlinks` | Root and nested frontend projects receive `node_modules` symlinks when source deps exist | Root and `demo-frontend` symlinks created successfully | ✅ |
+| `git diff --check -- scripts/git_worktree.sh docs/getting-started.md docs/guides/configuration.md docs/prototypes/worktree-frontend-demo.html task_plan.md findings.md progress.md` | No whitespace or patch-format issues in changed files | Passed | ✅ |
+| `UV_CACHE_DIR=/tmp/uv-cache uv run mkdocs build --strict` | Docs build should succeed | Failed: `PyYAML` C extension segfault on Python 3.14.0a6; after forcing pure-Python YAML, `griffe` crashed on missing `ast.Interpolation` compatibility | ⚠️ |
+| `UV_CACHE_DIR=/tmp/uv-cache uv run pytest tests/ -v --ignore=tests/test_model_loader_real.py -m "not expensive"` | Existing local test suite should still pass | Exited with code 139 under Python 3.14.0a6 before useful output | ⚠️ |
 
 ### Errors
 | Error | Resolution |
 |-------|------------|
-| `uv` cache initialization failed under `~/.cache/uv` | Reran commands with `UV_CACHE_DIR=/tmp/uv-cache`. |
-| `pre-commit` wrote to a read-only cache and then tried to fetch hook repos over the blocked network | Used `/tmp/pre-commit` for cache and replaced hook bootstrap validation with a local YAML parse. |
+| Existing progress log belonged to a previous task | Replaced it with the current session log. |
+| `mkdocs build` could not complete in the current `.venv` | Isolated the first failure to `yaml._yaml` segfaults and the second to `griffe` importing unsupported Python 3.14 AST APIs. |
+| `pytest` exited with code 139 in the current `.venv` | Kept verification focused on the changed shell script path and documented the environment limitation. |

@@ -1,56 +1,51 @@
-# Task Plan: Convert copied GitHub Actions into template workflows
+# Task Plan: Fix nested frontend dependency installation for new worktrees
 
 ## Goal
-Replace the copied app-specific `.github/workflows` files with reusable CI/CD workflows that match this Python template registry.
+Update the worktree bootstrap script so new worktrees install frontend dependencies for nested subprojects such as `demo-frontend` and `admin-frontend`, instead of only handling the repository root.
 
 ## Current Phase
-Phase 5
+Phase 4
 
 ## Phases
 
 ### Phase 1: Requirements & Discovery
-- [x] Understand user intent
-- [x] Identify constraints
-- [x] Document in findings.md
+- [x] Confirm user-reported failure mode
+- [x] Identify the current installation entrypoint
+- [x] Capture findings in findings.md
 - **Status:** complete
 
-### Phase 2: Planning & Structure
-- [x] Define approach
-- [x] Confirm workflow scope from repository capabilities
+### Phase 2: Implementation
+- [x] Extend worktree frontend dependency discovery
+- [x] Keep existing strategy toggles compatible
+- [x] Update relevant documentation
 - **Status:** complete
 
-### Phase 3: Implementation
-- [x] Replace mismatched workflows
-- [x] Keep workflows generic for downstream template users
-- [x] Update docs to describe the template CI/CD contract
+### Phase 3: Testing & Verification
+- [x] Run targeted script checks
+- [x] Run docs verification
+- [x] Record outcomes in progress.md
 - **Status:** complete
 
-### Phase 4: Testing & Verification
-- [x] Validate workflow YAML
-- [x] Run relevant repo checks where practical
-- [x] Document test results
-- **Status:** complete
-
-### Phase 5: Delivery
-- [x] Review outputs
-- [ ] Deliver to user
+### Phase 4: Delivery
+- [ ] Summarize behavior changes and caveats
 - **Status:** in_progress
 
 ## Decisions Made
 | Decision | Rationale |
 |----------|-----------|
-| Remove app-specific frontend and Dokploy logic | Those services and deployment targets do not exist in this repository. |
-| Align CI with `uv`, `pre-commit`, `pytest`, `mkdocs`, and release packaging | These are the actual tools and scripts present in the template repo. |
-| Keep release automation tag-driven and GitHub-native | Template consumers should not inherit private registry or Dokploy dependencies. |
+| Keep `install-per-worktree` as the default strategy | The current interface should remain backward compatible for repos without nested frontends. |
+| Fix discovery inside `scripts/git_worktree.sh` rather than adding repo-specific hardcoding | The template must work for arbitrary downstream subproject names, not only `demo-frontend` and `admin-frontend`. |
+| Keep `symlink-from-main` on the same discovery path as install mode | Root-level and nested frontend projects should follow the same project detection rules. |
 
 ## Errors Encountered
 | Error | Resolution |
 |-------|------------|
-| `uv` and `pre-commit` defaulted to read-only cache directories in the sandbox | Reran validation with writable cache directories under `/tmp`. |
-| `pre-commit` hook bootstrap required network access to GitHub | Validated workflow YAML with local `yaml.safe_load(...)` instead and documented the limitation. |
+| Existing planning files described an older workflow task | Replaced them with task state for the current worktree dependency fix. |
+| `uv run mkdocs build --strict` crashed under `PyYAML` C bindings, then failed again in `griffe` on Python 3.14.0a6 | Verified the script change with shell-level checks and documented the environment incompatibility as a separate repo issue. |
+| `uv run pytest ...` exited with code 139 in the current Python 3.14.0a6 environment | Kept verification focused on bash syntax and a targeted shell harness for the changed worktree logic. |
 
 ## Completion Summary
 - **Status:** In progress (awaiting user delivery)
-- **Tests:** Passed (`UV_CACHE_DIR=/tmp/uv-cache uv sync --all-groups --frozen`, `UV_CACHE_DIR=/tmp/uv-cache uv run pytest tests/ -v --ignore=tests/test_model_loader_real.py -m "not expensive"`, `UV_CACHE_DIR=/tmp/uv-cache uv run mkdocs build --strict`, `UV_CACHE_DIR=/tmp/uv-cache uv run python scripts/release.py`, local YAML parse for `.github/workflows/*.yml`)
-- **Deliverables:** `.github/workflows/ci.yml`, `.github/workflows/cd.yml`, `docs/guides/deployment.md`
-- **Notes:** `pre-commit run check-yaml` could not complete in the sandbox because hook repositories are fetched from GitHub.
+- **Tests:** Passed (`bash -n scripts/git_worktree.sh`, targeted shell harness for nested frontend installs and symlink reuse, `git diff --check`); blocked by environment (`UV_CACHE_DIR=/tmp/uv-cache uv run mkdocs build --strict`, `UV_CACHE_DIR=/tmp/uv-cache uv run pytest tests/ -v --ignore=tests/test_model_loader_real.py -m "not expensive"`)
+- **Deliverables:** `scripts/git_worktree.sh`, `docs/getting-started.md`, `docs/guides/configuration.md`, `docs/prototypes/worktree-frontend-demo.html`
+- **Notes:** Worktree bootstrap now handles nested frontend projects, but full repo verification is limited by Python 3.14 alpha compatibility issues in the current virtual environment.

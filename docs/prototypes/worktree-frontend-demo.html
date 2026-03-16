@@ -119,7 +119,7 @@
 
         records.push({
           title: "准备阶段",
-          note: "主仓库已安装前端依赖，存在 node_modules/.bin/vite。",
+          note: "脚本已准备好复制 .env、安装 Python 依赖，并处理前端项目依赖。",
           status: "Completed",
         });
 
@@ -163,14 +163,14 @@
           });
         } else {
           records.push({
-            title: "缺少 node_modules",
-            note: "新 worktree 未安装依赖，或安装未包含 vite。",
-            status: "Current",
+            title: "独立安装前端依赖",
+            note: "脚本在 demo-frontend、admin-frontend 等子目录内执行 npm ci / pnpm install。",
+            status: "Completed",
           });
           records.push({
-            title: "just demo-up 失败",
-            note: "终端输出：vite: not found。",
-            status: "Blocked",
+            title: "just demo-up 成功",
+            note: "vite 可执行，但首次创建 worktree 的耗时高于符号链接策略。",
+            status: "Completed",
           });
         }
 
@@ -213,7 +213,7 @@
           viteAvailabilityPillElement.textContent = "vite: 未检查";
           nodeModulesPillElement.textContent = isSymlinkStrategy
             ? "node_modules: 准备创建符号链接"
-            : "node_modules: 需要独立安装";
+            : "node_modules: 准备独立安装";
           progressFillElement.style.width = "40%";
           runDemoUpButtonElement.disabled = false;
           return;
@@ -228,12 +228,12 @@
             "node_modules: 指向主工程的符号链接";
           progressFillElement.style.width = "100%";
         } else {
-          statusTitleElement.textContent = "缺少依赖导致 just demo-up 失败";
+          statusTitleElement.textContent = "已独立安装依赖并启动成功";
           statusDescriptionElement.textContent =
-            "新 worktree 未正确安装前端依赖，运行脚本时终端提示：sh: 1: vite: not found。";
-          viteAvailabilityPillElement.textContent = "vite: not found";
-          nodeModulesPillElement.textContent = "node_modules: 未安装/不完整";
-          progressFillElement.style.width = "70%";
+            "新 worktree 会在各个前端子项目目录中安装依赖，启动成功，但首次准备时间通常长于符号链接复用。";
+          viteAvailabilityPillElement.textContent = "vite: 可执行";
+          nodeModulesPillElement.textContent = "node_modules: 已在各子项目安装";
+          progressFillElement.style.width = "100%";
         }
       }
 
@@ -326,4 +326,3 @@
     </script>
   </body>
 </html>
-

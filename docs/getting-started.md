@@ -56,6 +56,21 @@ just docs-serve
 just docs-build
 ```
 
+## Git Worktree
+
+创建新的 worktree：
+
+```bash
+just worktree feature-branch
+```
+
+`scripts/git_worktree.sh` 在创建 worktree 后会自动执行两类依赖准备：
+
+- Python：如果仓库根目录存在 `pyproject.toml`，则运行 `uv sync --all-extras`。
+- Frontend：扫描 worktree 根目录及其子目录中的 `package.json`，并在每个前端项目目录内按锁文件选择对应安装命令，例如 `npm ci`、`pnpm install`、`yarn install` 或 `bun install`。
+
+这意味着像 `demo-frontend/`、`admin-frontend/` 这类把 `package.json` 放在子目录里的前端项目，也会在新 worktree 中自动完成依赖安装。
+
 ## 目录说明
 
 - `utils/`：通用配置、日志、数据库与工具函数。
