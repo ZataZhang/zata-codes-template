@@ -47,6 +47,7 @@ nav:
   - 使用指南:
       - 配置说明: guides/configuration.md
       - 部署指南: guides/deployment.md
+      - Planning Skill: guides/planning-with-files.md
       - PRD 编写规范: guides/prd-standard.md
   - 原型演示:
       - 概览: prototypes/index.md

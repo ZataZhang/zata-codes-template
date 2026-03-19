@@ -1,5 +1,9 @@
 # Examples: Planning with Files in Action
 
+Note: in v2.4.0+, the active planning workspace lives under `.claude/planning/current/`.
+The examples below use the shorthand names `task_plan.md`, `findings.md`, and `progress.md`
+to focus on the workflow, but the conflict-safe default path is `.claude/planning/current/`.
+
 ## Example 1: Research Task
 
 **User Request:** "Research the benefits of morning exercise and write a summary"

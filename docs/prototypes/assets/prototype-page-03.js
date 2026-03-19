@@ -7,9 +7,9 @@ const toolButtonElementList = Array.from(document.querySelectorAll('[data-action
 
 const skillPackageRecord = {
   skillName: 'planning-with-files',
-  version: '2.2.0',
+  version: '2.4.0',
   description:
-    'Manus-style file-based planning skill. Creates task_plan.md, findings.md, and progress.md in project root.',
+    'Manus-style file-based planning skill. Stores active planning files under .claude/planning/current/ and archives resets under .claude/planning/sessions/.',
   userInvocable: true,
   allowedToolNameList: ['Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep', 'WebFetch', 'WebSearch'],
   fileBuckets: {
@@ -24,7 +24,7 @@ const skillPackageRecord = {
       { path: 'templates/progress.md', purpose: 'Execution log and reboot checklist template.' },
     ],
     scripts: [
-      { path: 'scripts/init-session.sh', purpose: 'Initialize planning files in current project.' },
+      { path: 'scripts/init-session.sh', purpose: 'Initialize planning files in .claude/planning/current/.' },
       { path: 'scripts/check-complete.sh', purpose: 'Check whether all phases are complete.' },
       { path: 'scripts/update_phase_status.py', purpose: 'Auto-advance and status report helper.' },
       { path: 'scripts/task_plan.md', purpose: 'Script-side task_plan sample.' },
@@ -37,7 +37,7 @@ const skillPackageRecord = {
       "echo '[planning-with-files] Ready...'",
       'python update_phase_status.py --status-report',
     ],
-    PreToolUse: ['cat task_plan.md | head -30'],
+    PreToolUse: ['cat .claude/planning/current/task_plan.md | head -30'],
     PostToolUse: [
       "echo '[planning-with-files] File updated...'",
       'python update_phase_status.py --auto-advance',
@@ -54,7 +54,7 @@ const filePreviewMap = {
   'templates/task_plan.md': 'Defines Goal, Current Phase, Phases, Decisions, Errors, Completion Summary.',
   'templates/findings.md': 'Defines Requirements, Research Findings, Technical Decisions, Issues.',
   'templates/progress.md': 'Defines per-phase logs, tests, error log, and 5-question reboot check.',
-  'scripts/init-session.sh': 'Bootstraps planning files into current project directory.',
+  'scripts/init-session.sh': 'Bootstraps planning files into .claude/planning/current/ and archives resets.',
   'scripts/check-complete.sh': 'Checks if all phases are marked complete before stop.',
   'scripts/update_phase_status.py': 'Supports --status-report, --auto-advance, --phase updates.',
   'scripts/task_plan.md': 'Sample status tracker used by automation scripts.',
@@ -92,9 +92,9 @@ const initialState = {
   sessionInitialized: false,
   twoActionCounter: 0,
   artifactStateMap: {
-    'task_plan.md': false,
-    'findings.md': false,
-    'progress.md': false,
+    '.claude/planning/current/task_plan.md': false,
+    '.claude/planning/current/findings.md': false,
+    '.claude/planning/current/progress.md': false,
   },
   phaseList: initialPhaseList,
   hookEnabledMap: {
@@ -627,13 +627,13 @@ function onAction(actionKey, triggerElement) {
       ...prototypeState,
       sessionInitialized: true,
       artifactStateMap: {
-        'task_plan.md': true,
-        'findings.md': true,
-        'progress.md': true,
+        '.claude/planning/current/task_plan.md': true,
+        '.claude/planning/current/findings.md': true,
+        '.claude/planning/current/progress.md': true,
       },
     };
-    appendLog('scripts/init-session.sh created task_plan.md, findings.md, progress.md');
-    setBanner('Session initialized. Planning files are now present in project root.', 'success');
+    appendLog('scripts/init-session.sh created .claude/planning/current/task_plan.md, findings.md, and progress.md');
+    setBanner('Session initialized. Planning files are now present in .claude/planning/current/.', 'success');
     render();
     return;
   }

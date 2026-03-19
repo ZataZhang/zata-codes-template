@@ -1,7 +1,7 @@
 ---
 name: planning-with-files
-version: "2.3.0"
-description: Implements Manus-style file-based planning for complex tasks. Creates task_plan.md, findings.md, and progress.md. Must pass tests before completion. Use when starting complex multi-step tasks, research projects, or any task requiring >5 tool calls.
+version: "2.4.0"
+description: Implements Manus-style file-based planning for complex tasks. Stores the active planning files under .claude/planning/current/ to avoid repo-root conflicts, with legacy fallback for existing root files. Must pass tests before completion. Use when starting complex multi-step tasks, research projects, or any task requiring >5 tool calls.
 user-invocable: true
 allowed-tools:
   - Read
@@ -18,14 +18,14 @@ hooks:
         - type: command
           command: "echo '[planning-with-files] Ready. Auto-activates for complex tasks, or invoke manually with /planning-with-files'"
         - type: command
-          command: "if [ -f task_plan.md ] || [ -f findings.md ] || [ -f progress.md ]; then echo '[planning-with-files] Planning files already exist. To reset intentionally, run: ${CLAUDE_PLUGIN_ROOT}/scripts/init-session.sh --force'; else echo '[planning-with-files] No planning files found. Initialize with: ${CLAUDE_PLUGIN_ROOT}/scripts/init-session.sh'; fi"
+          command: "if [ -f .claude/planning/current/task_plan.md ]; then echo '[planning-with-files] Active planning session: .claude/planning/current/'; elif [ -f task_plan.md ] || [ -f findings.md ] || [ -f progress.md ]; then echo '[planning-with-files] Legacy root planning files detected. Migrate them with: ${CLAUDE_PLUGIN_ROOT}/scripts/init-session.sh'; else echo '[planning-with-files] No planning session found. Initialize with: ${CLAUDE_PLUGIN_ROOT}/scripts/init-session.sh'; fi"
         - type: command
           command: "python ${CLAUDE_PLUGIN_ROOT}/scripts/update_phase_status.py --status-report 2>/dev/null || true"
   PreToolUse:
     - matcher: "Write|Edit|Bash"
       hooks:
         - type: command
-          command: "cat task_plan.md 2>/dev/null | head -30 || true"
+          command: "cat .claude/planning/current/task_plan.md 2>/dev/null | head -30 || cat task_plan.md 2>/dev/null | head -30 || true"
   PostToolUse:
     - matcher: "Write|Edit"
       hooks:
@@ -64,21 +64,23 @@ Use two locations correctly:
 | Location | Contents |
 | --- | --- |
 | Skill directory (`${CLAUDE_PLUGIN_ROOT}/`) | Templates, scripts, reference docs |
-| Project directory (current workspace root) | `task_plan.md`, `findings.md`, `progress.md` |
+| Project directory (ignored workspace state) | `.claude/planning/current/task_plan.md`, `.claude/planning/current/findings.md`, `.claude/planning/current/progress.md` |
+| Project directory (archived session history) | `.claude/planning/sessions/` |
 
-Planning files must live in the project directory, alongside code.
+Planning files must not live in tracked repo-root files. Keep active planning state under `.claude/planning/current/` so branch merges and routine commits do not keep conflicting on `task_plan.md`, `findings.md`, and `progress.md`.
 
 ## Quick Start
 
 Before any complex task:
 
-1. Initialize files in the project root: `${CLAUDE_PLUGIN_ROOT}/scripts/init-session.sh`
-2. If you need a hard reset: `${CLAUDE_PLUGIN_ROOT}/scripts/init-session.sh --force`
-3. Confirm the three files exist in the project root:
-   - `task_plan.md`
-   - `findings.md`
-   - `progress.md`
-4. Start work only after `task_plan.md` has clear phases.
+1. Initialize the active planning workspace: `${CLAUDE_PLUGIN_ROOT}/scripts/init-session.sh`
+2. If you need a fresh planning workspace, archive the current one and recreate it: `${CLAUDE_PLUGIN_ROOT}/scripts/init-session.sh --force`
+3. Confirm the three active files exist:
+   - `.claude/planning/current/task_plan.md`
+   - `.claude/planning/current/findings.md`
+   - `.claude/planning/current/progress.md`
+4. If legacy repo-root planning files already exist, the first init run migrates them into `.claude/planning/current/` and leaves the originals untouched.
+5. Start work only after `.claude/planning/current/task_plan.md` has clear phases.
 
 Reference templates:
 
@@ -90,26 +92,26 @@ Reference templates:
 
 Repeat this loop through the task:
 
-1. Read `task_plan.md` before major decisions.
+1. Read `.claude/planning/current/task_plan.md` before major decisions.
 2. Execute a small batch of actions.
-3. Write new findings into `findings.md`.
-4. Log progress and test outcomes in `progress.md`.
-5. Update phase status in `task_plan.md`.
+3. Write new findings into `.claude/planning/current/findings.md`.
+4. Log progress and test outcomes in `.claude/planning/current/progress.md`.
+5. Update phase status in `.claude/planning/current/task_plan.md`.
 
 ## File Responsibilities
 
 | File | Role | Update Trigger |
 | --- | --- | --- |
-| `task_plan.md` | Phases, decisions, status tracking | At phase start/end and after major pivots |
-| `task_plan.md` / Completion Summary | Final recap, deliverables, test evidence | After all implementation and tests complete |
-| `findings.md` | Research notes, evidence, discovered constraints | After each meaningful discovery |
-| `progress.md` | Chronological execution log and test runs | Throughout execution |
+| `.claude/planning/current/task_plan.md` | Phases, decisions, status tracking | At phase start/end and after major pivots |
+| `.claude/planning/current/task_plan.md` / Completion Summary | Final recap, deliverables, test evidence | After all implementation and tests complete |
+| `.claude/planning/current/findings.md` | Research notes, evidence, discovered constraints | After each meaningful discovery |
+| `.claude/planning/current/progress.md` | Chronological execution log and test runs | Throughout execution |
 
 ## Operating Rules
 
 ### 1) Plan First
 
-Do not start a complex task without `task_plan.md`.
+Do not start a complex task without `.claude/planning/current/task_plan.md`.
 
 ### 2) 2-Action Capture Rule
 
@@ -117,7 +119,7 @@ After every two `view`/browser/search actions, persist key findings to disk imme
 
 ### 3) Read Before Decision
 
-Before architectural or high-impact choices, reread `task_plan.md` to maintain alignment.
+Before architectural or high-impact choices, reread `.claude/planning/current/task_plan.md` to maintain alignment.
 
 ### 4) Update After Action
 
@@ -152,8 +154,8 @@ Never mark work complete without verification.
 
 - check whether `tests/` exists
 - run relevant test commands (unit/integration/e2e as applicable)
-- if a test fails, log it in `progress.md`, fix it, and rerun
-- record exact command + pass/fail status in `progress.md` and Completion Summary
+- if a test fails, log it in `.claude/planning/current/progress.md`, fix it, and rerun
+- record exact command + pass/fail status in `.claude/planning/current/progress.md` and Completion Summary
 
 ## Completion Summary Rules
 
@@ -210,11 +212,11 @@ If these are answerable, context management is healthy:
 
 | Question | Source |
 | --- | --- |
-| Where am I? | Current phase in `task_plan.md` |
-| Where am I going? | Remaining phases in `task_plan.md` |
-| What is the goal? | Goal statement in `task_plan.md` |
-| What have I learned? | `findings.md` |
-| Did tests pass? | `progress.md` + terminal logs |
+| Where am I? | Current phase in `.claude/planning/current/task_plan.md` |
+| Where am I going? | Remaining phases in `.claude/planning/current/task_plan.md` |
+| What is the goal? | Goal statement in `.claude/planning/current/task_plan.md` |
+| What have I learned? | `.claude/planning/current/findings.md` |
+| Did tests pass? | `.claude/planning/current/progress.md` + terminal logs |
 
 ## When to Use
 
@@ -233,16 +235,16 @@ Skip for:
 
 ## Scripts
 
-- `scripts/init-session.sh`: initialize planning files safely (no overwrite by default)
+- `scripts/init-session.sh`: initialize planning files under `.claude/planning/current/` (no overwrite by default)
 - `scripts/check-complete.sh`: verify phase completion state
 
 ## Minimum Completion Checklist
 
 Before ending a task, confirm:
 
-1. `task_plan.md` phases are complete.
-2. `findings.md` contains key discoveries.
-3. `progress.md` includes test commands and results.
+1. `.claude/planning/current/task_plan.md` phases are complete.
+2. `.claude/planning/current/findings.md` contains key discoveries.
+3. `.claude/planning/current/progress.md` includes test commands and results.
 4. Completion Summary is filled with deliverables and verification.
 
 ## Automation
@@ -268,14 +270,14 @@ python "${CLAUDE_PLUGIN_ROOT}/scripts/update_phase_status.py" --log "Completed A
 Safe initialization commands:
 
 ```bash
-# Safe mode: create only if planning files do not already exist
+# Safe mode: create the active workspace only if one does not already exist
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/init-session.sh"
 
-# Force mode: overwrite all planning files
+# Force mode: archive current workspace and create a fresh one
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/init-session.sh" --force
 ```
 
-## Auto-Update Behavior (v2.3.0+)
+## Auto-Update Behavior (v2.4.0+)
 
 - Session start: show status report
 - After `Write`/`Edit`: attempt auto-advance and show updated status
@@ -285,14 +287,14 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/init-session.sh" --force
 
 | Don't | Do Instead |
 | --- | --- |
-| Use ephemeral todo memory only | Persist plan in `task_plan.md` |
+| Use ephemeral todo memory only | Persist plan in `.claude/planning/current/task_plan.md` |
 | State goals once and forget | Re-read plan before decisions |
 | Retry failures silently | Log failures and resolutions |
 | Overload transient context | Store large content in files |
 | Execute before planning | Create plan first |
 | Repeat failed actions | Change strategy each attempt |
 | Finish without verification | Run tests and record results |
-| Write planning files in skill dir | Write planning files in project root |
+| Write planning files in tracked repo root | Write planning files in `.claude/planning/current/` |
 
 ## Additional References
 

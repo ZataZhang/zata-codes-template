@@ -51,6 +51,7 @@ coverage/
 .idea/
 *.swp
 *.swo
+.claude/planning/
 
 # OS files
 .DS_Store

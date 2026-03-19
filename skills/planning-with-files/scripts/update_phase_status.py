@@ -25,6 +25,31 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+CURRENT_PLAN_PATH = Path(".claude/planning/current/task_plan.md")
+LEGACY_PLAN_PATH = Path("task_plan.md")
+
+
+def resolve_plan_path(explicit_plan_path: Path | None) -> Path:
+    """Resolve the task plan path for the active planning session.
+
+    Args:
+        explicit_plan_path: Optional plan path passed on the command line.
+
+    Returns:
+        The resolved task plan path. Explicit paths win, then the ignored
+        `.claude/planning/current/` workspace, then the legacy project-root file.
+    """
+    if explicit_plan_path is not None:
+        return explicit_plan_path
+
+    if CURRENT_PLAN_PATH.exists():
+        return CURRENT_PLAN_PATH
+
+    if LEGACY_PLAN_PATH.exists():
+        return LEGACY_PLAN_PATH
+
+    return CURRENT_PLAN_PATH
+
 
 def parse_task_plan(plan_path: Path) -> dict:
     """Parse task_plan.md and extract phase information.
@@ -338,8 +363,11 @@ def main():
         "--plan-file",
         "-p",
         type=Path,
-        default=Path("task_plan.md"),
-        help="Path to task_plan.md (default: ./task_plan.md)",
+        default=None,
+        help=(
+            "Path to task_plan.md "
+            "(default: ./.claude/planning/current/task_plan.md, fallback: ./task_plan.md)"
+        ),
     )
 
     parser.add_argument(
@@ -373,29 +401,30 @@ def main():
     )
 
     args = parser.parse_args()
+    resolved_plan_path = resolve_plan_path(args.plan_file)
 
     # Handle status report
     if args.status_report:
-        print(generate_status_report(args.plan_file))
+        print(generate_status_report(resolved_plan_path))
         return 0
 
     # Handle progress logging
     if args.log:
-        log_progress(args.plan_file, args.log)
+        log_progress(resolved_plan_path, args.log)
         print(f"[planning-with-files] Logged progress: {args.log}")
         return 0
 
     # Handle auto-advance
     if args.auto_advance:
-        auto_advance_phase(args.plan_file)
+        auto_advance_phase(resolved_plan_path)
         return 0
 
     # Handle explicit phase update
     if args.phase and args.status:
-        success = update_phase_status(args.plan_file, args.phase, args.status)
+        success = update_phase_status(resolved_plan_path, args.phase, args.status)
         if success and args.status == "complete":
             # Try to auto-advance after marking complete
-            auto_advance_phase(args.plan_file)
+            auto_advance_phase(resolved_plan_path)
         return 0 if success else 1
 
     # No action specified, show help

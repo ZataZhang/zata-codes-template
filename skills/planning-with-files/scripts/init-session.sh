@@ -5,14 +5,23 @@
 set -euo pipefail
 
 FORCE_RESET=false
-PROJECT_NAME="project"
+PROJECT_NAME="$(basename "$PWD")"
 SCRIPT_NAME="$(basename "$0")"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TEMPLATE_DIR="$(cd "${SCRIPT_DIR}/../templates" && pwd)"
+PLANNING_ROOT=".claude/planning"
+CURRENT_DIR="${PLANNING_ROOT}/current"
+ARCHIVE_DIR="${PLANNING_ROOT}/sessions"
+PLANNING_BASENAMES=(task_plan.md findings.md progress.md)
 
 print_usage() {
     echo "Usage: ${SCRIPT_NAME} [--force] [project-name]"
     echo ""
-    echo "Default mode is safe: if planning files already exist, the script exits"
-    echo "without overwriting anything. Use --force to reset existing files."
+    echo "Default mode is safe: if an active planning session already exists in"
+    echo "${CURRENT_DIR}/, the script exits without changing it."
+    echo ""
+    echo "Use --force to archive the current planning session into"
+    echo "${ARCHIVE_DIR}/ and create a fresh ${CURRENT_DIR}/ workspace."
 }
 
 parse_args() {
@@ -27,7 +36,7 @@ parse_args() {
                 exit 0
                 ;;
             *)
-                if [ "$PROJECT_NAME" = "project" ]; then
+                if [ "$PROJECT_NAME" = "$(basename "$PWD")" ]; then
                     PROJECT_NAME="$arg"
                 else
                     echo "Error: unexpected argument '$arg'"
@@ -39,119 +48,110 @@ parse_args() {
     done
 }
 
+slugify_name() {
+    local raw_name="$1"
+    local slug_name
+    slug_name="$(printf '%s' "$raw_name" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')"
+
+    if [ -z "$slug_name" ]; then
+        slug_name="session"
+    fi
+
+    printf '%s\n' "$slug_name"
+}
+
+collect_existing_files_in_dir() {
+    local target_dir="$1"
+    local -n output_ref="$2"
+    local planning_basename
+
+    output_ref=()
+    for planning_basename in "${PLANNING_BASENAMES[@]}"; do
+        if [ -f "${target_dir}/${planning_basename}" ]; then
+            output_ref+=("${target_dir}/${planning_basename}")
+        fi
+    done
+}
+
+collect_existing_legacy_files() {
+    local -n output_ref="$1"
+    local planning_basename
+
+    output_ref=()
+    for planning_basename in "${PLANNING_BASENAMES[@]}"; do
+        if [ -f "${planning_basename}" ]; then
+            output_ref+=("${planning_basename}")
+        fi
+    done
+}
+
+initialize_current_session_files() {
+    local current_date
+    local current_timestamp
+
+    current_date="$(date +%Y-%m-%d)"
+    current_timestamp="$(date '+%Y-%m-%d %H:%M:%S')"
+
+    mkdir -p "${CURRENT_DIR}"
+
+    cp "${TEMPLATE_DIR}/task_plan.md" "${CURRENT_DIR}/task_plan.md"
+    cp "${TEMPLATE_DIR}/findings.md" "${CURRENT_DIR}/findings.md"
+    sed "s/\\[DATE\\]/${current_date}/g; s/\\[timestamp\\]/${current_timestamp}/g" \
+        "${TEMPLATE_DIR}/progress.md" > "${CURRENT_DIR}/progress.md"
+
+    python "${SCRIPT_DIR}/update_phase_status.py" \
+        --plan-file "${CURRENT_DIR}/task_plan.md" \
+        --phase "Phase 1" \
+        --status in_progress >/dev/null 2>&1 || true
+}
+
 parse_args "$@"
 
-DATE="$(date +%Y-%m-%d)"
-PLANNING_FILES=(task_plan.md findings.md progress.md)
-EXISTING_FILES=()
+ACTIVE_FILES=()
+LEGACY_FILES=()
 
-for planning_file in "${PLANNING_FILES[@]}"; do
-    if [ -f "$planning_file" ]; then
-        EXISTING_FILES+=("$planning_file")
-    fi
-done
+collect_existing_files_in_dir "${CURRENT_DIR}" ACTIVE_FILES
+collect_existing_legacy_files LEGACY_FILES
 
-if [ "${#EXISTING_FILES[@]}" -gt 0 ] && [ "$FORCE_RESET" = false ]; then
-    echo "Detected existing planning files: ${EXISTING_FILES[*]}"
-    echo "Safe mode is active: no files were overwritten."
-    echo "To reset planning files, run: ${SCRIPT_NAME} --force [project-name]"
+if [ "${#ACTIVE_FILES[@]}" -gt 0 ] && [ "$FORCE_RESET" = false ]; then
+    echo "Detected active planning session:"
+    printf '  - %s\n' "${ACTIVE_FILES[@]}"
+    echo "Safe mode is active: no files were changed."
+    echo "To start a fresh session, run: ${SCRIPT_NAME} --force [project-name]"
     exit 0
 fi
 
-echo "Initializing planning files for: $PROJECT_NAME"
+mkdir -p "${PLANNING_ROOT}" "${ARCHIVE_DIR}"
 
-if [ "$FORCE_RESET" = true ] && [ "${#EXISTING_FILES[@]}" -gt 0 ]; then
-    echo "Force mode enabled: overwriting existing planning files."
+if [ "$FORCE_RESET" = true ] && [ -d "${CURRENT_DIR}" ]; then
+    ARCHIVE_SESSION_DIR="${ARCHIVE_DIR}/$(date +%Y%m%d-%H%M%S)-$(slugify_name "${PROJECT_NAME}")"
+    mv "${CURRENT_DIR}" "${ARCHIVE_SESSION_DIR}"
+    echo "Archived previous planning session to: ${ARCHIVE_SESSION_DIR}"
 fi
 
-cat > task_plan.md << 'EOF'
-# Task Plan: [Brief Description]
+if [ "${#ACTIVE_FILES[@]}" -eq 0 ] && [ "${#LEGACY_FILES[@]}" -gt 0 ] && [ "$FORCE_RESET" = false ]; then
+    mkdir -p "${CURRENT_DIR}"
+    for legacy_file in "${LEGACY_FILES[@]}"; do
+        cp "${legacy_file}" "${CURRENT_DIR}/$(basename "${legacy_file}")"
+    done
 
-## Goal
-[One sentence describing the end state]
+    echo "Migrated legacy root planning files into: ${CURRENT_DIR}"
+    echo "Legacy files were left untouched in the project root for backward compatibility."
+    echo ""
+    echo "Planning session ready."
+    echo "Files:"
+    printf '  - %s/%s\n' "${CURRENT_DIR}" "task_plan.md"
+    printf '  - %s/%s\n' "${CURRENT_DIR}" "findings.md"
+    printf '  - %s/%s\n' "${CURRENT_DIR}" "progress.md"
+    exit 0
+fi
 
-## Current Phase
-Phase 1
-
-## Phases
-
-### Phase 1: Requirements & Discovery
-- [ ] Understand user intent
-- [ ] Identify constraints
-- [ ] Document in findings.md
-- **Status:** in_progress
-
-### Phase 2: Planning & Structure
-- [ ] Define approach
-- [ ] Create project structure
-- **Status:** pending
-
-### Phase 3: Implementation
-- [ ] Execute the plan
-- [ ] Write to files before executing
-- **Status:** pending
-
-### Phase 4: Testing & Verification
-- [ ] Verify requirements met
-- [ ] Document test results
-- **Status:** pending
-
-### Phase 5: Delivery
-- [ ] Review outputs
-- [ ] Deliver to user
-- **Status:** pending
-
-## Decisions Made
-| Decision | Rationale |
-|----------|-----------|
-
-## Errors Encountered
-| Error | Resolution |
-|-------|------------|
-EOF
-
-cat > findings.md << 'EOF'
-# Findings & Decisions
-
-## Requirements
--
-
-## Research Findings
--
-
-## Technical Decisions
-| Decision | Rationale |
-|----------|-----------|
-
-## Issues Encountered
-| Issue | Resolution |
-|-------|------------|
-
-## Resources
--
-EOF
-
-cat > progress.md << EOF
-# Progress Log
-
-## Session: $DATE
-
-### Current Status
-- **Phase:** 1 - Requirements & Discovery
-- **Started:** $DATE
-
-### Actions Taken
--
-
-### Test Results
-| Test | Expected | Actual | Status |
-|------|----------|--------|--------|
-
-### Errors
-| Error | Resolution |
-|-------|------------|
-EOF
+echo "Initializing planning files for: ${PROJECT_NAME}"
+initialize_current_session_files
 
 echo ""
-echo "Planning files initialized."
-echo "Files: task_plan.md, findings.md, progress.md"
+echo "Planning session initialized."
+echo "Files:"
+printf '  - %s/%s\n' "${CURRENT_DIR}" "task_plan.md"
+printf '  - %s/%s\n' "${CURRENT_DIR}" "findings.md"
+printf '  - %s/%s\n' "${CURRENT_DIR}" "progress.md"

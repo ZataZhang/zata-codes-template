@@ -3,7 +3,30 @@
 # Exit 0 if complete, exit 1 if incomplete
 # Used by Stop hook to verify task completion
 
-PLAN_FILE="${1:-task_plan.md}"
+set -euo pipefail
+
+resolve_plan_file() {
+    local explicit_plan_file="${1:-}"
+
+    if [ -n "$explicit_plan_file" ]; then
+        printf '%s\n' "$explicit_plan_file"
+        return 0
+    fi
+
+    if [ -f ".claude/planning/current/task_plan.md" ]; then
+        printf '%s\n' ".claude/planning/current/task_plan.md"
+        return 0
+    fi
+
+    if [ -f "task_plan.md" ]; then
+        printf '%s\n' "task_plan.md"
+        return 0
+    fi
+
+    printf '%s\n' ".claude/planning/current/task_plan.md"
+}
+
+PLAN_FILE="$(resolve_plan_file "${1:-}")"
 
 if [ ! -f "$PLAN_FILE" ]; then
     echo "ERROR: $PLAN_FILE not found"
@@ -12,6 +35,8 @@ if [ ! -f "$PLAN_FILE" ]; then
 fi
 
 echo "=== Task Completion Check ==="
+echo ""
+echo "Plan file:        $PLAN_FILE"
 echo ""
 
 # Count phases by status (using -F for fixed string matching)
