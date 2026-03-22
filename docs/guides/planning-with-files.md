@@ -39,6 +39,18 @@ Show the current phase status:
 python skills/planning-with-files/scripts/update_phase_status.py --status-report
 ```
 
+## Completion-Time PRD Sync
+
+Before closing a complex task, reconcile the work against a PRD:
+
+- Search `tasks/` first for an active PRD that matches the task.
+- Use `tasks/archive/` only as fallback reference, not as the main target, unless the archived PRD is clearly the right one.
+- If a matching PRD exists, update it with actual deliverables, tests run, deviations from plan, and follow-up items.
+- If no PRD exists, create a new file at `tasks/[YYYYMMDD-HHMMSS]-prd-[feature-name].md`.
+- Record the PRD path in `.claude/planning/current/task_plan.md` Completion Summary and `.claude/planning/current/progress.md`.
+
+This keeps the planning workspace, delivery summary, and durable product documentation aligned.
+
 ## Legacy Compatibility
 
 If a repository still contains legacy root files such as `task_plan.md`, the first
@@ -50,4 +62,5 @@ location so older workspaces keep working during the transition.
 
 Do not commit planning files. Treat them as local working memory, similar to editor state
 or scratch notes. If you need durable historical records, keep them in archived session
-directories or convert the final outcome into normal project documentation instead.
+directories or convert the final outcome into normal project documentation such as a PRD
+under `tasks/`.

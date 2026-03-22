@@ -62,25 +62,21 @@ slugify_name() {
 
 collect_existing_files_in_dir() {
     local target_dir="$1"
-    local -n output_ref="$2"
     local planning_basename
 
-    output_ref=()
     for planning_basename in "${PLANNING_BASENAMES[@]}"; do
         if [ -f "${target_dir}/${planning_basename}" ]; then
-            output_ref+=("${target_dir}/${planning_basename}")
+            printf '%s\n' "${target_dir}/${planning_basename}"
         fi
     done
 }
 
 collect_existing_legacy_files() {
-    local -n output_ref="$1"
     local planning_basename
 
-    output_ref=()
     for planning_basename in "${PLANNING_BASENAMES[@]}"; do
         if [ -f "${planning_basename}" ]; then
-            output_ref+=("${planning_basename}")
+            printf '%s\n' "${planning_basename}"
         fi
     done
 }
@@ -110,8 +106,17 @@ parse_args "$@"
 ACTIVE_FILES=()
 LEGACY_FILES=()
 
-collect_existing_files_in_dir "${CURRENT_DIR}" ACTIVE_FILES
-collect_existing_legacy_files LEGACY_FILES
+while IFS= read -r active_file_path; do
+    if [ -n "${active_file_path}" ]; then
+        ACTIVE_FILES+=("${active_file_path}")
+    fi
+done < <(collect_existing_files_in_dir "${CURRENT_DIR}")
+
+while IFS= read -r legacy_file_path; do
+    if [ -n "${legacy_file_path}" ]; then
+        LEGACY_FILES+=("${legacy_file_path}")
+    fi
+done < <(collect_existing_legacy_files)
 
 if [ "${#ACTIVE_FILES[@]}" -gt 0 ] && [ "$FORCE_RESET" = false ]; then
     echo "Detected active planning session:"

@@ -1,5 +1,12 @@
 # AI Agent Guidelines
 
+## Codex Session Workflow
+
+- **Session start rule**: At the beginning of each new Codex CLI session in this repository, run `bash scripts/hooks/session-start.sh` before repository exploration or edits. Treat the returned JSON `result` field as supplemental session context. Run this only once per CLI session, not once per user turn.
+- **Failure handling**: If `scripts/hooks/session-start.sh` fails, report the failure briefly and continue unless the user asks you to stop.
+- **Lifecycle limitations**: Codex does not currently expose Claude-style `PreCompact` and `Stop` lifecycle hooks. Do not claim those hooks ran automatically inside Codex.
+- **Wrapper preference**: When explicit start/end hook execution is required for Codex, prefer the repository wrapper script `scripts/codex_session.sh` instead of external absolute paths.
+
 ## Project Configuration
 
 ### Python Package Management

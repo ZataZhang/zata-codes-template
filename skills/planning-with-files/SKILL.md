@@ -1,7 +1,7 @@
 ---
 name: planning-with-files
-version: "2.4.0"
-description: Implements Manus-style file-based planning for complex tasks. Stores the active planning files under .claude/planning/current/ to avoid repo-root conflicts, with legacy fallback for existing root files. Must pass tests before completion. Use when starting complex multi-step tasks, research projects, or any task requiring >5 tool calls.
+version: "2.5.0"
+description: Implements Manus-style file-based planning for complex tasks. Stores the active planning files under .claude/planning/current/ to avoid repo-root conflicts, with legacy fallback for existing root files. Must pass tests before completion and sync the task PRD before delivery. Use when starting complex multi-step tasks, research projects, or any task requiring >5 tool calls.
 user-invocable: true
 allowed-tools:
   - Read
@@ -80,7 +80,8 @@ Before any complex task:
    - `.claude/planning/current/findings.md`
    - `.claude/planning/current/progress.md`
 4. If legacy repo-root planning files already exist, the first init run migrates them into `.claude/planning/current/` and leaves the originals untouched.
-5. Start work only after `.claude/planning/current/task_plan.md` has clear phases.
+5. If a PRD already exists for the task under `tasks/`, record its path in your planning notes early so it can be updated at delivery time.
+6. Start work only after `.claude/planning/current/task_plan.md` has clear phases.
 
 Reference templates:
 
@@ -157,12 +158,24 @@ Never mark work complete without verification.
 - if a test fails, log it in `.claude/planning/current/progress.md`, fix it, and rerun
 - record exact command + pass/fail status in `.claude/planning/current/progress.md` and Completion Summary
 
+### 8) PRD Sync Before Delivery
+
+Before final delivery, reconcile the implementation against a PRD.
+
+- search `tasks/` first and `tasks/archive/` second for a PRD that matches the active task
+- prefer an existing non-archived PRD if it clearly belongs to the current task
+- if a PRD exists, update it with actual deliverables, verification evidence, deviations, lessons learned, and follow-up items
+- if no matching PRD exists, create `tasks/[YYYYMMDD-HHMMSS]-prd-[task-slug].md`
+- use the repository PRD conventions from `skills/prd/SKILL.md` and `docs/guides/prd-standard.md` when creating a new PRD
+- record the final PRD path and whether it was `updated` or `created` in `.claude/planning/current/task_plan.md` and `.claude/planning/current/progress.md`
+
 ## Completion Summary Rules
 
 Only fill Completion Summary after:
 
 1. all planned phases are complete
 2. required tests are green
+3. the matching PRD in `tasks/` has been reviewed and updated, or a new PRD has been created there
 
 Simple task example:
 
@@ -170,6 +183,7 @@ Simple task example:
 ## Completion Summary
 - **Status:** Complete (2026-02-10)
 - **Tests:** Passed (`pytest tests/test_core.py`)
+- **PRD:** Updated `tasks/20260210-101500-prd-theme-refresh.md`
 - **Deliverables:** `src/file1.ts`, `docs/readme.md`
 - **Notes:** Optional key decisions and caveats
 ```
@@ -178,6 +192,8 @@ For complex tasks, include:
 
 - full deliverable list with locations
 - final test commands and outcomes
+- PRD path plus whether it was updated or newly created
+- key deviations between the original plan and the delivered implementation
 - key tradeoffs and lessons learned
 - follow-up items
 
@@ -246,6 +262,7 @@ Before ending a task, confirm:
 2. `.claude/planning/current/findings.md` contains key discoveries.
 3. `.claude/planning/current/progress.md` includes test commands and results.
 4. Completion Summary is filled with deliverables and verification.
+5. The task PRD under `tasks/` is updated or newly created, and its path is recorded in the Completion Summary.
 
 ## Automation
 

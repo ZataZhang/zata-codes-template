@@ -1,7 +1,7 @@
 # PRD 编写规范（可视化版）
 
 本规范用于统一本项目的 PRD 产出质量，重点解决“改什么、怎么改”不够直观的问题。  
-所有 PRD 文件统一保存到 `tasks/prd-[feature-name].md`。
+所有 PRD 文件统一保存到 `tasks/[YYYYMMDD-HHMMSS]-prd-[feature-name].md`。
 
 ## 强制区块
 
@@ -57,6 +57,12 @@ flowchart TD
 
 推荐在 PRD 的 `Implementation Guide` 中补一节：
 - `Interactive Prototype Link`：`docs/prototypes/<feature>-demo.html`
+
+如果任务是通过 `planning-with-files` 工作流完成的，交付前还应：
+
+- 回看现有 PRD 是否与最终实现一致
+- 将实际交付物、测试结果、偏差说明补写回 `tasks/` 下的 PRD
+- 若当前任务没有现成 PRD，则新建一个时间戳命名的 PRD 文件
 
 如果由 `prd` 技能执行且触发 UI/原型改动条件，要求：
 

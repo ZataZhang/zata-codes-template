@@ -1,6 +1,6 @@
 # Examples: Planning with Files in Action
 
-Note: in v2.4.0+, the active planning workspace lives under `.claude/planning/current/`.
+Note: in v2.5.0+, the active planning workspace lives under `.claude/planning/current/`.
 The examples below use the shorthand names `task_plan.md`, `findings.md`, and `progress.md`
 to focus on the workflow, but the conflict-safe default path is `.claude/planning/current/`.
 
@@ -218,6 +218,7 @@ When a task is fully complete, fill in the **Completion Summary** section.
 ```markdown
 ## Completion Summary
 - **Status:** ✅ Complete (2026-02-10)
+- **PRD:** Created `tasks/20260210-101500-prd-config-typo-fix.md`
 - **Deliverables:** `config/settings.yaml`
 - **Notes:** Fixed typo in database URL, no other changes needed
 ```
@@ -248,6 +249,11 @@ When a task is fully complete, fill in the **Completion Summary** section.
 | useTheme hook | src/hooks/useTheme.ts | ✓ Complete |
 | Theme provider update | src/App.tsx | ✓ Complete |
 | Documentation | docs/dark-mode.md | ✓ Complete |
+
+### PRD Sync
+- **PRD Path:** `tasks/20260210-093000-prd-dark-mode-toggle.md`
+- **Action:** Updated existing PRD
+- **Variances:** Added system preference detection during implementation, which was not in the original draft
 
 ### Key Achievements
 - Implemented smooth theme transition animation
