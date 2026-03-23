@@ -14,7 +14,7 @@ context_parts=()
 
 # 1. Load latest archived session (most recently modified directory)
 if [ -d "$SESSIONS_DIR" ]; then
-    latest_session=$(ls -1td "$SESSIONS_DIR"/*/ 2>/dev/null | head -1)
+    latest_session=$(ls -1td "$SESSIONS_DIR"/*/ 2>/dev/null | head -1 || true)
     if [ -n "$latest_session" ]; then
         session_name=$(basename "$latest_session")
 
@@ -67,7 +67,7 @@ fi
 
 # 3. List available archived sessions
 if [ -d "$SESSIONS_DIR" ]; then
-    session_list=$(ls -1td "$SESSIONS_DIR"/*/ 2>/dev/null | head -5 | while read -r d; do basename "$d"; done)
+    session_list=$(ls -1td "$SESSIONS_DIR"/*/ 2>/dev/null | head -5 | while read -r d; do basename "$d"; done || true)
     if [ -n "$session_list" ]; then
         context_parts+=("## Available Sessions")
         context_parts+=("$session_list")

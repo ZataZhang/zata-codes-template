@@ -20,7 +20,7 @@ hooks:
         - type: command
           command: "if [ -f .claude/planning/current/task_plan.md ]; then echo '[planning-with-files] Active planning session: .claude/planning/current/'; elif [ -f task_plan.md ] || [ -f findings.md ] || [ -f progress.md ]; then echo '[planning-with-files] Legacy root planning files detected. Migrate them with: ${CLAUDE_PLUGIN_ROOT}/scripts/init-session.sh'; else echo '[planning-with-files] No planning session found. Initialize with: ${CLAUDE_PLUGIN_ROOT}/scripts/init-session.sh'; fi"
         - type: command
-          command: "python ${CLAUDE_PLUGIN_ROOT}/scripts/update_phase_status.py --status-report 2>/dev/null || true"
+          command: "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/update_phase_status.py --status-report 2>/dev/null || python ${CLAUDE_PLUGIN_ROOT}/scripts/update_phase_status.py --status-report 2>/dev/null || true"
   PreToolUse:
     - matcher: "Write|Edit|Bash"
       hooks:
@@ -32,15 +32,15 @@ hooks:
         - type: command
           command: "echo '[planning-with-files] File updated. Checking phase status...'"
         - type: command
-          command: "python ${CLAUDE_PLUGIN_ROOT}/scripts/update_phase_status.py --auto-advance 2>/dev/null || true"
+          command: "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/update_phase_status.py --auto-advance 2>/dev/null || python ${CLAUDE_PLUGIN_ROOT}/scripts/update_phase_status.py --auto-advance 2>/dev/null || true"
         - type: command
-          command: "python ${CLAUDE_PLUGIN_ROOT}/scripts/update_phase_status.py --status-report 2>/dev/null || true"
+          command: "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/update_phase_status.py --status-report 2>/dev/null || python ${CLAUDE_PLUGIN_ROOT}/scripts/update_phase_status.py --status-report 2>/dev/null || true"
   Stop:
     - hooks:
         - type: command
           command: "${CLAUDE_PLUGIN_ROOT}/scripts/check-complete.sh"
         - type: command
-          command: "python ${CLAUDE_PLUGIN_ROOT}/scripts/update_phase_status.py --status-report 2>/dev/null || true"
+          command: "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/update_phase_status.py --status-report 2>/dev/null || python ${CLAUDE_PLUGIN_ROOT}/scripts/update_phase_status.py --status-report 2>/dev/null || true"
         - type: command
           command: "bash ${CLAUDE_PLUGIN_ROOT}/scripts/archive-session.sh"
 ---
@@ -275,16 +275,16 @@ Common commands:
 
 ```bash
 # Show current status report
-python "${CLAUDE_PLUGIN_ROOT}/scripts/update_phase_status.py" --status-report
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/update_phase_status.py" --status-report
 
 # Mark a phase complete
-python "${CLAUDE_PLUGIN_ROOT}/scripts/update_phase_status.py" --phase "Phase 1" --status complete
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/update_phase_status.py" --phase "Phase 1" --status complete
 
 # Auto-advance if current phase is complete
-python "${CLAUDE_PLUGIN_ROOT}/scripts/update_phase_status.py" --auto-advance
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/update_phase_status.py" --auto-advance
 
 # Append a progress log line
-python "${CLAUDE_PLUGIN_ROOT}/scripts/update_phase_status.py" --log "Completed API integration and passed tests"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/update_phase_status.py" --log "Completed API integration and passed tests"
 ```
 
 Safe initialization commands:

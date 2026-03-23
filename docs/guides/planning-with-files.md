@@ -16,6 +16,10 @@ The active planning workspace now lives under:
 
 Fresh resets are archived under `.claude/planning/sessions/`.
 
+Initialization now fills in a contextual task title and phase titles, so the fresh
+workspace is immediately readable instead of showing raw `[Brief Description]` and
+`[Title]` placeholders.
+
 The entire `.claude/planning/` subtree is ignored by git, so planning updates stay local
 to the working session instead of polluting normal source-control history.
 
@@ -33,10 +37,19 @@ Archive the current planning workspace and start a fresh one:
 bash skills/planning-with-files/scripts/init-session.sh --force
 ```
 
+Automatic session archiving now skips two kinds of noise:
+
+- untouched workspaces that still match the freshly initialized template
+- duplicate snapshots whose contents already match the latest archived session
+
+When a session is archived, the directory name now uses the current
+`task_plan.md` title slug instead of only the repository name. That makes
+`sessions/` easier to scan when one repository hosts several distinct tasks.
+
 Show the current phase status:
 
 ```bash
-python skills/planning-with-files/scripts/update_phase_status.py --status-report
+python3 skills/planning-with-files/scripts/update_phase_status.py --status-report
 ```
 
 ## Completion-Time PRD Sync
