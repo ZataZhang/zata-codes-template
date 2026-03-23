@@ -4,22 +4,37 @@
     "SessionStart": [
       {
         "matcher": "",
-        "command": "bash /Users/zata/code/koda/scripts/hooks/session-start.sh",
-        "timeout": 10000
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash scripts/claude_code_hooks/session-start.sh",
+            "timeout": 10000
+          }
+        ]
       }
     ],
     "Stop": [
       {
         "matcher": "",
-        "command": "bash /Users/zata/code/koda/scripts/hooks/session-end.sh",
-        "timeout": 15000
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash scripts/claude_code_hooks/session-end.sh",
+            "timeout": 15000
+          }
+        ]
       }
     ],
     "PreCompact": [
       {
         "matcher": "",
-        "command": "bash /Users/zata/code/koda/scripts/hooks/pre-compact.sh",
-        "timeout": 10000
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash scripts/claude_code_hooks/pre-compact.sh",
+            "timeout": 10000
+          }
+        ]
       }
     ]
   }

@@ -41,6 +41,8 @@ hooks:
           command: "${CLAUDE_PLUGIN_ROOT}/scripts/check-complete.sh"
         - type: command
           command: "python ${CLAUDE_PLUGIN_ROOT}/scripts/update_phase_status.py --status-report 2>/dev/null || true"
+        - type: command
+          command: "bash ${CLAUDE_PLUGIN_ROOT}/scripts/archive-session.sh"
 ---
 
 # Planning with Files
@@ -253,6 +255,7 @@ Skip for:
 
 - `scripts/init-session.sh`: initialize planning files under `.claude/planning/current/` (no overwrite by default)
 - `scripts/check-complete.sh`: verify phase completion state
+- `scripts/archive-session.sh`: archive `current/` to `sessions/` (idempotent, non-interactive, Codex-safe)
 
 ## Minimum Completion Checklist
 
