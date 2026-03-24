@@ -63,3 +63,10 @@ repos:
         pass_filenames: false
         stages: [pre-commit]
         always_run: true
+      - id: archive-planning-session
+        name: Archive planning session on commit
+        entry: bash hooks/archive_planning_session.sh
+        language: system
+        pass_filenames: false
+        stages: [post-commit]
+        always_run: true

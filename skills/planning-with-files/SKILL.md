@@ -1,6 +1,7 @@
 ---
 name: planning-with-files
-version: "2.5.0"
+version: "2.5.1"
+updated: "2026-03-24"
 description: Implements Manus-style file-based planning for complex tasks. Stores the active planning files under .claude/planning/current/ to avoid repo-root conflicts, with legacy fallback for existing root files. Must pass tests before completion and sync the task PRD before delivery. Use when starting complex multi-step tasks, research projects, or any task requiring >5 tool calls.
 user-invocable: true
 allowed-tools:
@@ -160,7 +161,20 @@ Never mark work complete without verification.
 - if a test fails, log it in `.claude/planning/current/progress.md`, fix it, and rerun
 - record exact command + pass/fail status in `.claude/planning/current/progress.md` and Completion Summary
 
-### 8) PRD Sync Before Delivery
+### 8) Explicit Archive on Task Completion
+
+Do NOT rely on session lifecycle hooks (`Stop` hook) to archive planning state — they are tool-specific and may not fire (e.g., Codex, Cursor, abnormal exit). Instead, **explicitly run the archive script** as part of task completion:
+
+```bash
+# Path is relative to this skill's directory (where this SKILL.md lives)
+bash <this-skill-dir>/scripts/archive-session.sh
+```
+
+The AI agent reading this file knows the skill directory location — resolve the path accordingly. For Claude Code this is `${CLAUDE_PLUGIN_ROOT}/scripts/archive-session.sh`; for other tools, resolve from the directory containing this SKILL.md.
+
+Additionally, if the project uses a `post-commit` hook for archiving (via `pre-commit` framework), a snapshot is also created on every git commit. But the explicit call above remains mandatory at task end.
+
+### 9) PRD Sync Before Delivery
 
 Before final delivery, reconcile the implementation against a PRD.
 
@@ -266,6 +280,11 @@ Before ending a task, confirm:
 3. `.claude/planning/current/progress.md` includes test commands and results.
 4. Completion Summary is filled with deliverables and verification.
 5. The task PRD under `tasks/` is updated or newly created, and its path is recorded in the Completion Summary.
+6. **Explicitly run the archive script** — do NOT rely on the `Stop` hook:
+   ```bash
+   bash <this-skill-dir>/scripts/archive-session.sh
+   ```
+   Resolve `<this-skill-dir>` from the directory containing this SKILL.md. This ensures the session is archived regardless of which AI tool is used (Claude Code, Codex, Cursor, etc.) or whether the session ends cleanly.
 
 ## Automation
 

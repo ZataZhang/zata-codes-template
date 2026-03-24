@@ -51,8 +51,10 @@ coverage/
 .idea/
 *.swp
 *.swo
-.claude/planning/
 
 # OS files
 .DS_Store
 Thumbs.db
+
+# Claude planning session archives (local state, not for VCS)
+.claude/planning/sessions/
