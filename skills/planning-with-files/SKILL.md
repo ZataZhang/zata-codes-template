@@ -2,7 +2,7 @@
 name: planning-with-files
 version: "2.5.1"
 updated: "2026-03-24"
-description: Implements Manus-style file-based planning for complex tasks. Stores the active planning files under .claude/planning/current/ to avoid repo-root conflicts, with legacy fallback for existing root files. Must pass tests before completion and sync the task PRD before delivery. Use when starting complex multi-step tasks, research projects, or any task requiring >5 tool calls.
+description: "[Updated 2026-03-24] Implements Manus-style file-based planning for complex tasks. Stores the active planning files under .claude/planning/current/ to avoid repo-root conflicts, with legacy fallback for existing root files. Must pass tests before completion and sync the task PRD before delivery. Use when starting complex multi-step tasks, research projects, or any task requiring >5 tool calls."
 user-invocable: true
 allowed-tools:
   - Read

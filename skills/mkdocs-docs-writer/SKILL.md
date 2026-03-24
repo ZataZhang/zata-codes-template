@@ -1,6 +1,6 @@
 ---
 name: mkdocs-project-architect
-description: Analyze project structure to generate or refactor MkDocs documentation. Specializes in creating comprehensive template scaffolding (mkdocs.yml + docs/ structure) for new projects, especially in the AI/LLM domain.
+description: "[Updated 2026-02-10] Analyze project structure to generate or refactor MkDocs documentation. Specializes in creating comprehensive template scaffolding (mkdocs.yml + docs/ structure) for new projects, especially in the AI/LLM domain."
 ---
 
 # MkDocs Project Architect

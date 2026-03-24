@@ -1,6 +1,6 @@
 ---
 name: prd
-description: "Generate a technical Product Requirements Document (PRD). Triggers on: create a prd, write prd for, plan this feature."
+description: "[Updated 2026-03-05] Generate a technical Product Requirements Document (PRD). Triggers on: create a prd, write prd for, plan this feature."
 ---
 
 # PRD Generator (Context-Aware)

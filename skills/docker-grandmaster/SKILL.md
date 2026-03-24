@@ -1,6 +1,6 @@
 ---
 name: docker-grandmaster
-description: Production-grade Dockerization guidance that infers a project's stack and runtime needs from file structure or snippets, then outputs a detective report, optimized multi-stage Dockerfile with comments, .dockerignore, docker-compose.yml with healthcheck/resources/restart policy, and stack-specific expert advice. Use when a user asks to containerize an app, generate Dockerfile/docker-compose/.dockerignore, or needs best-practice Docker deployment artifacts.
+description: "[Updated 2026-01-31] Production-grade Dockerization guidance that infers a project's stack and runtime needs from file structure or snippets, then outputs a detective report, optimized multi-stage Dockerfile with comments, .dockerignore, docker-compose.yml with healthcheck/resources/restart policy, and stack-specific expert advice. Use when a user asks to containerize an app, generate Dockerfile/docker-compose/.dockerignore, or needs best-practice Docker deployment artifacts."
 ---
 
 # Docker Grandmaster

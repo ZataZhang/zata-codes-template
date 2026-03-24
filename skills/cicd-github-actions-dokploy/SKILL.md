@@ -1,6 +1,6 @@
 ---
 name: cicd-github-actions-dokploy
-description: Maintain and evolve the repository CI/CD system implemented with GitHub Actions and Dokploy. Use when updating or debugging `.github/workflows/ci.yml` or `.github/workflows/cd.yml`, including trigger/concurrency changes, build matrix updates, immutable SHA image tagging, Dokploy compose env updates, staging/production deployment hooks, rollback flows, and CI/CD documentation synchronization.
+description: "[Updated 2026-03-04] Maintain and evolve the repository CI/CD system implemented with GitHub Actions and Dokploy. Use when updating or debugging `.github/workflows/ci.yml` or `.github/workflows/cd.yml`, including trigger/concurrency changes, build matrix updates, immutable SHA image tagging, Dokploy compose env updates, staging/production deployment hooks, rollback flows, and CI/CD documentation synchronization."
 ---
 
 # CI/CD GitHub Actions Dokploy
