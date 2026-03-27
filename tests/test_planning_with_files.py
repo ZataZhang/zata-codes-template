@@ -147,7 +147,10 @@ def test_force_reset_skips_archiving_template_only_workspace(tmp_path: Path) -> 
 
     assert reset_process.returncode == 0
     assert "matches the initialized template" in reset_process.stdout
-    assert "Skipped archiving previous planning session before reset." in reset_process.stdout
+    assert (
+        "Skipped archiving previous planning session before reset."
+        in reset_process.stdout
+    )
     archived_session_dir_list = list((tmp_path / ".claude/planning/sessions").glob("*"))
     assert archived_session_dir_list == []
 

@@ -2,7 +2,7 @@
 
 ## 1. Introduction & Goals
 
-在当前模板中，通过 `just worktree <branch>` / `scripts/git_worktree.sh` 创建新的 Git worktree 时，只复制代码与 `.env`，不会复制或复用主工程中的前端依赖目录 `node_modules`。  
+在当前模板中，通过 `just worktree <branch>` / `scripts/git_worktree.sh` 创建新的 Git worktree 时，只复制代码与 `.env`，不会复制或复用主工程中的前端依赖目录 `node_modules`。
 对于包含 Vite 前端（例如 `admin-frontend`）的仓库，新 worktree 中运行 `just demo-up` 或 `npm run dev` 时容易出现：
 
 - `sh: 1: vite: not found`
@@ -187,7 +187,7 @@ erDiagram
 
 ### US-001: 开发者在带前端工程的仓库中使用 worktree
 
-**Description:**  
+**Description:**
 作为一个在单仓库中同时维护 Python 后端与 Vite 前端的开发者，我希望通过 `just worktree` 创建新分支 worktree 后，可以直接运行 `just demo-up` 启动前端，而不必在每个 worktree 中重复安装前端依赖。
 
 **Acceptance Criteria:**
@@ -196,7 +196,7 @@ erDiagram
 
 ### US-002: 平台/模板维护者配置默认策略
 
-**Description:**  
+**Description:**
 作为模板维护者，我希望可以通过环境变量或配置文件控制默认的 worktree 前端依赖策略，以便在不同团队中选择“更安全”（每个 worktree 独立安装）或“更高效”（符号链接复用）的默认方案。
 
 **Acceptance Criteria:**
@@ -205,7 +205,7 @@ erDiagram
 
 ### US-003: 评审人员在文档中理解策略差异
 
-**Description:**  
+**Description:**
 作为代码评审或需求评审人员，我希望在文档站点内通过交互原型直观理解不同前端依赖策略对 `just demo-up` 结果的影响，从而更容易评估该方案的价值与风险。
 
 **Acceptance Criteria:**
@@ -241,4 +241,3 @@ erDiagram
   - 处理跨磁盘分区或不支持符号链接的极端文件系统场景（此类场景可通过回退到 `install-per-worktree` 策略解决）。
 
 本 PRD 专注于：通过可配置的 worktree 前端依赖策略与配套的文档/原型，使下游拥有 Vite 等前端工程的项目可以在不增加维护复杂度的前提下，显著减少“新 worktree 中前端依赖重复安装”的摩擦，并减少 `vite: not found` 这类问题的出现频率。
-

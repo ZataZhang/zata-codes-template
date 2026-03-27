@@ -160,9 +160,7 @@ def apply_replacements(
     return rendered_text
 
 
-def extract_task_plan_title(
-    task_plan_text: str, fallback_project_name: str
-) -> str:
+def extract_task_plan_title(task_plan_text: str, fallback_project_name: str) -> str:
     """Extract a meaningful title from task_plan.md.
 
     Args:
@@ -371,7 +369,7 @@ def resolve_archive_label(current_dir_path: Path, project_name: str) -> str:
 
 
 def normalize_workspace_contents(
-    workspace_content_map: dict[str, str]
+    workspace_content_map: dict[str, str],
 ) -> dict[str, str]:
     """Normalize a workspace content map for comparison.
 
@@ -473,7 +471,10 @@ def should_archive_workspace(
 
     latest_archive_dir_path = find_latest_archive_dir(archive_dir_path)
     if latest_archive_dir_path is None:
-        return True, "[planning] Archive required: current workspace has substantive changes."
+        return (
+            True,
+            "[planning] Archive required: current workspace has substantive changes.",
+        )
 
     latest_archive_map = read_workspace_contents(latest_archive_dir_path)
     normalized_latest_archive_map = normalize_workspace_contents(latest_archive_map)
@@ -484,7 +485,10 @@ def should_archive_workspace(
             f"[planning] Skip archive: current workspace matches latest snapshot {latest_archive_dir_path.name}.",
         )
 
-    return True, "[planning] Archive required: current workspace changed since the latest snapshot."
+    return (
+        True,
+        "[planning] Archive required: current workspace changed since the latest snapshot.",
+    )
 
 
 def handle_init_command(parsed_args: argparse.Namespace) -> int:

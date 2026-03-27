@@ -18,6 +18,7 @@ def _repo_root() -> Path:
 
     return Path(__file__).resolve().parents[1]
 
+
 def _staged_task_paths(
     repo_root: Path, tasks_dir: Path, archive_dir: Path
 ) -> list[Path]:
