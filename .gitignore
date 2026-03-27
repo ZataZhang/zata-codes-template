@@ -57,4 +57,4 @@ coverage/
 Thumbs.db
 
 # Claude planning session archives (local state, not for VCS)
-.claude/planning/sessions/
+.claude/planning/

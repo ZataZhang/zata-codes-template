@@ -1,5 +1,5 @@
 {
-  "name": "e2e-template",
+  "name": "playwright-e2e",
   "private": true,
   "type": "module",
   "scripts": {

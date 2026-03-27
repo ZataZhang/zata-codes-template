@@ -1,0 +1,4 @@
+interface:
+  display_name: "Playwright E2E"
+  short_description: "Adapt the bundled Playwright e2e package for real apps"
+  default_prompt: "Use $playwright-e2e to adapt the bundled playwright-e2e package for this app."

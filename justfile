@@ -235,7 +235,7 @@ sync-template flags="":
 e2e type="":
     #!/usr/bin/env bash
     set -euo pipefail
-    cd "{{justfile_directory()}}/e2e-template"
+    cd "{{justfile_directory()}}/playwright-e2e"
     case "{{type}}" in
         smoke)   npm run test:smoke ;;
         no-auth) npm run test:no-auth ;;
@@ -250,7 +250,7 @@ e2e type="":
 
 # Install e2e dependencies and Playwright browsers (run once before first just e2e)
 e2e-install:
-    cd "{{justfile_directory()}}/e2e-template" && npm install && npx playwright install chromium
+    cd "{{justfile_directory()}}/playwright-e2e" && npm install && npx playwright install chromium
 
 
 # Pack all gitignored .env* files into a password-protected encrypted zip.

@@ -304,9 +304,9 @@ All worktree operations are unified under `just worktree`:
 
 ## E2E Testing (Playwright)
 
-The `e2e-template/` directory is a **standalone TypeScript/Node.js package** for Playwright end-to-end tests. It is intentionally separate from the main Python package and follows TypeScript/Node.js conventions.
+The `playwright-e2e/` directory is a **standalone TypeScript/Node.js package** for Playwright end-to-end tests. It is intentionally separate from the main Python package and follows TypeScript/Node.js conventions.
 
-### Code Conventions (e2e-template only)
+### Code Conventions (playwright-e2e only)
 
 - Language: TypeScript (ES2022, strict mode)
 - Package manager: `npm` (not `uv`)
@@ -316,4 +316,4 @@ The `e2e-template/` directory is a **standalone TypeScript/Node.js package** for
 
 For `docker` stack mode (the default), a compose file must exist in the repository root (`docker-compose.yml`, `compose.yaml`, etc.). Alternatively, set `PLAYWRIGHT_SKIP_STACK_BOOT=1` to target an already-running environment.
 
-See `e2e-template/README.md` for the full environment-variable reference and project adaptation checklist.
+See `playwright-e2e/README.md` for the full environment-variable reference and project adaptation checklist.

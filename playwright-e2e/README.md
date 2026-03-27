@@ -1,11 +1,11 @@
-# e2e-template
+# playwright-e2e
 
-Playwright E2E 测试模板。将此目录复制到新项目，按照 TODO 注释适配即可。
+Playwright E2E 测试包。将此目录复制到新项目，按照 TODO 注释适配即可。
 
 ## 目录结构
 
 ```
-e2e-template/
+playwright-e2e/
 ├── fixtures/
 │   └── session.fixture.ts      # 带 auth 的 test 扩展 + CleanupRegistry
 ├── page-objects/
