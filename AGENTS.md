@@ -236,3 +236,58 @@ def function_name(param1: str, param2: int) -> bool:
 
 * **Tool Priority**: Prioritize using `uv` commands over `pip` or `conda`.
 * **Documentation Priority**: Never commit code changes without verifying `uv run mkdocs build` passes without warnings.
+
+## Task Runner (just)
+
+All common development tasks are driven by `just`. Run `just` (no arguments) to list all available commands.
+
+### Dependency Management
+
+| Command | Description |
+|---------|-------------|
+| `just sync` | Sync dev dependencies from lock file (default) |
+| `just sync prod` | Production only, no dev dependencies |
+| `just sync all` | All extras + install worktree bash completion |
+| `just sync dev` | All extras + install pre-commit hooks |
+
+### Development
+
+| Command | Description |
+|---------|-------------|
+| `just run` | Run the main application (`main.py`) |
+| `just test` | Run local tests (no API keys needed) |
+| `just test all` | Run all tests |
+| `just test real` | Run tests that require API keys |
+| `just docs-serve` | Serve MkDocs site locally at `127.0.0.1:8000` |
+| `just docs-serve port=9000` | Serve on a custom port |
+| `just clean` | Remove cache files and build artifacts |
+| `just staged_changes` | Export staged git diff to `staged_changes.diff` |
+
+### Git Worktree
+
+All worktree operations are unified under `just worktree`:
+
+| Command | Description |
+|---------|-------------|
+| `just worktree <branch>` | Create worktree and enter an interactive shell |
+| `just worktree <branch> --cmd trae` | Create worktree and open in specified editor |
+| `just worktree <branch> enter_shell=false` | Create worktree without entering shell |
+| `just worktree -d <branch>` | Delete worktree and branch |
+| `just worktree -m <feature> [base=main] [flags]` | Merge feature worktree into base branch |
+| `just worktree --doctor` | Scan all worktrees for issues |
+| `just worktree --doctor <branch>` | Inspect a specific worktree |
+
+### Template & Project Management
+
+| Command | Description |
+|---------|-------------|
+| `just copy <name>` | Copy this template to a new project directory (`../<name>/`) |
+| `just sync-template` | Compare local files against upstream template and offer to apply updates |
+| `just sync-template --all` | Same, but also include project-specific files (README, pyproject.toml, etc.) |
+| `just release` | Build a release zip via `scripts/release.py` |
+
+### Secrets
+
+| Command | Description |
+|---------|-------------|
+| `just export-env-encrypted` | Pack all gitignored `.env*` files into a password-protected zip at `./<project_name>_secrets.zip` |

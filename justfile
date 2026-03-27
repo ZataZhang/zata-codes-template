@@ -2,30 +2,47 @@
 default:
     @just --list
 
-# Install all dependencies excluding dev
-prod-sync:
-    uv sync --no-dev
-
-# 安装全部（主依赖 + dev + 所有 extras）并安装全局 worktree 补全
+# Sync dependencies
 # Usage:
-#   just full-sync
-#   just full-sync install_completion=false
-full-sync install_completion="true":
+#   just sync           # dev deps (default)
+#   just sync prod      # production only, no dev
+#   just sync all       # all extras + worktree completion
+#   just sync dev       # all extras + pre-commit hooks
+sync mode="":
     #!/usr/bin/env bash
     set -euo pipefail
-    uv sync --all-extras
-    if [ "{{install_completion}}" = "true" ] && [ -z "${CI:-}" ]; then
-        just install-worktree-completion
-    fi
-
-# Sync dependencies from lock file (including dev)
-sync:
-    uv sync
-
-# Start dev environment (full sync + pre-commit hooks)
-dev:
-    uv sync --all-extras
-    uv run pre-commit install
+    case "{{mode}}" in
+        prod)
+            uv sync --no-dev
+            ;;
+        all)
+            uv sync --all-extras
+            if [ -z "${CI:-}" ]; then
+                completion_src="{{justfile_directory()}}/scripts/just_worktree_completion.bash"
+                completion_dir="$HOME/.config/just"
+                completion_dst="$completion_dir/worktree_completion.bash"
+                source_line="[ -f \"$completion_dst\" ] && source \"$completion_dst\""
+                mkdir -p "$completion_dir"
+                cp "$completion_src" "$completion_dst"
+                if ! grep -Fqx "$source_line" "$HOME/.bashrc" 2>/dev/null; then
+                    printf '\n%s\n' "$source_line" >> "$HOME/.bashrc"
+                fi
+                echo "Installed worktree completion: $completion_dst"
+            fi
+            ;;
+        dev)
+            uv sync --all-extras
+            uv run pre-commit install
+            ;;
+        "")
+            uv sync
+            ;;
+        *)
+            echo "❌ Unknown mode: {{mode}}"
+            echo "Usage: just sync [prod|all|dev]"
+            exit 1
+            ;;
+    esac
 
 # Run the main application
 run:
@@ -53,23 +70,62 @@ release:
 staged_changes:
     git diff --cached > staged_changes.diff
 
-# Git worktree helper (wrapper for scripts/git_worktree.sh)
+# Git worktree helper (wrapper for scripts/git_worktree.sh / git_worktree_merge.sh)
 # Usage:
-#   just worktree <branch_name>
-#   just worktree <branch_name> --cmd
-#   just worktree <branch_name> --cmd code-insiders
-#   just worktree <branch_name> --cmd trae
-#   just worktree <branch_name> enter_shell=false
-#   just worktree <branch_name> --cmd trae enter_shell=false
-worktree branch_name arg2="" arg3="" arg4="":
+#   just worktree <branch>                            # create/enter worktree
+#   just worktree <branch> --cmd trae                 # open in editor
+#   just worktree <branch> enter_shell=false          # no shell
+#   just worktree -d <branch>                         # delete worktree
+#   just worktree -m <feature> [base=main] [flags]    # merge worktree
+#   just worktree --doctor [branch]                   # doctor / cleanup-check
+worktree arg1 arg2="" arg3="" arg4="" arg5="":
     #!/usr/bin/env bash
     set -euo pipefail
 
-    worktree_command=(./scripts/git_worktree.sh "{{branch_name}}")
+    # -d: delete worktree
+    if [ "{{arg1}}" = "-d" ]; then
+        if [ -z "{{arg2}}" ]; then
+            echo "❌ Usage: just worktree -d <branch_name>"
+            exit 1
+        fi
+        ./scripts/git_worktree_merge.sh "{{arg2}}" -d
+        exit 0
+    fi
+
+    # -m: merge worktree
+    if [ "{{arg1}}" = "-m" ]; then
+        if [ -z "{{arg2}}" ]; then
+            echo "❌ Usage: just worktree -m <feature_branch> [base_branch=main] [flags]"
+            exit 1
+        fi
+        base_branch_value="{{arg3}}"
+        [ -z "$base_branch_value" ] && base_branch_value="main"
+        extra_flags_value="{{arg4}}"
+        if [ -n "$extra_flags_value" ]; then
+            ./scripts/git_worktree_merge.sh "{{arg2}}" "$base_branch_value" $extra_flags_value
+        else
+            ./scripts/git_worktree_merge.sh "{{arg2}}" "$base_branch_value"
+        fi
+        exit 0
+    fi
+
+    # --doctor: cleanup-check
+    if [ "{{arg1}}" = "--doctor" ]; then
+        if [ -n "{{arg2}}" ]; then
+            ./scripts/git_worktree_merge.sh --doctor "{{arg2}}"
+        else
+            ./scripts/git_worktree_merge.sh --doctor
+        fi
+        exit 0
+    fi
+
+    # Default: create/enter worktree
+    branch_name="{{arg1}}"
+    worktree_command=(./scripts/git_worktree.sh "$branch_name")
     enter_shell_value="true"
     expect_code_command="false"
 
-    for raw_arg in "{{arg2}}" "{{arg3}}" "{{arg4}}"; do
+    for raw_arg in "{{arg2}}" "{{arg3}}" "{{arg4}}" "{{arg5}}"; do
         if [ -z "$raw_arg" ]; then
             continue
         fi
@@ -103,7 +159,11 @@ worktree branch_name arg2="" arg3="" arg4="":
                 ;;
             *)
                 echo "❌ Invalid argument: $raw_arg"
-                echo "Usage: just worktree <branch_name> [--cmd [code_cmd]] [enter_shell=false]"
+                echo "Usage:"
+                echo "  just worktree <branch> [--cmd [editor]] [enter_shell=false]"
+                echo "  just worktree -d <branch>"
+                echo "  just worktree -m <feature> [base=main] [flags]"
+                echo "  just worktree --doctor [branch]"
                 exit 1
                 ;;
         esac
@@ -112,13 +172,12 @@ worktree branch_name arg2="" arg3="" arg4="":
     "${worktree_command[@]}"
 
     if [ "$enter_shell_value" = "true" ]; then
-        target_worktree_path="$(dirname "$(git rev-parse --show-toplevel)")/{{branch_name}}"
+        target_worktree_path="$(dirname "$(git rev-parse --show-toplevel)")/$branch_name"
         echo "Entering worktree shell: $target_worktree_path"
         echo "Run 'exit' to return to previous shell."
         cd "$target_worktree_path"
-        # Rename terminal tab/title for the active worktree shell when supported.
         if [ -n "${TERM:-}" ] && [ "${TERM}" != "dumb" ]; then
-            printf '\033]0;%s\007' "wt:{{branch_name}}"
+            printf '\033]0;%s\007' "wt:$branch_name"
         fi
         worktree_shell_rcfile="$(mktemp)"
         printf '%s\n' \
@@ -133,67 +192,23 @@ worktree branch_name arg2="" arg3="" arg4="":
             '    unset WORKTREE_SHELL_RCFILE' \
             'fi' \
             > "$worktree_shell_rcfile"
-        exec env WORKTREE_BRANCH_NAME="{{branch_name}}" WORKTREE_SHELL_RCFILE="$worktree_shell_rcfile" bash --rcfile "$worktree_shell_rcfile" -i
+        exec env WORKTREE_BRANCH_NAME="$branch_name" WORKTREE_SHELL_RCFILE="$worktree_shell_rcfile" bash --rcfile "$worktree_shell_rcfile" -i
     fi
 
-# Git worktree merge helper (wrapper for scripts/git_worktree_merge.sh)
+
+# Sync files from the upstream template repository.
+# Compares local files against the template and offers to apply updates.
 # Usage:
-#   just worktree-merge <feature_branch>
-#   just worktree-merge <feature_branch> <base_branch>
-#   just worktree-merge <feature_branch> <base_branch> flags="--cleanup --delete-remote"
-#   just worktree-merge <feature_branch> flags="-d"
-worktree-merge feature_branch base_branch="main" flags="":
+#   just sync-template         # skip project-specific files (recommended)
+#   just sync-template --all   # include project-specific files too
+sync-template flags="":
     #!/usr/bin/env bash
     set -euo pipefail
     if [ -n "{{flags}}" ]; then
-        ./scripts/git_worktree_merge.sh "{{feature_branch}}" "{{base_branch}}" {{flags}}
+        ./scripts/sync_template.sh {{flags}}
     else
-        ./scripts/git_worktree_merge.sh "{{feature_branch}}" "{{base_branch}}"
+        ./scripts/sync_template.sh
     fi
-
-# Delete-only cleanup for a feature worktree/branch
-# Usage:
-#   just worktree-delete <feature_branch>
-worktree-delete feature_branch:
-    ./scripts/git_worktree_merge.sh "{{feature_branch}}" -d
-
-# Doctor / cleanup-check for worktrees
-# Usage:
-#   just worktree-doctor                # global scan
-#   just worktree-doctor <feature_branch>  # focus on a single feature worktree
-worktree-doctor feature_branch="":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    if [ -n "{{feature_branch}}" ]; then
-        ./scripts/git_worktree_merge.sh --doctor "{{feature_branch}}"
-    else
-        ./scripts/git_worktree_merge.sh --doctor
-    fi
-
-# Install global bash completion for just worktree recipes (one-time setup)
-# Usage:
-#   just install-worktree-completion
-install-worktree-completion:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    completion_script_source_path="{{justfile_directory()}}/scripts/just_worktree_completion.bash"
-    completion_directory_path="$HOME/.config/just"
-    completion_script_path="$completion_directory_path/worktree_completion.bash"
-    shell_rc_path="$HOME/.bashrc"
-    source_line="[ -f \"$completion_script_path\" ] && source \"$completion_script_path\""
-    mkdir -p "$completion_directory_path"
-    cp "$completion_script_source_path" "$completion_script_path"
-    if [ ! -f "$shell_rc_path" ]; then
-        touch "$shell_rc_path"
-    fi
-    if ! grep -Fqx "$source_line" "$shell_rc_path"; then
-        printf '\n%s\n' "$source_line" >> "$shell_rc_path"
-        echo "Added completion source line to $shell_rc_path"
-    else
-        echo "Completion source line already exists in $shell_rc_path"
-    fi
-    echo "Installed completion script at $completion_script_path"
-    echo "Run: source \"$shell_rc_path\""
 
 # Run tests (usage: just test [all|local|real])
 #   just test        - Run local tests (no API keys needed)
@@ -211,51 +226,11 @@ install-worktree-completion:
     fi
 
 
-# Export all .env* files recursively into a zip archive
-export-env-zip output="":
-    #!/usr/bin/env bash
-    uv run python - <<'PY'
-    from pathlib import Path
-    import sys
-    import zipfile
-
-    project_root_path = Path(r"{{justfile_directory()}}")
-    configured_output_name = r"{{output}}".strip()
-    default_output_directory_path = project_root_path.parent / "mysecrets"
-    default_output_zip_path = default_output_directory_path / f"{project_root_path.name}.zip"
-    if configured_output_name:
-        configured_output_path = Path(configured_output_name)
-        output_zip_path = (
-            configured_output_path
-            if configured_output_path.is_absolute()
-            else project_root_path / configured_output_path
-        )
-    else:
-        output_zip_path = default_output_zip_path
-    output_zip_path.parent.mkdir(parents=True, exist_ok=True)
-    env_file_paths = sorted(
-        path
-        for path in project_root_path.rglob("*")
-        if path.is_file() and path.name.startswith(".env")
-    )
-    env_file_paths = [path for path in env_file_paths if path != output_zip_path]
-
-    if not env_file_paths:
-        sys.exit("No files starting with .env were found in this project.")
-
-    if output_zip_path.exists():
-        output_zip_path.unlink()
-
-    with zipfile.ZipFile(output_zip_path, "w", zipfile.ZIP_DEFLATED) as zip_archive_file:
-        for env_file_path in env_file_paths:
-            archived_relative_path = env_file_path.relative_to(project_root_path)
-            zip_archive_file.write(env_file_path, arcname=str(archived_relative_path))
-
-    print(f"Created {output_zip_path} with {len(env_file_paths)} files:")
-    for env_file_path in env_file_paths:
-        archived_relative_path = env_file_path.relative_to(project_root_path)
-        print(f" - {archived_relative_path}")
-    PY
+# Pack all gitignored .env* files into a password-protected encrypted zip.
+# Output: ./<project_name>_secrets.zip  (one fixed file per project root)
+# Password is prompted interactively at compression time; required again to extract.
+export-env-encrypted:
+    ./scripts/export_env_encrypted.sh
 
 
 # Copy template to a new directory (excluding .git and cache directories)
