@@ -38,6 +38,21 @@ e2e-template/
 5. **`fixtures/session.fixture.ts`** — 添加项目需要的 Page Object fixtures
 6. **`support/api-client.ts`** — 改 `login()` 的 endpoint 和 payload
 
+## 前置条件
+
+**Docker 模式**（默认）需要在仓库根目录存在 compose 文件（`docker-compose.yml` / `compose.yaml` 等）。
+若目标服务已在运行，设置 `PLAYWRIGHT_SKIP_STACK_BOOT=1` 跳过 stack 启动即可。
+
+在父仓库中可通过 `just` 统一入口运行 e2e 测试：
+
+```bash
+just e2e-install   # 安装依赖（首次运行）
+just e2e           # 运行所有测试
+just e2e smoke     # 只跑 smoke
+just e2e no-auth   # 只跑无 auth 测试
+just e2e report    # 查看 HTML 报告
+```
+
 ## 运行命令
 
 ```bash
@@ -45,7 +60,7 @@ e2e-template/
 npm install
 npx playwright install chromium
 
-# 运行所有测试 (需要本地 stack 或 docker)
+# 运行所有测试 (需要本地 stack 或 docker-compose.yml)
 npm test
 
 # 只跑截图 / 审查类测试

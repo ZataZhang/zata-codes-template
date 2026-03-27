@@ -18,6 +18,7 @@
  */
 
 import { execSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
@@ -119,6 +120,23 @@ export async function ensurePlaywrightStackReady() {
       throw new Error(
         `PLAYWRIGHT_STACK_MODE=${stackMode} requires PLAYWRIGHT_STACK_UP_COMMAND or manual boot.`,
       )
+    }
+    // When using the default docker compose command, verify a compose file exists in the repo root.
+    if (stackMode === 'docker' && !process.env.PLAYWRIGHT_STACK_UP_COMMAND) {
+      const candidateComposeFileNames = ['docker-compose.yml', 'docker-compose.yaml', 'compose.yml', 'compose.yaml']
+      const composeFileExists = candidateComposeFileNames.some((fileName) =>
+        existsSync(resolve(repositoryRootPath, fileName)),
+      )
+      if (!composeFileExists) {
+        throw new Error(
+          `Docker stack mode requires a compose file in the repository root (${repositoryRootPath}).\n` +
+          `Expected one of: ${candidateComposeFileNames.join(', ')}\n` +
+          `Options:\n` +
+          `  • Add a docker-compose.yml to the repository root, or\n` +
+          `  • Set PLAYWRIGHT_STACK_UP_COMMAND to a custom compose command, or\n` +
+          `  • Set PLAYWRIGHT_SKIP_STACK_BOOT=1 to target an already-running stack.`,
+        )
+      }
     }
     execSync(stackUpCommand, {
       cwd: repositoryRootPath,

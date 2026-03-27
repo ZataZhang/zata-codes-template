@@ -291,3 +291,29 @@ All worktree operations are unified under `just worktree`:
 | Command | Description |
 |---------|-------------|
 | `just export-env-encrypted` | Pack all gitignored `.env*` files into a password-protected zip at `./<project_name>_secrets.zip` |
+
+### E2E Testing
+
+| Command | Description |
+|---------|-------------|
+| `just e2e-install` | Install npm deps + Playwright browsers (run once) |
+| `just e2e` | Run all e2e tests (excluding visual regression) |
+| `just e2e smoke` | Smoke tests only |
+| `just e2e no-auth` | Public-page tests (no login required) |
+| `just e2e report` | Open HTML test report |
+
+## E2E Testing (Playwright)
+
+The `e2e-template/` directory is a **standalone TypeScript/Node.js package** for Playwright end-to-end tests. It is intentionally separate from the main Python package and follows TypeScript/Node.js conventions.
+
+### Code Conventions (e2e-template only)
+
+- Language: TypeScript (ES2022, strict mode)
+- Package manager: `npm` (not `uv`)
+- Style: TypeScript community conventions; the Python AI-Native SSA naming rules described above do **not** apply to this directory
+
+### Prerequisites
+
+For `docker` stack mode (the default), a compose file must exist in the repository root (`docker-compose.yml`, `compose.yaml`, etc.). Alternatively, set `PLAYWRIGHT_SKIP_STACK_BOOT=1` to target an already-running environment.
+
+See `e2e-template/README.md` for the full environment-variable reference and project adaptation checklist.

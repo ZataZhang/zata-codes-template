@@ -226,6 +226,33 @@ sync-template flags="":
     fi
 
 
+# Run Playwright e2e tests (requires: just e2e-install first)
+# Usage:
+#   just e2e            # all tests (excluding visual regression)
+#   just e2e smoke      # smoke tests only
+#   just e2e no-auth    # public-page tests (no login required)
+#   just e2e report     # open HTML test report
+e2e type="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{justfile_directory()}}/e2e-template"
+    case "{{type}}" in
+        smoke)   npm run test:smoke ;;
+        no-auth) npm run test:no-auth ;;
+        report)  npm run report ;;
+        "")      npm test ;;
+        *)
+            echo "❌ Unknown type: {{type}}"
+            echo "Usage: just e2e [smoke|no-auth|report]"
+            exit 1
+            ;;
+    esac
+
+# Install e2e dependencies and Playwright browsers (run once before first just e2e)
+e2e-install:
+    cd "{{justfile_directory()}}/e2e-template" && npm install && npx playwright install chromium
+
+
 # Pack all gitignored .env* files into a password-protected encrypted zip.
 # Output: ./<project_name>_secrets.zip  (one fixed file per project root)
 # Password is prompted interactively at compression time; required again to extract.
