@@ -87,7 +87,6 @@ _install_fzf() {
     esac
 }
 
-# Returns 0 if fzf is available (installed or user chose to install), 1 to fall back
 _ensure_fzf() {
     if command -v fzf &>/dev/null; then
         return 0
@@ -112,6 +111,104 @@ _ensure_fzf() {
 }
 
 # ──────────────────────────────────────────────────────────────
+# Justfile recipe-level helper (written once to $TEMP_DIR)
+# ──────────────────────────────────────────────────────────────
+JF_HELPER="$TEMP_DIR/jf.py"
+cat > "$JF_HELPER" << 'PYEOF'
+#!/usr/bin/env python3
+"""Justfile recipe parser used by sync_template.sh.
+
+Commands:
+  names  <file>              print all recipe names, one per line
+  block  <file> <name>       print the full block for a recipe (with preceding comments)
+  append <file>              append stdin content to file
+  replace <file> <name>      replace a recipe block with stdin content
+"""
+import sys, re
+
+RECIPE_RE = re.compile(r'^([a-zA-Z_][a-zA-Z0-9_-]*)[^\S\n]*[^:\n]*:(?![=])')
+ASSIGN_RE = re.compile(r'^[a-zA-Z_]\w*\s*(:=|::=)')
+
+
+def read_lines(path: str) -> list[str]:
+    with open(path, encoding="utf-8") as f:
+        return f.readlines()
+
+
+def find_headers(lines: list[str]) -> list[tuple[int, str]]:
+    """Return [(line_idx, recipe_name), ...] for every recipe header."""
+    headers = []
+    for i, line in enumerate(lines):
+        m = RECIPE_RE.match(line)
+        if m and not ASSIGN_RE.match(line):
+            headers.append((i, m.group(1)))
+    return headers
+
+
+def block_range(lines: list[str], headers: list[tuple[int, str]], pos: int) -> tuple[int, int]:
+    """Return (start, end) line indices for the recipe block at headers[pos].
+
+    'start' walks back to include preceding comment/blank lines.
+    'end' is the line just before the next recipe's comment block.
+    """
+    line_idx = headers[pos][0]
+    start = line_idx
+    while start > 0:
+        prev = lines[start - 1]
+        if prev.startswith("#") or prev.strip() == "":
+            start -= 1
+        else:
+            break
+    if pos + 1 < len(headers):
+        end = headers[pos + 1][0]
+        while end > line_idx + 1 and lines[end - 1].strip() == "":
+            end -= 1
+    else:
+        end = len(lines)
+    return start, end
+
+
+if __name__ == "__main__":
+    cmd = sys.argv[1]
+
+    if cmd == "names":
+        lines = read_lines(sys.argv[2])
+        for _, name in find_headers(lines):
+            print(name)
+
+    elif cmd == "block":
+        lines = read_lines(sys.argv[2])
+        headers = find_headers(lines)
+        for pos, (_, name) in enumerate(headers):
+            if name == sys.argv[3]:
+                s, e = block_range(lines, headers, pos)
+                sys.stdout.write("".join(lines[s:e]))
+                sys.exit(0)
+        sys.exit(1)  # recipe not found
+
+    elif cmd == "append":
+        content = sys.stdin.read()
+        with open(sys.argv[2], "a", encoding="utf-8") as f:
+            if content and not content.startswith("\n"):
+                f.write("\n")
+            f.write(content)
+
+    elif cmd == "replace":
+        content = sys.stdin.read()
+        lines = read_lines(sys.argv[2])
+        headers = find_headers(lines)
+        for pos, (_, name) in enumerate(headers):
+            if name == sys.argv[3]:
+                s, e = block_range(lines, headers, pos)
+                with open(sys.argv[2], "w", encoding="utf-8") as f:
+                    f.writelines(lines[:s])
+                    f.write(content)
+                    f.writelines(lines[e:])
+                sys.exit(0)
+        sys.exit(1)
+PYEOF
+
+# ──────────────────────────────────────────────────────────────
 # Detect diff color support
 # ──────────────────────────────────────────────────────────────
 DIFF_COLOR_FLAG=""
@@ -127,22 +224,55 @@ echo "✅ Template fetched."
 echo ""
 
 # ──────────────────────────────────────────────────────────────
-# Phase 1: Scan — collect changed / new files
+# Phase 1: Scan — collect changed / new entries
+#
+# Normal files   → "changed" or "new" entry with the rel path
+# justfile       → expanded into per-recipe entries: "justfile::recipe-name"
+#                  (new file → single "justfile" entry, no expansion needed)
 # ──────────────────────────────────────────────────────────────
-changed_files=()
-new_files=()
+changed_entries=()  # may include "justfile::recipe" entries
+new_entries=()
 
 while IFS= read -r rel_path; do
     if ! $SHOW_ALL && _is_skipped "$rel_path"; then
         continue
     fi
+
     local_file="$LOCAL_ROOT/$rel_path"
     tmpl_file="$TEMPLATE_ROOT/$rel_path"
+
+    # ── New file ──────────────────────────────────────────────
     if [ ! -f "$local_file" ]; then
-        new_files+=("$rel_path")
-    elif ! diff -q "$local_file" "$tmpl_file" > /dev/null 2>&1; then
-        changed_files+=("$rel_path")
+        new_entries+=("$rel_path")
+        continue
     fi
+
+    # ── Identical ─────────────────────────────────────────────
+    if diff -q "$local_file" "$tmpl_file" > /dev/null 2>&1; then
+        continue
+    fi
+
+    # ── Changed: justfile gets recipe-level expansion ─────────
+    if [ "$rel_path" = "justfile" ]; then
+        mapfile -t local_recipes < <(python3 "$JF_HELPER" names "$local_file"  2>/dev/null || true)
+        mapfile -t tmpl_recipes  < <(python3 "$JF_HELPER" names "$tmpl_file"   2>/dev/null || true)
+
+        for recipe in "${tmpl_recipes[@]}"; do
+            local_block=$(python3 "$JF_HELPER" block "$local_file" "$recipe" 2>/dev/null || true)
+            tmpl_block=$(python3  "$JF_HELPER" block "$tmpl_file"  "$recipe" 2>/dev/null || true)
+
+            if [ -z "$local_block" ]; then
+                new_entries+=("justfile::$recipe")
+            elif [ "$local_block" != "$tmpl_block" ]; then
+                changed_entries+=("justfile::$recipe")
+            fi
+        done
+        continue
+    fi
+
+    # ── Changed: normal file ──────────────────────────────────
+    changed_entries+=("$rel_path")
+
 done < <(
     find "$TEMPLATE_ROOT" -type f \
         ! -path '*/.git/*' \
@@ -150,48 +280,66 @@ done < <(
         | sort
 )
 
-total_found=$(( ${#changed_files[@]} + ${#new_files[@]} ))
+total_found=$(( ${#changed_entries[@]} + ${#new_entries[@]} ))
 
 if [ "$total_found" -eq 0 ]; then
     echo "✨ Everything is up to date with the template."
     exit 0
 fi
 
-echo "Found ${#changed_files[@]} changed + ${#new_files[@]} new file(s)."
+echo "Found ${#changed_entries[@]} changed + ${#new_entries[@]} new entry/entries."
 echo ""
 
 # ──────────────────────────────────────────────────────────────
-# Phase 2: Select files — fzf UI or numbered fallback
+# Phase 2: Select — fzf UI or numbered fallback
 # ──────────────────────────────────────────────────────────────
 
-# Build display list: "📝 CHANGED\trel_path" or "📄 NEW    \trel_path"
+# Build tab-separated display lines: "<icon> <label>\t<entry>"
 file_list_lines=()
-for f in "${changed_files[@]}"; do
-    file_list_lines+=("📝 CHANGED	$f")
+for e in "${changed_entries[@]}"; do
+    if [[ "$e" == justfile::* ]]; then
+        file_list_lines+=("📝 CHANGED	$e")
+    else
+        file_list_lines+=("📝 CHANGED	$e")
+    fi
 done
-for f in "${new_files[@]}"; do
-    file_list_lines+=("📄 NEW    	$f")
+for e in "${new_entries[@]}"; do
+    file_list_lines+=("📄 NEW    	$e")
 done
 
-selected_paths=()
+selected_entries=()
 
 if _ensure_fzf; then
     # ── fzf interactive mode ──────────────────────────────────
-    # Export paths so the preview subshell can reference them
     export FZF_SYNC_LOCAL="$LOCAL_ROOT"
     export FZF_SYNC_TMPL="$TEMPLATE_ROOT"
-    export FZF_DIFF_COLOR="$DIFF_COLOR_FLAG"
+    export FZF_JF_HELPER="$JF_HELPER"
 
     preview_cmd='
-        rel=$(echo {} | cut -f2)
-        local_f="$FZF_SYNC_LOCAL/$rel"
-        tmpl_f="$FZF_SYNC_TMPL/$rel"
-        if [ ! -f "$local_f" ]; then
-            echo "(new file — showing template content)"
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            cat "$tmpl_f"
+        entry=$(echo {} | cut -f2)
+        if [[ "$entry" == justfile::* ]]; then
+            recipe="${entry#justfile::}"
+            local_block=$(python3 "$FZF_JF_HELPER" block "$FZF_SYNC_LOCAL/justfile" "$recipe" 2>/dev/null || true)
+            tmpl_block=$(python3  "$FZF_JF_HELPER" block "$FZF_SYNC_TMPL/justfile"  "$recipe" 2>/dev/null || true)
+            if [ -z "$local_block" ]; then
+                echo "(new recipe — template content:)"
+                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                echo "$tmpl_block"
+            else
+                diff '"$DIFF_COLOR_FLAG"' -u \
+                    <(echo "$local_block") \
+                    <(echo "$tmpl_block") || true
+            fi
         else
-            diff '"$DIFF_COLOR_FLAG"' -u "$local_f" "$tmpl_f" || true
+            local_f="$FZF_SYNC_LOCAL/$entry"
+            tmpl_f="$FZF_SYNC_TMPL/$entry"
+            if [ ! -f "$local_f" ]; then
+                echo "(new file — template content:)"
+                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                cat "$tmpl_f"
+            else
+                diff '"$DIFF_COLOR_FLAG"' -u "$local_f" "$tmpl_f" || true
+            fi
         fi
     '
 
@@ -206,31 +354,35 @@ if _ensure_fzf; then
             --preview-window=right:60%:wrap \
             --header=$'TAB: toggle select  ENTER: apply selected  ESC: quit\n' \
             --bind='tab:toggle+down' \
-            --prompt='Select files > ' \
+            --prompt='Select entries > ' \
         || true
     )
 
     for line in "${selected_lines[@]}"; do
-        rel=$(echo "$line" | cut -f2)
-        selected_paths+=("$rel")
+        selected_entries+=("$(echo "$line" | cut -f2)")
     done
 
 else
     # ── Numbered list fallback ────────────────────────────────
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     idx=1
-    declare -A file_map
-    declare -A file_type_map
-    for f in "${changed_files[@]}"; do
-        printf "  [%2d] 📝 CHANGED  %s\n" "$idx" "$f"
-        file_map[$idx]="$f"
-        file_type_map[$idx]="changed"
+    declare -A entry_map
+    for e in "${changed_entries[@]}"; do
+        if [[ "$e" == justfile::* ]]; then
+            printf "  [%2d] 📝 CHANGED  %s\n" "$idx" "${e/justfile::/justfile (recipe: }"
+        else
+            printf "  [%2d] 📝 CHANGED  %s\n" "$idx" "$e"
+        fi
+        entry_map[$idx]="$e"
         ((idx++))
     done
-    for f in "${new_files[@]}"; do
-        printf "  [%2d] 📄 NEW      %s\n" "$idx" "$f"
-        file_map[$idx]="$f"
-        file_type_map[$idx]="new"
+    for e in "${new_entries[@]}"; do
+        if [[ "$e" == justfile::* ]]; then
+            printf "  [%2d] 📄 NEW      %s\n" "$idx" "${e/justfile::/justfile (recipe: }"
+        else
+            printf "  [%2d] 📄 NEW      %s\n" "$idx" "$e"
+        fi
+        entry_map[$idx]="$e"
         ((idx++))
     done
 
@@ -239,52 +391,58 @@ else
     echo "Prefix with 'd' to preview diff (e.g. d2)."
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
+    _show_entry_diff() {
+        local entry="$1"
+        if [[ "$entry" == justfile::* ]]; then
+            local recipe="${entry#justfile::}"
+            local local_block tmpl_block
+            local_block=$(python3 "$JF_HELPER" block "$LOCAL_ROOT/justfile" "$recipe" 2>/dev/null || true)
+            tmpl_block=$(python3  "$JF_HELPER" block "$TEMPLATE_ROOT/justfile" "$recipe" 2>/dev/null || true)
+            if [ -z "$local_block" ]; then
+                echo "(new recipe)"; echo "$tmpl_block"
+            else
+                # shellcheck disable=SC2086
+                diff $DIFF_COLOR_FLAG -u <(echo "$local_block") <(echo "$tmpl_block") || true
+            fi
+        else
+            local local_f="$LOCAL_ROOT/$entry" tmpl_f="$TEMPLATE_ROOT/$entry"
+            if [ ! -f "$local_f" ]; then
+                echo "(new file)"; cat "$tmpl_f"
+            else
+                # shellcheck disable=SC2086
+                diff $DIFF_COLOR_FLAG -u "$local_f" "$tmpl_f" || true
+            fi
+        fi
+    }
+
     while true; do
         printf "Your choice: "
         read -r input </dev/tty
-
         case "$input" in
             q|Q) echo "Aborted."; exit 0 ;;
             all|ALL)
-                for key in "${!file_map[@]}"; do
-                    selected_paths+=("${file_map[$key]}")
-                done
+                for key in "${!entry_map[@]}"; do selected_entries+=("${entry_map[$key]}"); done
                 break
                 ;;
             d\ *|d[0-9]*)
                 num="${input#d }"; num="${num#d}"; num="${num// /}"
-                if [ -n "${file_map[$num]+_}" ]; then
-                    rel="${file_map[$num]}"
-                    local_file="$LOCAL_ROOT/$rel"
-                    tmpl_file="$TEMPLATE_ROOT/$rel"
-                    echo ""
-                    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-                    if [ ! -f "$local_file" ]; then
-                        echo "(new file)"; cat "$tmpl_file"
-                    else
-                        # shellcheck disable=SC2086
-                        diff $DIFF_COLOR_FLAG -u "$local_file" "$tmpl_file" || true
-                    fi
+                if [ -n "${entry_map[$num]+_}" ]; then
+                    echo ""; echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                    _show_entry_diff "${entry_map[$num]}"
                     echo ""
                 else
                     echo "  Invalid number: $num"
                 fi
                 ;;
-            "")  echo "  Nothing selected." ;;
+            "") echo "  Nothing selected." ;;
             *)
-                valid=true
-                nums=()
+                valid=true; nums=()
                 for num in $input; do
-                    if [ -n "${file_map[$num]+_}" ]; then
-                        nums+=("$num")
-                    else
-                        echo "  Invalid number: $num"; valid=false
-                    fi
+                    if [ -n "${entry_map[$num]+_}" ]; then nums+=("$num")
+                    else echo "  Invalid number: $num"; valid=false; fi
                 done
                 if $valid; then
-                    for num in "${nums[@]}"; do
-                        selected_paths+=("${file_map[$num]}")
-                    done
+                    for num in "${nums[@]}"; do selected_entries+=("${entry_map[$num]}"); done
                     break
                 fi
                 ;;
@@ -293,28 +451,63 @@ else
 fi
 
 # ──────────────────────────────────────────────────────────────
-# Phase 3: Apply selected changes
+# Phase 3: Apply selected entries
 # ──────────────────────────────────────────────────────────────
-if [ "${#selected_paths[@]}" -eq 0 ]; then
+if [ "${#selected_entries[@]}" -eq 0 ]; then
     echo "Nothing selected. No changes applied."
     exit 0
 fi
 
 echo ""
 count_accepted=0
-for rel in "${selected_paths[@]}"; do
-    local_file="$LOCAL_ROOT/$rel"
-    tmpl_file="$TEMPLATE_ROOT/$rel"
-    mkdir -p "$(dirname "$local_file")"
-    cp "$tmpl_file" "$local_file"
-    if [ ! -f "$LOCAL_ROOT/$rel" ] 2>/dev/null; then
-        echo "  ✅ Added:   $rel"
-    else
-        echo "  ✅ Updated: $rel"
+
+# Collect justfile recipe operations separately so we apply them in one pass
+jf_new_recipes=()
+jf_changed_recipes=()
+
+for entry in "${selected_entries[@]}"; do
+    if [[ "$entry" == justfile::* ]]; then
+        recipe="${entry#justfile::}"
+        # Check if it's new or changed
+        local_block=$(python3 "$JF_HELPER" block "$LOCAL_ROOT/justfile" "$recipe" 2>/dev/null || true)
+        if [ -z "$local_block" ]; then
+            jf_new_recipes+=("$recipe")
+        else
+            jf_changed_recipes+=("$recipe")
+        fi
+        continue
     fi
+
+    # Normal file
+    local_file="$LOCAL_ROOT/$entry"
+    tmpl_file="$TEMPLATE_ROOT/$entry"
+    mkdir -p "$(dirname "$local_file")"
+    if [ ! -f "$local_file" ]; then
+        cp "$tmpl_file" "$local_file"
+        echo "  ✅ Added:   $entry"
+    else
+        cp "$tmpl_file" "$local_file"
+        echo "  ✅ Updated: $entry"
+    fi
+    ((count_accepted++)) || true
+done
+
+# Apply justfile changed recipes (replace in-place)
+for recipe in "${jf_changed_recipes[@]}"; do
+    python3 "$JF_HELPER" block "$TEMPLATE_ROOT/justfile" "$recipe" \
+        | python3 "$JF_HELPER" replace "$LOCAL_ROOT/justfile" "$recipe"
+    echo "  ✅ Updated: justfile (recipe: $recipe)"
+    ((count_accepted++)) || true
+done
+
+# Apply justfile new recipes (append)
+for recipe in "${jf_new_recipes[@]}"; do
+    python3 "$JF_HELPER" block "$TEMPLATE_ROOT/justfile" "$recipe" \
+        | python3 "$JF_HELPER" append "$LOCAL_ROOT/justfile"
+    echo "  ✅ Added:   justfile (recipe: $recipe)"
     ((count_accepted++)) || true
 done
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "Done. $count_accepted file(s) applied, $(( total_found - count_accepted )) skipped."
+echo "Done. $count_accepted entry/entries applied, $(( total_found - count_accepted )) skipped."

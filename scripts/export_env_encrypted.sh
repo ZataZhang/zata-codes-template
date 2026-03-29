@@ -52,21 +52,19 @@ OUTPUT_ZIP="$PROJECT_ROOT/${PROJECT_NAME}_secrets.zip"
 cd "$PROJECT_ROOT"
 
 # ── Collect gitignored .env* files ──────────────────────────────────────────
+# Uses git ls-files --others --ignored to find files that are both:
+#   1. untracked (not committed to git), AND
+#   2. matched by gitignore rules.
+# This avoids including tracked files that happen to match .env* patterns.
 echo "🔍 Scanning for gitignored .env* files..."
 
 env_files=()
 while IFS= read -r f; do
-    env_files+=("$f")
+    env_files+=("./$f")
 done < <(
-    find . -name '.env*' -type f \
-        ! -path './.git/*' \
-        ! -path './.venv/*' \
-        ! -path './.uv-cache/*' \
-    | while IFS= read -r candidate; do
-        if git check-ignore -q "$candidate" 2>/dev/null; then
-            echo "$candidate"
-        fi
-    done | sort
+    git ls-files --others --ignored --exclude-standard \
+        | grep -E '(^|/)\.env[^/]*$' \
+        | sort
 )
 
 if [ "${#env_files[@]}" -eq 0 ]; then
