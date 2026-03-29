@@ -23,20 +23,92 @@ fi
 # ──────────────────────────────────────────────────────────────
 _is_skipped() {
     local p="$1"
-    # Exact filenames that are always project-specific
     case "$p" in
         README.md|pyproject.toml|config.toml|mkdocs.yml|uv.lock) return 0 ;;
+        CLAUDE.md|main.py) return 0 ;;
+        findings.md|progress.md|task_plan.md) return 0 ;;
+        .DS_Store) return 0 ;;
     esac
-    # Directory prefixes to ignore entirely
     case "$p" in
         .git/*|.venv/*|.uv-cache/*|__pycache__/*|logs/*|site/*) return 0 ;;
         .pytest_cache/*|.ruff_cache/*|prompt/*|skills/*) return 0 ;;
+        .claude/*|tests/*|docs/*) return 0 ;;
+        utils/*|crawler/*|ai_agent/*|playwright-e2e/*) return 0 ;;
     esac
-    # File patterns to ignore
     case "$p" in
         *.pyc|*.egg-info|.env|.env.*) return 0 ;;
     esac
     return 1
+}
+
+# ──────────────────────────────────────────────────────────────
+# OS detection & fzf install
+# ──────────────────────────────────────────────────────────────
+_detect_os() {
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        echo "macos"
+    elif grep -qi microsoft /proc/version 2>/dev/null; then
+        echo "wsl"
+    elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        echo "linux"
+    else
+        echo "unknown"
+    fi
+}
+
+_install_fzf() {
+    local os
+    os="$(_detect_os)"
+    case "$os" in
+        macos)
+            if ! command -v brew &>/dev/null; then
+                echo "  ❌ Homebrew not found. Install fzf manually: https://github.com/junegunn/fzf"
+                return 1
+            fi
+            echo "  Running: brew install fzf"
+            brew install fzf
+            ;;
+        wsl|linux)
+            if command -v apt-get &>/dev/null; then
+                echo "  Running: sudo apt-get install -y fzf"
+                sudo apt-get install -y fzf
+            elif command -v apt &>/dev/null; then
+                echo "  Running: sudo apt install -y fzf"
+                sudo apt install -y fzf
+            else
+                echo "  ❌ apt not found. Install fzf manually: https://github.com/junegunn/fzf"
+                return 1
+            fi
+            ;;
+        *)
+            echo "  ❌ Cannot auto-install on this platform. Install manually: https://github.com/junegunn/fzf"
+            return 1
+            ;;
+    esac
+}
+
+# Returns 0 if fzf is available (installed or user chose to install), 1 to fall back
+_ensure_fzf() {
+    if command -v fzf &>/dev/null; then
+        return 0
+    fi
+    echo "⚠️  fzf is not installed (used for interactive file selection)."
+    printf "   Install now? [y/N] "
+    read -r choice </dev/tty
+    case "$choice" in
+        y|Y)
+            if _install_fzf; then
+                echo "  ✅ fzf installed."
+                return 0
+            else
+                return 1
+            fi
+            ;;
+        *)
+            echo "   Falling back to numbered list mode."
+            return 1
+            ;;
+    esac
 }
 
 # ──────────────────────────────────────────────────────────────
@@ -54,81 +126,23 @@ TEMPLATE_ROOT="$TEMP_DIR/template"
 echo "✅ Template fetched."
 echo ""
 
-count_changed=0
-count_new=0
-count_accepted=0
-count_user_skipped=0
+# ──────────────────────────────────────────────────────────────
+# Phase 1: Scan — collect changed / new files
+# ──────────────────────────────────────────────────────────────
+changed_files=()
+new_files=()
 
-# ──────────────────────────────────────────────────────────────
-# Walk every file in the template
-# ──────────────────────────────────────────────────────────────
 while IFS= read -r rel_path; do
-
     if ! $SHOW_ALL && _is_skipped "$rel_path"; then
         continue
     fi
-
     local_file="$LOCAL_ROOT/$rel_path"
     tmpl_file="$TEMPLATE_ROOT/$rel_path"
-
-    # ── New file (exists in template but not locally) ──────────
     if [ ! -f "$local_file" ]; then
-        ((count_new++)) || true
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo "📄 NEW FILE: $rel_path"
-        echo "   (this file does not exist locally)"
-        printf "   Add this file? [y/N] "
-        read -r choice </dev/tty
-        case "$choice" in
-            y|Y)
-                mkdir -p "$(dirname "$local_file")"
-                cp "$tmpl_file" "$local_file"
-                echo "   ✅ Added."
-                ((count_accepted++)) || true
-                ;;
-            *)
-                echo "   ⏭  Skipped."
-                ((count_user_skipped++)) || true
-                ;;
-        esac
-        echo ""
-        continue
+        new_files+=("$rel_path")
+    elif ! diff -q "$local_file" "$tmpl_file" > /dev/null 2>&1; then
+        changed_files+=("$rel_path")
     fi
-
-    # ── Identical — nothing to do ──────────────────────────────
-    if diff -q "$local_file" "$tmpl_file" > /dev/null 2>&1; then
-        continue
-    fi
-
-    # ── Changed ────────────────────────────────────────────────
-    ((count_changed++)) || true
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "📝 CHANGED: $rel_path"
-    echo "   (--- local file   +++ template)"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    # shellcheck disable=SC2086
-    diff $DIFF_COLOR_FLAG -u "$local_file" "$tmpl_file" || true
-    echo ""
-    printf "Update local file? [y/N/q(uit)] "
-    read -r choice </dev/tty
-    case "$choice" in
-        y|Y)
-            cp "$tmpl_file" "$local_file"
-            echo "✅ Updated: $rel_path"
-            ((count_accepted++)) || true
-            ;;
-        q|Q)
-            echo ""
-            echo "Aborted by user."
-            exit 0
-            ;;
-        *)
-            echo "⏭  Skipped."
-            ((count_user_skipped++)) || true
-            ;;
-    esac
-    echo ""
-
 done < <(
     find "$TEMPLATE_ROOT" -type f \
         ! -path '*/.git/*' \
@@ -136,14 +150,171 @@ done < <(
         | sort
 )
 
-# ──────────────────────────────────────────────────────────────
-# Summary
-# ──────────────────────────────────────────────────────────────
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-total_found=$(( count_changed + count_new ))
+total_found=$(( ${#changed_files[@]} + ${#new_files[@]} ))
+
 if [ "$total_found" -eq 0 ]; then
     echo "✨ Everything is up to date with the template."
-else
-    echo "Summary: $count_changed changed + $count_new new file(s) found."
-    echo "         $count_accepted accepted, $count_user_skipped skipped."
+    exit 0
 fi
+
+echo "Found ${#changed_files[@]} changed + ${#new_files[@]} new file(s)."
+echo ""
+
+# ──────────────────────────────────────────────────────────────
+# Phase 2: Select files — fzf UI or numbered fallback
+# ──────────────────────────────────────────────────────────────
+
+# Build display list: "📝 CHANGED\trel_path" or "📄 NEW    \trel_path"
+file_list_lines=()
+for f in "${changed_files[@]}"; do
+    file_list_lines+=("📝 CHANGED	$f")
+done
+for f in "${new_files[@]}"; do
+    file_list_lines+=("📄 NEW    	$f")
+done
+
+selected_paths=()
+
+if _ensure_fzf; then
+    # ── fzf interactive mode ──────────────────────────────────
+    # Export paths so the preview subshell can reference them
+    export FZF_SYNC_LOCAL="$LOCAL_ROOT"
+    export FZF_SYNC_TMPL="$TEMPLATE_ROOT"
+    export FZF_DIFF_COLOR="$DIFF_COLOR_FLAG"
+
+    preview_cmd='
+        rel=$(echo {} | cut -f2)
+        local_f="$FZF_SYNC_LOCAL/$rel"
+        tmpl_f="$FZF_SYNC_TMPL/$rel"
+        if [ ! -f "$local_f" ]; then
+            echo "(new file — showing template content)"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            cat "$tmpl_f"
+        else
+            diff '"$DIFF_COLOR_FLAG"' -u "$local_f" "$tmpl_f" || true
+        fi
+    '
+
+    mapfile -t selected_lines < <(
+        printf '%s\n' "${file_list_lines[@]}" \
+        | fzf \
+            --multi \
+            --ansi \
+            --delimiter=$'\t' \
+            --with-nth=1,2 \
+            --preview="$preview_cmd" \
+            --preview-window=right:60%:wrap \
+            --header=$'TAB: toggle select  ENTER: apply selected  ESC: quit\n' \
+            --bind='tab:toggle+down' \
+            --prompt='Select files > ' \
+        || true
+    )
+
+    for line in "${selected_lines[@]}"; do
+        rel=$(echo "$line" | cut -f2)
+        selected_paths+=("$rel")
+    done
+
+else
+    # ── Numbered list fallback ────────────────────────────────
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    idx=1
+    declare -A file_map
+    declare -A file_type_map
+    for f in "${changed_files[@]}"; do
+        printf "  [%2d] 📝 CHANGED  %s\n" "$idx" "$f"
+        file_map[$idx]="$f"
+        file_type_map[$idx]="changed"
+        ((idx++))
+    done
+    for f in "${new_files[@]}"; do
+        printf "  [%2d] 📄 NEW      %s\n" "$idx" "$f"
+        file_map[$idx]="$f"
+        file_type_map[$idx]="new"
+        ((idx++))
+    done
+
+    echo ""
+    echo "Enter numbers to update (e.g. 1 3 5), 'all', or 'q' to quit."
+    echo "Prefix with 'd' to preview diff (e.g. d2)."
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+    while true; do
+        printf "Your choice: "
+        read -r input </dev/tty
+
+        case "$input" in
+            q|Q) echo "Aborted."; exit 0 ;;
+            all|ALL)
+                for key in "${!file_map[@]}"; do
+                    selected_paths+=("${file_map[$key]}")
+                done
+                break
+                ;;
+            d\ *|d[0-9]*)
+                num="${input#d }"; num="${num#d}"; num="${num// /}"
+                if [ -n "${file_map[$num]+_}" ]; then
+                    rel="${file_map[$num]}"
+                    local_file="$LOCAL_ROOT/$rel"
+                    tmpl_file="$TEMPLATE_ROOT/$rel"
+                    echo ""
+                    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                    if [ ! -f "$local_file" ]; then
+                        echo "(new file)"; cat "$tmpl_file"
+                    else
+                        # shellcheck disable=SC2086
+                        diff $DIFF_COLOR_FLAG -u "$local_file" "$tmpl_file" || true
+                    fi
+                    echo ""
+                else
+                    echo "  Invalid number: $num"
+                fi
+                ;;
+            "")  echo "  Nothing selected." ;;
+            *)
+                valid=true
+                nums=()
+                for num in $input; do
+                    if [ -n "${file_map[$num]+_}" ]; then
+                        nums+=("$num")
+                    else
+                        echo "  Invalid number: $num"; valid=false
+                    fi
+                done
+                if $valid; then
+                    for num in "${nums[@]}"; do
+                        selected_paths+=("${file_map[$num]}")
+                    done
+                    break
+                fi
+                ;;
+        esac
+    done
+fi
+
+# ──────────────────────────────────────────────────────────────
+# Phase 3: Apply selected changes
+# ──────────────────────────────────────────────────────────────
+if [ "${#selected_paths[@]}" -eq 0 ]; then
+    echo "Nothing selected. No changes applied."
+    exit 0
+fi
+
+echo ""
+count_accepted=0
+for rel in "${selected_paths[@]}"; do
+    local_file="$LOCAL_ROOT/$rel"
+    tmpl_file="$TEMPLATE_ROOT/$rel"
+    mkdir -p "$(dirname "$local_file")"
+    cp "$tmpl_file" "$local_file"
+    if [ ! -f "$LOCAL_ROOT/$rel" ] 2>/dev/null; then
+        echo "  ✅ Added:   $rel"
+    else
+        echo "  ✅ Updated: $rel"
+    fi
+    ((count_accepted++)) || true
+done
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "Done. $count_accepted file(s) applied, $(( total_found - count_accepted )) skipped."

@@ -11,6 +11,40 @@
 
 set -euo pipefail
 
+# ── Ensure zip is installed ──────────────────────────────────────────────────
+if ! command -v zip &>/dev/null; then
+    echo "⚠️  zip is not installed (required for creating encrypted archives)."
+    printf "   Install now? [y/N] "
+    read -r _zip_choice </dev/tty
+    case "$_zip_choice" in
+        y|Y) ;;
+        *) echo "Aborted."; exit 1 ;;
+    esac
+
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        if command -v brew &>/dev/null; then
+            brew install zip
+        else
+            echo "❌ Homebrew not found. Install zip manually."
+            exit 1
+        fi
+    elif grep -qi microsoft /proc/version 2>/dev/null || [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        if command -v apt-get &>/dev/null; then
+            sudo apt-get install -y zip
+        elif command -v apt &>/dev/null; then
+            sudo apt install -y zip
+        else
+            echo "❌ apt not found. Install zip manually."
+            exit 1
+        fi
+    else
+        echo "❌ Cannot auto-install on this platform. Install zip manually."
+        exit 1
+    fi
+    echo "✅ zip installed."
+    echo ""
+fi
+
 PROJECT_ROOT="$(git rev-parse --show-toplevel)"
 PROJECT_NAME="$(basename "$PROJECT_ROOT")"
 OUTPUT_ZIP="$PROJECT_ROOT/${PROJECT_NAME}_secrets.zip"
