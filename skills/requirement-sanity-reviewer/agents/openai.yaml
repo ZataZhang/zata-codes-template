@@ -1,0 +1,4 @@
+interface:
+  display_name: "Requirement Sanity Reviewer"
+  short_description: "Audit requirements, tickets, and PRDs before coding"
+  default_prompt: "Use $requirement-sanity-reviewer to check whether this requirement is coherent, complete, and safe to implement in this repository."
