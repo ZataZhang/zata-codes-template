@@ -283,7 +283,7 @@ All worktree operations are unified under `just worktree`:
 | Command | Description |
 |---------|-------------|
 | `just copy <name>` | Copy this template to a new project directory (`../<name>/`) |
-| `just sync-template` | Compare local files against upstream template and offer to apply updates |
+| `just sync-template` | Compare local files against upstream template, offer to apply updates, and optionally install template skills into `~/.cc-switch/skills` or a prompted Codex/Claude skills directory when `~/.cc-switch` is absent |
 | `just sync-template --all` | Same, but also include project-specific files (README, pyproject.toml, etc.) |
 | `just release` | Build a release zip via `scripts/release.py` |
 

@@ -118,6 +118,225 @@ _ensure_fzf() {
     esac
 }
 
+CC_SWITCH_SKILLS_DIR="${CC_SWITCH_SKILLS_DIR:-}"
+SKILL_INSTALL_TARGET_DIR=""
+
+_resolve_skill_install_target_dir() {
+    if [ -n "$SKILL_INSTALL_TARGET_DIR" ]; then
+        return 0
+    fi
+
+    if [ -n "$CC_SWITCH_SKILLS_DIR" ]; then
+        SKILL_INSTALL_TARGET_DIR="$CC_SWITCH_SKILLS_DIR"
+        return 0
+    fi
+
+    if [ -d "$HOME/.cc-switch" ]; then
+        SKILL_INSTALL_TARGET_DIR="$HOME/.cc-switch/skills"
+        return 0
+    fi
+
+    echo "No ~/.cc-switch directory found."
+    echo "Choose a skill install target:"
+    echo "  [1] Codex  -> $HOME/.codex/skills"
+    echo "  [2] Claude -> $HOME/.claude/skills"
+    echo "  [q] Skip skill installation"
+
+    while true; do
+        local target_choice
+        printf "Your choice: "
+        read -r target_choice </dev/tty
+        case "$target_choice" in
+            1)
+                SKILL_INSTALL_TARGET_DIR="$HOME/.codex/skills"
+                return 0
+                ;;
+            2)
+                SKILL_INSTALL_TARGET_DIR="$HOME/.claude/skills"
+                return 0
+                ;;
+            q|Q|"")
+                return 1
+                ;;
+            *)
+                echo "  Invalid choice: $target_choice"
+                ;;
+        esac
+    done
+}
+
+_collect_template_skill_updates() {
+    local template_root="$1"
+    template_skill_entries=()
+
+    if [ ! -d "$template_root/skills" ]; then
+        return 0
+    fi
+
+    if ! _resolve_skill_install_target_dir; then
+        return 0
+    fi
+
+    while IFS= read -r template_skill_dir; do
+        local skill_name installed_skill_dir skill_status
+        skill_name="$(basename "$template_skill_dir")"
+        installed_skill_dir="$SKILL_INSTALL_TARGET_DIR/$skill_name"
+
+        if [ ! -d "$installed_skill_dir" ]; then
+            skill_status="NEW"
+        elif diff -qr "$template_skill_dir" "$installed_skill_dir" >/dev/null 2>&1; then
+            continue
+        else
+            skill_status="UPDATE"
+        fi
+
+        template_skill_entries+=("$skill_status"$'\t'"$skill_name"$'\t'"$template_skill_dir")
+    done < <(
+        find "$template_root/skills" -mindepth 1 -maxdepth 1 -type d ! -name '.*' | sort
+    )
+}
+
+_install_template_skills() {
+    local template_root="$1"
+    local selected_skill_names=()
+
+    _collect_template_skill_updates "$template_root"
+
+    if [ "${#template_skill_entries[@]}" -eq 0 ]; then
+        return 0
+    fi
+
+    echo "Template skills with installable updates for $SKILL_INSTALL_TARGET_DIR:"
+    local skill_entry_preview skill_status_preview skill_name_preview
+    for skill_entry_preview in "${template_skill_entries[@]}"; do
+        skill_status_preview="${skill_entry_preview%%$'\t'*}"
+        skill_name_preview="${skill_entry_preview#*$'\t'}"
+        skill_name_preview="${skill_name_preview%%$'\t'*}"
+        printf "  - [%s] %s\n" "$skill_status_preview" "$skill_name_preview"
+    done
+    printf "Install or update template skills now? [y/N] "
+
+    local install_choice
+    read -r install_choice </dev/tty
+    case "$install_choice" in
+        y|Y) ;;
+        *)
+            echo "  Skipped template skill installation."
+            return 0
+            ;;
+    esac
+
+    local skill_list_lines=()
+    local skill_entry skill_status skill_name template_skill_dir
+    for skill_entry in "${template_skill_entries[@]}"; do
+        skill_status="${skill_entry%%$'\t'*}"
+        skill_name="${skill_entry#*$'\t'}"
+        skill_name="${skill_name%%$'\t'*}"
+        if [ "$skill_status" = "NEW" ]; then
+            skill_list_lines+=("📄 NEW    	$skill_name")
+        else
+            skill_list_lines+=("🛠 UPDATE 	$skill_name")
+        fi
+    done
+
+    if _ensure_fzf; then
+        local selected_skill_lines=()
+        while IFS= read -r selected_skill_line; do
+            selected_skill_lines+=("$selected_skill_line")
+        done < <(
+            printf '%s\n' "${skill_list_lines[@]}" \
+            | fzf \
+                --multi \
+                --ansi \
+                --delimiter=$'\t' \
+                --with-nth=1,2 \
+                --preview="skill_name=\$(echo {} | cut -f2); skill_dir=\"$template_root/skills/\$skill_name\"; find \"\$skill_dir\" -maxdepth 2 -type f | sort; echo; echo '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'; echo; sed -n '1,160p' \"\$skill_dir/SKILL.md\"" \
+                --preview-window=right:60%:wrap \
+                --header=$'TAB: toggle select  ENTER: install selected  ESC: skip skill install\n' \
+                --bind='tab:toggle+down' \
+                --prompt='Select skills > ' \
+            || true
+        )
+
+        local selected_skill_line
+        for selected_skill_line in "${selected_skill_lines[@]}"; do
+            selected_skill_names+=("$(echo "$selected_skill_line" | cut -f2)")
+        done
+    else
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        local idx=1
+        local -a skill_map
+        for skill_entry in "${template_skill_entries[@]}"; do
+            skill_status="${skill_entry%%$'\t'*}"
+            skill_name="${skill_entry#*$'\t'}"
+            skill_name="${skill_name%%$'\t'*}"
+            if [ "$skill_status" = "NEW" ]; then
+                printf "  [%2d] 📄 NEW      %s\n" "$idx" "$skill_name"
+            else
+                printf "  [%2d] 🛠 UPDATE   %s\n" "$idx" "$skill_name"
+            fi
+            skill_map[$idx]="$skill_name"
+            ((idx++))
+        done
+
+        echo ""
+        echo "Enter skill numbers to install (e.g. 1 3), 'all', or 'q' to skip."
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+        while true; do
+            local input
+            printf "Your choice: "
+            read -r input </dev/tty
+            case "$input" in
+                q|Q|"") echo "  Skipped template skill installation."; return 0 ;;
+                all|ALL)
+                    local skill_index
+                    for skill_index in "${!skill_map[@]}"; do
+                        selected_skill_names+=("${skill_map[$skill_index]}")
+                    done
+                    break
+                    ;;
+                *)
+                    local valid=true
+                    local -a nums=()
+                    local num
+                    for num in $input; do
+                        if [ -n "${skill_map[$num]+_}" ]; then
+                            nums+=("$num")
+                        else
+                            echo "  Invalid number: $num"
+                            valid=false
+                        fi
+                    done
+                    if $valid; then
+                        for num in "${nums[@]}"; do
+                            selected_skill_names+=("${skill_map[$num]}")
+                        done
+                        break
+                    fi
+                    ;;
+            esac
+        done
+    fi
+
+    if [ "${#selected_skill_names[@]}" -eq 0 ]; then
+        echo "  No skills selected for installation."
+        return 0
+    fi
+
+    mkdir -p "$SKILL_INSTALL_TARGET_DIR"
+
+    local installed_count=0
+    for skill_name in "${selected_skill_names[@]}"; do
+        template_skill_dir="$template_root/skills/$skill_name"
+        rsync -a --delete "$template_skill_dir/" "$SKILL_INSTALL_TARGET_DIR/$skill_name/"
+        echo "  ✅ Installed: $SKILL_INSTALL_TARGET_DIR/$skill_name"
+        ((installed_count++)) || true
+    done
+
+    skill_install_count=$installed_count
+}
+
 # ──────────────────────────────────────────────────────────────
 # Justfile recipe-level helper (written once to $TEMP_DIR)
 # ──────────────────────────────────────────────────────────────
@@ -302,12 +521,21 @@ done < <(
 
 total_found=$(( ${#changed_entries[@]} + ${#new_entries[@]} ))
 
-if [ "$total_found" -eq 0 ]; then
+if [ -d "$TEMPLATE_ROOT/skills" ]; then
+    pending_skill_updates=$(find "$TEMPLATE_ROOT/skills" -mindepth 1 -maxdepth 1 -type d ! -name '.*' | wc -l | tr -d ' ')
+else
+    pending_skill_updates=0
+fi
+
+if [ "$total_found" -eq 0 ] && [ "$pending_skill_updates" -eq 0 ]; then
     echo "✨ Everything is up to date with the template."
     exit 0
 fi
 
 echo "Found ${#changed_entries[@]} changed + ${#new_entries[@]} new entry/entries."
+if [ "$pending_skill_updates" -gt 0 ]; then
+    echo "Found $pending_skill_updates template skill install/update candidate(s)."
+fi
 echo ""
 
 # ──────────────────────────────────────────────────────────────
@@ -329,7 +557,9 @@ done
 
 selected_entries=()
 
-if _ensure_fzf; then
+if [ "$total_found" -eq 0 ]; then
+    echo "No template file diffs to apply."
+elif _ensure_fzf; then
     # ── fzf interactive mode ──────────────────────────────────
     export FZF_SYNC_LOCAL="$LOCAL_ROOT"
     export FZF_SYNC_TMPL="$TEMPLATE_ROOT"
@@ -476,61 +706,64 @@ fi
 # ──────────────────────────────────────────────────────────────
 # Phase 3: Apply selected entries
 # ──────────────────────────────────────────────────────────────
-if [ "${#selected_entries[@]}" -eq 0 ]; then
-    echo "Nothing selected. No changes applied."
-    exit 0
-fi
-
 echo ""
 count_accepted=0
+skill_install_count=0
 
 # Collect justfile recipe operations separately so we apply them in one pass
 jf_new_recipes=()
 jf_changed_recipes=()
 
-for entry in "${selected_entries[@]}"; do
-    if [[ "$entry" == justfile::* ]]; then
-        recipe="${entry#justfile::}"
-        # Check if it's new or changed
-        local_block=$(python3 "$JF_HELPER" block "$LOCAL_ROOT/justfile" "$recipe" 2>/dev/null || true)
-        if [ -z "$local_block" ]; then
-            jf_new_recipes+=("$recipe")
-        else
-            jf_changed_recipes+=("$recipe")
+if [ "${#selected_entries[@]}" -eq 0 ]; then
+    echo "No template file entries selected."
+else
+    for entry in "${selected_entries[@]}"; do
+        if [[ "$entry" == justfile::* ]]; then
+            recipe="${entry#justfile::}"
+            # Check if it's new or changed
+            local_block=$(python3 "$JF_HELPER" block "$LOCAL_ROOT/justfile" "$recipe" 2>/dev/null || true)
+            if [ -z "$local_block" ]; then
+                jf_new_recipes+=("$recipe")
+            else
+                jf_changed_recipes+=("$recipe")
+            fi
+            continue
         fi
-        continue
-    fi
 
-    # Normal file
-    local_file="$LOCAL_ROOT/$entry"
-    tmpl_file="$TEMPLATE_ROOT/$entry"
-    mkdir -p "$(dirname "$local_file")"
-    if [ ! -f "$local_file" ]; then
-        cp "$tmpl_file" "$local_file"
-        echo "  ✅ Added:   $entry"
-    else
-        cp "$tmpl_file" "$local_file"
-        echo "  ✅ Updated: $entry"
-    fi
-    ((count_accepted++)) || true
-done
+        # Normal file
+        local_file="$LOCAL_ROOT/$entry"
+        tmpl_file="$TEMPLATE_ROOT/$entry"
+        mkdir -p "$(dirname "$local_file")"
+        if [ ! -f "$local_file" ]; then
+            cp "$tmpl_file" "$local_file"
+            echo "  ✅ Added:   $entry"
+        else
+            cp "$tmpl_file" "$local_file"
+            echo "  ✅ Updated: $entry"
+        fi
+        ((count_accepted++)) || true
+    done
 
-# Apply justfile changed recipes (replace in-place)
-for recipe in "${jf_changed_recipes[@]}"; do
-    python3 "$JF_HELPER" block "$TEMPLATE_ROOT/justfile" "$recipe" \
-        | python3 "$JF_HELPER" replace "$LOCAL_ROOT/justfile" "$recipe"
-    echo "  ✅ Updated: justfile (recipe: $recipe)"
-    ((count_accepted++)) || true
-done
+    # Apply justfile changed recipes (replace in-place)
+    for recipe in "${jf_changed_recipes[@]}"; do
+        python3 "$JF_HELPER" block "$TEMPLATE_ROOT/justfile" "$recipe" \
+            | python3 "$JF_HELPER" replace "$LOCAL_ROOT/justfile" "$recipe"
+        echo "  ✅ Updated: justfile (recipe: $recipe)"
+        ((count_accepted++)) || true
+    done
 
-# Apply justfile new recipes (append)
-for recipe in "${jf_new_recipes[@]}"; do
-    python3 "$JF_HELPER" block "$TEMPLATE_ROOT/justfile" "$recipe" \
-        | python3 "$JF_HELPER" append "$LOCAL_ROOT/justfile"
-    echo "  ✅ Added:   justfile (recipe: $recipe)"
-    ((count_accepted++)) || true
-done
+    # Apply justfile new recipes (append)
+    for recipe in "${jf_new_recipes[@]}"; do
+        python3 "$JF_HELPER" block "$TEMPLATE_ROOT/justfile" "$recipe" \
+            | python3 "$JF_HELPER" append "$LOCAL_ROOT/justfile"
+        echo "  ✅ Added:   justfile (recipe: $recipe)"
+        ((count_accepted++)) || true
+    done
+fi
+
+_install_template_skills "$TEMPLATE_ROOT"
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "Done. $count_accepted entry/entries applied, $(( total_found - count_accepted )) skipped."
+echo "Done. $count_accepted template entry/entries applied, $(( total_found - count_accepted )) skipped."
+echo "Template skills installed or updated: $skill_install_count."
