@@ -28,6 +28,24 @@ just dev
 just run
 ```
 
+默认会同时启动后端和前端：
+
+- 后端默认执行 `uv run python main.py`
+- 前端默认进入 `frontend/` 目录执行 `npm run dev`
+
+如果只想启动其中一部分，可以这样运行：
+
+```bash
+just run backend
+just run frontend
+```
+
+如果项目实际目录或命令不同，可以覆盖默认参数：
+
+```bash
+just run all frontend_dir=web frontend_cmd="pnpm dev"
+```
+
 ## 测试
 
 运行默认本地测试集：
@@ -64,7 +82,7 @@ just docs-build
 just worktree feature-branch
 ```
 
-`scripts/git_worktree.sh` 在创建 worktree 后会自动执行两类依赖准备：
+`just worktree`（底层实现位于 `scripts/worktree/create.sh`）在创建 worktree 后会自动执行两类依赖准备：
 
 - Python：如果仓库根目录存在 `pyproject.toml`，则运行 `uv sync --all-extras`。
 - Frontend：扫描 worktree 根目录及其子目录中的 `package.json`，并在每个前端项目目录内按锁文件选择对应安装命令，例如 `npm ci`、`pnpm install`、`yarn install` 或 `bun install`。

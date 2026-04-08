@@ -2,9 +2,9 @@
 
 # 将此函数放入 .zshrc 或 .bashrc
 # 用法:
-#   source ./scripts/git_worktree.sh && ai_worktree <新分支名> [--cmd [code_cmd]]
+#   source ./scripts/worktree/create.sh && ai_worktree <新分支名> [--cmd [code_cmd]]
 #   或直接执行:
-#   ./scripts/git_worktree.sh <新分支名> [--cmd [code_cmd]]
+#   ./scripts/worktree/create.sh <新分支名> [--cmd [code_cmd]]
 
 ai_worktree_usage() {
     cat <<'EOF'
@@ -20,9 +20,9 @@ Examples:
   ai_worktree feature-login
   ai_worktree feature-login --cmd
   ai_worktree feature-login --cmd code-insiders
-  ./scripts/git_worktree.sh feature-login
-  ./scripts/git_worktree.sh feature-login --cmd
-  ./scripts/git_worktree.sh feature-login --cmd code-insiders
+  ./scripts/worktree/create.sh feature-login
+  ./scripts/worktree/create.sh feature-login --cmd
+  ./scripts/worktree/create.sh feature-login --cmd code-insiders
 EOF
 }
 

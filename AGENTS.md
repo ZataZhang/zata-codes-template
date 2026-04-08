@@ -261,6 +261,7 @@ All common development tasks are driven by `just`. Run `just` (no arguments) to 
 | `just docs-serve` | Serve MkDocs site locally at `127.0.0.1:8000` |
 | `just docs-serve port=9000` | Serve on a custom port |
 | `just clean` | Remove cache files and build artifacts |
+| `just check-net` | Check proxy settings, Claude reachability, and current egress IP region |
 | `just staged_changes` | Export staged git diff to `staged_changes.diff` |
 
 ### Git Worktree

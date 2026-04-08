@@ -202,14 +202,14 @@ Checks before merge:
   - Local <feature_branch> and [base_branch] must exist.
 
 Examples:
-  ./scripts/git_worktree_merge.sh feature-login
-  ./scripts/git_worktree_merge.sh feature-login main --cleanup
-  ./scripts/git_worktree_merge.sh feature-login -d
-  ./scripts/git_worktree_merge.sh feature-login --delete
-  ./scripts/git_worktree_merge.sh feature-login main --remote zata --cleanup
-  ./scripts/git_worktree_merge.sh feature-login main --cleanup --delete-remote
-  ./scripts/git_worktree_merge.sh --doctor
-  ./scripts/git_worktree_merge.sh --doctor feature-login
+  ./scripts/worktree/merge.sh feature-login
+  ./scripts/worktree/merge.sh feature-login main --cleanup
+  ./scripts/worktree/merge.sh feature-login -d
+  ./scripts/worktree/merge.sh feature-login --delete
+  ./scripts/worktree/merge.sh feature-login main --remote zata --cleanup
+  ./scripts/worktree/merge.sh feature-login main --cleanup --delete-remote
+  ./scripts/worktree/merge.sh --doctor
+  ./scripts/worktree/merge.sh --doctor feature-login
 EOF
 }
 

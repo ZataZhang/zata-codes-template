@@ -25,7 +25,7 @@
 
 ## Worktree 相关环境变量
 
-`just worktree` / `scripts/git_worktree.sh` 支持以下环境变量来控制新 worktree 的依赖准备行为：
+`just worktree`（底层实现位于 `scripts/worktree/create.sh`）支持以下环境变量来控制新 worktree 的依赖准备行为：
 
 - `WORKTREE_FRONTEND_STRATEGY`
   - `install-per-worktree`：默认值。扫描 worktree 根目录和子目录中的前端项目，并在各自目录执行锁文件驱动的依赖安装。

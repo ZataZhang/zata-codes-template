@@ -6,7 +6,7 @@
 
 ```bash
 just sync dev   # 安装全部依赖 + pre-commit hooks
-just run        # 运行主程序
+just run        # 同时启动后端 + 前端
 ```
 
 ## Task Runner（just）
@@ -26,13 +26,17 @@ just run        # 运行主程序
 
 | 命令 | 说明 |
 |------|------|
-| `just run` | 运行主程序（`main.py`） |
+| `just run` | 默认同时启动后端和前端 |
+| `just run backend` | 只启动后端（默认命令为 `uv run python main.py`） |
+| `just run frontend` | 只启动前端（默认进入 `frontend/` 执行 `npm run dev`） |
+| `just run all frontend_dir=web frontend_cmd="pnpm dev"` | 覆盖前端目录或启动命令 |
 | `just test` | 运行本地测试（无需 API key） |
 | `just test all` | 运行全部测试 |
 | `just test real` | 运行需要 API key 的测试 |
 | `just docs-serve` | 本地预览 MkDocs 文档（`127.0.0.1:8000`） |
 | `just docs-serve port=9000` | 指定端口 |
 | `just clean` | 清理缓存与构建产物 |
+| `just check-net` | 检查当前终端的代理、Claude 服务连通性与出口 IP 地区 |
 | `just staged_changes` | 将暂存区 diff 导出为 `staged_changes.diff` |
 
 ### Git Worktree

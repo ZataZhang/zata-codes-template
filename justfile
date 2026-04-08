@@ -2,11 +2,15 @@
 default:
     @just --list
 
+# NOTE:
+#   Run `just sync all` once on a local machine to install shell completion
+#   for `just` in the current shell profile.
+
 # Sync dependencies
 # Usage:
 #   just sync           # dev deps (default)
 #   just sync prod      # production only, no dev
-#   just sync all       # all extras + worktree completion
+#   just sync all       # all extras + install just shell completion
 #   just sync dev       # all extras + pre-commit hooks
 sync mode="":
     #!/usr/bin/env bash
@@ -18,16 +22,42 @@ sync mode="":
         all)
             uv sync --all-extras
             if [ -z "${CI:-}" ]; then
-                completion_src="{{justfile_directory()}}/scripts/just_worktree_completion.bash"
-                completion_dir="$HOME/.config/just"
-                completion_dst="$completion_dir/worktree_completion.bash"
-                source_line="[ -f \"$completion_dst\" ] && source \"$completion_dst\""
-                mkdir -p "$completion_dir"
-                cp "$completion_src" "$completion_dst"
-                if ! grep -Fqx "$source_line" "$HOME/.bashrc" 2>/dev/null; then
-                    printf '\n%s\n' "$source_line" >> "$HOME/.bashrc"
-                fi
-                echo "Installed worktree completion: $completion_dst"
+                shell_name="$(basename "${SHELL:-}")"
+                case "$shell_name" in
+                    zsh)
+                        completion_dir="$HOME/.zsh/completions"
+                        completion_dst="$completion_dir/_just"
+                        mkdir -p "$completion_dir"
+                        just --completions zsh > "$completion_dst"
+                        fpath_line="fpath=(\"$completion_dir\" \$fpath)"
+                        autoload_line="autoload -Uz compinit && compinit"
+                        if ! grep -Fqx "$fpath_line" "$HOME/.zshrc" 2>/dev/null; then
+                            printf '\n%s\n' "$fpath_line" >> "$HOME/.zshrc"
+                        fi
+                        if ! grep -Fqx "$autoload_line" "$HOME/.zshrc" 2>/dev/null; then
+                            printf '%s\n' "$autoload_line" >> "$HOME/.zshrc"
+                        fi
+                        echo "Installed zsh completion: $completion_dst"
+                        echo "Reload your shell with: source ~/.zshrc"
+                        echo "Or open a new terminal session to activate just completions."
+                        ;;
+                    bash)
+                        completion_dir="$HOME/.config/just"
+                        completion_dst="$completion_dir/just_completion.bash"
+                        source_line="[ -f \"$completion_dst\" ] && source \"$completion_dst\""
+                        mkdir -p "$completion_dir"
+                        just --completions bash > "$completion_dst"
+                        if ! grep -Fqx "$source_line" "$HOME/.bashrc" 2>/dev/null; then
+                            printf '\n%s\n' "$source_line" >> "$HOME/.bashrc"
+                        fi
+                        echo "Installed bash completion: $completion_dst"
+                        echo "Reload your shell with: source ~/.bashrc"
+                        echo "Or open a new terminal session to activate just completions."
+                        ;;
+                    *)
+                        echo "Skipped shell completion install for unsupported shell: $shell_name"
+                        ;;
+                esac
             fi
             ;;
         dev)
@@ -44,9 +74,99 @@ sync mode="":
             ;;
     esac
 
-# Run the main application
-run:
-    uv run python main.py
+# Run the development entrypoint
+# Usage:
+#   just run                 # start backend + frontend
+#   just run backend         # start backend only
+#   just run frontend        # start frontend only
+#   just run all frontend_dir=web frontend_cmd="pnpm dev"
+run target="all" frontend_dir="frontend" backend_cmd="uv run python main.py" frontend_cmd="npm run dev":
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    target="{{target}}"
+    frontend_dir="{{frontend_dir}}"
+    backend_cmd='{{backend_cmd}}'
+    frontend_cmd='{{frontend_cmd}}'
+    backend_pid=""
+    frontend_pid=""
+
+    run_backend() {
+        echo "Starting backend: $backend_cmd"
+        bash -lc "$backend_cmd"
+    }
+
+    run_frontend() {
+        if [ ! -d "$frontend_dir" ]; then
+            echo "❌ Frontend directory not found: $frontend_dir"
+            echo "   Override it with: just run frontend frontend_dir=<path>"
+            exit 1
+        fi
+
+        if [ ! -f "$frontend_dir/package.json" ]; then
+            echo "❌ package.json not found in frontend directory: $frontend_dir"
+            echo "   Override the directory or command, for example:"
+            echo "   just run frontend frontend_dir=<path> frontend_cmd='pnpm dev'"
+            exit 1
+        fi
+
+        echo "Starting frontend in $frontend_dir: $frontend_cmd"
+        (
+            cd "$frontend_dir"
+            bash -lc "$frontend_cmd"
+        )
+    }
+
+    cleanup_processes() {
+        for process_pid in "$backend_pid" "$frontend_pid"; do
+            if [ -n "$process_pid" ] && kill -0 "$process_pid" 2>/dev/null; then
+                kill "$process_pid" 2>/dev/null || true
+            fi
+        done
+        wait 2>/dev/null || true
+    }
+
+    wait_for_first_exit() {
+        while true; do
+            if [ -n "$backend_pid" ] && ! kill -0 "$backend_pid" 2>/dev/null; then
+                wait "$backend_pid"
+                return $?
+            fi
+
+            if [ -n "$frontend_pid" ] && ! kill -0 "$frontend_pid" 2>/dev/null; then
+                wait "$frontend_pid"
+                return $?
+            fi
+
+            sleep 1
+        done
+    }
+
+    case "$target" in
+        backend)
+            run_backend
+            ;;
+        frontend)
+            run_frontend
+            ;;
+        all)
+            trap cleanup_processes EXIT INT TERM
+            run_backend &
+            backend_pid=$!
+            run_frontend &
+            frontend_pid=$!
+            wait_for_first_exit
+            ;;
+        *)
+            echo "❌ Unknown run target: $target"
+            echo "Usage: just run [backend|frontend|all]"
+            exit 1
+            ;;
+    esac
+
+# Run local lint/format checks via pre-commit (matches CI)
+lint:
+    uv run pre-commit run --all-files --show-diff-on-failure
 
 # Serve MkDocs site locally with live reload (configurable port, default 8000)
 docs-serve port="8000":
@@ -67,10 +187,14 @@ clean:
 release:
     uv run python scripts/release.py
 
+# Check the current terminal network environment for Claude access.
+check-net:
+    ./scripts/diagnostics/check_claude_code.sh
+
 staged_changes:
     git diff --cached > staged_changes.diff
 
-# Git worktree helper (wrapper for scripts/git_worktree.sh / git_worktree_merge.sh)
+# Git worktree helper (implemented in scripts/worktree/)
 # Usage:
 #   just worktree <branch>                            # create/enter worktree
 #   just worktree <branch> --cmd trae                 # open in editor
@@ -88,7 +212,7 @@ worktree arg1 arg2="" arg3="" arg4="" arg5="":
             echo "❌ Usage: just worktree -d <branch_name>"
             exit 1
         fi
-        ./scripts/git_worktree_merge.sh "{{arg2}}" -d
+        ./scripts/worktree/merge.sh "{{arg2}}" -d
         exit 0
     fi
 
@@ -102,9 +226,9 @@ worktree arg1 arg2="" arg3="" arg4="" arg5="":
         [ -z "$base_branch_value" ] && base_branch_value="main"
         extra_flags_value="{{arg4}}"
         if [ -n "$extra_flags_value" ]; then
-            ./scripts/git_worktree_merge.sh "{{arg2}}" "$base_branch_value" $extra_flags_value
+            ./scripts/worktree/merge.sh "{{arg2}}" "$base_branch_value" $extra_flags_value
         else
-            ./scripts/git_worktree_merge.sh "{{arg2}}" "$base_branch_value"
+            ./scripts/worktree/merge.sh "{{arg2}}" "$base_branch_value"
         fi
         exit 0
     fi
@@ -112,16 +236,16 @@ worktree arg1 arg2="" arg3="" arg4="" arg5="":
     # --doctor: cleanup-check
     if [ "{{arg1}}" = "--doctor" ]; then
         if [ -n "{{arg2}}" ]; then
-            ./scripts/git_worktree_merge.sh --doctor "{{arg2}}"
+            ./scripts/worktree/merge.sh --doctor "{{arg2}}"
         else
-            ./scripts/git_worktree_merge.sh --doctor
+            ./scripts/worktree/merge.sh --doctor
         fi
         exit 0
     fi
 
     # Default: create/enter worktree
     branch_name="{{arg1}}"
-    worktree_command=(./scripts/git_worktree.sh "$branch_name")
+    worktree_command=(./scripts/worktree/create.sh "$branch_name")
     enter_shell_value="true"
     expect_code_command="false"
 
@@ -257,7 +381,7 @@ e2e-install:
 # Output: ./<project_name>_secrets.zip  (one fixed file per project root)
 # Password is prompted interactively at compression time; required again to extract.
 export-env-encrypted:
-    ./scripts/export_env_encrypted.sh
+    ./scripts/secrets/export_env_encrypted.sh
 
 
 # Copy template to a new directory (excluding .git and cache directories)
@@ -295,7 +419,7 @@ copy name:
         --exclude='__pycache__' \
         --exclude='prompt' \
         --exclude='skills' \
-        --exclude='scripts/generate_readme.py' \
+        --exclude='scripts/template/generate_readme.py' \
         "$TEMPLATE_DIR/" "$NEW_DIR/"
 
     NEW_JUSTFILE="$NEW_DIR/justfile"
@@ -307,4 +431,4 @@ copy name:
     sed -i "s/$OLD_NAME/{{name}}/g" "$NEW_DIR/pyproject.toml"
 
     echo "Resetting README.md to template..."
-    uv run python "$TEMPLATE_DIR/scripts/generate_readme.py" "{{name}}" "$NEW_DIR/README.md"
+    uv run python "$TEMPLATE_DIR/scripts/template/generate_readme.py" "{{name}}" "$NEW_DIR/README.md"
