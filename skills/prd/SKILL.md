@@ -1,238 +1,273 @@
 ---
 name: prd
-description: "[Updated 2026-03-05] Generate a technical Product Requirements Document (PRD). Triggers on: create a prd, write prd for, plan this feature."
+description: "[Updated 2026-04-09] Generate an architecture-aware technical PRD. Triggers on: create a prd, write prd for, plan this feature. Prioritizes reuse, minimal-change plans, and conditional web research."
 ---
 
-# PRD Generator (Context-Aware)
+# PRD Generator (Architecture-First)
 
-Create detailed Product Requirements Documents that are clear, actionable, and deeply integrated with the existing codebase.
-The output PRD must make changes explicit via visual artifacts (tables + diagrams), not only text.
-
----
-
-## The Job
-
-1. **Analyze Project Context:** Read project files to understand the tech stack and patterns.
-2. **Clarify:** Ask 3-5 *context-aware* questions with recommendations.
-3. **Execute Prototype Changes (when needed):** If prototype/UI changes are required, modify prototype files first.
-4. **Generate:** Create a structured PRD with technical implementation details, mandatory visuals, and change logs.
-5. **Save:** Write to `tasks/[YYYYMMDD-HHMMSS]-prd-[feature-name].md`.
+Create technical PRDs that fit the existing codebase instead of expanding it unnecessarily.
+The default recommendation must be the smallest change that cleanly solves the problem.
 
 ---
 
-## Step 1: Project Context Analysis
+## Core Rules
 
-**Before asking any questions**, you must scan the current project to understand:
-- **Tech Stack:** (Check `package.json`, `requirements.txt`, etc.)
-- **Database Schema:** (Check `prisma/schema.prisma`, SQL files, or types)
-- **Project Structure:** (Where do components, API routes, and logic live?)
-- **Styling Patterns:** (Tailwind? CSS Modules? UI Libraries?)
-
-**Constraint:** Do NOT ask questions that can be answered by reading the code. (e.g., Don't ask "What database are we using?" if a schema file exists).
+1. **Repository First:** Treat the current codebase as the primary source of truth.
+2. **Architecture Before Output:** Do not jump to sections, diagrams, or prototype work before identifying existing boundaries, extension points, and reusable modules.
+3. **Minimal Change Bias:** Prefer extending an existing path over adding a new layer, service, hook, table, page, or dependency.
+4. **No Redundant Abstractions:** Every newly proposed abstraction must be justified against the current codebase.
+5. **Conditional Web Research:** Browse only when the answer depends on external facts that are not stable in the repository.
 
 ---
 
-## Step 2: Clarifying Questions
+## Workflow
 
-Ask only critical questions that are NOT evident from the code.
+### Phase 0: Rewrite The Request As An Implementable Claim
 
-- **Problem/Goal:** What problem does this solve?
-- **Business Logic:** Specific rules not defined in code.
-- **Scope:** What are the boundaries?
+State in plain language:
+- who wants what behavior
+- under which conditions
+- what changes in system state, API, UI, or workflow
 
-**Recommendation Requirement:**
-1. You must explicitly state a "Best Choice" based on the **existing project patterns** and standard practices.
-2. Cite existing code files to justify your recommendation where possible.
+If you cannot rewrite the request concretely, call that out before generating a PRD.
 
-### Format Questions Like This:
+### Phase 1: Repository Context And Architecture Gate
 
+Before asking questions or proposing changes, inspect the repository for:
+- tech stack and runtime constraints
+- current module boundaries and dependency direction
+- existing extension points and reusable code paths
+- current data model and state ownership
+- existing docs, tests, and workflows relevant to the request
 
-```
+You must explicitly identify:
+- **Existing Path:** the current code path that is closest to the requested change
+- **Reuse Candidates:** files/modules that can be extended directly
+- **Architecture Constraints:** boundaries that should not be broken
+- **Potential Redundancy Risks:** likely sources of duplicated logic or parallel abstractions
 
-1. [Question about Business Logic]?
-A. [Option A]
-B. [Option B]
-C. [Option C]
-> **Recommended: A** (Matches the pattern found in `src/auth/login.ts`)
+Do not ask questions that can be answered by reading the repository.
 
+### Phase 2: Clarify Only What The Code Cannot Answer
 
-2. [Question about Scope]?
-...
+Ask only the critical questions that remain unresolved after repository analysis.
 
-```
+Question categories:
+- business rule ambiguity
+- permission or trust-boundary ambiguity
+- scope boundaries
+- rollout or migration decisions
 
----
+For each question:
+1. provide 2-3 options
+2. mark one as **Recommended**
+3. justify the recommendation using existing repository patterns where possible
 
-## Step 3: Prototype-Aware Execution (Conditional Mandatory)
+### Phase 3: Redundancy Gate And Option Comparison
 
-Before writing the final PRD, detect whether prototype page modifications are required.
+Before writing the final PRD, compare at least these two solution shapes:
 
-### Prototype Target Resolution (Mandatory)
-Resolve prototype target before any file edits:
-- If user explicitly provides a prototype name/path/screen target, you MUST use that exact target.
-- NEVER replace an explicit user target with `prd-demo.html`.
-- If user gives only feature intent (no path), derive slug from that feature and use `docs/prototypes/<feature>-demo.html`.
-- Only use a generic fallback when no explicit target exists.
+1. **Minimal-Change Option**
+   Extend the closest existing path with the fewest new moving parts.
+2. **Heavier Option**
+   Introduce a new abstraction, module, service, table, page, or dependency if warranted.
 
-### Working Tree Independence (Mandatory)
-Do not anchor output to unrelated local modifications:
-- Ignore uncommitted workspace changes unless the user explicitly asks to include or continue those exact changes.
-- Do not infer prototype target from recently modified files.
-- Treat user request text as the primary source of truth for target selection and scope.
+The PRD must recommend the minimal-change option unless the heavier option is clearly necessary.
 
-### Trigger Conditions
-Execute prototype file changes in the same turn when any of these are true:
-- User asks for interactive UI/prototype/wireframe updates.
-- Change Matrix includes `docs/prototypes/*.html` or `docs/prototypes/assets/*`.
-- Requirement needs behavior demonstration (state transitions, button flows, step simulation).
+For every proposed new item, answer:
+- why the existing path is insufficient
+- why this does not duplicate an existing responsibility
+- what complexity it adds
+- whether an existing path can be removed or consolidated as part of the change
 
-### Required Actions When Triggered
-1. Create/modify prototype files under:
-   - `docs/prototypes/*.html`
-   - `docs/prototypes/assets/*.css`
-   - `docs/prototypes/assets/*.js`
-2. Ensure prototype has at least:
-   - One interaction control (button/toggle/tab)
-   - One visible state change in the page
-3. If new prototype page is added, update `mkdocs.yml` nav.
-4. Run `uv run mkdocs build`.
-5. Record actual modifications in the generated PRD section:
-   - `2.8 Interactive Prototype Change Log`
+If you cannot justify the new item, do not recommend it.
 
-If trigger conditions are not met, explicitly state in PRD:
-- `No interactive prototype file changes in this PRD.`
+### Phase 4: Conditional Web Research
 
----
+Use web search only when the decision depends on external facts that may have changed, such as:
+- third-party APIs, SDKs, or vendor capabilities
+- security guidance, standards, or regulations
+- framework, library, or platform version behavior
+- ecosystem best practices that materially affect safety or operability
+- explicit user requests for competitive or external-pattern research
 
-## Step 4: PRD Structure
+When browsing:
+- prefer official documentation and primary sources
+- use search to inform constraints, compatibility, and risks, not to override repository patterns
+- include sources and dates in the PRD
+- clearly mark what is sourced fact versus your inference
 
-Generate the PRD with these sections. Sections 2.1-2.4 are mandatory.
+Do not use web results as a reason to add abstractions by default.
 
-### 1. Introduction & Goals
-Brief description and bulleted list of measurable objectives.
+### Phase 5: Prototype And Visual Artifact Gate
 
-### 2. Implementation Guide (Technical Specs) **[CRITICAL]**
-Based on your analysis in Step 1, outline the technical path:
-- **Core Logic:** How data flows through the **existing** system.
-- **Database/State Changes:** Specific fields/tables to modify (e.g., "Add `is_active` to `User` table").
-- **Affected Files:** Predict specific file paths (e.g., `src/components/Navbar.tsx`, `server/routers/user.ts`).
-- **2.1 Change Matrix (MANDATORY):** A table with columns:
-  - `Change Target`
-  - `Current State`
-  - `Target State`
-  - `How to Modify`
-  - `Affected Files`
-- **2.2 Flow Diagram (MANDATORY):** At least one Mermaid flowchart or architecture diagram.
-- **2.3 Low-Fidelity Prototype (MANDATORY):** ASCII wireframe or Mermaid layout diagram.
-- **2.4 ER Diagram (CONDITIONAL MANDATORY):** Include Mermaid `erDiagram` when data model/schema/state structure changes are involved.
-- **2.8 Interactive Prototype Change Log (CONDITIONAL MANDATORY):**
-  - Required when prototype files are created or modified.
-  - Must include: file path, what changed, before behavior, after behavior.
-- **2.9 Interactive Prototype Link (CONDITIONAL MANDATORY):**
-  - Required for UI/prototype related requests.
-  - Must point to actual page path under `docs/prototypes/`.
+Visual artifacts should clarify the change, not pad the PRD.
 
-### 3. Global Definition of Done (DoD)
-Criteria applicable to **all** User Stories:
-- [ ] Typecheck and Lint passes
-- [ ] Verify visually in browser (if UI related)
-- [ ] Follows existing project coding standards
-- [ ] No regressions in existing features
+Always include:
+- a **Change Matrix**
+- at least one **flow or architecture diagram**
 
-### 4. User Stories
-Focus ONLY on the unique business logic.
+Include a **low-fidelity prototype** only when:
+- the request is UI-heavy, or
+- behavior depends on multi-step user interaction, or
+- layout is necessary to resolve scope ambiguity
 
-**Format:**
-```markdown
-### US-001: [Title]
-**Description:** As a [user], I want [feature] so that [benefit].
+Include an **ER diagram** only when data model or persistent state changes.
 
-**Acceptance Criteria:**
-- [ ] [Unique Logic 1]
-- [ ] [Unique Logic 2]
+Create or modify interactive prototype files under `docs/prototypes/` only when:
+- the user explicitly asks for a prototype, wireframe, or interactive demo, or
+- static diagrams cannot adequately express the behavior under review
 
-```
+Do not create prototype files merely because the feature touches UI.
 
-### 5. Functional Requirements
-
-Unambiguous numbered list (FR-1, FR-2...).
-
-### 6. Non-Goals
-
-What is explicitly out of scope.
-
----
-
-## Step 5: Visual Artifact Rules (Mandatory)
-
-### A. Change Matrix Template
-Use this exact structure (add rows as needed):
-
-| Change Target | Current State | Target State | How to Modify | Affected Files |
-|---|---|---|---|---|
-| Example: Task priority data field | No priority field | Priority enum available | Add enum + wire validation + render badge | `prisma/schema.prisma`, `src/server/routers/task.ts`, `src/components/TaskItem.tsx` |
-
-### B. Flow Diagram Template
-At least one Mermaid diagram:
-
-Mermaid label safety rule:
-- If a node label contains special characters such as `/`, `{}`, `[]`, `()`, `:`, or `-` (common in API paths), wrap the label with double quotes.
-- Correct: `F["POST /agents/{agent_id}/evaluation-runs"]`
-- Incorrect: `F[POST /agents/{agent_id}/evaluation-runs]`
-
-```mermaid
-flowchart TD
-    A[User Request] --> B[Analyze Existing Code]
-    B --> C[Define Change Matrix]
-    C --> D["POST /agents/{agent_id}/evaluation-runs"]
-    D --> E[Validate + Deliver]
-```
-
-### C. Low-Fidelity Prototype Template
-Use one of:
-- ASCII wireframe in code block, or
-- Mermaid layout (flowchart/subgraph) showing module/screen blocks.
-
-### D. ER Diagram Trigger Rule
-Include an ER diagram if any of these are true:
-- New table/model/entity added
-- Existing fields/relationships changed
-- Persistent state schema modified (DB or structured storage)
-
-When ER is required, use Mermaid `erDiagram` and ensure entity names match the text/table.
-
-### E. Interactive Prototype Change Log Template
-Use this structure when prototype files changed:
-
-| File Path | Change Type | Before | After | Why |
-|---|---|---|---|---|
-| `docs/prototypes/<requested-feature>-demo.html` | Modify | Static content only | Added Start/Next/Reset interactions | Support behavior review |
-
-Include at least one path under `docs/prototypes/`.
-
----
-
-## Step 6: Save Location
+### Phase 6: Generate And Save The PRD
 
 Write the PRD to:
 - `tasks/[YYYYMMDD-HHMMSS]-prd-[feature-name].md`
 
-Feature slug should be lowercase with hyphens.
+Feature slug must be lowercase with hyphens.
 Timestamp must use local current time in `YYYYMMDD-HHMMSS` format.
+
+---
+
+## Required PRD Structure
+
+### 1. Introduction & Goals
+
+Brief problem statement plus measurable objectives.
+
+### 2. Requirement Shape
+
+- actor
+- trigger
+- expected behavior
+- explicit scope boundary
+
+### 3. Repository Context And Architecture Fit
+
+Must include:
+- current relevant modules/files
+- existing architecture pattern to follow
+- ownership and dependency boundaries
+- constraints from runtime, docs, tests, or workflows
+
+### 4. Options And Recommendation
+
+Must include:
+- **Option A: Minimal Change**
+- **Option B: Heavier Change** when a plausible heavier path exists
+- recommendation
+- rationale for rejecting redundant abstractions
+
+### 5. Implementation Guide
+
+Must include:
+- **Core Logic:** how data and control move through the existing system
+- **Affected Files:** predicted file paths
+- **Change Matrix**
+- **Flow or Architecture Diagram**
+- **Low-Fidelity Prototype** when required
+- **ER Diagram** when required
+- **Interactive Prototype Change Log** when prototype files changed
+- **External Validation** when web research was used
+
+### 6. Definition Of Done
+
+Include:
+- implementation validation
+- docs updates
+- no regression checks
+- architecture-fit checks
+
+### 7. User Stories
+
+Focus on business logic unique to this change.
+
+### 8. Functional Requirements
+
+Use numbered requirements such as `FR-1`, `FR-2`.
+
+### 9. Non-Goals
+
+List explicit out-of-scope items.
+
+### 10. Risks And Follow-Ups
+
+List migration risk, rollout risk, or deferred cleanup when relevant.
+
+---
+
+## PRD Content Rules
+
+### A. Change Matrix
+
+Use this structure:
+
+| Change Target | Current State | Target State | How to Modify | Why This Fits Existing Architecture | Affected Files |
+|---|---|---|---|---|---|
+| Example: user profile validation | Validation split across route handlers | Validation consolidated in existing service | Move validation into `UserService` and update call sites | Reuses existing service boundary instead of adding a parallel validator layer | `src/services/user.py`, `src/routes/user.py` |
+
+### B. Flow / Architecture Diagram
+
+At least one Mermaid diagram is required.
+Prefer a diagram that shows where the requested change lands inside the existing system.
+
+Mermaid label safety rule:
+- If a node label contains special characters such as `/`, `{}`, `[]`, `()`, `:`, or `-`, wrap the label with double quotes.
+
+### C. Low-Fidelity Prototype
+
+Include only when required by Phase 5.
+Use ASCII wireframe or Mermaid layout.
+
+### D. ER Diagram
+
+Include only when:
+- a new entity/table/model is added
+- fields or relationships change
+- persistent structured state changes
+
+If not required, state:
+- `No data model changes in this PRD.`
+
+### E. Interactive Prototype Change Log
+
+Include only when prototype files were actually changed.
+
+| File Path | Change Type | Before | After | Why |
+|---|---|---|---|---|
+| `docs/prototypes/<feature>-demo.html` | Modify | Static layout only | Added state transition controls | Clarify behavior that static diagrams could not show |
+
+If no prototype files changed, state:
+- `No interactive prototype file changes in this PRD.`
+
+### F. External Validation
+
+Include only when web research was used.
+
+Use this structure:
+
+| Topic | Source | Checked On | Relevant Finding | Impact On Recommendation |
+|---|---|---|---|---|
+| [Vendor/API/standard] | [URL or document title] | [YYYY-MM-DD] | [Fact] | [Constraint, risk, or compatibility note] |
+
+If no web research was needed, state:
+- `No external validation required; repository evidence was sufficient.`
 
 ---
 
 ## Checklist
 
-* [ ] **Analyzed project structure FIRST**
-* [ ] Skipped questions already answered by existing code
-* [ ] Included recommendations based on current project patterns
-* [ ] Included a **Change Matrix** with explicit "How to Modify"
-* [ ] Included at least one **Mermaid** flow/architecture diagram
-* [ ] Included a **Low-Fidelity Prototype** (ASCII or Mermaid)
-* [ ] Added **ER diagram** when schema/data model changes are present
-* [ ] Executed prototype file edits when UI/prototype triggers are present
-* [ ] Added **Interactive Prototype Change Log** with real file paths and before/after behavior
-* [ ] Added **Interactive Prototype Link** when UI/prototype related
-* [ ] Listed specific file paths in "Implementation Guide"
+* [ ] Rewrote the request into a concrete behavior change
+* [ ] Inspected the repository before asking questions
+* [ ] Identified the closest existing code path
+* [ ] Compared a minimal-change option against a heavier option
+* [ ] Justified every new abstraction, dependency, or file path
+* [ ] Rejected redundant layers where reuse was sufficient
+* [ ] Included a Change Matrix with architecture-fit reasoning
+* [ ] Included at least one flow or architecture diagram
+* [ ] Added low-fidelity prototype only when actually needed
+* [ ] Added ER diagram only when data model changes are present
+* [ ] Used web research only when external facts were required
+* [ ] Cited sources and dates for any web-derived claims
 * [ ] Saved to `tasks/[YYYYMMDD-HHMMSS]-prd-[feature-name].md`

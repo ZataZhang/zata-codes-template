@@ -11,34 +11,67 @@
 
 ---
 
-## 2. Implementation Guide (Technical Specs)
+## 2. Requirement Shape
 
-### 2.1 Project Context Analysis
-- Tech stack: [Detected from repository]
-- Existing architecture pattern: [Relevant modules/files]
-- Constraints: [Runtime, dependency, coding standard constraints]
+- Actor: [Who needs this behavior]
+- Trigger: [When the behavior happens]
+- Expected behavior: [What the system should do]
+- Scope boundary: [What this PRD does not cover]
 
-### 2.2 Change Matrix (Mandatory)
+---
 
-| Change Target | Current State | Target State | How to Modify | Affected Files |
-|---|---|---|---|---|
-| [Target 1] | [Current] | [Target] | [Implementation approach] | `[path/a]`, `[path/b]` |
-| [Target 2] | [Current] | [Target] | [Implementation approach] | `[path/c]` |
+## 3. Repository Context And Architecture Fit
 
-### 2.3 Core Logic Flow (Mandatory)
+- Existing path: [Closest current module or code path]
+- Reuse candidates: [Files/modules to extend directly]
+- Architecture pattern to preserve: [Relevant boundary or dependency direction]
+- Constraints: [Runtime, dependency, coding standard, workflow, or rollout constraints]
+- Redundancy risks: [Likely duplication or parallel abstraction risks]
 
-Use quoted Mermaid labels when text includes special characters (for example API paths with `{}`): `F["POST /agents/{agent_id}/evaluation-runs"]`.
+---
+
+## 4. Options And Recommendation
+
+### Option A: Minimal Change
+- Approach: [Extend existing path]
+- Pros: [Why it is smaller/safer]
+- Cons: [Known tradeoff]
+
+### Option B: Heavier Change
+- Approach: [New abstraction/module/service/dependency]
+- Pros: [Potential benefit]
+- Cons: [Added complexity]
+
+### Recommendation
+- Recommended option: [A or B]
+- Why: [Why this best fits the current architecture]
+- Rejected redundancy: [What extra layer or file was intentionally avoided]
+
+---
+
+## 5. Implementation Guide
+
+### 5.1 Core Logic
+- [How data and control move through the existing system]
+
+### 5.2 Change Matrix
+
+| Change Target | Current State | Target State | How to Modify | Why This Fits Existing Architecture | Affected Files |
+|---|---|---|---|---|---|
+| [Target 1] | [Current] | [Target] | [Implementation approach] | [Architecture-fit rationale] | `[path/a]`, `[path/b]` |
+| [Target 2] | [Current] | [Target] | [Implementation approach] | [Architecture-fit rationale] | `[path/c]` |
+
+### 5.3 Flow Or Architecture Diagram
 
 ```mermaid
 flowchart TD
-    USER[User Input] --> ANALYZE[Analyze Existing System]
-    ANALYZE --> DESIGN[Design Change Plan]
-    DESIGN --> IMPLEMENT["POST /agents/{agent_id}/evaluation-runs"]
-    IMPLEMENT --> VALIDATE[Run Validation]
+    USER[User Request] --> EXISTING[Existing Module Boundary]
+    EXISTING --> CHANGE[Minimal Change Path]
+    CHANGE --> VALIDATE[Validation And Tests]
     VALIDATE --> OUTPUT[Deliver]
 ```
 
-### 2.4 Low-Fidelity Prototype (Mandatory)
+### 5.4 Low-Fidelity Prototype (Only When Required)
 
 ```text
 +--------------------------------------------------+
@@ -50,9 +83,10 @@ flowchart TD
 +--------------------------------------------------+
 ```
 
-### 2.5 ER Diagram (Required when data model changes)
+If not required:
+- No low-fidelity prototype required for this PRD.
 
-If schema/state model is changed, include:
+### 5.5 ER Diagram (Only When Data Model Changes)
 
 ```mermaid
 erDiagram
@@ -67,54 +101,47 @@ erDiagram
     }
 ```
 
-If no schema/state model changes:
+If not required:
 - No data model changes in this PRD.
 
-### 2.6 Database/State Changes
-- [Explicit schema/state modifications or "None"]
-
-### 2.7 Affected Files (Predicted)
+### 5.6 Affected Files
 
 | File | Change Type | Description |
 |---|---|---|
 | `[path/to/file]` | Modify/Add/Delete | [What changes and why] |
 
-### 2.8 Interactive Prototype Change Log (Required when prototype files changed)
+### 5.7 Interactive Prototype Change Log (Only When Files Actually Changed)
 
 | File Path | Change Type | Before | After | Why |
 |---|---|---|---|---|
 | `docs/prototypes/[feature]-demo.html` | Modify/Add | [Old behavior] | [New behavior] | [Reason] |
-| `docs/prototypes/assets/[feature].js` | Modify/Add | [Old behavior] | [New behavior] | [Reason] |
 
 If no prototype changes:
 - No interactive prototype file changes in this PRD.
 
-### 2.9 Interactive Prototype Link (Required for UI/prototype requests)
+### 5.8 External Validation (Only When Web Research Was Used)
 
-Use the user-requested prototype target when explicitly provided. Do not default to `prd-demo.html` when a target is given.
+| Topic | Source | Checked On | Relevant Finding | Impact On Recommendation |
+|---|---|---|---|---|
+| [Vendor/API/standard] | [URL or doc title] | [YYYY-MM-DD] | [Fact] | [Constraint or risk] |
 
-- Prototype page: `docs/prototypes/[feature]-demo.html`
-- Optional index link: `docs/prototypes/index.md`
+If no external validation was needed:
+- No external validation required; repository evidence was sufficient.
 
 ---
 
-## 3. Global Definition of Done (DoD)
+## 6. Definition Of Done
 
 - [ ] Typecheck and lint pass
-- [ ] Visual verification completed (if UI related)
+- [ ] Relevant tests pass
+- [ ] Docs updated if behavior changes
 - [ ] Follows existing project coding standards
 - [ ] No regressions in existing features
-- [ ] Change Matrix complete and accurate
-- [ ] Mermaid diagram included
-- [ ] Low-fidelity prototype included
-- [ ] ER diagram included when required
-- [ ] Interactive prototype change log included when prototype files changed
-- [ ] Interactive prototype link included for UI/prototype requests
-- [ ] `uv run mkdocs build` passed after prototype/doc changes
+- [ ] Recommended option still minimizes unnecessary abstraction
 
 ---
 
-## 4. User Stories
+## 7. User Stories
 
 ### US-001: [Story Title]
 **Description:** As a [role], I want [feature], so that [benefit].
@@ -125,7 +152,7 @@ Use the user-requested prototype target when explicitly provided. Do not default
 
 ---
 
-## 5. Functional Requirements
+## 8. Functional Requirements
 
 - FR-1: [Requirement statement]
 - FR-2: [Requirement statement]
@@ -133,7 +160,13 @@ Use the user-requested prototype target when explicitly provided. Do not default
 
 ---
 
-## 6. Non-Goals
+## 9. Non-Goals
 
 - [Out-of-scope item 1]
 - [Out-of-scope item 2]
+
+---
+
+## 10. Risks And Follow-Ups
+
+- [Risk, migration issue, or deferred cleanup]
