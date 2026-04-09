@@ -521,8 +521,10 @@ done < <(
 
 total_found=$(( ${#changed_entries[@]} + ${#new_entries[@]} ))
 
+template_skill_entries=()
 if [ -d "$TEMPLATE_ROOT/skills" ]; then
-    pending_skill_updates=$(find "$TEMPLATE_ROOT/skills" -mindepth 1 -maxdepth 1 -type d ! -name '.*' | wc -l | tr -d ' ')
+    _collect_template_skill_updates "$TEMPLATE_ROOT"
+    pending_skill_updates=${#template_skill_entries[@]}
 else
     pending_skill_updates=0
 fi
@@ -544,16 +546,20 @@ echo ""
 
 # Build tab-separated display lines: "<icon> <label>\t<entry>"
 file_list_lines=()
-for e in "${changed_entries[@]}"; do
-    if [[ "$e" == justfile::* ]]; then
-        file_list_lines+=("📝 CHANGED	$e")
-    else
-        file_list_lines+=("📝 CHANGED	$e")
-    fi
-done
-for e in "${new_entries[@]}"; do
-    file_list_lines+=("📄 NEW    	$e")
-done
+if [ "${#changed_entries[@]}" -gt 0 ]; then
+    for e in "${changed_entries[@]}"; do
+        if [[ "$e" == justfile::* ]]; then
+            file_list_lines+=("📝 CHANGED	$e")
+        else
+            file_list_lines+=("📝 CHANGED	$e")
+        fi
+    done
+fi
+if [ "${#new_entries[@]}" -gt 0 ]; then
+    for e in "${new_entries[@]}"; do
+        file_list_lines+=("📄 NEW    	$e")
+    done
+fi
 
 selected_entries=()
 
@@ -611,33 +617,39 @@ elif _ensure_fzf; then
         || true
     )
 
-    for line in "${selected_lines[@]}"; do
-        selected_entries+=("$(echo "$line" | cut -f2)")
-    done
+    if [ "${#selected_lines[@]}" -gt 0 ]; then
+        for line in "${selected_lines[@]}"; do
+            selected_entries+=("$(echo "$line" | cut -f2)")
+        done
+    fi
 
 else
     # ── Numbered list fallback ────────────────────────────────
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     idx=1
     entry_map=()
-    for e in "${changed_entries[@]}"; do
-        if [[ "$e" == justfile::* ]]; then
-            printf "  [%2d] 📝 CHANGED  %s\n" "$idx" "${e/justfile::/justfile (recipe: }"
-        else
-            printf "  [%2d] 📝 CHANGED  %s\n" "$idx" "$e"
-        fi
-        entry_map[$idx]="$e"
-        ((idx++))
-    done
-    for e in "${new_entries[@]}"; do
-        if [[ "$e" == justfile::* ]]; then
-            printf "  [%2d] 📄 NEW      %s\n" "$idx" "${e/justfile::/justfile (recipe: }"
-        else
-            printf "  [%2d] 📄 NEW      %s\n" "$idx" "$e"
-        fi
-        entry_map[$idx]="$e"
-        ((idx++))
-    done
+    if [ "${#changed_entries[@]}" -gt 0 ]; then
+        for e in "${changed_entries[@]}"; do
+            if [[ "$e" == justfile::* ]]; then
+                printf "  [%2d] 📝 CHANGED  %s\n" "$idx" "${e/justfile::/justfile (recipe: }"
+            else
+                printf "  [%2d] 📝 CHANGED  %s\n" "$idx" "$e"
+            fi
+            entry_map[$idx]="$e"
+            ((idx++))
+        done
+    fi
+    if [ "${#new_entries[@]}" -gt 0 ]; then
+        for e in "${new_entries[@]}"; do
+            if [[ "$e" == justfile::* ]]; then
+                printf "  [%2d] 📄 NEW      %s\n" "$idx" "${e/justfile::/justfile (recipe: }"
+            else
+                printf "  [%2d] 📄 NEW      %s\n" "$idx" "$e"
+            fi
+            entry_map[$idx]="$e"
+            ((idx++))
+        done
+    fi
 
     echo ""
     echo "Enter numbers to update (e.g. 1 3 5), 'all', or 'q' to quit."
@@ -745,20 +757,24 @@ else
     done
 
     # Apply justfile changed recipes (replace in-place)
-    for recipe in "${jf_changed_recipes[@]}"; do
-        python3 "$JF_HELPER" block "$TEMPLATE_ROOT/justfile" "$recipe" \
-            | python3 "$JF_HELPER" replace "$LOCAL_ROOT/justfile" "$recipe"
-        echo "  ✅ Updated: justfile (recipe: $recipe)"
-        ((count_accepted++)) || true
-    done
+    if [ "${#jf_changed_recipes[@]}" -gt 0 ]; then
+        for recipe in "${jf_changed_recipes[@]}"; do
+            python3 "$JF_HELPER" block "$TEMPLATE_ROOT/justfile" "$recipe" \
+                | python3 "$JF_HELPER" replace "$LOCAL_ROOT/justfile" "$recipe"
+            echo "  ✅ Updated: justfile (recipe: $recipe)"
+            ((count_accepted++)) || true
+        done
+    fi
 
     # Apply justfile new recipes (append)
-    for recipe in "${jf_new_recipes[@]}"; do
-        python3 "$JF_HELPER" block "$TEMPLATE_ROOT/justfile" "$recipe" \
-            | python3 "$JF_HELPER" append "$LOCAL_ROOT/justfile"
-        echo "  ✅ Added:   justfile (recipe: $recipe)"
-        ((count_accepted++)) || true
-    done
+    if [ "${#jf_new_recipes[@]}" -gt 0 ]; then
+        for recipe in "${jf_new_recipes[@]}"; do
+            python3 "$JF_HELPER" block "$TEMPLATE_ROOT/justfile" "$recipe" \
+                | python3 "$JF_HELPER" append "$LOCAL_ROOT/justfile"
+            echo "  ✅ Added:   justfile (recipe: $recipe)"
+            ((count_accepted++)) || true
+        done
+    fi
 fi
 
 _install_template_skills "$TEMPLATE_ROOT"
