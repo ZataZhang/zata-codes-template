@@ -385,27 +385,53 @@ export-env-encrypted:
 
 
 # Copy template to a new directory (excluding .git and cache directories)
-# Usage: just copy <new-directory-name>
-copy name:
+# Usage: just copy <new-directory-name|target-directory-path> [--force]
+copy name force='':
     #!/usr/bin/env bash
     set -e
 
     if [ -z "{{name}}" ]; then
-        echo "Error: Please provide a directory name"
-        echo "Usage: just copy <new-directory-name>"
+        echo "Error: Please provide a target directory name or path"
+        echo "Usage: just copy <new-directory-name|target-directory-path> [--force]"
         exit 1
     fi
 
     TEMPLATE_DIR="{{justfile_directory()}}"
-    NEW_DIR="$(dirname "$TEMPLATE_DIR")/{{name}}"
+    COPY_TARGET_INPUT="{{name}}"
+    FORCE_FLAG="{{force}}"
+    if [[ "$COPY_TARGET_INPUT" = /* || "$COPY_TARGET_INPUT" = ./* || "$COPY_TARGET_INPUT" = ../* || "$COPY_TARGET_INPUT" = ~/* || "$COPY_TARGET_INPUT" == *"/"* ]]; then
+        NEW_DIR="$COPY_TARGET_INPUT"
+    else
+        NEW_DIR="$(dirname "$TEMPLATE_DIR")/$COPY_TARGET_INPUT"
+    fi
+    PROJECT_NAME="$(basename "$NEW_DIR")"
     OLD_NAME="zata-codes-template"
 
-    if [ -d "$NEW_DIR" ]; then
-        echo "Error: Directory '$NEW_DIR' already exists"
+    if [ -e "$NEW_DIR" ] && [ ! -d "$NEW_DIR" ]; then
+        echo "Error: Target '$NEW_DIR' exists and is not a directory"
         exit 1
     fi
 
-    echo "Copying template to $NEW_DIR..."
+    if [ -d "$NEW_DIR" ]; then
+        if [ -n "$(find "$NEW_DIR" -mindepth 1 -maxdepth 1 -print -quit)" ]; then
+            if [ "$FORCE_FLAG" = "--force" ]; then
+                :
+            else
+                echo "Error: Directory '$NEW_DIR' already exists and is not empty"
+                echo "Hint: Use 'just copy $COPY_TARGET_INPUT --force' to copy into an existing non-empty directory."
+                exit 1
+            fi
+        fi
+    else
+        mkdir -p "$NEW_DIR"
+    fi
+
+    if [ "$FORCE_FLAG" = "--force" ]; then
+        echo "Force-copying template to $NEW_DIR..."
+    else
+        echo "Copying template to $NEW_DIR..."
+    fi
+    mkdir -p "$(dirname "$NEW_DIR")"
 
     rsync -av \
         --exclude='.git' \
@@ -423,12 +449,10 @@ copy name:
         "$TEMPLATE_DIR/" "$NEW_DIR/"
 
     NEW_JUSTFILE="$NEW_DIR/justfile"
-    sed -i '/^# Copy template to a new directory/,$d' "$NEW_JUSTFILE"
+    python3 -c 'from pathlib import Path; import sys; justfile_path = Path(sys.argv[1]); justfile_text = justfile_path.read_text(encoding="utf-8"); copy_section_marker = "\n# Copy template to a new directory"; copy_section_index = justfile_text.find(copy_section_marker); trimmed_justfile_text = justfile_text[:copy_section_index].rstrip() + "\n" if copy_section_index != -1 else justfile_text; justfile_path.write_text(trimmed_justfile_text, encoding="utf-8")' "$NEW_JUSTFILE"
 
     echo "Updating project name in config files..."
-    sed -i "s/$OLD_NAME/{{name}}/g" "$NEW_DIR/config.toml"
-    sed -i "s/$OLD_NAME/{{name}}/g" "$NEW_DIR/mkdocs.yml"
-    sed -i "s/$OLD_NAME/{{name}}/g" "$NEW_DIR/pyproject.toml"
+    python3 -c 'from pathlib import Path; import sys; project_file_paths = [Path(path) for path in sys.argv[1:5]]; old_project_name = sys.argv[5]; new_project_name = sys.argv[6]; [project_file_path.write_text(project_file_path.read_text(encoding="utf-8").replace(old_project_name, new_project_name), encoding="utf-8") for project_file_path in project_file_paths]' "$NEW_DIR/config.toml" "$NEW_DIR/mkdocs.yml" "$NEW_DIR/pyproject.toml" "$NEW_DIR/uv.lock" "$OLD_NAME" "$PROJECT_NAME"
 
     echo "Resetting README.md to template..."
-    uv run python "$TEMPLATE_DIR/scripts/template/generate_readme.py" "{{name}}" "$NEW_DIR/README.md"
+    python3 "$TEMPLATE_DIR/scripts/template/generate_readme.py" "$PROJECT_NAME" "$NEW_DIR/README.md"
