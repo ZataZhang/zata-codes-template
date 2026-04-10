@@ -1,50 +1,130 @@
 ---
 name: code-reviewer
-description: "[Updated 2026-03-24] Full-stack code review specialist covering security, quality, and maintainability. Reviews Python, React/Next.js, Node.js, and general code changes via git diff. Use immediately after writing or modifying code to catch security vulnerabilities, quality issues, and best-practice violations before merge."
+description: "[Updated 2026-04-10] Full-stack pre-merge review specialist covering security, quality, maintainability, requirement alignment, validation evidence, and documentation synchronization. Use after implementation to review diffs, PRs, or recent commits and surface delivery gaps before merge."
 ---
 
 # Code Reviewer
 
 ## Overview
 
-Senior code reviewer ensuring high standards of code quality and security across the full stack (Python, React/Next.js, Node.js/Backend).
+Senior pre-merge reviewer for repository changes. This skill does not stop at code quality. It also checks whether the implementation matches the stated requirement, whether risky interfaces have real verification evidence, whether repository-standard validation commands were run, and whether docs stayed in sync.
+
+Use this as the single primary skill for the pre-merge review phase. Do not stack it with a second reviewer skill in the same phase.
+
+## Phase Boundary
+
+- **Primary phase**: Pre-merge review
+- **Run after**: Requirements are clarified and implementation is already complete
+- **Do not use instead of**:
+  - `requirement-sanity-reviewer` for ambiguous or contradictory requirements
+  - `prd` for producing the implementation plan or PRD
+- **Default rule**: One phase, one primary skill
 
 ## Review Process
 
 When invoked:
 
-1. **Gather context** -- Run `git diff --staged` and `git diff` to see all changes. If no diff, check recent commits with `git log --oneline -5`.
-2. **Understand scope** -- Identify which files changed, what feature/fix they relate to, and how they connect.
-3. **Read surrounding code** -- Don't review changes in isolation. Read the full file and understand imports, dependencies, and call sites.
-4. **Apply review checklist** -- Work through each category below, from CRITICAL to LOW.
-5. **Report findings** -- Use the output format below. Only report issues with >80% confidence.
+1. **Gather delivery context** -- Run `git diff --staged` and `git diff` to inspect current changes. If no diff exists, inspect recent commits with `git log --oneline -5` and `git show`.
+2. **Gather requirement context** -- Find the closest PRD, ticket, task file, or explicit user request before judging the code. Search `tasks/` first for active PRDs or task artifacts that match the change, then fall back to `tasks/archive/` when the matching PRD has already been archived or is clearly the right artifact.
+3. **Extract acceptance criteria** -- Rewrite the expected behavior into a short checklist. Identify required scope, explicit non-goals, and any risky assumptions.
+4. **Read surrounding code** -- Review the full files, imports, call sites, docs, and config touched by the change. Do not review the diff in isolation.
+5. **Check requirement alignment** -- Decide whether the implementation is missing required behavior, adding out-of-scope behavior, or diverging from the stated contract.
+6. **Check code quality and safety** -- Apply the checklist below from CRITICAL to LOW.
+7. **Check interface validation evidence** -- If routes, handlers, schemas, auth, persistence write paths, or external integrations changed, look for API-, integration-, smoke-, or e2e-level proof instead of relying only on unit tests.
+8. **Check repository validation status** -- Record whether `just lint`, relevant tests, and `uv run mkdocs build` were run. If they were not run, report that as a validation gap rather than silently assuming success.
+9. **Check docs synchronization** -- For behavior, interface, config, command, or workflow changes, confirm whether `docs/`, `mkdocs.yml`, docstrings, examples, and API reference inputs were updated together.
+10. **Report findings** -- Use the output contract below. Separate requirement gaps, code issues, validation gaps, and docs sync gaps.
 
 ## Confidence-Based Filtering
 
-- **Report** if >80% confident it is a real issue
-- **Skip** stylistic preferences unless they violate project conventions
+- **Report** findings only when you are more than 80% confident they are real
+- **Skip** personal style preferences unless they violate repository conventions
 - **Skip** issues in unchanged code unless they are CRITICAL security issues
-- **Consolidate** similar issues (e.g., "5 functions missing error handling" not 5 separate findings)
-- **Prioritize** issues that could cause bugs, security vulnerabilities, or data loss
+- **Consolidate** repeated issues into one finding when they share the same root cause
+- **Prioritize** defects that can cause incorrect behavior, security exposure, failed delivery, broken verification, or stale documentation
+
+## Requirement Alignment
+
+Always produce a short acceptance-criteria view before reviewing details:
+
+- What the implementation was supposed to do
+- What it was explicitly not supposed to do
+- Which files or interfaces are the real delivery boundary
+
+Flag a requirement finding when any of these are true:
+
+- Required behavior from the PRD, ticket, task, or user request is missing
+- The implementation changes behavior beyond the approved scope
+- The change contradicts stated acceptance criteria, examples, or interface contracts
+- The implementation silently changes defaults, auth rules, schema shape, or operational behavior without the requirement reflecting it
+
+If the requirement source is weak or fragmented, say so explicitly in the review assumptions section instead of pretending it is clear.
+
+## Interface Validation Evidence
+
+Treat these changes as interface-boundary changes:
+
+- route, handler, controller, or page entrypoint changes
+- request or response schema changes
+- auth, permission, middleware, session, or cookie changes
+- database write-path or migration-adjacent changes
+- external API or webhook integration changes
+
+When an interface boundary is touched, check for evidence such as:
+
+- automated API or integration tests
+- HTTP-level tests using a client or test server
+- e2e coverage
+- recorded smoke verification using `curl`, `httpie`, or equivalent commands
+
+Unit tests alone are often insufficient for these changes. If no interface-level evidence exists, report a validation gap even when the code looks correct.
+
+## Repository Validation Commands
+
+Prefer repository-standard verification over ad hoc commands. Record the status of:
+
+- `just lint`
+- relevant tests for the changed behavior
+- `uv run mkdocs build`
+
+Use these statuses:
+
+- **passed** -- evidence shows the command ran successfully for the current change
+- **partial** -- only a subset ran, or coverage did not exercise the risky path
+- **not run** -- no evidence that the command was executed
+- **blocked** -- the command could not run because of an environment or repository issue
+
+Do not silently downgrade missing verification. Call it out.
+
+## Docs Synchronization Checks
+
+Whenever behavior, configuration, interfaces, or operating instructions change, check whether all relevant docs moved with the code:
+
+- `docs/` pages for user-facing or maintainer-facing workflow changes
+- `mkdocs.yml` navigation when new docs pages are added
+- docstrings for public Python modules, classes, and functions
+- examples, commands, environment variable references, and configuration guidance
+
+Report a docs sync gap when code changes materially alter behavior or usage but the documentation still describes the old reality.
 
 ## Review Checklist
 
 ### CRITICAL -- Security
 
-These MUST be flagged -- they can cause real damage:
+These MUST be flagged because they can cause real damage:
 
 - **Hardcoded credentials** -- API keys, passwords, tokens, connection strings in source
-- **SQL injection** -- String concatenation/f-strings in queries instead of parameterized queries
-- **XSS vulnerabilities** -- Unescaped user input rendered in HTML/JSX
-- **Command injection** -- Unvalidated input in shell commands (use subprocess with list args)
-- **Path traversal** -- User-controlled file paths without sanitization (validate with normpath, reject `..`)
-- **CSRF vulnerabilities** -- State-changing endpoints without CSRF protection
+- **SQL injection** -- String concatenation or f-strings in queries instead of parameterized queries
+- **XSS vulnerabilities** -- Unescaped user input rendered in HTML or JSX
+- **Command injection** -- Unvalidated input in shell commands; prefer subprocess list args
+- **Path traversal** -- User-controlled file paths without sanitization
+- **CSRF vulnerabilities** -- State-changing endpoints without CSRF protection where applicable
 - **Authentication bypasses** -- Missing auth checks on protected routes
 - **Insecure dependencies** -- Known vulnerable packages
-- **Exposed secrets in logs** -- Logging sensitive data (tokens, passwords, PII)
-- **Eval/exec abuse** -- Dynamic code execution with user input
-- **Unsafe deserialization** -- pickle/yaml unsafe load with untrusted data
-- **Weak crypto** -- MD5/SHA1 for security purposes
+- **Exposed secrets in logs** -- Tokens, passwords, or PII written to logs
+- **Eval or exec abuse** -- Dynamic code execution with user input
+- **Unsafe deserialization** -- `pickle` or unsafe YAML load on untrusted input
+- **Weak crypto** -- MD5 or SHA1 used for security-sensitive flows
 
 ```python
 # BAD: SQL injection via f-string
@@ -66,33 +146,41 @@ const result = await db.query(query, [userId]);
 
 ### CRITICAL -- Error Handling (Python)
 
-- **Bare except** -- `except: pass` catches everything including SystemExit; catch specific exceptions
-- **Swallowed exceptions** -- Silent failures; log and handle properly
-- **Missing context managers** -- Manual file/resource management; use `with`
+- **Bare except** -- `except: pass` catches everything including `SystemExit`; catch specific exceptions
+- **Swallowed exceptions** -- Silent failures without logging or recovery
+- **Missing context managers** -- Manual file or resource management instead of `with`
+
+### HIGH -- Delivery Risks
+
+- **Requirement mismatch** -- Behavior does not satisfy the stated requirement
+- **Out-of-scope implementation** -- Extra behavior added without approval
+- **Missing interface verification evidence** -- Risky interface changes with no API, integration, smoke, or e2e proof
+- **Repository validation missing** -- `just lint`, relevant tests, or `uv run mkdocs build` not run for merge-critical changes
+- **Docs drift** -- Code changed but `docs/`, docstrings, examples, or MkDocs navigation did not
 
 ### HIGH -- Code Quality
 
-- **Large functions** (>50 lines) -- Split into smaller, focused functions
-- **Large files** (>800 lines) -- Extract modules by responsibility
-- **Deep nesting** (>4 levels) -- Use early returns, extract helpers
-- **Missing error handling** -- Unhandled promise rejections, empty catch blocks
-- **Mutation patterns** -- Prefer immutable operations (spread, map, filter)
-- **Debug statements** -- Remove console.log / print() debug logging before merge
-- **Missing tests** -- New code paths without test coverage
+- **Large functions** -- More than roughly 50 lines of mixed responsibility
+- **Large files** -- More than roughly 800 lines without clear segmentation
+- **Deep nesting** -- More than four levels; prefer early returns or helper extraction
+- **Missing error handling** -- Unhandled promise rejections or empty catch blocks
+- **Mutation patterns** -- Prefer immutable operations where practical
+- **Debug statements** -- Remove `console.log` or `print()` debug logging before merge
+- **Missing tests** -- New code paths without coverage
 - **Dead code** -- Commented-out code, unused imports, unreachable branches
 
 ```python
-# BAD: Deep nesting + mutation
+# BAD: Deep nesting plus mutation
 def process_users(users):
     if users:
         for user in users:
             if user.active:
                 if user.email:
-                    user.verified = True  # mutation!
+                    user.verified = True
                     results.append(user)
     return results
 
-# GOOD: Early returns + immutability + flat
+# GOOD: Early returns plus immutability
 def process_users(users: list[User]) -> list[User]:
     if not users:
         return []
@@ -106,50 +194,50 @@ def process_users(users: list[User]) -> list[User]:
 ### HIGH -- Python Patterns
 
 - **Missing type annotations** -- Public functions without type hints
-- **Using `Any`** when specific types are possible
+- **Using `Any`** when a specific type is available
 - **Missing `Optional`** for nullable parameters
-- **Mutable default arguments** -- `def f(x=[])` must be `def f(x=None)`
+- **Mutable default arguments** -- Use `None` and assign inside the function
 - **`value == None`** -- Use `value is None`
-- **`from module import *`** -- Namespace pollution
+- **`from module import *`** -- Avoid namespace pollution
 - **`type() ==`** instead of `isinstance()`
-- **String concatenation in loops** -- Use `"".join()`
-- **Magic numbers** without named constants or Enum
-- **Shadowing builtins** (`list`, `dict`, `str`, `id`)
-- **Missing `encoding="utf-8"`** -- All `open()`, `Path.read_text()`, `Path.write_text()` must specify encoding
+- **String concatenation in loops** -- Prefer `"".join()`
+- **Magic numbers** without named constants or an `Enum`
+- **Shadowing builtins** such as `list`, `dict`, `str`, or `id`
+- **Missing `encoding=\"utf-8\"`** -- All `open()`, `Path.read_text()`, and `Path.write_text()` calls must specify encoding
 - **`print()` instead of `logging`** -- Use the logging module
 
 ```python
-# BAD: Missing encoding (breaks on Windows)
-with open("file.txt", "w") as f:
-    f.write(data)
+# BAD: Missing encoding on Windows-sensitive I/O
+with open("file.txt", "w") as file_handle:
+    file_handle.write(data)
 
 # GOOD: Explicit UTF-8 encoding
-with open("file.txt", "w", encoding="utf-8") as f:
-    f.write(data)
+with open("file.txt", "w", encoding="utf-8") as file_handle:
+    file_handle.write(data)
 ```
 
 ### HIGH -- Python Concurrency
 
-- **Shared state without locks** -- Use `threading.Lock`
-- **Mixing sync/async** incorrectly
-- **N+1 queries in loops** -- Batch query instead
+- **Shared state without locks** -- Use `threading.Lock` or another safe guard
+- **Mixing sync and async incorrectly**
+- **N+1 queries in loops** -- Batch queries instead
 
-### HIGH -- React/Next.js Patterns
+### HIGH -- React and Next.js Patterns
 
-- **Missing dependency arrays** -- `useEffect`/`useMemo`/`useCallback` with incomplete deps
-- **State updates in render** -- Calling setState during render causes infinite loops
-- **Missing keys in lists** -- Using array index as key when items can reorder
-- **Prop drilling** -- Props passed through 3+ levels (use context or composition)
-- **Unnecessary re-renders** -- Missing memoization for expensive computations
-- **Client/server boundary** -- Using `useState`/`useEffect` in Server Components
-- **Missing loading/error states** -- Data fetching without fallback UI
-- **Stale closures** -- Event handlers capturing stale state values
+- **Missing dependency arrays** -- Hooks with incomplete dependencies
+- **State updates in render** -- Calling state setters during render
+- **Missing keys in lists** -- Array indices used as keys when order can change
+- **Prop drilling** -- State passed through too many levels without a clear reason
+- **Unnecessary re-renders** -- Expensive work without stabilization when needed
+- **Client or server boundary mistakes** -- Server components using client-only APIs
+- **Missing loading or error states** -- Data fetching without fallbacks
+- **Stale closures** -- Event handlers capturing outdated state
 
 ```tsx
-// BAD: Missing dependency, stale closure
+// BAD: Missing dependency, stale closure risk
 useEffect(() => {
   fetchData(userId);
-}, []); // userId missing from deps
+}, []);
 
 // GOOD: Complete dependencies
 useEffect(() => {
@@ -157,21 +245,21 @@ useEffect(() => {
 }, [userId]);
 ```
 
-### HIGH -- Node.js/Backend Patterns
+### HIGH -- Node.js and Backend Patterns
 
-- **Unvalidated input** -- Request body/params used without schema validation
+- **Unvalidated input** -- Request bodies or params used without schema validation
 - **Missing rate limiting** -- Public endpoints without throttling
-- **Unbounded queries** -- `SELECT *` or queries without LIMIT on user-facing endpoints
-- **N+1 queries** -- Fetching related data in a loop instead of a join/batch
+- **Unbounded queries** -- User-facing queries without a sensible limit
+- **N+1 queries** -- Related data fetched in loops
 - **Missing timeouts** -- External HTTP calls without timeout configuration
-- **Error message leakage** -- Sending internal error details to clients
-- **Missing CORS configuration** -- APIs accessible from unintended origins
+- **Error message leakage** -- Internal details returned to clients
+- **Missing CORS configuration** -- APIs reachable from unintended origins
 
 ```typescript
 // BAD: N+1 query pattern
-const users = await db.query('SELECT * FROM users');
+const users = await db.query("SELECT * FROM users");
 for (const user of users) {
-  user.posts = await db.query('SELECT * FROM posts WHERE user_id = $1', [user.id]);
+  user.posts = await db.query("SELECT * FROM posts WHERE user_id = $1", [user.id]);
 }
 
 // GOOD: Single query with JOIN
@@ -184,46 +272,46 @@ const usersWithPosts = await db.query(`
 
 ### MEDIUM -- Performance
 
-- **Inefficient algorithms** -- O(n^2) when O(n log n) or O(n) is possible
-- **Unnecessary re-renders** -- Missing React.memo, useMemo, useCallback
-- **Large bundle sizes** -- Importing entire libraries when tree-shakeable alternatives exist
-- **Missing caching** -- Repeated expensive computations without memoization
-- **Unoptimized images** -- Large images without compression or lazy loading
-- **Synchronous I/O** -- Blocking operations in async contexts
+- **Inefficient algorithms** -- `O(n^2)` where `O(n log n)` or `O(n)` is feasible
+- **Unnecessary re-renders** -- Heavy computations without control
+- **Large bundle sizes** -- Pulling in entire libraries unnecessarily
+- **Missing caching** -- Repeated expensive work without memoization or reuse
+- **Unoptimized images** -- Large assets without compression or lazy loading
+- **Synchronous I/O** -- Blocking operations inside async paths
 
 ### MEDIUM -- Best Practices
 
-- **PEP 8 violations** -- Import order, naming conventions, spacing
-- **Missing docstrings** -- Public functions without Google Style docstrings
-- **Poor naming** -- Single-letter variables (x, tmp, data) in non-trivial contexts; violates Fully Qualified Naming
-- **Magic numbers** -- Unexplained numeric constants
-- **Inconsistent formatting** -- Mixed semicolons, quote styles, indentation
+- **PEP 8 violations** -- Import order, naming, spacing
+- **Missing docstrings** -- Public functions lacking Google Style docstrings
+- **Poor naming** -- Generic names like `data`, `item`, or `res` in non-trivial contexts
+- **Magic numbers** -- Numeric constants without explanation
+- **Inconsistent formatting** -- Mixed semicolons, quote styles, or indentation
 
 ### LOW -- Minor
 
-- **TODO/FIXME without tickets** -- TODOs should reference issue numbers
-- **Missing JSDoc/docstring for public APIs** -- Exported functions without documentation
+- **TODO or FIXME without tracking context** -- Reference an issue or explain ownership
+- **Missing JSDoc or docstring for public APIs** -- Missing docs on exported interfaces
 
 ## Project-Specific Checks
 
-These checks are derived from this project's `CLAUDE.md` conventions:
+These checks come from this repository's working conventions:
 
-- **Encoding**: All `open()`, `Path.read_text()`, `Path.write_text()` calls MUST use `encoding="utf-8"`
-- **Google Style Docstrings**: Module, class, and function docstrings must follow Google Style with Args, Returns, Raises
-- **Type Annotations**: All function arguments and return types must have type annotations
-- **AI-Native Naming**: Reject generic names like `data`, `item`, `res`; use fully qualified names (e.g., `raw_user_query_text`)
-- **SSA Pattern**: Avoid repeatedly modifying the same variable; each step should generate a new variable name
-- **Pydantic Models**: Use Pydantic `BaseModel` with `Field` descriptions for structured data
+- **Encoding** -- All `open()`, `Path.read_text()`, and `Path.write_text()` calls must use `encoding="utf-8"`
+- **Google Style Docstrings** -- Module, class, and function docstrings should follow Google Style with `Args`, `Returns`, and `Raises`
+- **Type Annotations** -- Function arguments and return types should be annotated
+- **AI-Native Naming** -- Avoid vague names such as `data`, `item`, or `res`; prefer source-aware names
+- **SSA Pattern** -- Prefer fresh variable names for each processing stage instead of repeated mutation
+- **Pydantic Models** -- Use `BaseModel` with `Field` descriptions for structured data when appropriate
 
-## Docker/Container Checks
+## Docker and Container Checks
 
 ### CRITICAL -- Docker Security
 
-- **Running as root** -- Final stage must use a non-root user (`USER appuser`)
-- **Secrets in image** -- `.env`, credentials, API keys copied into image layers; use build secrets or runtime env vars
-- **Secrets in build args** -- `ARG PASSWORD=xxx` is visible in image history; use `--mount=type=secret`
-- **Using `latest` tag** -- Base images must pin specific versions or SHA digests for reproducibility
-- **Exposed sensitive ports** -- Debug ports (5005, 9229) or database ports exposed in production images
+- **Running as root** -- Final stage should use a non-root user
+- **Secrets in image** -- `.env`, credentials, or API keys copied into image layers
+- **Secrets in build args** -- Sensitive data passed through Docker `ARG`
+- **Using `latest` tag** -- Base images should pin versions or digests
+- **Exposed sensitive ports** -- Debug or database ports exposed in production
 
 ```dockerfile
 # BAD: Running as root, unpinned base
@@ -241,16 +329,16 @@ CMD ["python", "app.py"]
 
 ### HIGH -- Dockerfile Quality
 
-- **No multi-stage build** -- Use multi-stage to separate build dependencies from runtime
-- **Missing .dockerignore** -- `.git`, `node_modules`, `__pycache__`, `.venv`, `.env` must be excluded
-- **Poor layer caching** -- Copy dependency files (requirements.txt, package.json) before source code
-- **Installing dev dependencies in runtime** -- Only install production dependencies in the final stage
+- **No multi-stage build** -- Separate build dependencies from runtime
+- **Missing `.dockerignore`** -- Exclude `.git`, `node_modules`, `__pycache__`, `.venv`, and `.env`
+- **Poor layer caching** -- Copy dependency manifests before source code
+- **Installing dev dependencies in runtime**
 - **No healthcheck** -- Production images should define `HEALTHCHECK`
-- **Unnecessary packages** -- `apt-get install` without `--no-install-recommends`, or missing `rm -rf /var/lib/apt/lists/*`
-- **Missing `COPY --chown`** -- Files copied as root when running as non-root user
+- **Unnecessary packages** -- Missing `--no-install-recommends` or apt cleanup
+- **Missing `COPY --chown`** -- Ownership mismatch for non-root runtime users
 
 ```dockerfile
-# BAD: Poor layer caching -- any source change reinstalls deps
+# BAD: Poor layer caching
 COPY . .
 RUN pip install -r requirements.txt
 
@@ -263,12 +351,12 @@ COPY . .
 ### HIGH -- docker-compose Quality
 
 - **Missing healthcheck** -- Services should define health checks for dependency ordering
-- **Missing resource limits** -- `deploy.resources.limits` should set memory/CPU caps
-- **Missing restart policy** -- Production services need `restart: unless-stopped` or similar
-- **Hardcoded credentials** -- Passwords/secrets inline instead of using environment files or secrets
-- **No named volumes** -- Database data on anonymous volumes risks data loss
-- **Missing depends_on with condition** -- Use `depends_on.condition: service_healthy` not just `depends_on`
-- **Missing environment variables** -- Cross-check code references (`os.environ`, `process.env`, Pydantic `Settings`) against compose `environment`/`env_file`; flag any variable the app expects but compose does not inject
+- **Missing resource limits** -- Production services should set memory or CPU limits
+- **Missing restart policy** -- Use `restart: unless-stopped` or equivalent
+- **Hardcoded credentials** -- Passwords or secrets inline instead of env files or secrets
+- **No named volumes** -- Anonymous database volumes risk accidental data loss
+- **Missing `depends_on` conditions** -- Prefer `condition: service_healthy`
+- **Missing environment variables** -- Cross-check app expectations against compose injection
 
 ```yaml
 # BAD: No healthcheck, no limits, hardcoded password
@@ -299,51 +387,72 @@ services:
 
 ### MEDIUM -- Container Best Practices
 
-- **Large image size** -- Use slim/alpine/distroless base images; avoid full OS images
-- **Missing `WORKDIR`** -- Always set a working directory instead of relying on `/`
-- **Multiple `RUN` layers** -- Chain related commands with `&&` to reduce layers
-- **`ADD` instead of `COPY`** -- Use `COPY` unless you need tar extraction or URL fetch
-- **No `.env.example`** -- Projects with env vars should provide a template
+- **Large image size** -- Prefer slim, alpine, or distroless bases where appropriate
+- **Missing `WORKDIR`** -- Set a working directory explicitly
+- **Multiple `RUN` layers** -- Combine related steps where practical
+- **`ADD` instead of `COPY`** -- Use `COPY` unless `ADD` is needed
+- **No `.env.example`** -- Provide a safe env template when env vars are required
 
 ## Framework-Specific Checks
 
-- **Django**: `select_related`/`prefetch_related` for N+1, `atomic()` for multi-step, migrations
-- **FastAPI**: CORS config, Pydantic validation, response models, no blocking in async
-- **Flask**: Proper error handlers, CSRF protection
+- **Django** -- `select_related`, `prefetch_related`, `atomic()`, migrations
+- **FastAPI** -- CORS config, Pydantic validation, response models, no blocking in async handlers
+- **Flask** -- Proper error handlers and CSRF protection
 
 ## Review Output Format
 
-Organize findings by severity:
+Present findings first, ordered by severity, and include file references when available.
 
+Use this structure:
+
+```text
+[HIGH][requirement] Missing export flow required by the PRD
+File: app/services/export.py:88
+Why it matters: The task requires CSV and JSON export, but the implementation only adds CSV.
+Evidence: tasks/20260410-101907-prd-review-skill-delivery-gates.md states both formats are in scope.
+Fix: Implement the JSON branch or narrow the requirement before merge.
 ```
-[CRITICAL] Hardcoded API key in source
-File: src/api/client.py:42
-Issue: API key "sk-abc..." exposed in source code. This will be committed to git history.
-Fix: Move to environment variable and add to .gitignore/.env.example
-```
 
-### Summary Table
+Allowed finding categories:
 
-End every review with:
+- `requirement`
+- `code`
+- `validation`
+- `docs`
 
-```
+### Review Summary
+
+End every review with a concise delivery summary:
+
+```text
 ## Review Summary
 
 | Severity | Count | Status |
 |----------|-------|--------|
 | CRITICAL | 0     | pass   |
 | HIGH     | 2     | warn   |
-| MEDIUM   | 3     | info   |
-| LOW      | 1     | note   |
+| MEDIUM   | 1     | info   |
+| LOW      | 0     | note   |
 
-Verdict: WARNING -- 2 HIGH issues should be resolved before merge.
+Requirement Status: pass | warn | fail
+Validation Status: pass | partial | fail
+Docs Status: pass | partial | fail
+
+Commands Checked:
+- just lint: passed
+- relevant tests: partial
+- uv run mkdocs build: passed
+
+Verdict: WARNING -- two HIGH findings remain before merge.
 ```
+
+If requirement context is incomplete, add an `Assumptions` section and state exactly what requirement source you relied on.
 
 ## Approval Criteria
 
-- **Approve**: No CRITICAL or HIGH issues
-- **Warning**: HIGH issues only (can merge with caution)
-- **Block**: CRITICAL issues found -- must fix before merge
+- **Approve** -- No CRITICAL issues, no unresolved HIGH issues, and no failing requirement or docs status
+- **Warning** -- HIGH issues exist, or validation status is partial, but the change may still be mergeable with explicit risk acceptance
+- **Block** -- CRITICAL issues exist, required behavior is missing, or risky interface changes lack necessary validation evidence
 
 ## AI-Generated Code Review Addendum
 
@@ -352,4 +461,4 @@ When reviewing AI-generated changes, additionally check:
 1. Behavioral regressions and edge-case handling
 2. Security assumptions and trust boundaries
 3. Hidden coupling or accidental architecture drift
-4. Unnecessary complexity that increases model cost
+4. Unnecessary complexity that increases maintenance or model cost
