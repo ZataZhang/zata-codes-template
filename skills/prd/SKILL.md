@@ -195,6 +195,18 @@ List explicit out-of-scope items.
 
 List migration risk, rollout risk, or deferred cleanup when relevant.
 
+### 11. Decision Log
+
+Record every key decision made during this PRD as a permanent reference that survives archival.
+
+Rules:
+- Each row answers one decision question (e.g. "which architecture pattern", "which storage backend").
+- **Chosen** must match the recommendation in Section 4.
+- **Rejected** must name the alternative from Section 4, not a vague "other approaches".
+- **Rationale** must be one concrete sentence — not "fits the architecture" but why specifically.
+- Assign sequential IDs: D-01, D-02, …
+- Minimum one row per PRD. Add a row for every Option A/B trade-off resolved in Section 4.
+
 ---
 
 ## PRD Content Rules
@@ -271,3 +283,5 @@ If no web research was needed, state:
 * [ ] Used web research only when external facts were required
 * [ ] Cited sources and dates for any web-derived claims
 * [ ] Saved to `tasks/[YYYYMMDD-HHMMSS]-prd-[feature-name].md`
+* [ ] Decision Log has at least one row per Option A/B trade-off resolved in Section 4
+* [ ] Each Decision Log row names a concrete rejected alternative (not a vague "other approaches")

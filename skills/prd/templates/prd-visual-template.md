@@ -170,3 +170,13 @@ If no external validation was needed:
 ## 10. Risks And Follow-Ups
 
 - [Risk, migration issue, or deferred cleanup]
+
+---
+
+## 11. Decision Log
+
+每条记录对应本 PRD 中做出的一个关键决策，归档后作为永久参考。
+
+| # | 决策问题 | 选择 | 放弃的方案 | 理由 |
+|---|---|---|---|---|
+| D-01 | [决策问题，如"架构模式选择"] | [最终选择] | [放弃的方案] | [一句话说明为什么] |

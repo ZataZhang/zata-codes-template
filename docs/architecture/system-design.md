@@ -1,43 +1,96 @@
 # 系统架构
 
-该模板项目采用模块化结构，强调配置集中化与可复用工具沉淀。
+本仓库遵循 **DDD 边界意识 + Clean Architecture 依赖方向 + 模块化单体** 的设计理念，目标是把模板演进为一个可长期维护的四层 AI Agent 骨架，而不是把所有能力堆在一个扁平工具目录里。
 
-## 总体架构
+## 架构原则
 
-- **入口层**：`main.py` 作为基础运行入口。
-- **通用能力层**：`utils` 提供配置、日志、数据库与工具函数。
-- **AI 能力层**：`ai_agent` 提供模型加载与实例化基础能力。
-- **业务示例层**：`crawler` 提供爬虫抽象与数据模型示例。
-- **保障层**：`tests` 与 hooks 保证质量基线。
+- **依赖向内**：外层可以依赖内层，内层不能反向依赖外层。
+- **按职责分层**：按变化率和业务边界分层，而不是按技术栈堆目录。
+- **模块化单体**：保持一个仓库、一个部署单元，但内部按层隔离。
+- **可替换实现**：模型、存储、HTTP、日志、配置等都放在基础设施层，核心层只依赖接口。
+
+## 目标分层
+
+### `apps/` 请求接入层
+
+- 接收 HTTP、WebSocket、CLI 等请求。
+- 只负责参数校验、DTO 转换、调用用例。
+- 不写业务规则。
+
+### `core/` 核心编排层
+
+- 放置用例、Orchestrator、Planner、Memory 和领域契约。
+- 负责业务规则和任务编排。
+- 不直接依赖具体 SDK、数据库或 HTTP 客户端。
+
+### `capabilities/` 平台能力层
+
+- 放置 skills、RAG、registry、可插拔能力。
+- 实现 `core/` 定义的端口。
+- 不承担基础设施细节。
+
+### `infrastructure/` 基础设施层
+
+- 放置模型客户端、数据库、HTTP 客户端、配置和日志实现。
+- 对接外部 API、物理数据库和文件系统。
+- 只提供可被内层调用的具体实现。
+
+## 当前目录与迁移方向
+
+- `main.py`：未来作为 composition root，只做依赖组装。
+- `utils/`：迁移期可作为兼容层，最终基础设施能力将下沉到 `infrastructure/`。
+- `ai_agent/`：迁移期可保留部分兼容实现，核心编排与契约会逐步迁移到 `core/`。
+- `crawler/`：根据实际职责，迁入 `capabilities/` 或作为独立示例域保留。
+- `tests/`：用于验证边界、用例和适配器行为。
 
 ## 模块关系图
 
 ```mermaid
 flowchart TD
-    MAIN[main.py] --> UTILS[utils]
-    MAIN --> AIAGENT[ai_agent]
-    MAIN --> CRAWLER[crawler]
+    User["用户 / 前端 / 定时器"] --> Apps["apps/ 接入层"]
+    Apps --> Core["core/ 核心编排层"]
+    Core --> Platform["capabilities/ 平台能力层"]
+    Core --> Infra["infrastructure/ 基础设施层"]
+    Platform --> Infra
 
-    UTILS --> SETTINGS[utils.settings]
-    UTILS --> LOGGER[utils.logger]
-    UTILS --> DATABASE[utils.database]
+    subgraph CoreDetails["core/"]
+        UC["use_cases"]
+        ORCH["agent/orchestrator"]
+        PLAN["agent/planner"]
+        MEM["agent/memory"]
+        IFACE["shared/interfaces"]
+    end
 
-    AIAGENT --> MODELLOADER[ai_agent.utils.model_loader]
-    CRAWLER --> CRAWLERCORE[crawler.core.crawler]
-    CRAWLER --> CRAWLERMODEL[crawler.models.database]
+    subgraph PlatformDetails["capabilities/"]
+        REG["skills/registry"]
+        SKILL["skills/concrete skills"]
+        RAG["rag/retriever + chunker"]
+    end
 
-    TESTS[tests] --> UTILS
-    TESTS --> AIAGENT
+    subgraph InfraDetails["infrastructure/"]
+        CFG["config/settings"]
+        LOG["logging/logger"]
+        LLM["models/clients"]
+        DB["persistence/repos"]
+        HTTP["http_clients"]
+    end
+
+    Core --> CoreDetails
+    Platform --> PlatformDetails
+    Infra --> InfraDetails
 ```
 
-## 配置与运行链路
+## 依赖规则
 
-1. `utils.settings` 初始化全局 `config`。
-2. `utils.logger` 读取 `config` 初始化日志器。
-3. 业务模块在运行时复用上述能力。
+1. `apps/` 只能调用 `core/` 暴露的用例和 DTO。
+2. `core/` 只能依赖抽象接口和纯业务模型。
+3. `capabilities/` 只能实现 `core/` 定义的契约。
+4. `infrastructure/` 负责具体集成，不包含业务编排。
+5. 旧的 `utils/` 与 `ai_agent/` 目录在迁移期内可以作为兼容出口，但不应继续作为最终架构。
 
-## 扩展建议
+## 迁移策略
 
-- 将新的业务域代码按模块隔离，保持低耦合。
-- 对外部系统调用统一封装，便于观测与重试。
-- 优先保证配置和文档同步更新。
+- 先创建四层目录骨架，再迁移核心逻辑。
+- 先定义接口，再迁移适配器。
+- 先保持兼容导出，再逐步清理旧路径。
+- 文档、测试和代码一起迁移，避免“结构变了，认知没变”。

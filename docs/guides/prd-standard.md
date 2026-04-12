@@ -32,6 +32,7 @@
 4. **改动清单表（Change Matrix）**
 5. **Mermaid 流程图或架构图**
 6. **Non-Goals**
+7. **Decision Log**（见下方规则）
 
 以下内容是条件必填：
 
@@ -120,6 +121,52 @@ flowchart TD
 若无数据模型变更，需在 PRD 明确写出：
 - `No data model changes in this PRD.`
 
+## Decision Log 规则
+
+Decision Log 是本项目替代独立 ADR 目录的决策记录机制。
+PRD 归档后，Decision Log 随之永久保存在 `tasks/archive/`，成为持久参考。
+
+### 为什么放在 PRD 里而不是单独的 ADR 文件
+
+任务驱动的项目中，决策和实现是同一件事的两面。把决策记录嵌入 PRD，可以：
+
+- 保留完整上下文（决策 + 方案 + 实现）
+- 避免维护两套文档（PRD 和独立 ADR 目录）
+- 随任务归档自然沉淀，不需要额外管理
+
+### 格式
+
+```markdown
+## 11. Decision Log
+
+| # | 决策问题 | 选择 | 放弃的方案 | 理由 |
+|---|---|---|---|---|
+| D-01 | [决策问题] | [最终选择] | [放弃的方案] | [一句话具体理由] |
+```
+
+### 填写规则
+
+- **每个 Section 4 的 Option A/B 取舍必须对应至少一行。**
+- **选择**列必须与 Section 4 的推荐项一致。
+- **放弃的方案**必须具名，不得写"其他方案"。
+- **理由**必须具体，不得写"符合架构"——应写"因为 X 无法满足 Y，所以选 Z"。
+- ID 从 D-01 开始顺序编号，同一 PRD 内不重复。
+
+### 示例
+
+| # | 决策问题 | 选择 | 放弃的方案 | 理由 |
+|---|---|---|---|---|
+| D-01 | 架构模式 | Clean Architecture 四层 | 扁平 utils 工具集 | 需要支持多模型/多技能编排，扁平结构无法隔离业务规则与具体实现 |
+| D-02 | 部署单元 | 模块化单体 | 微服务拆分 | 当前团队规模和流量不需要独立部署，过早拆分只增加运维成本 |
+
+### 与架构文档的关系
+
+Decision Log 记录**某次功能变更时做了什么决策**。
+系统级架构原则记录在 [`docs/architecture/system-design.md`](../architecture/system-design.md)。
+两者互补：前者是时间轴上的决策快照，后者是当前架构的权威描述。
+
+---
+
 ## Web 搜索使用规则
 
 Web 搜索不是默认步骤，只在这些场景启用：
@@ -145,11 +192,13 @@ Web 搜索不是默认步骤，只在这些场景启用：
 2. 扫描代码结构，识别最接近的现有路径和复用点。
 3. 先比较最小改动方案与更重方案，再决定推荐项。
 4. 确认是否真的需要原型、ER 图、或 Web 搜索。
-5. 最后写 Change Matrix、流程图、User Stories、FR 和 Non-Goals。
+5. 写 Change Matrix、流程图、User Stories、FR 和 Non-Goals。
+6. **填写 Decision Log**：将第 3 步的每个 Option A/B 取舍转换为一行记录。
 
 ## 参考
 
-- 技能说明：`skills/prd/SKILL.md`
-- 可复用模板：`skills/prd/templates/prd-visual-template.md`
-- 示例 PRD：`tasks/prd-visual-change-spec.md`
-- 原型规范入口：`docs/prototypes/index.md`
+- 技能说明：[`skills/prd/SKILL.md`](../../skills/prd/SKILL.md)
+- 可复用模板：[`skills/prd/templates/prd-visual-template.md`](../../skills/prd/templates/prd-visual-template.md)
+- 示例 PRD：`tasks/archive/prd-visual-change-spec.md`
+- 架构文档：[`docs/architecture/system-design.md`](../architecture/system-design.md)
+- 原型规范入口：[`docs/prototypes/index.md`](../prototypes/index.md)

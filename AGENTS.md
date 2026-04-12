@@ -1,5 +1,43 @@
 # AI Agent Guidelines
 
+## Architecture-First Development
+
+**在开始任何新功能开发前，必须先阅读 `docs/architecture/system-design.md`。**
+
+### 四层架构（Clean Architecture）
+
+| 层 | 目录 | 职责 |
+|---|---|---|
+| 接入层 | `apps/` | HTTP/CLI 入口，参数校验，调用用例 |
+| 核心编排层 | `core/` | 用例、Agent 编排、领域契约（纯业务，无具体实现） |
+| 平台能力层 | `capabilities/` | Skills、RAG 等可插拔能力，实现 core 定义的接口 |
+| 基础设施层 | `infrastructure/` | LLM 客户端、数据库、日志、配置的具体实现 |
+
+### 依赖方向规则（不得违反）
+
+```
+apps/ → core/ → capabilities/ → infrastructure/ → 外部第三方包
+```
+
+- `infrastructure/` **不得** import `core`、`capabilities`、`apps`
+- `core/` **不得** import `capabilities`、`infrastructure`、`apps`
+- `apps/` **不得** 直接 import `infrastructure`、`capabilities`
+- 跨层依赖必须通过 `core/shared/interfaces/` 中的抽象接口进行
+
+### 开发新功能的检查清单
+
+1. 确认新代码应放在哪一层（对照上表）
+2. 确认 import 方向合法（不违反上方规则）
+3. 如需跨层依赖，先在 `core/shared/interfaces/` 定义抽象接口
+4. 提交时 pre-commit hook `check-architecture` 会自动验证
+
+### 迁移期说明
+
+`utils/`、`ai_agent/`、`crawler/` 是迁移期遗留目录，不参与架构检查。
+新代码**不得**写入这三个目录；它们只作为兼容导出，逐步迁移至四层结构。
+
+---
+
 ## Codex Session Workflow
 
 - **Session start rule**: At the beginning of each new Codex CLI session in this repository, run `bash scripts/hooks/session-start.sh` before repository exploration or edits. Treat the returned JSON `result` field as supplemental session context. Run this only once per CLI session, not once per user turn.

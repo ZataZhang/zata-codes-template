@@ -63,6 +63,12 @@ repos:
         pass_filenames: false
         stages: [pre-commit]
         always_run: true
+      - id: check-architecture
+        name: Check architecture layer dependencies
+        entry: uv run python hooks/check_architecture.py
+        language: system
+        files: ^(apps|core|capabilities|infrastructure)/.*\.py$
+        pass_filenames: false
       - id: archive-planning-session
         name: Archive planning session on commit
         entry: bash hooks/archive_planning_session.sh
