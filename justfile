@@ -359,7 +359,7 @@ sync-template flags="":
 e2e type="":
     #!/usr/bin/env bash
     set -euo pipefail
-    cd "{{justfile_directory()}}/playwright-e2e"
+    cd "{{justfile_directory()}}/tests/playwright-e2e"
     case "{{type}}" in
         smoke)   npm run test:smoke ;;
         no-auth) npm run test:no-auth ;;
@@ -374,8 +374,36 @@ e2e type="":
 
 # Install e2e dependencies and Playwright browsers (run once before first just e2e)
 e2e-install:
-    cd "{{justfile_directory()}}/playwright-e2e" && npm install && npx playwright install chromium
+    cd "{{justfile_directory()}}/tests/playwright-e2e" && npm install && npx playwright install chromium
 
+
+# ── Frontend ──────────────────────────────────────────────────────────────────
+
+# Frontend helper
+# Usage:
+#   just frontend dev
+#   just frontend build
+#   just frontend install
+frontend action="dev":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{justfile_directory()}}/frontend"
+    case "{{action}}" in
+        dev)
+            npm run dev
+            ;;
+        build)
+            npm run build
+            ;;
+        install)
+            npm install
+            ;;
+        *)
+            echo "❌ Unknown action: {{action}}"
+            echo "Usage: just frontend [dev|build|install]"
+            exit 1
+            ;;
+    esac
 
 # Pack all gitignored .env* files into a password-protected encrypted zip.
 # Output: ./<project_name>_secrets.zip  (one fixed file per project root)

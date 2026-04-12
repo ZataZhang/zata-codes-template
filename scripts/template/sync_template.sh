@@ -41,7 +41,7 @@ _is_skipped_by_default() {
         .git/*|.venv/*|.uv-cache/*|__pycache__/*|logs/*|site/*) return 0 ;;
         .pytest_cache/*|.ruff_cache/*|prompt/*|skills/*) return 0 ;;
         .claude/*|tests/*|docs/*) return 0 ;;
-        utils/*|crawler/*|ai_agent/*|playwright-e2e/*) return 0 ;;
+        utils/*|crawler/*|ai_agent/*) return 0 ;;
     esac
     case "$p" in
         *.pyc|*.egg-info|.env|.env.*) return 0 ;;

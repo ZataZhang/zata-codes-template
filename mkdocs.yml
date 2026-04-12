@@ -65,5 +65,6 @@ nav:
       - 模块引用: api/references.md
   - 系统架构:
       - 架构设计: architecture/system-design.md
+      - 前端架构: architecture/frontend-architecture.md
   - 开发者:
       - 评测与测试: dev/evaluation.md

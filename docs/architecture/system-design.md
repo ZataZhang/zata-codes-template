@@ -47,38 +47,91 @@
 
 ```mermaid
 flowchart TD
-    User["用户 / 前端 / 定时器"] --> Apps["apps/ 接入层"]
-    Apps --> Core["core/ 核心编排层"]
-    Core --> Platform["capabilities/ 平台能力层"]
-    Core --> Infra["infrastructure/ 基础设施层"]
-    Platform --> Infra
+    Browser["浏览器 / 用户"] --> FE
 
-    subgraph CoreDetails["core/"]
-        UC["use_cases"]
-        ORCH["agent/orchestrator"]
-        PLAN["agent/planner"]
-        MEM["agent/memory"]
-        IFACE["shared/interfaces"]
+    subgraph FE["frontend/ 前端层"]
+        direction TB
+        FE_PAGES["pages/\nLoginPage · DashboardPage"]
+        FE_LAYOUT["components/\nAppSidebar · SiteHeader · shadcn/ui"]
+        FE_AUTH["auth/\nSessionProvider · RequireSession"]
+        FE_SHARED["shared/\napi/client · auth/sessionStore"]
+        FE_PAGES --> FE_LAYOUT
+        FE_PAGES --> FE_AUTH
+        FE_AUTH --> FE_SHARED
+        FE_LAYOUT --> FE_SHARED
     end
 
-    subgraph PlatformDetails["capabilities/"]
-        REG["skills/registry"]
-        SKILL["skills/concrete skills"]
-        RAG["rag/retriever + chunker"]
+    FE_SHARED -->|"HTTP /api/*\n(Vite proxy / nginx 反代)"| Apps
+
+    subgraph Backend["Python 后端"]
+        direction TB
+        Apps["apps/ 接入层"]
+        Core["core/ 核心编排层"]
+        Platform["capabilities/ 平台能力层"]
+        Infra["infrastructure/ 基础设施层"]
+
+        Apps --> Core
+        Core --> Platform
+        Core --> Infra
+        Platform --> Infra
+
+        subgraph CoreDetails["core/"]
+            UC["use_cases"]
+            ORCH["agent/orchestrator"]
+            PLAN["agent/planner"]
+            MEM["agent/memory"]
+            IFACE["shared/interfaces"]
+        end
+
+        subgraph PlatformDetails["capabilities/"]
+            REG["skills/registry"]
+            SKILL["skills/concrete skills"]
+            RAG["rag/retriever + chunker"]
+        end
+
+        subgraph InfraDetails["infrastructure/"]
+            CFG["config/settings"]
+            LOG["logging/logger"]
+            LLM["models/clients"]
+            DB["persistence/repos"]
+            HTTP["http_clients"]
+        end
+
+        Core --> CoreDetails
+        Platform --> PlatformDetails
+        Infra --> InfraDetails
     end
 
-    subgraph InfraDetails["infrastructure/"]
-        CFG["config/settings"]
-        LOG["logging/logger"]
-        LLM["models/clients"]
-        DB["persistence/repos"]
-        HTTP["http_clients"]
-    end
-
-    Core --> CoreDetails
-    Platform --> PlatformDetails
-    Infra --> InfraDetails
+    Timer["定时器 / 外部系统"] --> Apps
 ```
+
+## 前端分层说明
+
+| 层 | 路径 | 职责 |
+|---|---|---|
+| 页面层 | `src/pages/` | 路由级页面组件（登录、Dashboard） |
+| 布局层 | `src/components/` | Sidebar、Header、shadcn/ui 基础组件 |
+| 认证层 | `src/auth/` | SessionProvider 上下文、RequireSession 路由守卫 |
+| 共享层 | `shared/` | API 客户端封装、会话缓存，与后端唯一通信入口 |
+
+前端与后端之间**仅通过 `/api/*` HTTP 接口通信**，开发时由 Vite 代理转发，生产时由 nginx 反代。两侧无任何代码直接依赖。
+
+## 为什么前端不属于四层
+
+本仓库的四层架构用于约束 Python 后端内部的依赖方向：
+
+```text
+apps/ → core/ → capabilities/ → infrastructure/
+```
+
+这里的 `apps/` 指后端请求接入层，不等于浏览器前端。
+
+- `frontend/` 是系统边界外的 Web 客户端。
+- 它负责路由、页面渲染、会话状态和接口调用。
+- 它通过 HTTP 或 WebSocket 调用 `apps/` 暴露的后端入口。
+- 它不参与后端内部的依赖传递，因此不应被硬塞进四层中的任意一层。
+
+如果需要讨论 `frontend/` 自身的模块拆分，应使用单独的前端内部架构文档，而不是混入后端四层依赖规则。详见 [`frontend-architecture.md`](frontend-architecture.md)。
 
 ## 依赖规则
 
