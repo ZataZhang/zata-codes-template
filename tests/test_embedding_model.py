@@ -21,7 +21,7 @@ from typing import Any
 
 import pytest
 
-from utils.settings import config as app_config
+from infrastructure.config.settings import config as app_config
 
 # =============================================================================
 # Skip Conditions

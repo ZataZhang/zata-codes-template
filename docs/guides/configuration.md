@@ -1,6 +1,6 @@
 # 配置说明
 
-本项目通过 `utils/settings.py` 中的 `AppSettings` 统一管理配置，并组合多个子配置模型，实现工程化的配置分层。
+本项目通过 `infrastructure/config/settings.py` 中的 `AppSettings` 统一管理配置，并组合多个子配置模型，实现工程化的配置分层。
 
 ## 配置来源优先级
 

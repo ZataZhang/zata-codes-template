@@ -1,6 +1,24 @@
-"""持久化实现（persistence）。
+"""Infrastructure persistence exports."""
 
-提供数据库 Repository 实现。
-实现 core/shared/interfaces 中定义的 IRepository 接口。
-最终承接 utils/database.py 的职责。
-"""
+from .crawler_records import CrawlerData, CrawlerLog
+from .database import (
+    Base,
+    SessionLocal,
+    create_database_engine,
+    create_tables,
+    engine,
+    get_db,
+    init_database,
+)
+
+__all__ = [
+    "Base",
+    "CrawlerData",
+    "CrawlerLog",
+    "SessionLocal",
+    "create_database_engine",
+    "create_tables",
+    "engine",
+    "get_db",
+    "init_database",
+]

@@ -1,6 +1,31 @@
-"""模型客户端（models）。
+"""Model loading and client factories.
 
-封装 LLM API 调用（Anthropic、OpenAI 等）。
-实现 core/shared/interfaces 中定义的 IModelClient 接口。
-最终承接 ai_agent/utils/model_loader.py 的职责。
+This package is the canonical location for provider configuration parsing and
+LLM client instantiation.
 """
+
+from .model_loader import (
+    ModelConfigError,
+    _expand_base_urls,
+    _find_model_providers,
+    _infer_provider,
+    _resolve_config_path,
+    _resolve_provider_api_key,
+    create_chat_model,
+    list_models,
+    load_models_config,
+    resolve_model_credentials,
+)
+
+__all__ = [
+    "ModelConfigError",
+    "_expand_base_urls",
+    "_find_model_providers",
+    "_infer_provider",
+    "_resolve_config_path",
+    "_resolve_provider_api_key",
+    "create_chat_model",
+    "list_models",
+    "load_models_config",
+    "resolve_model_credentials",
+]

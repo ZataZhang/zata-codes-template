@@ -1,12 +1,8 @@
-"""数据库模型示例
-
-展示如何使用 SQLAlchemy 定义数据模型。
-根据实际需求修改或扩展这些模型。
-"""
+"""Persistence models for crawling artifacts."""
 
 from sqlalchemy import Column, Integer, String, DateTime, Text, func
 
-from utils.database import Base
+from infrastructure.persistence.database import Base
 
 
 class CrawlerData(Base):

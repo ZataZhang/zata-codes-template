@@ -1,10 +1,8 @@
-"""Crawler 使用示例
+"""Examples for the crawling capability."""
 
-展示如何使用 crawler 模块进行数据爬取。
-"""
+from typing import Any, Dict
 
-from crawler.core import BaseCrawler, SimpleHttpCrawler
-from typing import Dict, Any
+from capabilities.crawling import BaseCrawler, SimpleHttpCrawler
 
 
 def example_simple_http_crawler():
@@ -70,8 +68,7 @@ def example_with_database():
     """示例 3: 爬取数据并保存到数据库"""
     print("\n=== 示例 3: 保存到数据库 ===")
 
-    from utils.database import SessionLocal, init_database
-    from crawler.models import CrawlerData
+    from infrastructure.persistence import CrawlerData, SessionLocal, init_database
 
     # 初始化数据库（创建表）
     print("初始化数据库...")
@@ -189,7 +186,7 @@ def example_with_retry():
 def main():
     """运行所有示例"""
     print("=" * 60)
-    print("Crawler 模块使用示例")
+    print("Crawling capability examples")
     print("=" * 60)
 
     # 运行各个示例

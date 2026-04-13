@@ -1,5 +1,5 @@
-"""日志实现（logging）。
+"""Infrastructure logging exports."""
 
-提供结构化日志记录器。
-最终承接 utils/logger.py 的职责。
-"""
+from .logger import Logger, logger
+
+__all__ = ["Logger", "logger"]

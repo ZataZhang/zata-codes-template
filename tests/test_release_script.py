@@ -28,7 +28,8 @@ def test_should_exclude_sensitive_and_scratch_files() -> None:
 
     release_module = _load_release_module()
 
-    assert release_module._should_exclude("crawler/.env") is True
+    assert release_module._should_exclude(".env") is True
+    assert release_module._should_exclude("features/demo/.env") is True
     assert release_module._should_exclude(".claude/settings.local.json") is True
     assert release_module._should_exclude("findings.md") is True
     assert release_module._should_exclude("progress.md") is True
@@ -41,5 +42,5 @@ def test_should_keep_template_examples() -> None:
     release_module = _load_release_module()
 
     assert release_module._should_exclude(".env.example") is False
-    assert release_module._should_exclude("crawler/.env.example") is False
+    assert release_module._should_exclude("env/.env.example") is False
     assert release_module._should_exclude("docs/guides/deployment.md") is False

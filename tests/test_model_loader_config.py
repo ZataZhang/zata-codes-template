@@ -12,7 +12,7 @@ from typing import Any
 
 import pytest
 
-from ai_agent.utils.model_loader import (
+from infrastructure.models import (
     _expand_base_urls,
     _find_model_providers,
     _infer_provider,
@@ -312,10 +312,10 @@ class TestConfigurationIntegration:
     def test_config_matches_settings_integration(self) -> None:
         """Test that model loader config aligns with settings module.
 
-        This test verifies the integration between ai_agent model loader
+        This test verifies the integration between the infrastructure model loader
         and the centralized settings configuration.
         """
-        from utils.settings import config as app_config
+        from infrastructure.config.settings import config as app_config
 
         # Load model configuration
         models_config: dict[str, Any] = load_models_config()
@@ -332,7 +332,7 @@ class TestConfigurationIntegration:
 
     def test_embedding_config_has_model(self) -> None:
         """Test that embedding model configuration is valid."""
-        from utils.settings import config as app_config
+        from infrastructure.config.settings import config as app_config
 
         # Embedding model should be a valid sentence-transformers model
         # or other supported format

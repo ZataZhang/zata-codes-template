@@ -10,7 +10,7 @@ from typing import Any, Callable, Optional, Sequence, Tuple
 import cv2
 import numpy as np
 
-from captcha_recognizer.slider import Slider
+from .slider import Slider
 
 
 @dataclass(frozen=True)

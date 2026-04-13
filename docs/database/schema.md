@@ -1,6 +1,6 @@
 # Schema 设计
 
-当前项目在 `crawler/models/database.py` 中提供了示例实体，用于展示爬虫数据与执行日志的持久化方式。
+当前项目在 `infrastructure/persistence/crawler_records.py` 中提供了示例实体，用于展示爬虫数据与执行日志的持久化方式。
 
 ## 实体总览
 

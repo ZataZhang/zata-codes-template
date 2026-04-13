@@ -1,11 +1,11 @@
-"""captcha-recognizer package exports."""
+"""Captcha recognizer exports."""
 
-from captcha_recognizer.drissionpage import (
+from .drissionpage import (
     DrissionPageSliderSolver,
     SliderGapResult,
     SliderSolveResult,
 )
-from captcha_recognizer.slider import Slider
+from .slider import Slider
 
 __all__ = [
     "DrissionPageSliderSolver",

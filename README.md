@@ -9,7 +9,7 @@
 - `capabilities/` 平台能力层
 - `infrastructure/` 基础设施层
 
-`utils/` 和 `ai_agent/` 会在迁移期内保留兼容出口，但最终目标是收敛到上述四层结构。
+当前仓库的正式结构以 `apps/`、`core/`、`capabilities/`、`infrastructure/` 四层目录为准。
 
 ## 快速开始
 
@@ -94,22 +94,20 @@ uv run pre-commit run --all-files   # 首次全量检查（可选）
 uv run pre-commit autoupdate
 ```
 
-## utils 目录
+## 基础设施模块
 
-`utils/` 当前仍保留跨项目可复用能力，但它正在向 `infrastructure/` 迁移。迁移期内，这里只应保留薄封装或兼容出口，不应继续扩张成最终架构。
+### `infrastructure/config/settings.py`
+集中管理环境变量与路径配置，统一从 `.env` 与 `config.toml` 加载，其余模块只从 `config` 对象读取。
 
-### `utils/settings.py`
-集中管理环境变量与路径配置，统一从 `.env` 加载，其余模块只从 `config` 对象读取。
-
-### `utils/logger.py`
-单例 `Logger`，读取 `config.LOG_LEVEL` 与 `config.LOG_FILE`，同时输出到控制台与文件，在 Windows 上处理 UTF-8。
+### `infrastructure/logging/logger.py`
+单例 `Logger`，读取 `config.log_level` 与 `config.log_file`，同时输出到控制台与文件，在 Windows 上处理 UTF-8。
 
 ```python
-from utils.logger import logger
+from infrastructure.logging.logger import logger
 logger.info("started")
 ```
 
-### `utils/helpers.py`
+### `infrastructure/helpers.py`
 无状态的小工具函数，可按需补充，如格式化时间、批量重试等。
 
 ## 架构口径

@@ -2,63 +2,61 @@
 
 本页通过 `mkdocstrings` 自动渲染核心模块的公开 API。
 
-## 通用工具模块
+## 基础设施模块
 
-### `utils.settings`
+### `infrastructure.config.settings`
 
-::: utils.settings
+::: infrastructure.config.settings
     handler: python
     options:
       show_root_heading: true
       members_order: source
 
-### `utils.logger`
+### `infrastructure.logging.logger`
 
-::: utils.logger
+::: infrastructure.logging.logger
     handler: python
     options:
       show_root_heading: true
       members_order: source
 
-### `utils.database`
+### `infrastructure.persistence.database`
 
-::: utils.database
+::: infrastructure.persistence.database
     handler: python
     options:
       show_root_heading: true
       members_order: source
 
-### `utils.helpers`
+### `infrastructure.helpers`
 
-::: utils.helpers
+::: infrastructure.helpers
     handler: python
     options:
       show_root_heading: true
       members_order: source
 
-## AI Agent 模块
+## 模型与爬虫模块
 
-### `ai_agent.utils.model_loader`
+### `infrastructure.models.model_loader`
 
-::: ai_agent.utils.model_loader
+::: infrastructure.models.model_loader
     handler: python
     options:
       show_root_heading: true
       members_order: source
 
-## Crawler 模块
+### `capabilities.crawling.crawler`
 
-### `crawler.core.crawler`
-
-::: crawler.core.crawler
+::: capabilities.crawling.crawler
     handler: python
     options:
       show_root_heading: true
       members_order: source
 
-### `crawler.models.database`
+### `infrastructure.persistence.crawler_records`
 
-::: crawler.models.database
+::: infrastructure.persistence.crawler_records
     handler: python
     options:
       show_root_heading: true

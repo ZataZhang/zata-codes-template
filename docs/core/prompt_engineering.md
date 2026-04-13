@@ -26,7 +26,7 @@ prompt/
 
 ## 与模型配置协同
 
-`ai_agent/utils/model_loader.py` 提供了模型配置加载能力，可将 Prompt 路由策略与模型选择策略联动设计。
+`infrastructure/models/model_loader.py` 提供了模型配置加载能力，可将 Prompt 路由策略与模型选择策略联动设计。
 
 ## TODO
 

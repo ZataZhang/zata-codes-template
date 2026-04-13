@@ -31,13 +31,6 @@ apps/ → core/ → capabilities/ → infrastructure/ → 外部第三方包
 3. 如需跨层依赖，先在 `core/shared/interfaces/` 定义抽象接口
 4. 提交时 pre-commit hook `check-architecture` 会自动验证
 
-### 迁移期说明
-
-`utils/`、`ai_agent/`、`crawler/` 是迁移期遗留目录，不参与架构检查。
-新代码**不得**写入这三个目录；它们只作为兼容导出，逐步迁移至四层结构。
-
----
-
 ## Codex Session Workflow
 
 - **Session start rule**: At the beginning of each new Codex CLI session in this repository, run `bash scripts/hooks/session-start.sh` before repository exploration or edits. Treat the returned JSON `result` field as supplemental session context. Run this only once per CLI session, not once per user turn.

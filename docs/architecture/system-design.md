@@ -35,12 +35,15 @@
 - 对接外部 API、物理数据库和文件系统。
 - 只提供可被内层调用的具体实现。
 
-## 当前目录与迁移方向
+## 当前目录
 
 - `main.py`：未来作为 composition root，只做依赖组装。
-- `utils/`：迁移期可作为兼容层，最终基础设施能力将下沉到 `infrastructure/`。
-- `ai_agent/`：迁移期可保留部分兼容实现，核心编排与契约会逐步迁移到 `core/`。
-- `crawler/`：根据实际职责，迁入 `capabilities/` 或作为独立示例域保留。
+- `infrastructure/config/`：承接配置管理。
+- `infrastructure/logging/`：承接日志实现。
+- `infrastructure/persistence/`：承接数据库与持久化实现。
+- `infrastructure/helpers.py`：承接通用无状态辅助函数。
+- `infrastructure/models/`：承接模型配置解析与 LLM 客户端装配。
+- `capabilities/crawling/`：承接正式爬虫能力。
 - `tests/`：用于验证边界、用例和适配器行为。
 
 ## 模块关系图
@@ -139,11 +142,4 @@ apps/ → core/ → capabilities/ → infrastructure/
 2. `core/` 只能依赖抽象接口和纯业务模型。
 3. `capabilities/` 只能实现 `core/` 定义的契约。
 4. `infrastructure/` 负责具体集成，不包含业务编排。
-5. 旧的 `utils/` 与 `ai_agent/` 目录在迁移期内可以作为兼容出口，但不应继续作为最终架构。
-
-## 迁移策略
-
-- 先创建四层目录骨架，再迁移核心逻辑。
-- 先定义接口，再迁移适配器。
-- 先保持兼容导出，再逐步清理旧路径。
-- 文档、测试和代码一起迁移，避免“结构变了，认知没变”。
+5. 配置、日志、数据库和通用辅助函数位于 `infrastructure/` 下的正式模块。

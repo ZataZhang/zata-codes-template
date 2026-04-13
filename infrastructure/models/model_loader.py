@@ -1,4 +1,4 @@
-"""用于实例化提供商配置定义的聊天模型的辅助工具。"""
+"""Model-loading helpers for provider-configured chat models."""
 
 from __future__ import annotations
 
@@ -13,9 +13,9 @@ from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models import BaseLanguageModel
 from langchain_openai import ChatOpenAI
 
-# 加载 AIagent 目录下的环境变量文件
-PACKAGE_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(PACKAGE_DIR / ".env", override=False)
+# Load repository-level environment variables when present.
+PROJECT_ROOT_DIR = Path(__file__).resolve().parents[2]
+load_dotenv(PROJECT_ROOT_DIR / ".env", override=False)
 
 
 DEFAULT_MODELS_CONFIG = Path(__file__).resolve().parent / "models.json"

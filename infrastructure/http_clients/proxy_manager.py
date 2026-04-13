@@ -10,8 +10,8 @@ import time
 import requests
 from typing import List, Optional, Dict, Union
 
-from utils.logger import logger
-from utils.settings import config
+from infrastructure.logging.logger import logger
+from infrastructure.config.settings import config
 
 
 class ClashProxyManager:

@@ -1,11 +1,11 @@
-"""爬虫核心模块 - 提供基础爬虫类和示例实现"""
+"""Crawling capability implementations."""
 
 import time
 from typing import Dict, Any, Optional
 from abc import ABC, abstractmethod
 
-from utils.settings import config
-from utils.logger import logger
+from infrastructure.config.settings import config
+from infrastructure.logging.logger import logger
 
 
 class BaseCrawler(ABC):

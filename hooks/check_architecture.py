@@ -42,7 +42,7 @@ FORBIDDEN_IMPORTS: dict[str, list[str]] = {
 }
 """每个层禁止 import 的其他层列表。"""
 
-LEGACY_MODULES: set[str] = {"utils", "ai_agent", "crawler"}
+LEGACY_MODULES: set[str] = set()
 """迁移期兼容模块，不参与架构检查（见 system-design.md 迁移策略）。"""
 
 
