@@ -41,6 +41,9 @@ extra_javascript:
   - https://unpkg.com/mermaid@10.6.1/dist/mermaid.min.js
   - javascripts/mermaid.js
 
+extra_css:
+  - stylesheets/mermaid-copy.css
+
 nav:
   - 首页: index.md
   - 快速开始: getting-started.md
