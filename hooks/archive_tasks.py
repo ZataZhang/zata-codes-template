@@ -1,7 +1,8 @@
-"""Archive task markdown files before commit.
+"""Archive active task markdown files before commit.
 
-Moves Markdown files from the tasks directory into tasks/archive and stages
-the resulting changes for commit.
+Moves root-level Markdown files from the tasks directory into tasks/archive
+and stages the resulting changes for commit. Files under tasks/pending or any
+other tasks subdirectory are left in place.
 """
 
 from __future__ import annotations
@@ -19,10 +20,34 @@ def _repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
+def _is_archivable_task_markdown(
+    full_path: Path, tasks_dir: Path, archive_dir: Path, pending_dir: Path
+) -> bool:
+    """Return whether a task file should be archived from the active root.
+
+    Args:
+        full_path (Path): Candidate task path in the repository.
+        tasks_dir (Path): The tasks directory root.
+        archive_dir (Path): The archive directory to exclude.
+        pending_dir (Path): The pending directory to exclude.
+
+    Returns:
+        bool: True when the file is a root-level active PRD eligible for archive.
+    """
+
+    if full_path.suffix.lower() != ".md":
+        return False
+    if not full_path.exists() or not full_path.is_file():
+        return False
+    if archive_dir in full_path.parents or pending_dir in full_path.parents:
+        return False
+    return full_path.parent == tasks_dir
+
+
 def _staged_task_paths(
-    repo_root: Path, tasks_dir: Path, archive_dir: Path
+    repo_root: Path, tasks_dir: Path, archive_dir: Path, pending_dir: Path
 ) -> list[Path]:
-    """Collect staged markdown files under tasks, excluding the archive directory.
+    """Collect staged active markdown files under tasks.
 
     This inspects the git index rather than the working tree so that only
     already staged files are archived.
@@ -31,6 +56,7 @@ def _staged_task_paths(
         repo_root (Path): Repository root used as subprocess cwd.
         tasks_dir (Path): The tasks directory to constrain results.
         archive_dir (Path): The archive directory to exclude.
+        pending_dir (Path): The pending directory to exclude.
 
     Returns:
         list[Path]: Staged markdown file paths to be archived.
@@ -58,19 +84,15 @@ def _staged_task_paths(
         if not relative_path:
             continue
         relative_path_obj = Path(relative_path)
-        if relative_path_obj.suffix.lower() != ".md":
-            continue
-
         full_path = repo_root / relative_path_obj
-        if not full_path.exists():
-            # File might be deleted or renamed; skip to avoid filesystem errors.
+        if tasks_dir not in full_path.parents:
             continue
-        if not full_path.is_file():
-            continue
-        if archive_dir in full_path.parents:
-            continue
-        if tasks_dir not in full_path.parents and full_path != tasks_dir:
-            # Constrain to paths under tasks_dir.
+        if not _is_archivable_task_markdown(
+            full_path=full_path,
+            tasks_dir=tasks_dir,
+            archive_dir=archive_dir,
+            pending_dir=pending_dir,
+        ):
             continue
 
         staged_files.append(full_path)
@@ -139,12 +161,13 @@ def main() -> int:
     repo_root = _repo_root()
     tasks_dir = repo_root / "tasks"
     archive_dir = tasks_dir / "archive"
+    pending_dir = tasks_dir / "pending"
 
     if not tasks_dir.exists():
         return 0
 
     try:
-        files = _staged_task_paths(repo_root, tasks_dir, archive_dir)
+        files = _staged_task_paths(repo_root, tasks_dir, archive_dir, pending_dir)
         if not files:
             return 0
         _ensure_archive_dir(archive_dir)
