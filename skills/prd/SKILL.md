@@ -16,7 +16,8 @@ The default recommendation must be the smallest change that cleanly solves the p
 2. **Architecture Before Output:** Do not jump to sections, diagrams, or prototype work before identifying existing boundaries, extension points, and reusable modules.
 3. **Minimal Change Bias:** Prefer extending an existing path over adding a new layer, service, hook, table, page, or dependency.
 4. **No Redundant Abstractions:** Every newly proposed abstraction must be justified against the current codebase.
-5. **Conditional Web Research:** Browse only when the answer depends on external facts that are not stable in the repository.
+5. **Target-State Bias:** Default to a complete end-state plan. Do not split required work into `Phase 1` / `Phase 2`, temporary facades, or deferred cleanup unless a real constraint makes single-stage delivery unsafe or impossible.
+6. **Conditional Web Research:** Browse only when the answer depends on external facts that are not stable in the repository.
 
 ---
 
@@ -178,24 +179,35 @@ Include:
 - docs updates
 - no regression checks
 - architecture-fit checks
+- overall delivery/readiness gates only; do not use this section as a substitute for the Acceptance Checklist
 
-### 7. User Stories
+### 7. Acceptance Checklist
+
+Include:
+- a dedicated section named `Acceptance Checklist`
+- grouped checklist headings such as `Architecture Acceptance`, `Dependency Acceptance`, `Behavior Acceptance`, `Documentation Acceptance`, and `Validation Acceptance` when relevant
+- concrete, repository-verifiable checkbox items
+- exact paths, API contracts, commands, or search assertions where applicable
+- no checklist item may be replaced by a `Definition Of Done` bullet or by per-story acceptance criteria
+
+### 8. User Stories
 
 Focus on business logic unique to this change.
 
-### 8. Functional Requirements
+### 9. Functional Requirements
 
 Use numbered requirements such as `FR-1`, `FR-2`.
 
-### 9. Non-Goals
+### 10. Non-Goals
 
 List explicit out-of-scope items.
 
-### 10. Risks And Follow-Ups
+### 11. Risks And Follow-Ups
 
-List migration risk, rollout risk, or deferred cleanup when relevant.
+List only unavoidable migration risk, rollout risk, or explicitly approved non-blocking follow-up.
+Do not use this section to park work that is actually required for the recommended target state.
 
-### 11. Decision Log
+### 12. Decision Log
 
 Record every key decision made during this PRD as a permanent reference that survives archival.
 
@@ -266,6 +278,24 @@ Use this structure:
 If no web research was needed, state:
 - `No external validation required; repository evidence was sufficient.`
 
+### G. Acceptance Checklist
+
+This section is required even when User Stories already include acceptance criteria.
+Do not merge it into `Definition Of Done`.
+
+Use grouped subsections.
+For architecture-heavy or refactor work, prefer:
+- `Architecture Acceptance`
+- `Dependency Acceptance`
+- `Behavior Acceptance`
+- `Documentation Acceptance`
+- `Validation Acceptance`
+
+Each checkbox must describe a concrete, verifiable end state.
+Prefer exact file paths, commands, API paths/contracts, dependency boundaries, or repository search assertions over vague quality statements.
+If a default group does not fit the task, rename or replace it with a more precise group instead of dropping the section entirely.
+The checklist must validate the final target state, not merely the completion of an interim first phase.
+
 ---
 
 ## Checklist
@@ -283,5 +313,7 @@ If no web research was needed, state:
 * [ ] Used web research only when external facts were required
 * [ ] Cited sources and dates for any web-derived claims
 * [ ] Saved to `tasks/[YYYYMMDD-HHMMSS]-prd-[feature-name].md`
+* [ ] Included a dedicated `Acceptance Checklist` section and did not collapse it into `Definition Of Done` or User Story acceptance criteria
+* [ ] Recommended a full target state rather than leaving required work in `Phase 2`, `follow-up`, or temporary compatibility layers unless a hard constraint was explicitly documented
 * [ ] Decision Log has at least one row per Option A/B trade-off resolved in Section 4
 * [ ] Each Decision Log row names a concrete rejected alternative (not a vague "other approaches")

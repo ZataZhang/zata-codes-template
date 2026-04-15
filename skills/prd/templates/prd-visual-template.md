@@ -132,16 +132,47 @@ If no external validation was needed:
 
 ## 6. Definition Of Done
 
-- [ ] Typecheck and lint pass
-- [ ] Relevant tests pass
-- [ ] Docs updated if behavior changes
-- [ ] Follows existing project coding standards
-- [ ] No regressions in existing features
-- [ ] Recommended option still minimizes unnecessary abstraction
+- [ ] Recommended option is fully implemented without introducing unapproved parallel abstractions
+- [ ] All Acceptance Checklist items are satisfied
+- [ ] Relevant tests and validation commands pass
+- [ ] Documentation and operational notes are updated where needed
+- [ ] No open regression or rollout blocker remains
 
 ---
 
-## 7. User Stories
+## 7. Acceptance Checklist
+
+Use task-relevant groups. For architecture-heavy or refactor work, start with the groups below and rename or replace groups only when another grouping is more precise.
+This checklist must validate the final target state, not only an interim first phase.
+
+### Architecture Acceptance
+
+- [ ] [Concrete boundary, directory, ownership, or entry-point outcome]
+- [ ] [Concrete layering or composition-root outcome]
+
+### Dependency Acceptance
+
+- [ ] [Concrete import, port, adapter, or dependency-direction constraint]
+- [ ] [Concrete contract-compatibility or forbidden-dependency constraint]
+
+### Behavior Acceptance
+
+- [ ] [Concrete API, workflow, runtime, or business behavior outcome]
+- [ ] [Concrete compatibility or invariance that must remain true]
+
+### Documentation Acceptance
+
+- [ ] [Concrete doc page or reference updated to match the target design]
+- [ ] [PRD and repository docs stay aligned with the final architecture direction]
+
+### Validation Acceptance
+
+- [ ] `[validation command]` passes
+- [ ] [Repository search confirms no legacy entry point, duplicate path, or compatibility shim remains]
+
+---
+
+## 8. User Stories
 
 ### US-001: [Story Title]
 **Description:** As a [role], I want [feature], so that [benefit].
@@ -152,7 +183,7 @@ If no external validation was needed:
 
 ---
 
-## 8. Functional Requirements
+## 9. Functional Requirements
 
 - FR-1: [Requirement statement]
 - FR-2: [Requirement statement]
@@ -160,20 +191,20 @@ If no external validation was needed:
 
 ---
 
-## 9. Non-Goals
+## 10. Non-Goals
 
 - [Out-of-scope item 1]
 - [Out-of-scope item 2]
 
 ---
 
-## 10. Risks And Follow-Ups
+## 11. Risks And Follow-Ups
 
-- [Risk, migration issue, or deferred cleanup]
+- [Unavoidable risk or explicitly approved non-blocking follow-up]
 
 ---
 
-## 11. Decision Log
+## 12. Decision Log
 
 每条记录对应本 PRD 中做出的一个关键决策，归档后作为永久参考。
 
