@@ -52,6 +52,8 @@ Do not ask questions that can be answered by reading the repository.
 ### Phase 2: Clarify Only What The Code Cannot Answer
 
 Ask only the critical questions that remain unresolved after repository analysis.
+If an unresolved item would materially change scope, behavior, trust boundaries, rollout, or architecture, you must ask the user to confirm it before finalizing the PRD.
+Do not silently pick a default for a requirement-level ambiguity that the repository cannot answer.
 
 Question categories:
 - business rule ambiguity
@@ -59,21 +61,27 @@ Question categories:
 - scope boundaries
 - rollout or migration decisions
 
-For each question:
-1. provide 2-3 options
-2. mark one as **Recommended**
-3. justify the recommendation using existing repository patterns where possible
+For each unresolved question:
+1. state the decision that must be made
+2. ask the user to confirm the answer before finalizing the PRD
+3. give the single answer you recommend by default
+4. justify the recommendation using existing repository patterns where possible
+5. include alternative options only when the trade-off is real and material
 
-### Phase 3: Redundancy Gate And Option Comparison
+If there are no critical unresolved questions, proceed without asking.
 
-Before writing the final PRD, compare at least these two solution shapes:
+### Phase 3: Redundancy Gate And Recommendation Check
 
-1. **Minimal-Change Option**
+Before writing the final PRD, stress-test your recommendation against the closest heavier alternative:
+
+1. **Minimal-Change Path**
    Extend the closest existing path with the fewest new moving parts.
-2. **Heavier Option**
-   Introduce a new abstraction, module, service, table, page, or dependency if warranted.
+2. **Heavier Alternative**
+   Introduce a new abstraction, module, service, table, page, or dependency only if warranted.
 
-The PRD must recommend the minimal-change option unless the heavier option is clearly necessary.
+The PRD should present a single recommended path by default.
+Recommend the minimal-change path unless the heavier alternative is clearly necessary.
+Mention the heavier alternative in the PRD only when it materially affects scope, risk, or architecture.
 
 For every proposed new item, answer:
 - why the existing path is insufficient
@@ -152,13 +160,13 @@ Must include:
 - ownership and dependency boundaries
 - constraints from runtime, docs, tests, or workflows
 
-### 4. Options And Recommendation
+### 4. Recommendation
 
 Must include:
-- **Option A: Minimal Change**
-- **Option B: Heavier Change** when a plausible heavier path exists
-- recommendation
+- **Recommended Approach**
+- why this is the best fit for the current architecture
 - rationale for rejecting redundant abstractions
+- **Alternatives Considered** only when a plausible non-trivial alternative exists
 
 ### 5. Implementation Guide
 
@@ -214,10 +222,10 @@ Record every key decision made during this PRD as a permanent reference that sur
 Rules:
 - Each row answers one decision question (e.g. "which architecture pattern", "which storage backend").
 - **Chosen** must match the recommendation in Section 4.
-- **Rejected** must name the alternative from Section 4, not a vague "other approaches".
+- **Rejected** must name the concrete alternative from Section 4 when one is documented, not a vague "other approaches".
 - **Rationale** must be one concrete sentence — not "fits the architecture" but why specifically.
 - Assign sequential IDs: D-01, D-02, …
-- Minimum one row per PRD. Add a row for every Option A/B trade-off resolved in Section 4.
+- Minimum one row per PRD. Add rows for major trade-offs or alternatives explicitly resolved in Section 4.
 
 ---
 
@@ -303,6 +311,7 @@ The checklist must validate the final target state, not merely the completion of
 * [ ] Rewrote the request into a concrete behavior change
 * [ ] Inspected the repository before asking questions
 * [ ] Identified the closest existing code path
+* [ ] Handled critical unresolved questions correctly: asked the user only when repository evidence was insufficient and the answer would materially affect the PRD
 * [ ] Compared a minimal-change option against a heavier option
 * [ ] Justified every new abstraction, dependency, or file path
 * [ ] Rejected redundant layers where reuse was sufficient
@@ -315,5 +324,5 @@ The checklist must validate the final target state, not merely the completion of
 * [ ] Saved to `tasks/[YYYYMMDD-HHMMSS]-prd-[feature-name].md`
 * [ ] Included a dedicated `Acceptance Checklist` section and did not collapse it into `Definition Of Done` or User Story acceptance criteria
 * [ ] Recommended a full target state rather than leaving required work in `Phase 2`, `follow-up`, or temporary compatibility layers unless a hard constraint was explicitly documented
-* [ ] Decision Log has at least one row per Option A/B trade-off resolved in Section 4
+* [ ] Decision Log has at least one row for each major trade-off or documented alternative resolved in Section 4
 * [ ] Each Decision Log row names a concrete rejected alternative (not a vague "other approaches")

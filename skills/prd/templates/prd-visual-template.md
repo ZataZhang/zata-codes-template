@@ -30,22 +30,16 @@
 
 ---
 
-## 4. Options And Recommendation
+## 4. Recommendation
 
-### Option A: Minimal Change
-- Approach: [Extend existing path]
-- Pros: [Why it is smaller/safer]
-- Cons: [Known tradeoff]
+### Recommended Approach
+- Approach: [Extend the best existing path or justify the smallest necessary new piece]
+- Why this is the best fit: [Why this best fits the current architecture]
+- Rejected redundancy: [What extra layer, module, or dependency was intentionally avoided]
 
-### Option B: Heavier Change
-- Approach: [New abstraction/module/service/dependency]
-- Pros: [Potential benefit]
-- Cons: [Added complexity]
-
-### Recommendation
-- Recommended option: [A or B]
-- Why: [Why this best fits the current architecture]
-- Rejected redundancy: [What extra layer or file was intentionally avoided]
+### Alternatives Considered (Only When Useful)
+- Alternative: [Meaningful non-trivial alternative]
+- Why not chosen: [Why it adds unnecessary risk, scope, or complexity]
 
 ---
 
@@ -132,7 +126,7 @@ If no external validation was needed:
 
 ## 6. Definition Of Done
 
-- [ ] Recommended option is fully implemented without introducing unapproved parallel abstractions
+- [ ] Recommended approach is fully implemented without introducing unapproved parallel abstractions
 - [ ] All Acceptance Checklist items are satisfied
 - [ ] Relevant tests and validation commands pass
 - [ ] Documentation and operational notes are updated where needed
