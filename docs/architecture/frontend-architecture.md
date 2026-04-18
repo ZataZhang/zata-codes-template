@@ -5,7 +5,7 @@
 ## 定位
 
 - `frontend/` 是系统边界外的 Web 客户端。
-- 它通过 HTTP 接口调用 `apps/` 暴露的后端能力。
+- 它通过 HTTP 接口调用 `backend/apps/` 暴露的后端能力。
 - 它负责页面渲染、路由跳转、会话恢复和交互反馈，不承载后端用例编排。
 
 ## 前端内部架构图
@@ -33,7 +33,7 @@ flowchart TD
     SessionProvider --> AuthApi["shared/api/auth.ts"]
     AuthApi --> ApiClient["shared/api/client.ts"]
     AuthApi --> ApiTypes["shared/api/types.ts"]
-    ApiClient --> Backend["apps/ HTTP API"]
+    ApiClient --> Backend["backend/apps/ HTTP API"]
 ```
 
 ## 模块职责
@@ -110,15 +110,15 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    Frontend["frontend/ Web Client"] -->|HTTP / WebSocket| Apps["apps/"]
-    Apps --> Core["core/"]
-    Core --> Capabilities["capabilities/"]
-    Core --> Infrastructure["infrastructure/"]
+    Frontend["frontend/ Web Client"] -->|HTTP / WebSocket| Apps["backend/apps/"]
+    Apps --> Core["backend/core/"]
+    Core --> Capabilities["backend/capabilities/"]
+    Core --> Infrastructure["backend/infrastructure/"]
     Capabilities --> Infrastructure
 ```
 
 这表示：
 
 - 前端只依赖后端暴露的接口契约，不依赖后端 Python 模块。
-- 后端内部如何在 `apps/`、`core/`、`capabilities/`、`infrastructure/` 之间拆分，对前端来说应是透明的。
+- 后端内部如何在 `backend/apps/`、`backend/core/`、`backend/capabilities/`、`backend/infrastructure/` 之间拆分，对前端来说应是透明的。
 - 如果后续前端规模扩大，可以继续在本文档下增加路由图、状态图和组件边界约束。

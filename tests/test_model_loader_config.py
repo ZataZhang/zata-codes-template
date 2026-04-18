@@ -12,7 +12,7 @@ from typing import Any
 
 import pytest
 
-from infrastructure.models import (
+from backend.infrastructure.models import (
     _expand_base_urls,
     _find_model_providers,
     _infer_provider,
@@ -315,7 +315,7 @@ class TestConfigurationIntegration:
         This test verifies the integration between the infrastructure model loader
         and the centralized settings configuration.
         """
-        from infrastructure.config.settings import config as app_config
+        from backend.infrastructure.config.settings import config as app_config
 
         # Load model configuration
         models_config: dict[str, Any] = load_models_config()
@@ -332,7 +332,7 @@ class TestConfigurationIntegration:
 
     def test_embedding_config_has_model(self) -> None:
         """Test that embedding model configuration is valid."""
-        from infrastructure.config.settings import config as app_config
+        from backend.infrastructure.config.settings import config as app_config
 
         # Embedding model should be a valid sentence-transformers model
         # or other supported format

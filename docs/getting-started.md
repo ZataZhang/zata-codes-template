@@ -30,7 +30,7 @@ just run
 
 默认会同时启动后端和前端：
 
-- 后端默认执行 `uv run python main.py`
+- 后端默认执行 `uv run python backend/main.py`
 - 前端默认进入 `frontend/` 目录执行 `npm run dev`
 
 如果只想启动其中一部分，可以这样运行：
@@ -91,11 +91,11 @@ just worktree feature-branch
 
 ## 目录说明
 
-- `infrastructure/config/`：应用配置与环境变量解析。
-- `infrastructure/logging/`：日志器配置。
-- `infrastructure/helpers.py`：无状态通用辅助函数。
-- `infrastructure/models/`：模型配置加载与 LLM 客户端装配。
-- `capabilities/crawling/`：爬虫能力入口与示例实现。
-- `infrastructure/persistence/`：爬虫持久化模型与数据库接入。
+- `backend/infrastructure/config/`：应用配置与环境变量解析。
+- `backend/infrastructure/logging/`：日志器配置。
+- `backend/infrastructure/helpers.py`：无状态通用辅助函数。
+- `backend/infrastructure/models/`：模型配置加载与 LLM 客户端装配。
+- `backend/capabilities/crawling/`：爬虫能力入口与示例实现。
+- `backend/infrastructure/persistence/`：爬虫持久化模型与数据库接入。
 - `tests/`：单元测试与集成测试。
 - `docs/`：项目文档源目录。

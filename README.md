@@ -4,12 +4,12 @@
 
 它保留了模板的低门槛启动体验，同时把仓库的目标结构明确为四层：
 
-- `apps/` 请求接入层
-- `core/` 核心编排层
-- `capabilities/` 平台能力层
-- `infrastructure/` 基础设施层
+- `backend/apps/` 请求接入层
+- `backend/core/` 核心编排层
+- `backend/capabilities/` 平台能力层
+- `backend/infrastructure/` 基础设施层
 
-当前仓库的正式结构以 `apps/`、`core/`、`capabilities/`、`infrastructure/` 四层目录为准。
+当前仓库的正式结构以 `backend/apps/`、`backend/core/`、`backend/capabilities/`、`backend/infrastructure/` 四层目录为准。
 
 ## 快速开始
 
@@ -36,7 +36,7 @@ just run        # 同时启动后端 + 前端
 | 命令 | 说明 |
 |------|------|
 | `just run` | 默认同时启动后端和前端 |
-| `just run backend` | 只启动后端（默认命令为 `uv run python main.py`） |
+| `just run backend` | 只启动后端（默认命令为 `uv run python backend/main.py`） |
 | `just run frontend` | 只启动前端（默认进入 `frontend/` 执行 `npm run dev`） |
 | `just run all frontend_dir=web frontend_cmd="pnpm dev"` | 覆盖前端目录或启动命令 |
 | `just test` | 运行本地测试（无需 API key） |
@@ -66,7 +66,7 @@ just run        # 同时启动后端 + 前端
 
 | 命令 | 说明 |
 |------|------|
-| `just copy <name>` | 将本模版复制为新项目到 `../<name>/` |
+| `just copy <name>` | 将本模版复制为新项目到 `../<name>/`，不包含 `node_modules`、`dist` 等依赖和构建产物 |
 | `just sync-template` | 与上游模版对比，交互式选择更新（跳过项目特定文件）；如有模板技能更新，可选择安装到 `~/.cc-switch/skills`，若该目录不存在则提示选择 Codex 或 Claude 的 skills 目录 |
 | `just sync-template --all` | 同上，但包含 README、pyproject.toml 等项目特定文件 |
 | `just release` | 通过 `scripts/release.py` 构建发布包 |
@@ -96,27 +96,27 @@ uv run pre-commit autoupdate
 
 ## 基础设施模块
 
-### `infrastructure/config/settings.py`
+### `backend/infrastructure/config/settings.py`
 集中管理环境变量与路径配置，统一从 `.env` 与 `config.toml` 加载，其余模块只从 `config` 对象读取。
 
-### `infrastructure/logging/logger.py`
+### `backend/infrastructure/logging/logger.py`
 单例 `Logger`，读取 `config.log_level` 与 `config.log_file`，同时输出到控制台与文件，在 Windows 上处理 UTF-8。
 
 ```python
-from infrastructure.logging.logger import logger
+from backend.infrastructure.logging.logger import logger
 logger.info("started")
 ```
 
-### `infrastructure/helpers.py`
+### `backend/infrastructure/helpers.py`
 无状态的小工具函数，可按需补充，如格式化时间、批量重试等。
 
 ## 架构口径
 
 这个仓库不是微服务模板，也不是单纯的脚本集合，而是一个 **四层模块化单体** 的 AI Agent 骨架：
 
-1. `apps/` 负责接入。
-2. `core/` 负责业务编排和领域规则。
-3. `capabilities/` 负责可插拔能力。
-4. `infrastructure/` 负责具体技术实现。
+1. `backend/apps/` 负责接入。
+2. `backend/core/` 负责业务编排和领域规则。
+3. `backend/capabilities/` 负责可插拔能力。
+4. `backend/infrastructure/` 负责具体技术实现。
 
 架构参考来自整洁架构与 DDD 的组合思路。外部文章提供的是设计方向和结构示例，本仓库会结合自己的模板定位、目录现状和迁移成本做落地，不机械照搬命名。

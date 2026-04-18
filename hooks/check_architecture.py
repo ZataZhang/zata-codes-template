@@ -5,18 +5,18 @@
 检查项目内部模块的 import 方向是否合法。
 
 层次（由外到内）：
-    apps/ → core/ → capabilities/ → infrastructure/
+    backend/apps/ → backend/core/ → backend/capabilities/ → backend/infrastructure/
 
 依赖规则（只允许向内依赖）：
-    - apps/           可以依赖: core
-    - core/           可以依赖: （仅 core 内部的 shared/interfaces）
-    - capabilities/       可以依赖: core, infrastructure
-    - infrastructure/ 可以依赖: （仅外部第三方包）
+    - backend/apps/              可以依赖: backend/core
+    - backend/core/              可以依赖: （仅 backend/core 内部的 shared/interfaces）
+    - backend/capabilities/      可以依赖: backend/core, backend/infrastructure
+    - backend/infrastructure/    可以依赖: （仅外部第三方包）
 
 禁止的方向：
-    - infrastructure/ 不得 import core, capabilities, apps
-    - core/           不得 import capabilities, infrastructure, apps
-    - apps/           不得 import infrastructure, capabilities（直接依赖）
+    - backend/infrastructure/ 不得 import backend/core, backend/capabilities, backend/apps
+    - backend/core/           不得 import backend/capabilities, backend/infrastructure, backend/apps
+    - backend/apps/           不得 import backend/infrastructure, backend/capabilities（直接依赖）
     - 任意层          不得反向依赖外层
 """
 
@@ -99,10 +99,13 @@ def _resolve_layer(file_path: Path, project_root: Path) -> Optional[str]:
         层名称字符串（如 "core"），或 None（不属于任何受管层）。
     """
     relative_path_str: str = str(file_path.relative_to(project_root))
-    top_level_dir: str = relative_path_str.split("/")[0]
+    relative_path_parts: list[str] = relative_path_str.split("/")
+    if len(relative_path_parts) < 2 or relative_path_parts[0] != "backend":
+        return None
 
-    if top_level_dir in LAYER_ORDER:
-        return top_level_dir
+    layer_dir_name: str = relative_path_parts[1]
+    if layer_dir_name in LAYER_ORDER:
+        return layer_dir_name
     return None
 
 
@@ -125,13 +128,25 @@ def _extract_imported_modules(source_code: str) -> list[tuple[int, str]]:
     for ast_node in ast.walk(parsed_ast_tree):
         if isinstance(ast_node, ast.Import):
             for alias in ast_node.names:
-                top_level_module_name: str = alias.name.split(".")[0]
-                imported_module_entries.append((ast_node.lineno, top_level_module_name))
+                imported_module_parts: list[str] = alias.name.split(".")
+                imported_layer_name: str = (
+                    imported_module_parts[1]
+                    if len(imported_module_parts) > 1
+                    and imported_module_parts[0] == "backend"
+                    else imported_module_parts[0]
+                )
+                imported_module_entries.append((ast_node.lineno, imported_layer_name))
 
         elif isinstance(ast_node, ast.ImportFrom):
             if ast_node.module and ast_node.level == 0:
-                top_level_module_name = ast_node.module.split(".")[0]
-                imported_module_entries.append((ast_node.lineno, top_level_module_name))
+                imported_module_parts = ast_node.module.split(".")
+                imported_layer_name = (
+                    imported_module_parts[1]
+                    if len(imported_module_parts) > 1
+                    and imported_module_parts[0] == "backend"
+                    else imported_module_parts[0]
+                )
+                imported_module_entries.append((ast_node.lineno, imported_layer_name))
 
     return imported_module_entries
 
@@ -193,7 +208,7 @@ def run_architecture_check(project_root: Path) -> CheckResult:
     aggregated_check_result: CheckResult = CheckResult()
 
     for layer_name in LAYER_ORDER:
-        layer_dir_path: Path = project_root / layer_name
+        layer_dir_path: Path = project_root / "backend" / layer_name
         if not layer_dir_path.exists():
             continue
 

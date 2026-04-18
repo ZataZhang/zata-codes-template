@@ -2,7 +2,7 @@
 
 from sqlalchemy import Column, Integer, String, DateTime, Text, func
 
-from infrastructure.persistence.database import Base
+from backend.infrastructure.persistence.database import Base
 
 
 class CrawlerData(Base):

@@ -6,7 +6,7 @@
 依赖规则：
     - 只提供可被内层调用的具体实现
     - 不包含任何业务编排逻辑
-    - 不依赖 core/、capabilities/、apps/
+    - 不依赖 backend/core/、backend/capabilities/、backend/apps/
 """
 
 from .helpers import (

@@ -1,7 +1,7 @@
 """抽象接口定义（interfaces）。
 
 所有跨层依赖必须通过此处的抽象接口进行。
-具体实现在 capabilities/ 和 infrastructure/ 中提供。
+具体实现在 backend/capabilities/ 和 backend/infrastructure/ 中提供。
 
 示例：
     - IModelClient：LLM 调用接口

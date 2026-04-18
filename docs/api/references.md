@@ -4,33 +4,33 @@
 
 ## 基础设施模块
 
-### `infrastructure.config.settings`
+### `backend.infrastructure.config.settings`
 
-::: infrastructure.config.settings
+::: backend.infrastructure.config.settings
     handler: python
     options:
       show_root_heading: true
       members_order: source
 
-### `infrastructure.logging.logger`
+### `backend.infrastructure.logging.logger`
 
-::: infrastructure.logging.logger
+::: backend.infrastructure.logging.logger
     handler: python
     options:
       show_root_heading: true
       members_order: source
 
-### `infrastructure.persistence.database`
+### `backend.infrastructure.persistence.database`
 
-::: infrastructure.persistence.database
+::: backend.infrastructure.persistence.database
     handler: python
     options:
       show_root_heading: true
       members_order: source
 
-### `infrastructure.helpers`
+### `backend.infrastructure.helpers`
 
-::: infrastructure.helpers
+::: backend.infrastructure.helpers
     handler: python
     options:
       show_root_heading: true
@@ -38,25 +38,25 @@
 
 ## 模型与爬虫模块
 
-### `infrastructure.models.model_loader`
+### `backend.infrastructure.models.model_loader`
 
-::: infrastructure.models.model_loader
+::: backend.infrastructure.models.model_loader
     handler: python
     options:
       show_root_heading: true
       members_order: source
 
-### `capabilities.crawling.crawler`
+### `backend.capabilities.crawling.crawler`
 
-::: capabilities.crawling.crawler
+::: backend.capabilities.crawling.crawler
     handler: python
     options:
       show_root_heading: true
       members_order: source
 
-### `infrastructure.persistence.crawler_records`
+### `backend.infrastructure.persistence.crawler_records`
 
-::: infrastructure.persistence.crawler_records
+::: backend.infrastructure.persistence.crawler_records
     handler: python
     options:
       show_root_heading: true

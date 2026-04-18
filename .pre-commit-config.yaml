@@ -67,7 +67,7 @@ repos:
         name: Check architecture layer dependencies
         entry: uv run python hooks/check_architecture.py
         language: system
-        files: ^(apps|core|capabilities|infrastructure)/.*\.py$
+        files: ^(backend/(apps|core|capabilities|infrastructure))/.*\.py$
         pass_filenames: false
       - id: archive-planning-session
         name: Archive planning session on commit

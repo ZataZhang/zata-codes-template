@@ -11,25 +11,25 @@
 
 ## 目标分层
 
-### `apps/` 请求接入层
+### `backend/apps/` 请求接入层
 
 - 接收 HTTP、WebSocket、CLI 等请求。
 - 只负责参数校验、DTO 转换、调用用例。
 - 不写业务规则。
 
-### `core/` 核心编排层
+### `backend/core/` 核心编排层
 
 - 放置用例、Orchestrator、Planner、Memory 和领域契约。
 - 负责业务规则和任务编排。
 - 不直接依赖具体 SDK、数据库或 HTTP 客户端。
 
-### `capabilities/` 平台能力层
+### `backend/capabilities/` 平台能力层
 
 - 放置 skills、RAG、registry、可插拔能力。
-- 实现 `core/` 定义的端口。
+- 实现 `backend/core/` 定义的端口。
 - 不承担基础设施细节。
 
-### `infrastructure/` 基础设施层
+### `backend/infrastructure/` 基础设施层
 
 - 放置模型客户端、数据库、HTTP 客户端、配置和日志实现。
 - 对接外部 API、物理数据库和文件系统。
@@ -37,13 +37,14 @@
 
 ## 当前目录
 
-- `main.py`：未来作为 composition root，只做依赖组装。
-- `infrastructure/config/`：承接配置管理。
-- `infrastructure/logging/`：承接日志实现。
-- `infrastructure/persistence/`：承接数据库与持久化实现。
-- `infrastructure/helpers.py`：承接通用无状态辅助函数。
-- `infrastructure/models/`：承接模型配置解析与 LLM 客户端装配。
-- `capabilities/crawling/`：承接正式爬虫能力。
+- `backend/main.py`：后端真实 composition root，只做依赖组装。
+- `main.py`：根目录兼容启动包装器，转发到 `backend.main`。
+- `backend/infrastructure/config/`：承接配置管理。
+- `backend/infrastructure/logging/`：承接日志实现。
+- `backend/infrastructure/persistence/`：承接数据库与持久化实现。
+- `backend/infrastructure/helpers.py`：承接通用无状态辅助函数。
+- `backend/infrastructure/models/`：承接模型配置解析与 LLM 客户端装配。
+- `backend/capabilities/crawling/`：承接正式爬虫能力。
 - `tests/`：用于验证边界、用例和适配器行为。
 
 ## 模块关系图
@@ -68,17 +69,17 @@ flowchart TD
 
     subgraph Backend["Python 后端"]
         direction TB
-        Apps["apps/ 接入层"]
-        Core["core/ 核心编排层"]
-        Platform["capabilities/ 平台能力层"]
-        Infra["infrastructure/ 基础设施层"]
+        Apps["backend/apps/ 接入层"]
+        Core["backend/core/ 核心编排层"]
+        Platform["backend/capabilities/ 平台能力层"]
+        Infra["backend/infrastructure/ 基础设施层"]
 
         Apps --> Core
         Core --> Platform
         Core --> Infra
         Platform --> Infra
 
-        subgraph CoreDetails["core/"]
+        subgraph CoreDetails["backend/core/"]
             UC["use_cases"]
             ORCH["agent/orchestrator"]
             PLAN["agent/planner"]
@@ -86,13 +87,13 @@ flowchart TD
             IFACE["shared/interfaces"]
         end
 
-        subgraph PlatformDetails["capabilities/"]
+        subgraph PlatformDetails["backend/capabilities/"]
             REG["skills/registry"]
             SKILL["skills/concrete skills"]
             RAG["rag/retriever + chunker"]
         end
 
-        subgraph InfraDetails["infrastructure/"]
+        subgraph InfraDetails["backend/infrastructure/"]
             CFG["config/settings"]
             LOG["logging/logger"]
             LLM["models/clients"]
@@ -124,22 +125,22 @@ flowchart TD
 本仓库的四层架构用于约束 Python 后端内部的依赖方向：
 
 ```text
-apps/ → core/ → capabilities/ → infrastructure/
+backend/apps/ → backend/core/ → backend/capabilities/ → backend/infrastructure/
 ```
 
-这里的 `apps/` 指后端请求接入层，不等于浏览器前端。
+这里的 `backend/apps/` 指后端请求接入层，不等于浏览器前端。
 
 - `frontend/` 是系统边界外的 Web 客户端。
 - 它负责路由、页面渲染、会话状态和接口调用。
-- 它通过 HTTP 或 WebSocket 调用 `apps/` 暴露的后端入口。
+- 它通过 HTTP 或 WebSocket 调用 `backend/apps/` 暴露的后端入口。
 - 它不参与后端内部的依赖传递，因此不应被硬塞进四层中的任意一层。
 
 如果需要讨论 `frontend/` 自身的模块拆分，应使用单独的前端内部架构文档，而不是混入后端四层依赖规则。详见 [`frontend-architecture.md`](frontend-architecture.md)。
 
 ## 依赖规则
 
-1. `apps/` 只能调用 `core/` 暴露的用例和 DTO。
-2. `core/` 只能依赖抽象接口和纯业务模型。
-3. `capabilities/` 只能实现 `core/` 定义的契约。
-4. `infrastructure/` 负责具体集成，不包含业务编排。
-5. 配置、日志、数据库和通用辅助函数位于 `infrastructure/` 下的正式模块。
+1. `backend/apps/` 只能调用 `backend/core/` 暴露的用例和 DTO。
+2. `backend/core/` 只能依赖抽象接口和纯业务模型。
+3. `backend/capabilities/` 只能实现 `backend/core/` 定义的契约。
+4. `backend/infrastructure/` 负责具体集成，不包含业务编排。
+5. 配置、日志、数据库和通用辅助函数位于 `backend/infrastructure/` 下的正式模块。

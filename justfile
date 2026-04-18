@@ -80,7 +80,7 @@ sync mode="":
 #   just run backend         # start backend only
 #   just run frontend        # start frontend only
 #   just run all frontend_dir=web frontend_cmd="pnpm dev"
-run target="all" frontend_dir="frontend" backend_cmd="uv run python main.py" frontend_cmd="npm run dev":
+run target="all" frontend_dir="frontend" backend_cmd="uv run python backend/main.py" frontend_cmd="npm run dev":
     #!/usr/bin/env bash
     set -euo pipefail
 
@@ -412,7 +412,7 @@ export-env-encrypted:
     ./scripts/secrets/export_env_encrypted.sh
 
 
-# Copy template to a new directory (excluding .git and cache directories)
+# Copy template to a new directory (excluding .git, caches, and generated dependencies/build outputs)
 # Usage: just copy <new-directory-name|target-directory-path> [--force]
 copy name force='':
     #!/usr/bin/env bash
@@ -467,6 +467,8 @@ copy name force='':
         --exclude='.uv-cache' \
         --exclude='.pytest_cache' \
         --exclude='.ruff_cache' \
+        --exclude='node_modules' \
+        --exclude='dist' \
         --exclude='logs' \
         --exclude='site' \
         --exclude='*.egg-info' \

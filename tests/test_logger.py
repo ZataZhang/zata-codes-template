@@ -2,7 +2,7 @@
 
 from logging.handlers import TimedRotatingFileHandler
 
-from infrastructure.logging.logger import Logger
+from backend.infrastructure.logging.logger import Logger
 
 
 def test_logger_uses_timed_rotating_file_handler() -> None:

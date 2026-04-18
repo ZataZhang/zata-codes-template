@@ -22,7 +22,7 @@ from typing import Any
 
 import pytest
 
-from infrastructure.models import (
+from backend.infrastructure.models import (
     ModelConfigError,
     create_chat_model,
     resolve_model_credentials,
@@ -283,7 +283,7 @@ class TestSettingsIntegrationReal:
     @REQUIRES_DASHSCOPE
     def test_load_model_from_settings_config(self) -> None:
         """Test loading model using configuration from settings module."""
-        from infrastructure.config.settings import config as app_config
+        from backend.infrastructure.config.settings import config as app_config
 
         # Use the model configured in settings
         model_name: str = app_config.chat_model.name

@@ -5,7 +5,7 @@ import sys
 from logging.handlers import TimedRotatingFileHandler
 from typing import Any
 
-from infrastructure.config.settings import config
+from backend.infrastructure.config.settings import config
 
 
 class Logger:

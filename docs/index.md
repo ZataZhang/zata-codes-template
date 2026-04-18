@@ -10,10 +10,10 @@
 
 ## 架构概览
 
-- **`apps/`**: 请求接入层，负责 API、WebSocket、CLI 等入口。
-- **`core/`**: 核心编排层，负责用例、Agent 编排和领域契约。
-- **`capabilities/`**: 平台能力层，负责 skills、RAG 和可插拔能力。
-- **`infrastructure/`**: 基础设施层，负责模型、存储、HTTP、配置和日志。
+- **`backend/apps/`**: 请求接入层，负责 API、WebSocket、CLI 等入口。
+- **`backend/core/`**: 核心编排层，负责用例、Agent 编排和领域契约。
+- **`backend/capabilities/`**: 平台能力层，负责 skills、RAG 和可插拔能力。
+- **`backend/infrastructure/`**: 基础设施层，负责模型、存储、HTTP、配置和日志。
 
 ## 核心特性
 

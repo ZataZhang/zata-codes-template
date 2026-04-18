@@ -2,7 +2,7 @@
 
 from typing import Any, Dict
 
-from capabilities.crawling import BaseCrawler, SimpleHttpCrawler
+from backend.capabilities.crawling import BaseCrawler, SimpleHttpCrawler
 
 
 def example_simple_http_crawler():
@@ -68,7 +68,11 @@ def example_with_database():
     """示例 3: 爬取数据并保存到数据库"""
     print("\n=== 示例 3: 保存到数据库 ===")
 
-    from infrastructure.persistence import CrawlerData, SessionLocal, init_database
+    from backend.infrastructure.persistence import (
+        CrawlerData,
+        SessionLocal,
+        init_database,
+    )
 
     # 初始化数据库（创建表）
     print("初始化数据库...")

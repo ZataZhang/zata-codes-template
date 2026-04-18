@@ -8,27 +8,27 @@
 
 | 层 | 目录 | 职责 |
 |---|---|---|
-| 接入层 | `apps/` | HTTP/CLI 入口，参数校验，调用用例 |
-| 核心编排层 | `core/` | 用例、Agent 编排、领域契约（纯业务，无具体实现） |
-| 平台能力层 | `capabilities/` | Skills、RAG 等可插拔能力，实现 core 定义的接口 |
-| 基础设施层 | `infrastructure/` | LLM 客户端、数据库、日志、配置的具体实现 |
+| 接入层 | `backend/apps/` | HTTP/CLI 入口，参数校验，调用用例 |
+| 核心编排层 | `backend/core/` | 用例、Agent 编排、领域契约（纯业务，无具体实现） |
+| 平台能力层 | `backend/capabilities/` | Skills、RAG 等可插拔能力，实现 core 定义的接口 |
+| 基础设施层 | `backend/infrastructure/` | LLM 客户端、数据库、日志、配置的具体实现 |
 
 ### 依赖方向规则（不得违反）
 
 ```
-apps/ → core/ → capabilities/ → infrastructure/ → 外部第三方包
+backend/apps/ → backend/core/ → backend/capabilities/ → backend/infrastructure/ → 外部第三方包
 ```
 
-- `infrastructure/` **不得** import `core`、`capabilities`、`apps`
-- `core/` **不得** import `capabilities`、`infrastructure`、`apps`
-- `apps/` **不得** 直接 import `infrastructure`、`capabilities`
-- 跨层依赖必须通过 `core/shared/interfaces/` 中的抽象接口进行
+- `backend/infrastructure/` **不得** import `core`、`capabilities`、`apps`
+- `backend/core/` **不得** import `capabilities`、`infrastructure`、`apps`
+- `backend/apps/` **不得** 直接 import `infrastructure`、`capabilities`
+- 跨层依赖必须通过 `backend/core/shared/interfaces/` 中的抽象接口进行
 
 ### 开发新功能的检查清单
 
 1. 确认新代码应放在哪一层（对照上表）
 2. 确认 import 方向合法（不违反上方规则）
-3. 如需跨层依赖，先在 `core/shared/interfaces/` 定义抽象接口
+3. 如需跨层依赖，先在 `backend/core/shared/interfaces/` 定义抽象接口
 4. 提交时 pre-commit hook `check-architecture` 会自动验证
 
 ## Codex Session Workflow
@@ -285,7 +285,7 @@ All common development tasks are driven by `just`. Run `just` (no arguments) to 
 
 | Command | Description |
 |---------|-------------|
-| `just run` | Run the main application (`main.py`) |
+| `just run` | Run the main application (`backend/main.py`, with root `main.py` kept as a thin wrapper) |
 | `just test` | Run local tests (no API keys needed) |
 | `just test all` | Run all tests |
 | `just test real` | Run tests that require API keys |

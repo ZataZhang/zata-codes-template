@@ -4,8 +4,8 @@ import time
 from typing import Dict, Any, Optional
 from abc import ABC, abstractmethod
 
-from infrastructure.config.settings import config
-from infrastructure.logging.logger import logger
+from backend.infrastructure.config.settings import config
+from backend.infrastructure.logging.logger import logger
 
 
 class BaseCrawler(ABC):
