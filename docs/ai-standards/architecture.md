@@ -1,0 +1,47 @@
+# Architecture Standards
+
+本页是 AI 代理的架构速查版。详细权威说明仍在 [`docs/architecture/system-design.md`](../architecture/system-design.md)。
+
+## Mandatory Rule
+
+在开始任何新的后端功能开发前，必须先阅读 `docs/architecture/system-design.md`。
+
+## Backend Layers
+
+| Layer | Path | Responsibility |
+|---|---|---|
+| 接入层 | `backend/apps/` | HTTP/CLI/WebSocket 入口、参数校验、DTO 转换 |
+| 核心编排层 | `backend/core/` | 用例、编排、领域契约、纯业务规则 |
+| 平台能力层 | `backend/capabilities/` | Skills、RAG、可插拔能力，实现 core 定义的接口 |
+| 基础设施层 | `backend/infrastructure/` | LLM 客户端、数据库、HTTP、日志、配置等具体实现 |
+
+## Dependency Direction
+
+```text
+backend/apps/ -> backend/core/ -> backend/capabilities/ -> backend/infrastructure/ -> third-party packages
+```
+
+禁止违反以下规则：
+
+- `backend/infrastructure/` 不得导入 `backend/core/`、`backend/capabilities/`、`backend/apps/`
+- `backend/core/` 不得导入 `backend/capabilities/`、`backend/infrastructure/`、`backend/apps/`
+- `backend/apps/` 不得直接导入 `backend/infrastructure/` 或 `backend/capabilities/`
+- 跨层依赖必须通过 `backend/core/shared/interfaces/` 中的抽象接口
+
+## Placement Checklist
+
+新增代码前先判断：
+
+1. 这是入口适配、业务编排、平台能力，还是基础设施实现
+2. import 方向是否仍然向内
+3. 是否在已有模块职责内扩展，而不是偷塞到最近的文件
+4. 是否需要先定义接口，再做跨层实现
+
+## Composition Root
+
+- `backend/main.py` 是真实后端 composition root
+- 根目录 `main.py` 只是兼容包装器
+
+## Frontend Boundary
+
+`frontend/` 不属于后端四层的一部分。它是系统边界外的 Web 客户端，通过 HTTP 或 WebSocket 调用 `backend/apps/`。

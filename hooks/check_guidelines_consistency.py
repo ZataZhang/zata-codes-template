@@ -1,104 +1,165 @@
 #!/usr/bin/env python3
-"""
-检查指导文件一致性的脚本。
+"""检查 AI 指导文件与统一规范源的一致性。"""
 
-此脚本验证AGENTS.md、CLAUDE.md和.cursor/commands/cursor.md
-之间的关键内容是否保持一致。
-"""
+from __future__ import annotations
 
 import sys
 from pathlib import Path
 
 
 class GuidelinesChecker:
-    """指导文件一致性检查器"""
+    """统一规范源与入口适配层一致性检查器。"""
 
-    def __init__(self, project_root: Path):
+    def __init__(self, project_root: Path) -> None:
         self.project_root = project_root
-        self.files = {
+        self.adapter_files = {
             "agents": project_root / "AGENTS.md",
             "claude": project_root / "CLAUDE.md",
             "cursor": project_root / ".cursor" / "commands" / "cursor.md",
+            "github": project_root / ".github" / "copilot-instructions.md",
+        }
+        self.hub_files = {
+            "index": project_root / "docs" / "ai-standards" / "index.md",
+            "architecture": project_root / "docs" / "ai-standards" / "architecture.md",
+            "naming": project_root / "docs" / "ai-standards" / "naming.md",
+            "comments_docstrings": project_root
+            / "docs"
+            / "ai-standards"
+            / "comments-docstrings.md",
+            "documentation": project_root
+            / "docs"
+            / "ai-standards"
+            / "documentation.md",
+            "testing": project_root / "docs" / "ai-standards" / "testing.md",
+            "tooling": project_root / "docs" / "ai-standards" / "tooling.md",
         }
 
+    def _read_text(self, path: Path) -> str:
+        """Read a text file using explicit UTF-8 encoding."""
+        return path.read_text(encoding="utf-8")
+
     def check_files_exist(self) -> bool:
-        """检查所有指导文件是否存在"""
-        missing_files = []
-        for name, path in self.files.items():
+        """检查入口文件和规范源文件是否存在。"""
+        missing_files: list[str] = []
+
+        for name, path in {**self.adapter_files, **self.hub_files}.items():
             if not path.exists():
                 missing_files.append(f"{name}: {path}")
 
         if missing_files:
             print("❌ 缺少以下文件:")
-            for file in missing_files:
-                print(f"   {file}")
+            for missing_file in missing_files:
+                print(f"   {missing_file}")
             return False
 
-        print("✅ 所有指导文件都存在")
+        print("✅ 入口文件与统一规范源文件都存在")
         return True
 
-    def check_required_content(self) -> bool:
-        """检查必需的内容是否存在"""
+    def check_hub_content(self) -> bool:
+        """检查统一规范源是否覆盖核心主题。"""
         required_phrases = {
-            "uv": ["uv", "uv run", "uv add", "uv sync"],
-            "google_style": ["Google Style", "Google-style", "文档字符串"],
-            "python_package": ["Python 包管理", "Package Management"],
+            "index": [
+                "source of truth",
+                "AGENTS.md",
+                ".github/copilot-instructions.md",
+            ],
+            "architecture": [
+                "backend/apps/",
+                "backend/core/",
+                "docs/architecture/system-design.md",
+            ],
+            "naming": ["Fully Qualified Naming", "SSA", "data"],
+            "comments_docstrings": ["Google Style", 'encoding="utf-8"', "TODO"],
+            "documentation": ["mkdocs.yml", "mkdocstrings", "UTF-8"],
+            "testing": ["uv", "Playwright", "npm"],
+            "tooling": ["uv", "just", "scripts/hooks/session-start.sh"],
         }
+        issues: list[str] = []
 
-        issues = []
-
-        for file_name, file_path in self.files.items():
-            try:
-                content = file_path.read_text(encoding="utf-8").lower()
-
-                for category, phrases in required_phrases.items():
-                    found = any(phrase.lower() in content for phrase in phrases)
-                    if not found:
-                        issues.append(f"{file_name} 缺少 {category} 相关内容")
-
-            except Exception as e:
-                issues.append(f"读取 {file_name} 时出错: {e}")
+        for file_name, phrases in required_phrases.items():
+            file_content = self._read_text(self.hub_files[file_name])
+            missing_phrases = [
+                phrase for phrase in phrases if phrase not in file_content
+            ]
+            if missing_phrases:
+                issues.append(f"{file_name} 缺少关键短语: {', '.join(missing_phrases)}")
 
         if issues:
-            print("❌ 内容一致性问题:")
+            print("❌ 统一规范源内容不完整:")
             for issue in issues:
                 print(f"   {issue}")
             return False
 
-        print("✅ 所有文件都包含必需的内容")
+        print("✅ 统一规范源覆盖了核心主题")
         return True
 
-    def check_cross_references(self) -> bool:
-        """检查文件间的交叉引用"""
-        issues = []
+    def check_adapter_references(self) -> bool:
+        """检查入口适配层是否指向统一规范源。"""
+        required_references = {
+            "agents": [
+                "docs/ai-standards/index.md",
+                "docs/architecture/system-design.md",
+            ],
+            "claude": ["docs/ai-standards/index.md", "AGENTS.md"],
+            "cursor": ["docs/ai-standards/index.md", "AGENTS.md"],
+            "github": ["docs/ai-standards/", ".github/instructions/"],
+        }
+        issues: list[str] = []
 
-        # 检查AGENTS.md是否被其他文件引用
-        claude_content = self.files["claude"].read_text(encoding="utf-8")
-        cursor_content = self.files["cursor"].read_text(encoding="utf-8")
-
-        if "AGENTS.md" not in claude_content:
-            issues.append("CLAUDE.md 应该引用 AGENTS.md")
-
-        if "AGENTS.md" not in cursor_content and "AGENTS.md" not in cursor_content:
-            issues.append("cursor.md 应该引用 AGENTS.md 或 CLAUDE.md")
+        for file_name, references in required_references.items():
+            file_content = self._read_text(self.adapter_files[file_name])
+            missing_references = [
+                reference for reference in references if reference not in file_content
+            ]
+            if missing_references:
+                issues.append(f"{file_name} 缺少引用: {', '.join(missing_references)}")
 
         if issues:
-            print("❌ 交叉引用问题:")
+            print("❌ 入口适配层引用不完整:")
             for issue in issues:
                 print(f"   {issue}")
             return False
 
-        print("✅ 交叉引用正确")
+        print("✅ 入口适配层都正确指向统一规范源")
+        return True
+
+    def check_source_of_truth_language(self) -> bool:
+        """检查入口适配层没有重新声称自己是唯一权威来源。"""
+        disallowed_phrases = [
+            "complete and authoritative specifications",
+            "完整且权威的主规范",
+            "唯一权威来源",
+        ]
+        issues: list[str] = []
+
+        for file_name, file_path in self.adapter_files.items():
+            file_content = self._read_text(file_path)
+            matched_phrases = [
+                phrase for phrase in disallowed_phrases if phrase in file_content
+            ]
+            if matched_phrases:
+                issues.append(
+                    f"{file_name} 仍包含旧的单点权威表述: {', '.join(matched_phrases)}"
+                )
+
+        if issues:
+            print("❌ 入口适配层仍存在单点权威表述:")
+            for issue in issues:
+                print(f"   {issue}")
+            return False
+
+        print("✅ 入口适配层未重新声明自己是唯一权威来源")
         return True
 
     def run_all_checks(self) -> bool:
-        """运行所有检查"""
-        print("🔍 检查指导文件一致性...\n")
+        """运行所有一致性检查。"""
+        print("🔍 检查统一规范源与入口适配层一致性...\n")
 
         checks = [
             self.check_files_exist,
-            self.check_required_content,
-            self.check_cross_references,
+            self.check_hub_content,
+            self.check_adapter_references,
+            self.check_source_of_truth_language,
         ]
 
         all_passed = True
@@ -108,20 +169,18 @@ class GuidelinesChecker:
             print()
 
         if all_passed:
-            print("🎉 所有检查通过！指导文件保持一致。")
+            print("🎉 所有检查通过！统一规范源与入口适配层保持一致。")
         else:
             print("⚠️  发现一致性问题，请根据上述报告修复。")
 
         return all_passed
 
 
-def main():
-    """主函数"""
+def main() -> None:
+    """运行入口。"""
     project_root = Path(__file__).parent.parent
-
     checker = GuidelinesChecker(project_root)
     success = checker.run_all_checks()
-
     sys.exit(0 if success else 1)
 
 

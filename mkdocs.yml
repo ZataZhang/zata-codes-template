@@ -47,6 +47,14 @@ extra_css:
 nav:
   - 首页: index.md
   - 快速开始: getting-started.md
+  - AI 规范:
+      - 概览: ai-standards/index.md
+      - 架构规范: ai-standards/architecture.md
+      - 命名规范: ai-standards/naming.md
+      - 注释与 Docstring: ai-standards/comments-docstrings.md
+      - 文档规范: ai-standards/documentation.md
+      - 测试规范: ai-standards/testing.md
+      - 工具与命令: ai-standards/tooling.md
   - 使用指南:
       - 配置说明: guides/configuration.md
       - 部署指南: guides/deployment.md

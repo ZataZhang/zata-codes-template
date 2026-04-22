@@ -1,351 +1,43 @@
-# AI Agent Guidelines
+# AI Agent Entry Guide
 
-## Architecture-First Development
+本文件是仓库的**跨工具 AI 入口适配层**。
 
-**在开始任何新功能开发前，必须先阅读 `docs/architecture/system-design.md`。**
+统一规范源在：
 
-### 四层架构（Clean Architecture）
+- `docs/ai-standards/index.md`
+- `docs/ai-standards/architecture.md`
+- `docs/ai-standards/naming.md`
+- `docs/ai-standards/comments-docstrings.md`
+- `docs/ai-standards/documentation.md`
+- `docs/ai-standards/testing.md`
+- `docs/ai-standards/tooling.md`
 
-| 层 | 目录 | 职责 |
-|---|---|---|
-| 接入层 | `backend/apps/` | HTTP/CLI 入口，参数校验，调用用例 |
-| 核心编排层 | `backend/core/` | 用例、Agent 编排、领域契约（纯业务，无具体实现） |
-| 平台能力层 | `backend/capabilities/` | Skills、RAG 等可插拔能力，实现 core 定义的接口 |
-| 基础设施层 | `backend/infrastructure/` | LLM 客户端、数据库、日志、配置的具体实现 |
+详细后端架构权威文档仍在：
 
-### 依赖方向规则（不得违反）
+- `docs/architecture/system-design.md`
 
-```
-backend/apps/ → backend/core/ → backend/capabilities/ → backend/infrastructure/ → 外部第三方包
-```
+## Read Order
 
-- `backend/infrastructure/` **不得** import `core`、`capabilities`、`apps`
-- `backend/core/` **不得** import `capabilities`、`infrastructure`、`apps`
-- `backend/apps/` **不得** 直接 import `infrastructure`、`capabilities`
-- 跨层依赖必须通过 `backend/core/shared/interfaces/` 中的抽象接口进行
+1. 先读 `docs/ai-standards/index.md`
+2. 若涉及后端新功能，再读 `docs/architecture/system-design.md`
+3. 根据任务类型补读对应标准页
 
-### 开发新功能的检查清单
+## Critical Summary
 
-1. 确认新代码应放在哪一层（对照上表）
-2. 确认 import 方向合法（不违反上方规则）
-3. 如需跨层依赖，先在 `backend/core/shared/interfaces/` 定义抽象接口
-4. 提交时 pre-commit hook `check-architecture` 会自动验证
+- 后端必须遵守四层依赖方向：
+  `backend/apps/ -> backend/core/ -> backend/capabilities/ -> backend/infrastructure/`
+- Python 项目优先使用 `uv` 和 `just`
+- 公共 Python API 使用 Google Style Docstrings
+- Python 文本文件 I/O 必须显式写 `encoding="utf-8"`
+- 变量命名必须具有来源、类型或状态语义，避免 `data`、`item`、`res`
+- 变更代码时同步更新 `docs/` 与 `mkdocs.yml`
+- `tests/playwright-e2e/` 是独立 TypeScript/Node 包，使用 `npm`，不强制套用 Python SSA 命名规范
 
 ## Codex Session Workflow
 
-- **Session start rule**: At the beginning of each new Codex CLI session in this repository, run `bash scripts/hooks/session-start.sh` before repository exploration or edits. Treat the returned JSON `result` field as supplemental session context. Run this only once per CLI session, not once per user turn.
-- **Failure handling**: If `scripts/hooks/session-start.sh` fails, report the failure briefly and continue unless the user asks you to stop.
-- **Lifecycle limitations**: Codex does not currently expose Claude-style `PreCompact` and `Stop` lifecycle hooks. Do not claim those hooks ran automatically inside Codex.
-- **Wrapper preference**: When explicit start/end hook execution is required for Codex, prefer the repository wrapper script `scripts/codex_session.sh` instead of external absolute paths.
+- 新的 Codex CLI 会话开始时，先运行 `bash scripts/hooks/session-start.sh`
+- 若需要显式 start/end hook，优先使用 `bash scripts/codex_session.sh`
 
-## Project Configuration
+## Maintenance Rule
 
-### Python Package Management
-- **Package Manager**: Use `uv` to manage the Python project and dependencies.
-- **Project Structure**: Follow standard Python project layouts.
-- **Dependency Declaration**: All dependencies must be correctly declared in `pyproject.toml`.
-
-### Development Environment Setup
-- **Install Dependencies**: `uv pip install`
-- **Run Scripts**: `uv run python script.py`
-- **Virtual Environment**: `uv venv`
-- **Lock File**: Use `uv lock` to update the dependency lock file.
-
-### Documentation Tools (MkDocs)
-- **Engine**: Use `mkdocs` with the `mkdocs-material` theme for project documentation.
-- **API Reference**: Use `mkdocstrings[python]` to auto-generate API documentation from Python source code docstrings.
-- **Preview**: Use `uv run mkdocs serve` to preview documentation changes locally.
-
-## Documentation Management (MkDocs)
-
-### Documentation Standards
-- **Source of Truth**: The `docs/` directory and `mkdocs.yml` are integral parts of the codebase. Treat documentation bugs with the same severity as code bugs.
-- **Synchronization**: Any change to business logic, function signatures, or configuration **MUST** be accompanied by a corresponding update in the `docs/` folder.
-- **Markdown Encoding**: All Markdown (`.md`) files **MUST** be encoded in UTF-8.
-
-### Structure & Navigation
-- **`mkdocs.yml`**: Ensure the `nav` section in `mkdocs.yml` is updated whenever a new module or topic is added.
-- **API Docs**: Do not duplicate function descriptions in Markdown. Instead, use the `mkdocstrings` directive to reference the Python object:
-    ```markdown
-    ::: my_package.core.agent.KnowledgeRetrievalAgent
-        handler: python
-        options:
-          members:
-            - execute_task
-    ```
-
-## Code Standards
-
-### Input/Output & Encoding Standards (CRITICAL FOR WINDOWS)
-- **Explicit Encoding**: When reading or writing files (including `.txt`, `.json`, `.md`, `.log`) using `open()`, `pathlib.Path.read_text()`, or `pathlib.Path.write_text()`, you **MUST** explicitly set `encoding="utf-8"`.
-  - *Incorrect*: `open("README.md", "r")`
-  - *Correct*: `open("README.md", "r", encoding="utf-8")`
-- **Console Output**: Be aware that Windows consoles (cmd/PowerShell) may default to legacy encodings (CP936/CP1252). Ensure logs and print statements use UTF-8 compatible handling.
-
-### Documentation Style (Google Style for MkDocs)
-*Since we use `mkdocstrings`, adherence to this style is mandatory for proper rendering.*
-
-- **Module Docstrings**: Every module must include a module-level docstring describing its function.
-- **Function Docstrings**: All public functions must include a complete docstring (Args, Returns, Raises).
-- **Class Docstrings**: Classes must include a docstring describing their purpose.
-- **Type Annotations**: Use type annotations for all function arguments and return types.
-- **Inline Comments**: Use inline comments to explain the intent behind complex logic, but avoid over-commenting.
-- **TODO Comments**: Use the format `# TODO: Description` to mark tasks to be completed.
-
-### AI-Native Code Patterns
-
-To improve the accuracy of LLMs (Large Language Models) in reading and maintaining code, this project adopts the following AI-Native programming design patterns.
-
-#### Core Principles
-1.  **Fully Qualified Naming**: Reject generic names like `data`, `item`, or `res`. Variable names must include the source, type, or state of the data (e.g., `raw_user_query_text`).
-2.  **Types as Prompts**: Leverage Pydantic models and type annotations as strong logical constraints for the AI.
-3.  **Single Static Assignment (SSA) & Immutability**: Avoid repeatedly modifying the same variable. Each processing step should generate a new variable name.
-
-#### AI Agent Standard Code Template
-The following code demonstrates how to combine Pydantic with Google Style Docstrings to implement clear Agent logic that renders perfectly in MkDocs:
-
-```python
-from typing import List
-from enum import Enum
-from pydantic import BaseModel, Field
-from datetime import datetime
-import pathlib
-
-# ==========================================
-# 1. Type Definitions as Anchors
-# ==========================================
-
-class AgentTaskStatus(str, Enum):
-    PENDING = "pending"
-    PROCESSING = "processing"
-    COMPLETED = "completed"
-    FAILED = "failed"
-
-class UserQueryContext(BaseModel):
-    """Defines the raw context of user input.
-
-    Attributes:
-        query_text (str): The raw text input by the user.
-        user_id (str): The unique identifier of the user initiating the request.
-        request_timestamp (datetime): The timestamp when the request was initiated.
-    """
-    query_text: str = Field(..., description="The raw text input by the user")
-    user_id: str = Field(..., description="The unique identifier of the user initiating the request")
-    request_timestamp: datetime = Field(default_factory=datetime.now)
-
-class ExternalToolOutput(BaseModel):
-    """Defines the raw data structure returned by external tools (e.g., search, database)."""
-    source_tool_name: str
-    raw_content_payload: str
-    confidence_score: float
-
-class FinalAgentResponse(BaseModel):
-    """Defines the structured response output by the Agent to the user."""
-    reasoning_trace: str = Field(..., description="The chain of thought process of the Agent")
-    final_answer_text: str = Field(..., description="The final answer presented to the user")
-    status: AgentTaskStatus
-
-# ==========================================
-# 2. Agent Logic Implementation (SSA Logic Flow)
-# ==========================================
-
-class KnowledgeRetrievalAgent:
-    """Agent responsible for executing knowledge retrieval and QA generation.
-
-    This class serves as the primary entry point for RAG (Retrieval-Augmented Generation) tasks.
-    """
-
-    def execute_task(self, incoming_user_context: UserQueryContext) -> FinalAgentResponse:
-        """The main flow for executing the knowledge retrieval task.
-
-        Written in Single Static Assignment (SSA) form to ensure the AI can clearly trace data flow.
-
-        Args:
-            incoming_user_context (UserQueryContext): The context object containing user query and metadata.
-
-        Returns:
-            FinalAgentResponse: The structured response containing the reasoning process and final answer.
-        """
-
-        # [STEP 1] - Intent Parsing
-        sanitized_search_intent: str = self._sanitize_input(incoming_user_context.query_text)
-
-        # [STEP 2] - Tool Invocation
-        raw_tool_outputs_list: List[ExternalToolOutput] = self._call_search_tool(sanitized_search_intent)
-
-        # [STEP 3] - Information Synthesis
-        synthesized_context_str: str = self._format_context(raw_tool_outputs_list)
-
-        # [STEP 4] - Final Response Generation
-        final_agent_response_obj: FinalAgentResponse = self._generate_llm_response(
-            context=synthesized_context_str,
-            original_query=incoming_user_context.query_text
-        )
-
-        # [STEP 5] - Logging (Windows Safe)
-        # Ensure encoding is explicitly handled if writing to file
-        self._log_execution(final_agent_response_obj)
-
-        return final_agent_response_obj
-
-    # --- Internal Methods ---
-
-    def _sanitize_input(self, text: str) -> str:
-        """Sanitizes user input text."""
-        return text.strip().lower()
-
-    def _call_search_tool(self, query: str) -> List[ExternalToolOutput]:
-        """Simulates calling an external search tool."""
-        return [
-            ExternalToolOutput(
-                source_tool_name="google_search",
-                raw_content_payload="Python 3.12 features...",
-                confidence_score=0.95
-            )
-        ]
-
-    def _format_context(self, tools_data: List[ExternalToolOutput]) -> str:
-        """Formats tool outputs into a string context."""
-        return "\n".join([t.raw_content_payload for t in tools_data])
-
-    def _generate_llm_response(self, context: str, original_query: str) -> FinalAgentResponse:
-        """Calls the LLM to generate the final response."""
-        return FinalAgentResponse(
-            reasoning_trace="Analyzed search results...",
-            final_answer_text=f"Based on context, here is the answer to '{original_query}'",
-            status=AgentTaskStatus.COMPLETED
-        )
-
-    def _log_execution(self, response: FinalAgentResponse) -> None:
-        """Logs execution details to a file with explicit UTF-8 encoding."""
-        log_path = pathlib.Path("agent_execution.log")
-        # IMPORTANT: encoding='utf-8' is required for Windows compatibility
-        with open(log_path, "a", encoding="utf-8") as f:
-            f.write(f"[{datetime.now()}] {response.model_dump_json()}\n")
-
-```
-
-### Docstring Format Example
-
-```python
-def function_name(param1: str, param2: int) -> bool:
-    """Executes a specific function.
-
-    This is a paragraph describing the detailed purpose of the function.
-    It will be rendered prominently in the MkDocs API reference.
-
-    Args:
-        param1 (str): Description of parameter 1.
-        param2 (int): Description of parameter 2.
-
-    Returns:
-        bool: Description of the return value.
-
-    Raises:
-        ValueError: Raised when the parameters are invalid.
-
-    Examples:
-        >>> function_name("hello", 42)
-        True
-
-        >>> function_name(param1="world", param2=100)
-        True
-    """
-    pass
-
-```
-
-## Platform Specifics
-
-### Windows Environment
-
-* **Shell Syntax**: When running on Windows, use PowerShell syntax for all shell commands.
-* **File Encoding**: When reading files (especially `.md` docs and `.log` files) in PowerShell scripts, use `-Encoding utf8`.
-* **Python Output**: To avoid `????` characters in logs or files, always assume the system default encoding is NOT UTF-8. Force `encoding='utf-8'` in all Python I/O operations.
-
-### Development Priorities
-
-* **Tool Priority**: Prioritize using `uv` commands over `pip` or `conda`.
-* **Documentation Priority**: Never commit code changes without verifying `uv run mkdocs build` passes without warnings.
-
-## Task Runner (just)
-
-All common development tasks are driven by `just`. Run `just` (no arguments) to list all available commands.
-
-### Dependency Management
-
-| Command | Description |
-|---------|-------------|
-| `just sync` | Sync dev dependencies from lock file (default) |
-| `just sync prod` | Production only, no dev dependencies |
-| `just sync all` | All extras + install worktree bash completion |
-| `just sync dev` | All extras + install pre-commit hooks |
-
-### Development
-
-| Command | Description |
-|---------|-------------|
-| `just run` | Run the main application (`backend/main.py`, with root `main.py` kept as a thin wrapper) |
-| `just test` | Run local tests (no API keys needed) |
-| `just test all` | Run all tests |
-| `just test real` | Run tests that require API keys |
-| `just docs-serve` | Serve MkDocs site locally at `127.0.0.1:8000` |
-| `just docs-serve port=9000` | Serve on a custom port |
-| `just clean` | Remove cache files and build artifacts |
-| `just check-net` | Check proxy settings, Claude reachability, and current egress IP region |
-| `just staged_changes` | Export staged git diff to `staged_changes.diff` |
-
-### Git Worktree
-
-All worktree operations are unified under `just worktree`:
-
-| Command | Description |
-|---------|-------------|
-| `just worktree <branch>` | Create worktree and enter an interactive shell |
-| `just worktree <branch> --cmd trae` | Create worktree and open in specified editor |
-| `just worktree <branch> enter_shell=false` | Create worktree without entering shell |
-| `just worktree -d <branch>` | Delete worktree and branch |
-| `just worktree -m <feature> [base=main] [flags]` | Merge feature worktree into base branch |
-| `just worktree --doctor` | Scan all worktrees for issues |
-| `just worktree --doctor <branch>` | Inspect a specific worktree |
-
-### Template & Project Management
-
-| Command | Description |
-|---------|-------------|
-| `just copy <name>` | Copy this template to a new project directory (`../<name>/`) |
-| `just sync-template` | Compare local files against upstream template, offer to apply updates, and optionally install template skills into `~/.cc-switch/skills` or a prompted Codex/Claude skills directory when `~/.cc-switch` is absent |
-| `just sync-template --all` | Same, but also include project-specific files (README, pyproject.toml, etc.) |
-| `just release` | Build a release zip via `scripts/release.py` |
-
-### Secrets
-
-| Command | Description |
-|---------|-------------|
-| `just export-env-encrypted` | Pack all gitignored `.env*` files into a password-protected zip at `./<project_name>_secrets.zip` |
-
-### E2E Testing
-
-| Command | Description |
-|---------|-------------|
-| `just e2e-install` | Install npm deps + Playwright browsers (run once) |
-| `just e2e` | Run all e2e tests (excluding visual regression) |
-| `just e2e smoke` | Smoke tests only |
-| `just e2e no-auth` | Public-page tests (no login required) |
-| `just e2e report` | Open HTML test report |
-
-## E2E Testing (Playwright)
-
-The `tests/playwright-e2e/` directory is a **standalone TypeScript/Node.js package** for Playwright end-to-end tests. It is intentionally separate from the main Python package and follows TypeScript/Node.js conventions.
-
-### Code Conventions (tests/playwright-e2e only)
-
-- Language: TypeScript (ES2022, strict mode)
-- Package manager: `npm` (not `uv`)
-- Style: TypeScript community conventions; the Python AI-Native SSA naming rules described above do **not** apply to this directory
-
-### Prerequisites
-
-For `docker` stack mode (the default), a compose file must exist in the repository root (`docker-compose.yml`, `compose.yaml`, etc.). Alternatively, set `PLAYWRIGHT_SKIP_STACK_BOOT=1` to target an already-running environment.
-
-See `tests/playwright-e2e/README.md` for the full environment-variable reference and project adaptation checklist.
+共享规范优先写入 `docs/ai-standards/`，不要把长篇规则重新复制回本文件。
