@@ -15,6 +15,14 @@
 | 平台能力层 | `backend/capabilities/` | Skills、RAG、可插拔能力，实现 core 定义的接口 |
 | 基础设施层 | `backend/infrastructure/` | LLM 客户端、数据库、HTTP、日志、配置等具体实现 |
 
+## Agent-First Capabilities
+
+新增面向业务的具体能力时，应优先作为 Agent 可编排能力接入，通常落在 `backend/capabilities/`，并通过 skill、tool 或 capability adapter 供 `backend/core/` 编排层调用。
+
+这里的具体业务能力包括但不限于：单证识别、OCR、信息抽取、审核、检索、爬虫等。
+
+除非详细架构文档明确批准新的服务边界，默认禁止仅为单一业务能力新增独立 HTTP 服务、独立端口或旁路的用户级 API。外部请求应统一经由 `backend/apps/` 入口进入，再由 `backend/core/` 的用例或 Agent 编排层通过抽象契约与注册机制调用具体能力实现。
+
 ## Dependency Direction
 
 ```text
