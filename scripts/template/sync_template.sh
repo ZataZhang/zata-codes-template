@@ -8,10 +8,33 @@
 
 set -euo pipefail
 
-TEMPLATE_REPO="https://github.com/zata-zhangtao/zata-codes-template.git"
+TEMPLATE_REPO="${SYNC_TEMPLATE_TEMPLATE_REPO:-https://github.com/zata-zhangtao/zata-codes-template.git}"
 LOCAL_ROOT="$(git rev-parse --show-toplevel)"
 TEMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TEMP_DIR"' EXIT
+
+LIST_ONLY_MODE="${SYNC_TEMPLATE_LIST_ONLY:-0}"
+DEFAULT_PROJECT_SKIP_PATHS=(
+    "backend/"
+    "frontend/"
+    "docs/"
+    "tests/"
+    "apps/"
+    "services/"
+    "infra/"
+    "deploy/"
+    "helm/"
+    "terraform/"
+    "ansible/"
+    "data/"
+    "uploads/"
+    "artifacts/"
+    "tmp/"
+)
+PROJECT_SKIP_PATHS=()
+PROJECT_INCLUDE_PATHS=()
+PROJECT_SKIP_PATH_COUNT=0
+PROJECT_INCLUDE_PATH_COUNT=0
 
 SHOW_ALL=false
 if [ "${1:-}" = "--all" ]; then
@@ -21,6 +44,172 @@ fi
 # ──────────────────────────────────────────────────────────────
 # Skip rules — files that should never or optionally be synced
 # ──────────────────────────────────────────────────────────────
+_append_split_paths() {
+    local target_array_name="$1"
+    local target_count_name="$2"
+    local raw_paths="$3"
+    local normalized_paths path_entry
+
+    normalized_paths="${raw_paths//,/ }"
+    for path_entry in $normalized_paths; do
+        if [ -n "$path_entry" ]; then
+            eval "$target_array_name+=(\"\$path_entry\")"
+            eval "$target_count_name=\$(( \$$target_count_name + 1 ))"
+        fi
+    done
+}
+
+_load_configured_project_paths() {
+    local config_file="$LOCAL_ROOT/config.toml"
+    local config_output=""
+    local configured_skip=false
+    local configured_include=false
+    local loaded_skip_paths=()
+    local loaded_include_paths=()
+    local loaded_skip_path_count=0
+    local loaded_include_path_count=0
+    local config_line config_key config_value
+
+    PROJECT_SKIP_PATHS=("${DEFAULT_PROJECT_SKIP_PATHS[@]}")
+    PROJECT_SKIP_PATH_COUNT=${#DEFAULT_PROJECT_SKIP_PATHS[@]}
+    PROJECT_INCLUDE_PATHS=()
+    PROJECT_INCLUDE_PATH_COUNT=0
+
+    if [ -f "$config_file" ]; then
+        if ! config_output="$(python3 - "$config_file" <<'PYEOF'
+import sys
+from pathlib import Path
+
+try:
+    import tomllib
+except ModuleNotFoundError:
+    sys.exit(0)
+
+config_path = Path(sys.argv[1])
+try:
+    config_data = tomllib.loads(config_path.read_text(encoding="utf-8"))
+except Exception as exc:  # noqa: BLE001 - surface TOML parse errors to shell users.
+    raise SystemExit(f"failed to parse {config_path}: {exc}") from exc
+
+template_sync_config = config_data.get("template_sync", {})
+if not isinstance(template_sync_config, dict):
+    raise SystemExit("[template_sync] must be a TOML table")
+
+
+def emit_paths(config_key: str, output_key: str) -> None:
+    if config_key not in template_sync_config:
+        return
+
+    value = template_sync_config[config_key]
+    if not isinstance(value, list):
+        raise SystemExit(f"[template_sync].{config_key} must be a list of strings")
+
+    print(f"{output_key}_configured\t1")
+    for raw_path in value:
+        if not isinstance(raw_path, str):
+            raise SystemExit(f"[template_sync].{config_key} must be a list of strings")
+        path_text = raw_path.strip()
+        if path_text:
+            print(f"{output_key}\t{path_text}")
+
+
+emit_paths("project_skip_paths", "skip")
+emit_paths("project_include_paths", "include")
+PYEOF
+)"; then
+            echo "❌ Invalid template sync config in $config_file" >&2
+            echo "$config_output" >&2
+            exit 1
+        fi
+
+        while IFS= read -r config_line; do
+            if [ -z "$config_line" ]; then
+                continue
+            fi
+            config_key="${config_line%%$'\t'*}"
+            config_value="${config_line#*$'\t'}"
+            case "$config_key" in
+                skip_configured) configured_skip=true ;;
+                include_configured) configured_include=true ;;
+                skip)
+                    loaded_skip_paths+=("$config_value")
+                    ((loaded_skip_path_count++)) || true
+                    ;;
+                include)
+                    loaded_include_paths+=("$config_value")
+                    ((loaded_include_path_count++)) || true
+                    ;;
+            esac
+        done <<< "$config_output"
+
+        if $configured_skip; then
+            PROJECT_SKIP_PATHS=("${loaded_skip_paths[@]}")
+            PROJECT_SKIP_PATH_COUNT=$loaded_skip_path_count
+        fi
+        if $configured_include; then
+            PROJECT_INCLUDE_PATHS=("${loaded_include_paths[@]}")
+            PROJECT_INCLUDE_PATH_COUNT=$loaded_include_path_count
+        fi
+    fi
+
+    if [ -n "${SYNC_TEMPLATE_PROJECT_SKIP_PATHS:-}" ]; then
+        PROJECT_SKIP_PATHS=()
+        PROJECT_SKIP_PATH_COUNT=0
+        _append_split_paths PROJECT_SKIP_PATHS PROJECT_SKIP_PATH_COUNT "$SYNC_TEMPLATE_PROJECT_SKIP_PATHS"
+    fi
+
+    if [ -n "${SYNC_TEMPLATE_PROJECT_INCLUDE_PATHS:-}" ]; then
+        PROJECT_INCLUDE_PATHS=()
+        PROJECT_INCLUDE_PATH_COUNT=0
+        _append_split_paths PROJECT_INCLUDE_PATHS PROJECT_INCLUDE_PATH_COUNT "$SYNC_TEMPLATE_PROJECT_INCLUDE_PATHS"
+    fi
+}
+
+_path_matches_configured_path() {
+    local rel_path="$1"
+    local configured_path="$2"
+
+    configured_path="${configured_path#./}"
+    configured_path="${configured_path%/}"
+    if [ -z "$configured_path" ]; then
+        return 1
+    fi
+
+    if [ "$rel_path" = "$configured_path" ] || [[ "$rel_path" == "$configured_path/"* ]]; then
+        return 0
+    fi
+    return 1
+}
+
+_path_matches_any_configured_path() {
+    local rel_path="$1"
+    shift
+
+    local configured_path
+    for configured_path in "$@"; do
+        if _path_matches_configured_path "$rel_path" "$configured_path"; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+_is_project_skipped_by_default() {
+    local p="$1"
+
+    if [ "$PROJECT_INCLUDE_PATH_COUNT" -gt 0 ] \
+        && _path_matches_any_configured_path "$p" "${PROJECT_INCLUDE_PATHS[@]}"; then
+        return 1
+    fi
+
+    if [ "$PROJECT_SKIP_PATH_COUNT" -gt 0 ]; then
+        _path_matches_any_configured_path "$p" "${PROJECT_SKIP_PATHS[@]}"
+        return $?
+    fi
+
+    return 1
+}
+
 _is_never_synced() {
     local p="$1"
     case "$p" in
@@ -40,11 +229,14 @@ _is_skipped_by_default() {
     case "$p" in
         .git/*|.venv/*|.uv-cache/*|__pycache__/*|logs/*|site/*) return 0 ;;
         .pytest_cache/*|.ruff_cache/*|prompt/*|skills/*) return 0 ;;
-        .claude/*|tests/*|docs/*) return 0 ;;
+        .claude/*) return 0 ;;
     esac
     case "$p" in
         *.pyc|*.egg-info|.env|.env.*) return 0 ;;
     esac
+    if _is_project_skipped_by_default "$p"; then
+        return 0
+    fi
     return 1
 }
 
@@ -440,6 +632,8 @@ PYEOF
 DIFF_COLOR_FLAG=""
 diff --color=always /dev/null /dev/null 2>/dev/null && DIFF_COLOR_FLAG="--color=always"
 
+_load_configured_project_paths
+
 # ──────────────────────────────────────────────────────────────
 # Clone template
 # ──────────────────────────────────────────────────────────────
@@ -521,7 +715,9 @@ done < <(
 total_found=$(( ${#changed_entries[@]} + ${#new_entries[@]} ))
 
 template_skill_entries=()
-if [ -d "$TEMPLATE_ROOT/skills" ]; then
+if [ "$LIST_ONLY_MODE" = "1" ]; then
+    pending_skill_updates=0
+elif [ -d "$TEMPLATE_ROOT/skills" ]; then
     _collect_template_skill_updates "$TEMPLATE_ROOT"
     pending_skill_updates=${#template_skill_entries[@]}
 else
@@ -538,6 +734,16 @@ if [ "$pending_skill_updates" -gt 0 ]; then
     echo "Found $pending_skill_updates template skill install/update candidate(s)."
 fi
 echo ""
+
+if [ "$LIST_ONLY_MODE" = "1" ]; then
+    for entry in "${changed_entries[@]}"; do
+        printf 'CHANGED\t%s\n' "$entry"
+    done
+    for entry in "${new_entries[@]}"; do
+        printf 'NEW\t%s\n' "$entry"
+    done
+    exit 0
+fi
 
 # ──────────────────────────────────────────────────────────────
 # Phase 2: Select — fzf UI or numbered fallback

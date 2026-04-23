@@ -36,6 +36,20 @@
 
 对包含多个前端子项目的仓库，默认策略会覆盖类似 `demo-frontend/`、`admin-frontend/` 这类嵌套目录，而不是只处理仓库根目录。
 
+## 模板同步配置
+
+`just sync-template` 会读取 `config.toml` 中的 `[template_sync]` 表，用来决定默认模式下哪些项目路径不参与模板同步。
+
+- `project_skip_paths`：默认跳过的项目路径，例如 `backend/`、`frontend/`、`infra/`。
+- `project_include_paths`：即使命中 `project_skip_paths` 也仍然显示的路径。
+
+运行 `just sync-template --all` 时会忽略这些项目路径过滤规则，临时查看所有模板差异。
+
+也可以用环境变量临时覆盖：
+
+- `SYNC_TEMPLATE_PROJECT_SKIP_PATHS`：逗号或空格分隔的跳过路径列表。
+- `SYNC_TEMPLATE_PROJECT_INCLUDE_PATHS`：逗号或空格分隔的保留显示路径列表。
+
 ## 日志相关配置
 
 日志位于 `logs/` 目录，默认文件为 `logs/app.log`，并通过 `TimedRotatingFileHandler` 按天切分。

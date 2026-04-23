@@ -18,6 +18,33 @@ name = "zata-codes-template"
 log_level = "INFO"
 
 # =============================================================================
+# Template Sync Settings
+# =============================================================================
+[template_sync]
+# Project-specific paths skipped by default by `just sync-template`.
+# Use `just sync-template --all` to include these paths for a one-off sync.
+project_skip_paths = [
+    "backend/",
+    "frontend/",
+    "docs/",
+    "tests/",
+    "apps/",
+    "services/",
+    "infra/",
+    "deploy/",
+    "helm/",
+    "terraform/",
+    "ansible/",
+    "data/",
+    "uploads/",
+    "artifacts/",
+    "tmp/",
+]
+
+# Paths that should stay visible even if they match `project_skip_paths`.
+project_include_paths = []
+
+# =============================================================================
 # Database Settings (PostgreSQL)
 # =============================================================================
 [database]

@@ -67,7 +67,7 @@ just run        # 同时启动后端 + 前端
 | 命令 | 说明 |
 |------|------|
 | `just copy <name>` | 将本模版复制为新项目到 `../<name>/`，不包含 `node_modules`、`dist` 等依赖和构建产物 |
-| `just sync-template` | 与上游模版对比，交互式选择更新（跳过项目特定文件）；如有模板技能更新，可选择安装到 `~/.cc-switch/skills`，若该目录不存在则提示选择 Codex 或 Claude 的 skills 目录 |
+| `just sync-template` | 与上游模版对比，交互式选择更新（默认跳过 `config.toml` 中 `[template_sync].project_skip_paths` 配置的项目路径，以及 README、配置等项目特定文件）；如有模板技能更新，可选择安装到 `~/.cc-switch/skills`，若该目录不存在则提示选择 Codex 或 Claude 的 skills 目录 |
 | `just sync-template --all` | 同上，但包含 README、pyproject.toml 等项目特定文件 |
 | `just release` | 通过 `scripts/release.py` 构建发布包 |
 

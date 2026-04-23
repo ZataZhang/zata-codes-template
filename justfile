@@ -323,7 +323,7 @@ worktree arg1 arg2="" arg3="" arg4="" arg5="":
 # Sync files from the upstream template repository.
 # Compares local files against the template and offers to apply updates.
 # Usage:
-#   just sync-template         # skip project-specific files (recommended)
+#   just sync-template         # skip project-specific paths from config.toml [template_sync]
 #   just sync-template --all   # include project-specific files too
 sync-template flags="":
     #!/usr/bin/env bash
