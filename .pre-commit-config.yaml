@@ -50,6 +50,11 @@ repos:
   # ==========================================
   - repo: local
     hooks:
+      - id: check-prd-acceptance-checklist
+        name: Check PRD acceptance checklist
+        entry: uv run python hooks/check_prd_acceptance_checklist.py
+        language: system
+        files: ^tasks/(?!archive/|pending/)[^/]+-prd-[^/]+\.md$
       - id: check-guidelines-consistency
         name: Check guidelines consistency
         entry: uv run python hooks/check_guidelines_consistency.py

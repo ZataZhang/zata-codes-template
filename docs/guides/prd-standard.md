@@ -160,6 +160,8 @@ flowchart TD
 - 明确验证命令
 - 明确仓库搜索断言（例如确认旧入口、兼容层、重复实现已不存在）
 
+仓库当前会通过 `pre-commit` 的本地 hook 检查活跃 PRD 的 `Acceptance Checklist` 章节是否仍存在未勾选项，因此这里的条目应当在交付前全部转为完成态。
+
 格式参考：
 
 ```markdown
