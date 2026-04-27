@@ -23,6 +23,18 @@
 | `uv run mkdocs build` | 验证文档站点 |
 | `just docs-serve` | 本地预览文档 |
 
+## PRD Workflow Hooks
+
+本仓库通过 `pre-commit` 维护 PRD 交付状态：
+
+- `tasks/pending/` 下的 PRD 可以保留未完成验收项
+- `tasks/` 根目录下的 active PRD 必须完成 `Acceptance Checklist`
+- 新增、复制或重命名进入 `tasks/archive/` 的 PRD 也必须完成验收清单
+- 已存在的历史 archive PRD 不会因为普通修改被重新套用新规则
+- 验收清单标题支持英文 `Acceptance Checklist`、中文 `验收清单` 和双语标题
+
+这条规则的目标是让“归档”代表交付完成，同时避免历史归档文档被新标准批量翻旧账。
+
 ## Codex Session Workflow
 
 在新的 Codex CLI 会话开始时：
