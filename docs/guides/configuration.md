@@ -27,6 +27,9 @@
 
 `just worktree`（底层实现位于 `scripts/worktree/create.sh`）支持以下环境变量来控制新 worktree 的依赖准备行为：
 
+- `KODA_WORKTREE_BASE_BRANCH`
+  - 新 worktree 默认使用的本地基底分支，默认值为 `main`。
+  - 命令行参数 `--base <branch>` 会覆盖这个环境变量。
 - `WORKTREE_FRONTEND_STRATEGY`
   - `install-per-worktree`：默认值。扫描 worktree 根目录和子目录中的前端项目，并在各自目录执行锁文件驱动的依赖安装。
   - `symlink-from-main`：不重新安装依赖，而是尝试把新 worktree 中的前端项目 `node_modules` 链接到源仓库对应目录。

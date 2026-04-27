@@ -248,6 +248,7 @@ worktree arg1 arg2="" arg3="" arg4="" arg5="":
     worktree_command=(./scripts/worktree/create.sh "$branch_name")
     enter_shell_value="true"
     expect_code_command="false"
+    expect_base_branch="false"
 
     for raw_arg in "{{arg2}}" "{{arg3}}" "{{arg4}}" "{{arg5}}"; do
         if [ -z "$raw_arg" ]; then
@@ -256,7 +257,7 @@ worktree arg1 arg2="" arg3="" arg4="" arg5="":
 
         if [ "$expect_code_command" = "true" ]; then
             case "$raw_arg" in
-                --cmd|--cmd=*|enter_shell=true|enter_shell=false)
+                --cmd|--cmd=*|--base|--base=*|enter_shell=true|enter_shell=false)
                     expect_code_command="false"
                     ;;
                 *)
@@ -267,7 +268,27 @@ worktree arg1 arg2="" arg3="" arg4="" arg5="":
             esac
         fi
 
+        if [ "$expect_base_branch" = "true" ]; then
+            case "$raw_arg" in
+                --cmd|--cmd=*|--base|--base=*|enter_shell=true|enter_shell=false)
+                    expect_base_branch="false"
+                    ;;
+                *)
+                    worktree_command+=("$raw_arg")
+                    expect_base_branch="false"
+                    continue
+                    ;;
+            esac
+        fi
+
         case "$raw_arg" in
+            --base)
+                worktree_command+=(--base)
+                expect_base_branch="true"
+                ;;
+            --base=*)
+                worktree_command+=("$raw_arg")
+                ;;
             --cmd)
                 worktree_command+=(--cmd)
                 expect_code_command="true"
@@ -284,7 +305,7 @@ worktree arg1 arg2="" arg3="" arg4="" arg5="":
             *)
                 echo "❌ Invalid argument: $raw_arg"
                 echo "Usage:"
-                echo "  just worktree <branch> [--cmd [editor]] [enter_shell=false]"
+                echo "  just worktree <branch> [--base branch] [--cmd [editor]] [enter_shell=false]"
                 echo "  just worktree -d <branch>"
                 echo "  just worktree -m <feature> [base=main] [flags]"
                 echo "  just worktree --doctor [branch]"

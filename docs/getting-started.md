@@ -71,7 +71,7 @@ just docs-serve
 构建静态文档：
 
 ```bash
-just docs-build
+uv run mkdocs build --strict
 ```
 
 ## Git Worktree
@@ -80,6 +80,12 @@ just docs-build
 
 ```bash
 just worktree feature-branch
+```
+
+默认会从本地 `main` 分支创建 worktree。需要从其他本地分支创建时，传入 `--base`：
+
+```bash
+just worktree feature-branch --base develop
 ```
 
 `just worktree`（底层实现位于 `scripts/worktree/create.sh`）在创建 worktree 后会自动执行两类依赖准备：

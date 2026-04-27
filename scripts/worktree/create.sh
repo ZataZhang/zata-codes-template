@@ -2,25 +2,29 @@
 
 # 将此函数放入 .zshrc 或 .bashrc
 # 用法:
-#   source ./scripts/worktree/create.sh && ai_worktree <新分支名> [--cmd [code_cmd]]
+#   source ./scripts/worktree/create.sh && ai_worktree <新分支名> [--base <base_branch>] [--cmd [code_cmd]]
 #   或直接执行:
-#   ./scripts/worktree/create.sh <新分支名> [--cmd [code_cmd]]
+#   ./scripts/worktree/create.sh <新分支名> [--base <base_branch>] [--cmd [code_cmd]]
 
 ai_worktree_usage() {
     cat <<'EOF'
 Usage:
-  ai_worktree <new_branch_name> [--cmd [code_cmd]]
+  ai_worktree <new_branch_name> [--base <base_branch>] [--cmd [code_cmd]]
 
 Options:
+  --base <base_branch>
+                    从指定本地分支创建 worktree。默认使用: main
   --cmd [code_cmd]  创建完成后自动执行: <code_cmd> --add <worktree_path>
                     不传 code_cmd 时默认使用: code
   -h, --help        显示帮助
 
 Examples:
   ai_worktree feature-login
+  ai_worktree feature-login --base develop
   ai_worktree feature-login --cmd
   ai_worktree feature-login --cmd code-insiders
   ./scripts/worktree/create.sh feature-login
+  ./scripts/worktree/create.sh feature-login --base develop
   ./scripts/worktree/create.sh feature-login --cmd
   ./scripts/worktree/create.sh feature-login --cmd code-insiders
 EOF
@@ -275,6 +279,7 @@ install_python_dependencies() {
 
 function ai_worktree() {
     local branch_name=""
+    local base_branch_name="${KODA_WORKTREE_BASE_BRANCH:-main}"
     local enable_vscode_add="false"
     local vscode_command_name="code"
     local repo_root_path=""
@@ -304,6 +309,21 @@ function ai_worktree() {
                 vscode_command_name="${1#--cmd=}"
                 if [ -z "$vscode_command_name" ]; then
                     echo "❌ --cmd= 后需要提供命令名，例如: --cmd=code-insiders"
+                    return 1
+                fi
+                ;;
+            --base)
+                if [ "$#" -le 1 ] || [[ "$2" == -* ]]; then
+                    echo "❌ --base 后需要提供基底分支名，例如: --base develop"
+                    return 1
+                fi
+                base_branch_name="$2"
+                shift
+                ;;
+            --base=*)
+                base_branch_name="${1#--base=}"
+                if [ -z "$base_branch_name" ]; then
+                    echo "❌ --base= 后需要提供基底分支名，例如: --base=develop"
                     return 1
                 fi
                 ;;
@@ -345,8 +365,13 @@ function ai_worktree() {
         return 1
     fi
 
+    if ! git -C "$repo_root_path" show-ref --verify --quiet "refs/heads/$base_branch_name"; then
+        echo "❌ 基底分支不存在: $base_branch_name"
+        return 1
+    fi
+
     echo "🚀 正在创建 Git Worktree: $target_abs_path ..."
-    if ! git -C "$repo_root_path" worktree add -b "$branch_name" "$target_abs_path" main; then
+    if ! git -C "$repo_root_path" worktree add -b "$branch_name" "$target_abs_path" "$base_branch_name"; then
         echo "❌ Git worktree 创建失败。"
         return 1
     fi
