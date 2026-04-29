@@ -191,6 +191,28 @@ release:
 check-net:
     ./scripts/diagnostics/check_claude_code.sh
 
+# Install or test macOS Shortcut notifications for Codex CLI.
+# Usage:
+#   just codex-notify install
+#   just codex-notify install codex通知
+#   just codex-notify test
+codex-notify action="install" shortcut_name="codex通知":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    case "{{action}}" in
+        install)
+            ./scripts/codex/install_macos_notify.sh "{{shortcut_name}}"
+            ;;
+        test)
+            CODEX_NOTIFY_VERBOSE=1 CODEX_NOTIFY_SHORTCUT_NAME="{{shortcut_name}}" ./scripts/codex/notify_shortcut.sh '{"type":"agent-turn-complete","last-assistant-message":"Codex notify manual test"}'
+            ;;
+        *)
+            echo "❌ Unknown action: {{action}}"
+            echo "Usage: just codex-notify [install|test] [shortcut_name]"
+            exit 1
+            ;;
+    esac
+
 staged_changes:
     git diff --cached > staged_changes.diff
 

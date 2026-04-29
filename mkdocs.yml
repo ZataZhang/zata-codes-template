@@ -62,6 +62,7 @@ nav:
       - PRD 编写规范: guides/prd-standard.md
       - Review Workflow: guides/review-workflow.md
       - Skill Lifecycle: guides/skill-lifecycle.md
+      - Codex macOS 通知: guides/codex-notifications.md
   - 原型演示:
       - 概览: prototypes/index.md
       - PRD Demo UI: prototypes/prd-demo.html

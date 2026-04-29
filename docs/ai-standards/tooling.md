@@ -49,6 +49,17 @@
 bash scripts/codex_session.sh
 ```
 
+### Codex macOS 通知
+
+macOS 用户可以把 Codex CLI 的 `notify` 事件转发到系统快捷指令：
+
+```bash
+just codex-notify install codex通知
+just codex-notify test codex通知
+```
+
+该能力会把顶层 `notify` 写入 `~/.codex/config.toml`，并在 Codex 完成 `agent-turn-complete` 事件时调用 macOS 快捷指令，快捷指令输入中包含当前任务仓库名和当前 Git 分支。详细步骤见 `docs/guides/codex-notifications.md`。
+
 ## Platform Notes
 
 - Windows 下优先使用 PowerShell 语法
