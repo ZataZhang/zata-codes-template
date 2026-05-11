@@ -519,6 +519,12 @@ copy name force='':
         --exclude='prompt' \
         --exclude='skills' \
         --exclude='scripts/template/generate_readme.py' \
+        --exclude='tasks/archive' \
+        --exclude='tasks/pending/*.md' \
+        --exclude='/findings.md' \
+        --exclude='/progress.md' \
+        --exclude='/task_plan.md' \
+        --exclude='.claude/planning' \
         "$TEMPLATE_DIR/" "$NEW_DIR/"
 
     NEW_JUSTFILE="$NEW_DIR/justfile"
