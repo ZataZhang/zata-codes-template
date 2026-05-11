@@ -74,6 +74,12 @@ repos:
         language: system
         files: ^(backend/(apps|core|capabilities|infrastructure))/.*\.py$
         pass_filenames: false
+      - id: check-max-file-lines
+        name: Check max file lines (non-empty)
+        entry: uv run python hooks/check_max_file_lines.py --max-lines 1000 --warn-only
+        language: system
+        files: \.py$
+        pass_filenames: true
       - id: archive-planning-session
         name: Archive planning session on commit
         entry: bash hooks/archive_planning_session.sh
