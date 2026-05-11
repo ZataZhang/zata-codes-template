@@ -1,6 +1,41 @@
 # Default recipe (runs when you type 'just')
-default:
+default: _check-completion
     @just --list
+
+# Internal: check if just shell completion is installed
+_check-completion:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Skip in CI or non-interactive environments
+    if [ -n "${CI:-}" ] || [ -z "${TERM:-}" ] || [ "${TERM}" = "dumb" ]; then
+        exit 0
+    fi
+
+    shell_name="$(basename "${SHELL:-}")"
+    completion_installed="false"
+
+    case "$shell_name" in
+        zsh)
+            [ -f "$HOME/.zsh/completions/_just" ] && completion_installed="true"
+            ;;
+        bash)
+            [ -f "$HOME/.config/just/just_completion.bash" ] && completion_installed="true"
+            ;;
+    esac
+
+    if [ "$completion_installed" = "false" ]; then
+        echo ""
+        printf '\033[1;33m+------------------------------------------------------------+\033[0m\n'
+        printf '\033[1;33m|  WARNING: Just shell completion is NOT installed           |\033[0m\n'
+        printf '\033[1;33m+------------------------------------------------------------+\033[0m\n'
+        printf '\033[1;33m|  Tab-completion for just commands is not available.        |\033[0m\n'
+        printf '\033[1;33m|  Run the following command to install it:                  |\033[0m\n'
+        printf '\033[1;33m|                                                            |\033[0m\n'
+        printf '\033[1;32m|       just sync all                                        |\033[0m\n'
+        printf '\033[1;33m|                                                            |\033[0m\n'
+        printf '\033[1;33m+------------------------------------------------------------+\033[0m\n'
+        echo ""
+    fi
 
 # NOTE:
 #   Run `just sync all` once on a local machine to install shell completion
@@ -12,7 +47,7 @@ default:
 #   just sync prod      # production only, no dev
 #   just sync all       # all extras + install just shell completion
 #   just sync dev       # all extras + pre-commit hooks
-sync mode="":
+sync mode="": _check-completion
     #!/usr/bin/env bash
     set -euo pipefail
     case "{{mode}}" in
@@ -80,7 +115,7 @@ sync mode="":
 #   just run backend         # start backend only
 #   just run frontend        # start frontend only
 #   just run all frontend_dir=web frontend_cmd="pnpm dev"
-run target="all" frontend_dir="frontend" backend_cmd="uv run python backend/main.py" frontend_cmd="npm run dev":
+run target="all" frontend_dir="frontend" backend_cmd="uv run python backend/main.py" frontend_cmd="npm run dev": _check-completion
     #!/usr/bin/env bash
     set -euo pipefail
 
@@ -165,11 +200,11 @@ run target="all" frontend_dir="frontend" backend_cmd="uv run python backend/main
     esac
 
 # Run local lint/format checks via pre-commit (matches CI)
-lint:
+lint: _check-completion
     uv run pre-commit run --all-files --show-diff-on-failure
 
 # Serve MkDocs site locally with live reload (configurable port, default 8000)
-docs-serve port="8000":
+docs-serve port="8000": _check-completion
     WATCHDOG_USE_POLLING=1 uv run mkdocs serve -a 127.0.0.1:{{port}}
 
 # Remove cache files and build artifacts
@@ -221,12 +256,29 @@ staged_changes:
 #   just worktree <branch>                            # create/enter worktree
 #   just worktree <branch> --cmd trae                 # open in editor
 #   just worktree <branch> enter_shell=false          # no shell
+#   just worktree -o <branch> [--cmd trae]            # open existing worktree
 #   just worktree -d <branch>                         # delete worktree
-#   just worktree -m <feature> [base=main] [flags]    # merge worktree
+#   just worktree -m [<feature>] [base=main] [flags]  # merge worktree (current branch if omitted)
 #   just worktree --doctor [branch]                   # doctor / cleanup-check
 worktree arg1 arg2="" arg3="" arg4="" arg5="":
     #!/usr/bin/env bash
     set -euo pipefail
+
+    # -o: open existing worktree
+    if [ "{{arg1}}" = "-o" ]; then
+        if [ -z "{{arg2}}" ]; then
+            echo "❌ Usage: just worktree -o <branch_name> [--cmd editor]"
+            exit 1
+        fi
+        open_cmd=(./scripts/worktree/open.sh "{{arg2}}")
+        for raw_arg in "{{arg3}}" "{{arg4}}" "{{arg5}}"; do
+            if [ -n "$raw_arg" ]; then
+                open_cmd+=("$raw_arg")
+            fi
+        done
+        "${open_cmd[@]}"
+        exit 0
+    fi
 
     # -d: delete worktree
     if [ "{{arg1}}" = "-d" ]; then
@@ -240,18 +292,35 @@ worktree arg1 arg2="" arg3="" arg4="" arg5="":
 
     # -m: merge worktree
     if [ "{{arg1}}" = "-m" ]; then
-        if [ -z "{{arg2}}" ]; then
-            echo "❌ Usage: just worktree -m <feature_branch> [base_branch=main] [flags]"
-            exit 1
-        fi
-        base_branch_value="{{arg3}}"
-        [ -z "$base_branch_value" ] && base_branch_value="main"
-        extra_flags_value="{{arg4}}"
-        if [ -n "$extra_flags_value" ]; then
-            ./scripts/worktree/merge.sh "{{arg2}}" "$base_branch_value" $extra_flags_value
+        raw_arg2="{{arg2}}"
+        declare -a merge_args=()
+
+        if [ -z "$raw_arg2" ] || [[ "$raw_arg2" == -* ]]; then
+            current_branch="$(git symbolic-ref --short HEAD 2>/dev/null || true)"
+            if [ -z "$current_branch" ]; then
+                echo "❌ Could not determine current branch."
+                echo "Usage: just worktree -m [<feature_branch>] [base_branch=main] [flags]"
+                exit 1
+            fi
+            merge_args+=("$current_branch")
+            if [ -n "$raw_arg2" ]; then
+                merge_args+=("$raw_arg2")
+            fi
+            for raw_arg in "{{arg3}}" "{{arg4}}" "{{arg5}}"; do
+                if [ -n "$raw_arg" ]; then
+                    merge_args+=("$raw_arg")
+                fi
+            done
         else
-            ./scripts/worktree/merge.sh "{{arg2}}" "$base_branch_value"
+            merge_args+=("$raw_arg2")
+            for raw_arg in "{{arg3}}" "{{arg4}}" "{{arg5}}"; do
+                if [ -n "$raw_arg" ]; then
+                    merge_args+=("$raw_arg")
+                fi
+            done
         fi
+
+        ./scripts/worktree/merge.sh "${merge_args[@]}"
         exit 0
     fi
 
@@ -328,8 +397,9 @@ worktree arg1 arg2="" arg3="" arg4="" arg5="":
                 echo "❌ Invalid argument: $raw_arg"
                 echo "Usage:"
                 echo "  just worktree <branch> [--base branch] [--cmd [editor]] [enter_shell=false]"
+                echo "  just worktree -o <branch> [--cmd editor]"
                 echo "  just worktree -d <branch>"
-                echo "  just worktree -m <feature> [base=main] [flags]"
+                echo "  just worktree -m [<feature>] [base=main] [flags]"
                 echo "  just worktree --doctor [branch]"
                 exit 1
                 ;;
@@ -346,20 +416,39 @@ worktree arg1 arg2="" arg3="" arg4="" arg5="":
         if [ -n "${TERM:-}" ] && [ "${TERM}" != "dumb" ]; then
             printf '\033]0;%s\007' "wt:$branch_name"
         fi
-        worktree_shell_rcfile="$(mktemp)"
-        printf '%s\n' \
-            'if [ -f "$HOME/.bashrc" ]; then' \
-            '    source "$HOME/.bashrc"' \
-            'fi' \
-            'if [ -n "${WORKTREE_BRANCH_NAME:-}" ]; then' \
-            '    PS1="(wt:${WORKTREE_BRANCH_NAME}) ${PS1:-\u@\h:\w\$ }"' \
-            'fi' \
-            'if [ -n "${WORKTREE_SHELL_RCFILE:-}" ] && [ -f "${WORKTREE_SHELL_RCFILE}" ]; then' \
-            '    rm -f "${WORKTREE_SHELL_RCFILE}" 2>/dev/null || true' \
-            '    unset WORKTREE_SHELL_RCFILE' \
-            'fi' \
-            > "$worktree_shell_rcfile"
-        exec env WORKTREE_BRANCH_NAME="$branch_name" WORKTREE_SHELL_RCFILE="$worktree_shell_rcfile" bash --rcfile "$worktree_shell_rcfile" -i
+
+        user_shell="$(basename "${SHELL:-bash}")"
+        if [ "$user_shell" = "zsh" ]; then
+            zdotdir="$(mktemp -d)"
+            printf '%s\n' \
+                'if [ -f "$HOME/.zshrc" ]; then' \
+                '    source "$HOME/.zshrc"' \
+                'fi' \
+                'if [ -n "${WORKTREE_BRANCH_NAME:-}" ]; then' \
+                '    PS1="(wt:${WORKTREE_BRANCH_NAME}) ${PS1:-%n@%m:%~%# }"' \
+                'fi' \
+                'if [ -n "${WORKTREE_ZDOTDIR:-}" ] && [ -d "${WORKTREE_ZDOTDIR}" ]; then' \
+                '    rm -rf "${WORKTREE_ZDOTDIR}" 2>/dev/null || true' \
+                '    unset WORKTREE_ZDOTDIR' \
+                'fi' \
+                > "$zdotdir/.zshrc"
+            exec env WORKTREE_BRANCH_NAME="$branch_name" WORKTREE_ZDOTDIR="$zdotdir" ZDOTDIR="$zdotdir" zsh -i
+        else
+            worktree_shell_rcfile="$(mktemp)"
+            printf '%s\n' \
+                'if [ -f "$HOME/.bashrc" ]; then' \
+                '    source "$HOME/.bashrc"' \
+                'fi' \
+                'if [ -n "${WORKTREE_BRANCH_NAME:-}" ]; then' \
+                '    PS1="(wt:${WORKTREE_BRANCH_NAME}) ${PS1:-\u@\h:\w\$ }"' \
+                'fi' \
+                'if [ -n "${WORKTREE_SHELL_RCFILE:-}" ] && [ -f "${WORKTREE_SHELL_RCFILE}" ]; then' \
+                '    rm -f "${WORKTREE_SHELL_RCFILE}" 2>/dev/null || true' \
+                '    unset WORKTREE_SHELL_RCFILE' \
+                'fi' \
+                > "$worktree_shell_rcfile"
+            exec env WORKTREE_BRANCH_NAME="$branch_name" WORKTREE_SHELL_RCFILE="$worktree_shell_rcfile" bash --rcfile "$worktree_shell_rcfile" -i
+        fi
     fi
 
 
@@ -381,7 +470,7 @@ sync-template flags="":
 #   just test        - Run local tests (no API keys needed)
 #   just test all    - Run all tests
 #   just test real   - Run tests requiring API keys
-@test type="local":
+@test type="local": _check-completion
     #!/usr/bin/env bash
     set -e
     if [ "{{type}}" = "all" ]; then
