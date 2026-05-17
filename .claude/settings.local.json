@@ -12,8 +12,6 @@
       "Bash(just test-config:*)",
       "Bash(just test:*)",
       "Bash(chmod:*)",
-      "Bash(mkdir -p .claude/planning/current)",
-      "Bash(bash skills/planning-with-files/scripts/archive-session.sh \"test-project\")",
       "Bash(echo \"exit code: $?\")",
       "WebSearch",
       "Bash(gh api:*)",
