@@ -5,18 +5,18 @@
 检查项目内部模块的 import 方向是否合法。
 
 层次（由外到内）：
-    backend/apps/ → backend/core/ → backend/capabilities/ → backend/infrastructure/
+    backend/api/ → backend/core/ → backend/engines/ → backend/infrastructure/
 
 依赖规则（只允许向内依赖）：
-    - backend/apps/              可以依赖: backend/core
+    - backend/api/              可以依赖: backend/core
     - backend/core/              可以依赖: （仅 backend/core 内部的 shared/interfaces）
-    - backend/capabilities/      可以依赖: backend/core, backend/infrastructure
+    - backend/engines/      可以依赖: backend/core, backend/infrastructure
     - backend/infrastructure/    可以依赖: （仅外部第三方包）
 
 禁止的方向：
-    - backend/infrastructure/ 不得 import backend/core, backend/capabilities, backend/apps
-    - backend/core/           不得 import backend/capabilities, backend/infrastructure, backend/apps
-    - backend/apps/           不得 import backend/infrastructure, backend/capabilities（直接依赖）
+    - backend/infrastructure/ 不得 import backend/core, backend/engines, backend/api
+    - backend/core/           不得 import backend/engines, backend/infrastructure, backend/api
+    - backend/api/           不得 import backend/infrastructure, backend/engines（直接依赖）
     - 任意层          不得反向依赖外层
 """
 
@@ -31,14 +31,14 @@ from typing import Optional
 # 1. 架构规则定义
 # ==========================================
 
-LAYER_ORDER: list[str] = ["infrastructure", "capabilities", "core", "apps"]
+LAYER_ORDER: list[str] = ["infrastructure", "engines", "core", "api"]
 """层次从内到外的顺序，index 越大表示越外层。"""
 
 FORBIDDEN_IMPORTS: dict[str, list[str]] = {
-    "infrastructure": ["core", "capabilities", "apps"],
-    "core": ["capabilities", "infrastructure", "apps"],
-    "apps": ["infrastructure", "capabilities"],
-    "capabilities": ["apps"],
+    "infrastructure": ["core", "engines", "api"],
+    "core": ["engines", "infrastructure", "api"],
+    "api": ["infrastructure", "engines"],
+    "engines": ["api"],
 }
 """每个层禁止 import 的其他层列表。"""
 

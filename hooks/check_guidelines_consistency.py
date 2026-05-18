@@ -64,7 +64,7 @@ class GuidelinesChecker:
                 ".github/copilot-instructions.md",
             ],
             "architecture": [
-                "backend/apps/",
+                "backend/api/",
                 "backend/core/",
                 "docs/architecture/system-design.md",
             ],

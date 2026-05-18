@@ -1,4 +1,4 @@
-"""平台能力层（capabilities）。
+"""平台能力引擎层（engines）。
 
 放置 skills、RAG、registry 等可插拔能力。
 实现 backend/core/shared/interfaces 定义的端口契约。

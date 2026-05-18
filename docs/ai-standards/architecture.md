@@ -10,30 +10,30 @@
 
 | Layer | Path | Responsibility |
 |---|---|---|
-| 接入层 | `backend/apps/` | HTTP/CLI/WebSocket 入口、参数校验、DTO 转换 |
+| 接入层 | `backend/api/` | HTTP/CLI/WebSocket 入口、参数校验、DTO 转换 |
 | 核心编排层 | `backend/core/` | 用例、编排、领域契约、纯业务规则 |
-| 平台能力层 | `backend/capabilities/` | Skills、RAG、可插拔能力，实现 core 定义的接口 |
+| 平台能力层 | `backend/engines/` | Skills、RAG、可插拔能力，实现 core 定义的接口 |
 | 基础设施层 | `backend/infrastructure/` | LLM 客户端、数据库、HTTP、日志、配置等具体实现 |
 
 ## Agent-First Capabilities
 
-新增面向业务的具体能力时，应优先作为 Agent 可编排能力接入，通常落在 `backend/capabilities/`，并通过 skill、tool 或 capability adapter 供 `backend/core/` 编排层调用。
+新增面向业务的具体能力时，应优先作为 Agent 可编排能力接入，通常落在 `backend/engines/`，并通过 skill、tool 或 capability adapter 供 `backend/core/` 编排层调用。
 
 这里的具体业务能力包括但不限于：单证识别、OCR、信息抽取、审核、检索、爬虫等。
 
-除非详细架构文档明确批准新的服务边界，默认禁止仅为单一业务能力新增独立 HTTP 服务、独立端口或旁路的用户级 API。外部请求应统一经由 `backend/apps/` 入口进入，再由 `backend/core/` 的用例或 Agent 编排层通过抽象契约与注册机制调用具体能力实现。
+除非详细架构文档明确批准新的服务边界，默认禁止仅为单一业务能力新增独立 HTTP 服务、独立端口或旁路的用户级 API。外部请求应统一经由 `backend/api/` 入口进入，再由 `backend/core/` 的用例或 Agent 编排层通过抽象契约与注册机制调用具体能力实现。
 
 ## Dependency Direction
 
 ```text
-backend/apps/ -> backend/core/ -> backend/capabilities/ -> backend/infrastructure/ -> third-party packages
+backend/api/ -> backend/core/ -> backend/engines/ -> backend/infrastructure/ -> third-party packages
 ```
 
 禁止违反以下规则：
 
-- `backend/infrastructure/` 不得导入 `backend/core/`、`backend/capabilities/`、`backend/apps/`
-- `backend/core/` 不得导入 `backend/capabilities/`、`backend/infrastructure/`、`backend/apps/`
-- `backend/apps/` 不得直接导入 `backend/infrastructure/` 或 `backend/capabilities/`
+- `backend/infrastructure/` 不得导入 `backend/core/`、`backend/engines/`、`backend/api/`
+- `backend/core/` 不得导入 `backend/engines/`、`backend/infrastructure/`、`backend/api/`
+- `backend/api/` 不得直接导入 `backend/infrastructure/` 或 `backend/engines/`
 - 跨层依赖必须通过 `backend/core/shared/interfaces/` 中的抽象接口
 
 ## Placement Checklist
@@ -52,4 +52,4 @@ backend/apps/ -> backend/core/ -> backend/capabilities/ -> backend/infrastructur
 
 ## Frontend Boundary
 
-`frontend/` 不属于后端四层的一部分。它是系统边界外的 Web 客户端，通过 HTTP 或 WebSocket 调用 `backend/apps/`。
+`frontend/` 不属于后端四层的一部分。它是系统边界外的 Web 客户端，通过 HTTP 或 WebSocket 调用 `backend/api/`。

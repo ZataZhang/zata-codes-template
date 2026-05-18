@@ -105,7 +105,7 @@ def test_sync_template_skips_configured_project_paths_by_default(
     template_files = {
         "README.md": "Template README\n",
         "scripts/tool.sh": "echo template\n",
-        "backend/apps/api.py": "print('template backend')\n",
+        "backend/api/api.py": "print('template backend')\n",
         "frontend/src/App.tsx": "export const App = 'template';\n",
         "infra/main.tf": "# template infra\n",
         "deploy/prod.yml": "name: template deploy\n",
@@ -113,7 +113,7 @@ def test_sync_template_skips_configured_project_paths_by_default(
     project_files = {
         "README.md": "Project README\n",
         "scripts/tool.sh": "echo project\n",
-        "backend/apps/api.py": "print('project backend')\n",
+        "backend/api/api.py": "print('project backend')\n",
         "frontend/src/App.tsx": "export const App = 'project';\n",
         "infra/main.tf": "# project infra\n",
         "deploy/prod.yml": "name: project deploy\n",
@@ -128,7 +128,7 @@ def test_sync_template_skips_configured_project_paths_by_default(
     assert "Found 1 changed + 0 new entry/entries." in completed_process.stdout
     assert "CHANGED\tscripts/tool.sh" in completed_process.stdout
     assert "README.md" not in completed_process.stdout
-    assert "backend/apps/api.py" not in completed_process.stdout
+    assert "backend/api/api.py" not in completed_process.stdout
     assert "frontend/src/App.tsx" not in completed_process.stdout
     assert "infra/main.tf" not in completed_process.stdout
     assert "deploy/prod.yml" not in completed_process.stdout
@@ -143,7 +143,7 @@ def test_sync_template_all_includes_configured_project_paths(tmp_path: Path) -> 
     template_files = {
         "README.md": "Template README\n",
         "scripts/tool.sh": "echo template\n",
-        "backend/apps/api.py": "print('template backend')\n",
+        "backend/api/api.py": "print('template backend')\n",
         "frontend/src/App.tsx": "export const App = 'template';\n",
         "infra/main.tf": "# template infra\n",
         "deploy/prod.yml": "name: template deploy\n",
@@ -151,7 +151,7 @@ def test_sync_template_all_includes_configured_project_paths(tmp_path: Path) -> 
     project_files = {
         "README.md": "Project README\n",
         "scripts/tool.sh": "echo project\n",
-        "backend/apps/api.py": "print('project backend')\n",
+        "backend/api/api.py": "print('project backend')\n",
         "frontend/src/App.tsx": "export const App = 'project';\n",
         "infra/main.tf": "# project infra\n",
         "deploy/prod.yml": "name: project deploy\n",
@@ -170,7 +170,7 @@ def test_sync_template_all_includes_configured_project_paths(tmp_path: Path) -> 
     assert "Found 6 changed + 0 new entry/entries." in completed_process.stdout
     assert "CHANGED\tREADME.md" in completed_process.stdout
     assert "CHANGED\tscripts/tool.sh" in completed_process.stdout
-    assert "CHANGED\tbackend/apps/api.py" in completed_process.stdout
+    assert "CHANGED\tbackend/api/api.py" in completed_process.stdout
     assert "CHANGED\tfrontend/src/App.tsx" in completed_process.stdout
     assert "CHANGED\tinfra/main.tf" in completed_process.stdout
     assert "CHANGED\tdeploy/prod.yml" in completed_process.stdout
@@ -184,13 +184,13 @@ def test_sync_template_uses_project_skip_paths_from_config(tmp_path: Path) -> No
 
     template_files = {
         "scripts/tool.sh": "echo template\n",
-        "backend/apps/api.py": "print('template backend')\n",
+        "backend/api/api.py": "print('template backend')\n",
         "frontend/src/App.tsx": "export const App = 'template';\n",
     }
     project_files = {
         "config.toml": '[template_sync]\nproject_skip_paths = ["backend/"]\n',
         "scripts/tool.sh": "echo project\n",
-        "backend/apps/api.py": "print('project backend')\n",
+        "backend/api/api.py": "print('project backend')\n",
         "frontend/src/App.tsx": "export const App = 'project';\n",
     }
 
@@ -203,7 +203,7 @@ def test_sync_template_uses_project_skip_paths_from_config(tmp_path: Path) -> No
     assert "Found 2 changed + 0 new entry/entries." in completed_process.stdout
     assert "CHANGED\tscripts/tool.sh" in completed_process.stdout
     assert "CHANGED\tfrontend/src/App.tsx" in completed_process.stdout
-    assert "backend/apps/api.py" not in completed_process.stdout
+    assert "backend/api/api.py" not in completed_process.stdout
 
 
 def test_sync_template_project_include_paths_override_project_skips(
@@ -216,7 +216,7 @@ def test_sync_template_project_include_paths_override_project_skips(
 
     template_files = {
         "scripts/tool.sh": "echo template\n",
-        "backend/apps/api.py": "print('template backend')\n",
+        "backend/api/api.py": "print('template backend')\n",
         "frontend/src/App.tsx": "export const App = 'template';\n",
     }
     project_files = {
@@ -226,7 +226,7 @@ def test_sync_template_project_include_paths_override_project_skips(
             'project_include_paths = ["frontend/"]\n'
         ),
         "scripts/tool.sh": "echo project\n",
-        "backend/apps/api.py": "print('project backend')\n",
+        "backend/api/api.py": "print('project backend')\n",
         "frontend/src/App.tsx": "export const App = 'project';\n",
     }
 
@@ -239,7 +239,7 @@ def test_sync_template_project_include_paths_override_project_skips(
     assert "Found 2 changed + 0 new entry/entries." in completed_process.stdout
     assert "CHANGED\tscripts/tool.sh" in completed_process.stdout
     assert "CHANGED\tfrontend/src/App.tsx" in completed_process.stdout
-    assert "backend/apps/api.py" not in completed_process.stdout
+    assert "backend/api/api.py" not in completed_process.stdout
 
 
 def test_sync_template_project_skip_paths_can_be_overridden_by_env(
@@ -252,13 +252,13 @@ def test_sync_template_project_skip_paths_can_be_overridden_by_env(
 
     template_files = {
         "scripts/tool.sh": "echo template\n",
-        "backend/apps/api.py": "print('template backend')\n",
+        "backend/api/api.py": "print('template backend')\n",
         "frontend/src/App.tsx": "export const App = 'template';\n",
     }
     project_files = {
         "config.toml": '[template_sync]\nproject_skip_paths = ["backend/"]\n',
         "scripts/tool.sh": "echo project\n",
-        "backend/apps/api.py": "print('project backend')\n",
+        "backend/api/api.py": "print('project backend')\n",
         "frontend/src/App.tsx": "export const App = 'project';\n",
     }
 
@@ -274,5 +274,5 @@ def test_sync_template_project_skip_paths_can_be_overridden_by_env(
     assert completed_process.returncode == 0, completed_process.stderr
     assert "Found 2 changed + 0 new entry/entries." in completed_process.stdout
     assert "CHANGED\tscripts/tool.sh" in completed_process.stdout
-    assert "CHANGED\tbackend/apps/api.py" in completed_process.stdout
+    assert "CHANGED\tbackend/api/api.py" in completed_process.stdout
     assert "frontend/src/App.tsx" not in completed_process.stdout

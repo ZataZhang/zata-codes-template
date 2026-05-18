@@ -4,12 +4,12 @@
 
 它保留了模板的低门槛启动体验，同时把仓库的目标结构明确为四层：
 
-- `backend/apps/` 请求接入层
+- `backend/api/` 请求接入层
 - `backend/core/` 核心编排层
-- `backend/capabilities/` 平台能力层
+- `backend/engines/` 平台能力层
 - `backend/infrastructure/` 基础设施层
 
-当前仓库的正式结构以 `backend/apps/`、`backend/core/`、`backend/capabilities/`、`backend/infrastructure/` 四层目录为准。
+当前仓库的正式结构以 `backend/api/`、`backend/core/`、`backend/engines/`、`backend/infrastructure/` 四层目录为准。
 
 ## 快速开始
 
@@ -114,9 +114,9 @@ logger.info("started")
 
 这个仓库不是微服务模板，也不是单纯的脚本集合，而是一个 **四层模块化单体** 的 AI Agent 骨架：
 
-1. `backend/apps/` 负责接入。
+1. `backend/api/` 负责接入。
 2. `backend/core/` 负责业务编排和领域规则。
-3. `backend/capabilities/` 负责可插拔能力。
+3. `backend/engines/` 负责可插拔能力。
 4. `backend/infrastructure/` 负责具体技术实现。
 
 架构参考来自整洁架构与 DDD 的组合思路。外部文章提供的是设计方向和结构示例，本仓库会结合自己的模板定位、目录现状和迁移成本做落地，不机械照搬命名。

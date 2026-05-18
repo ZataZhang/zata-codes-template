@@ -6,9 +6,9 @@ Use `docs/ai-standards/` as the canonical standards hub and `docs/architecture/s
 
 Respect the layer boundaries:
 
-- `backend/apps/` handles request entry, validation, and DTO conversion
+- `backend/api/` handles request entry, validation, and DTO conversion
 - `backend/core/` owns business rules and orchestration
-- `backend/capabilities/` implements pluggable platform capabilities
+- `backend/engines/` implements pluggable platform capabilities
 - `backend/infrastructure/` owns concrete integrations and external systems
 
 Do not violate dependency direction. Cross-layer dependencies must go through `backend/core/shared/interfaces/`.

@@ -11,7 +11,7 @@
 
 ## 目标分层
 
-### `backend/apps/` 请求接入层
+### `backend/api/` 请求接入层
 
 - 接收 HTTP、WebSocket、CLI 等请求。
 - 只负责参数校验、DTO 转换、调用用例。
@@ -23,7 +23,7 @@
 - 负责业务规则和任务编排。
 - 不直接依赖具体 SDK、数据库或 HTTP 客户端。
 
-### `backend/capabilities/` 平台能力层
+### `backend/engines/` 平台能力层
 
 - 放置 skills、RAG、registry、可插拔能力。
 - 实现 `backend/core/` 定义的端口。
@@ -44,7 +44,7 @@
 - `backend/infrastructure/persistence/`：承接数据库与持久化实现。
 - `backend/infrastructure/helpers.py`：承接通用无状态辅助函数。
 - `backend/infrastructure/models/`：承接模型配置解析与 LLM 客户端装配。
-- `backend/capabilities/`：承接项目特定的平台能力（如 RAG、爬虫、OCR 等）。
+- `backend/engines/`：承接项目特定的平台能力（如 RAG、爬虫、OCR 等）。
 - `tests/`：用于验证边界、用例和适配器行为。
 
 ## 模块关系图
@@ -69,9 +69,9 @@ flowchart TD
 
     subgraph Backend["Python 后端"]
         direction TB
-        Apps["backend/apps/ 接入层"]
+        Apps["backend/api/ 接入层"]
         Core["backend/core/ 核心编排层"]
-        Platform["backend/capabilities/ 平台能力层"]
+        Platform["backend/engines/ 平台能力层"]
         Infra["backend/infrastructure/ 基础设施层"]
 
         Apps --> Core
@@ -87,7 +87,7 @@ flowchart TD
             IFACE["shared/interfaces"]
         end
 
-        subgraph PlatformDetails["backend/capabilities/"]
+        subgraph PlatformDetails["backend/engines/"]
             REG["skills/registry"]
             SKILL["skills/concrete skills"]
             RAG["rag/retriever + chunker"]
@@ -125,22 +125,22 @@ flowchart TD
 本仓库的四层架构用于约束 Python 后端内部的依赖方向：
 
 ```text
-backend/apps/ → backend/core/ → backend/capabilities/ → backend/infrastructure/
+backend/api/ → backend/core/ → backend/engines/ → backend/infrastructure/
 ```
 
-这里的 `backend/apps/` 指后端请求接入层，不等于浏览器前端。
+这里的 `backend/api/` 指后端请求接入层，不等于浏览器前端。
 
 - `frontend/` 是系统边界外的 Web 客户端。
 - 它负责路由、页面渲染、会话状态和接口调用。
-- 它通过 HTTP 或 WebSocket 调用 `backend/apps/` 暴露的后端入口。
+- 它通过 HTTP 或 WebSocket 调用 `backend/api/` 暴露的后端入口。
 - 它不参与后端内部的依赖传递，因此不应被硬塞进四层中的任意一层。
 
 如果需要讨论 `frontend/` 自身的模块拆分，应使用单独的前端内部架构文档，而不是混入后端四层依赖规则。详见 [`frontend-architecture.md`](frontend-architecture.md)。
 
 ## 依赖规则
 
-1. `backend/apps/` 只能调用 `backend/core/` 暴露的用例和 DTO。
+1. `backend/api/` 只能调用 `backend/core/` 暴露的用例和 DTO。
 2. `backend/core/` 只能依赖抽象接口和纯业务模型。
-3. `backend/capabilities/` 只能实现 `backend/core/` 定义的契约。
+3. `backend/engines/` 只能实现 `backend/core/` 定义的契约。
 4. `backend/infrastructure/` 负责具体集成，不包含业务编排。
 5. 配置、日志、数据库和通用辅助函数位于 `backend/infrastructure/` 下的正式模块。
