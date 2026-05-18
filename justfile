@@ -415,6 +415,16 @@ worktree arg1 arg2="" arg3="" arg4="" arg5="":
         exit 0
     fi
 
+    # -D: force delete worktree (bypass dirty/unmerged checks)
+    if [ "{{arg1}}" = "-D" ]; then
+        if [ -z "{{arg2}}" ]; then
+            echo "❌ Usage: just worktree -D <branch_name>"
+            exit 1
+        fi
+        ./scripts/worktree/merge.sh "{{arg2}}" -D
+        exit 0
+    fi
+
     # -m: merge worktree
     if [ "{{arg1}}" = "-m" ]; then
         raw_arg2="{{arg2}}"

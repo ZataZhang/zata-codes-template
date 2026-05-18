@@ -187,6 +187,8 @@ Options:
   --remote <name>       Remote name to pull/push. Default: zata.
   -d, --delete, --delete-only
                         Skip merge/push and only run cleanup for the feature branch.
+  -D, --force-delete     Force delete: skip merge/push, force-remove worktree and force-delete
+                        local branch (bypasses dirty/unmerged checks).
   --cleanup              Remove worktree and delete local feature branch after merge succeeds.
   --delete-remote        Delete <remote>/<feature_branch> (works with --cleanup/-d/--delete/--delete-only).
   --worktree-path <path> Explicit worktree path to remove during cleanup.
@@ -234,6 +236,7 @@ shift
 base_branch="main"
 remote_name="zata"
 delete_only_mode="false"
+force_delete_mode="false"
 cleanup_mode="false"
 delete_remote_branch="false"
 worktree_path=""
@@ -249,6 +252,11 @@ while [[ $# -gt 0 ]]; do
             cleanup_mode="true"
             ;;
         -d|--delete|--delete-only)
+            delete_only_mode="true"
+            cleanup_mode="true"
+            ;;
+        -D|--force-delete)
+            force_delete_mode="true"
             delete_only_mode="true"
             cleanup_mode="true"
             ;;
@@ -400,9 +408,19 @@ cleanup_feature_branch() {
     fi
 
     echo "🧹 Cleanup enabled."
+    local remove_flags=()
+    local branch_delete_flag="-d"
+    if [[ "$force_delete_mode" == "true" ]]; then
+        remove_flags=("--force")
+        branch_delete_flag="-D"
+        echo "💪 Force mode enabled."
+    fi
+
     if git worktree list --porcelain | grep -Fq "worktree $resolved_cleanup_worktree_path"; then
-        preflight_check_worktree_permissions "$resolved_cleanup_worktree_path"
-        if ! git worktree remove "$resolved_cleanup_worktree_path"; then
+        if [[ "$force_delete_mode" != "true" ]]; then
+            preflight_check_worktree_permissions "$resolved_cleanup_worktree_path"
+        fi
+        if ! git worktree remove "${remove_flags[@]}" "$resolved_cleanup_worktree_path"; then
             echo "❌ git worktree remove failed for: $resolved_cleanup_worktree_path"
             diagnose_failed_worktree_remove "$resolved_cleanup_worktree_path"
             echo "❌ Aborting cleanup because worktree removal failed."
@@ -414,7 +432,7 @@ cleanup_feature_branch() {
     fi
 
     if git show-ref --verify --quiet "refs/heads/$feature_branch"; then
-        git branch -d "$feature_branch"
+        git branch "$branch_delete_flag" "$feature_branch"
         echo "✅ Deleted local branch: $feature_branch"
     else
         echo "⚠️ Local branch not found, skipped: $feature_branch"
