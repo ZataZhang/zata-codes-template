@@ -113,7 +113,7 @@ Do not use web results as a reason to add abstractions by default.
 Visual artifacts should clarify the change, not pad the PRD.
 
 Always include:
-- a **Change Matrix**
+- a **Change Impact Tree**
 - at least one **flow or architecture diagram**
 
 Include a **low-fidelity prototype** only when:
@@ -173,7 +173,7 @@ Must include:
 Must include:
 - **Core Logic:** how data and control move through the existing system
 - **Affected Files:** predicted file paths
-- **Change Matrix**
+- **Change Impact Tree**
 - **Flow or Architecture Diagram**
 - **Low-Fidelity Prototype** when required
 - **ER Diagram** when required
@@ -198,24 +198,20 @@ Include:
 - exact paths, API contracts, commands, or search assertions where applicable
 - no checklist item may be replaced by a `Definition Of Done` bullet or by per-story acceptance criteria
 
-### 8. User Stories
-
-Focus on business logic unique to this change.
-
-### 9. Functional Requirements
+### 8. Functional Requirements
 
 Use numbered requirements such as `FR-1`, `FR-2`.
 
-### 10. Non-Goals
+### 9. Non-Goals
 
 List explicit out-of-scope items.
 
-### 11. Risks And Follow-Ups
+### 10. Risks And Follow-Ups
 
 List only unavoidable migration risk, rollout risk, or explicitly approved non-blocking follow-up.
 Do not use this section to park work that is actually required for the recommended target state.
 
-### 12. Decision Log
+### 11. Decision Log
 
 Record every key decision made during this PRD as a permanent reference that survives archival.
 
@@ -231,13 +227,39 @@ Rules:
 
 ## PRD Content Rules
 
-### A. Change Matrix
+### A. Change Impact Tree
 
-Use this structure:
+Use Tree style, organized by layer:
 
-| Change Target | Current State | Target State | How to Modify | Why This Fits Existing Architecture | Affected Files |
-|---|---|---|---|---|---|
-| Example: user profile validation | Validation split across route handlers | Validation consolidated in existing service | Move validation into `UserService` and update call sites | Reuses existing service boundary instead of adding a parallel validator layer | `src/services/user.py`, `src/routes/user.py` |
+```text
+.
+├── xxx/
+│   └── xxx.py
+│       [新增] / [修改] / [删除]
+│       【总结】一句话总结本次修改
+│
+│       ├── 具体改动 1
+│       ├── 具体改动 2
+│       └── 具体改动 3
+```
+
+**每个文件必须有【总结】**：一句话、高信息密度，直接说明文件改了什么，不重复文件名。
+
+层级的推荐顺序：
+
+```text
+Database
+Infrastructure
+Domain
+API
+Frontend
+Tests
+Docs
+```
+
+内容重点覆盖：SQL 变化、字段变化、数据流变化、API 变化、ORM 变化、Domain Logic 变化、UI 展示变化、类型同步、测试同步。
+
+不要包含：import 调整、格式化、lint 修复、无意义 rename、与任务无关的小改动。
 
 ### B. Flow / Architecture Diagram
 
@@ -288,7 +310,7 @@ If no web research was needed, state:
 
 ### G. Acceptance Checklist
 
-This section is required even when User Stories already include acceptance criteria.
+This section is required even when Functional Requirements already include acceptance criteria.
 Do not merge it into `Definition Of Done`.
 
 Use grouped subsections.
@@ -315,7 +337,7 @@ The checklist must validate the final target state, not merely the completion of
 * [ ] Compared a minimal-change option against a heavier option
 * [ ] Justified every new abstraction, dependency, or file path
 * [ ] Rejected redundant layers where reuse was sufficient
-* [ ] Included a Change Matrix with architecture-fit reasoning
+* [ ] Included a Change Impact Tree with architecture-fit reasoning
 * [ ] Included at least one flow or architecture diagram
 * [ ] Added low-fidelity prototype only when actually needed
 * [ ] Added ER diagram only when data model changes are present

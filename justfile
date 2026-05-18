@@ -577,6 +577,93 @@ worktree arg1 arg2="" arg3="" arg4="" arg5="":
     fi
 
 
+# Create worktree from a PRD and start AI-assisted implementation.
+# Automatically derives branch name from the PRD filename.
+# Usage:
+#   just implement <prd-file> <clauded|kim> "<prompt>"
+# Examples:
+#   just implement tasks/pending/20260518-feature-x.md clauded "请根据 PRD 实现该功能"
+#   just implement tasks/pending/feature-x.md kim "请实现这个功能"
+implement prd_file ai_tool prompt:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    prd_file="{{prd_file}}"
+    ai_tool="{{ai_tool}}"
+    prompt_text="{{prompt}}"
+
+    # Validate PRD file exists
+    if [ ! -f "$prd_file" ]; then
+        echo "PRD file not found: $prd_file"
+        echo "Usage: just implement <prd-file> <clauded|kim> \"<prompt>\""
+        exit 1
+    fi
+
+    # Validate AI tool
+    if [ "$ai_tool" != "clauded" ] && [ "$ai_tool" != "kim" ]; then
+        echo "Unsupported AI tool: $ai_tool"
+        echo "Supported tools: clauded, kim"
+        echo "Usage: just implement <prd-file> <clauded|kim> \"<prompt>\""
+        exit 1
+    fi
+
+    # Validate prompt is not empty
+    if [ -z "$prompt_text" ]; then
+        echo "Prompt cannot be empty"
+        echo "Usage: just implement <prd-file> <clauded|kim> \"<prompt>\""
+        exit 1
+    fi
+
+    # Extract branch name from PRD filename
+    filename=$(basename "$prd_file")
+    branch_name="${filename%.md}"
+    # Strip date prefix: YYYYMMDD-HHMMSS- or YYYYMMDD-
+    if [[ "$branch_name" =~ ^[0-9]{8}-[0-9]{6}-(.+)$ ]]; then
+        branch_name="${BASH_REMATCH[1]}"
+    elif [[ "$branch_name" =~ ^[0-9]{8}-(.+)$ ]]; then
+        branch_name="${BASH_REMATCH[1]}"
+    fi
+
+    echo "PRD: $prd_file"
+    echo "Branch: $branch_name"
+    echo "Tool: $ai_tool"
+    echo "Prompt: $prompt_text"
+    echo ""
+
+    # Create worktree
+    ./scripts/worktree/create.sh "$branch_name"
+    echo ""
+
+    # Determine worktree path
+    repo_root="$(git rev-parse --show-toplevel)"
+    worktree_path="$(dirname "$repo_root")/$branch_name"
+
+    # Copy PRD file into worktree preserving relative path
+    prd_abs="$(cd "$(dirname "$prd_file")" && pwd)/$(basename "$prd_file")"
+    prd_rel="$(python3 -c "import os.path; print(os.path.relpath('$prd_abs', '$repo_root'))")"
+    prd_dest="$worktree_path/$prd_rel"
+    mkdir -p "$(dirname "$prd_dest")"
+    cp "$prd_abs" "$prd_dest"
+    echo "PRD copied to worktree: $prd_rel"
+    echo ""
+
+    # Run AI tool in worktree via user's interactive shell (needed for alias resolution)
+    echo "Running $ai_tool in worktree..."
+    cd "$worktree_path"
+    "${SHELL:-bash}" -i -c "$(printf '%s %q' "$ai_tool" "$prompt_text")" || true
+
+    echo ""
+    echo "AI tool finished. Entering worktree shell..."
+    echo "Run 'exit' to return to previous shell."
+    echo ""
+
+    cd "$worktree_path"
+    if [ -n "${TERM:-}" ] && [ "${TERM}" != "dumb" ]; then
+        printf '\033]0;%s\007' "wt:${branch_name}"
+    fi
+    exec "${SHELL:-bash}" -i
+
+
 # Sync files from the upstream template repository.
 # Compares local files against the template and offers to apply updates.
 # Usage:
