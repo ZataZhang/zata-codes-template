@@ -21,6 +21,7 @@ class GuidelinesChecker:
         self.hub_files = {
             "index": project_root / "docs" / "ai-standards" / "index.md",
             "architecture": project_root / "docs" / "ai-standards" / "architecture.md",
+            "code_reuse": project_root / "docs" / "ai-standards" / "code-reuse.md",
             "naming": project_root / "docs" / "ai-standards" / "naming.md",
             "comments_docstrings": project_root
             / "docs"
@@ -62,12 +63,14 @@ class GuidelinesChecker:
                 "source of truth",
                 "AGENTS.md",
                 ".github/copilot-instructions.md",
+                "code-reuse.md",
             ],
             "architecture": [
                 "backend/api/",
                 "backend/core/",
                 "docs/architecture/system-design.md",
             ],
+            "code_reuse": ["复用优先", "参数游行", "AI 编码自检清单"],
             "naming": ["Fully Qualified Naming", "SSA", "data"],
             "comments_docstrings": ["Google Style", 'encoding="utf-8"', "TODO"],
             "documentation": ["mkdocs.yml", "mkdocstrings", "UTF-8"],
