@@ -41,6 +41,14 @@
 - `just e2e smoke`
 - `just e2e no-auth`
 
+`just test` 会先执行 `SKIP=check-test-flag just lint --full`；当测试最终通过时，会同时刷新 `just test` 与 full lint 的本地通过标记。若代码有效 tree 未变化，后续 `just lint --full` 可以复用该标记走快速路径，但提交门禁仍会检查 `just test` 标记。
+
+交付前建议：
+
+- 日常迭代先跑 `just lint`，确认 staged 变更与真实 pre-commit hook 一致。
+- 涉及复用边界、架构、AI 规范入口或重复风险时补跑 `just lint --reuse`。
+- 最终交付、PRD 归档或合并前跑 `just lint --repo`；若无法运行总入口，至少跑 `just lint --full`、`just lint --reuse`、`just test` 和受影响文档的 `uv run mkdocs build --strict`。
+
 ## Change Recording
 
 当任务带有 PRD 或 planning 记录时，记录实际执行的验证命令和结果。

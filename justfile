@@ -199,9 +199,110 @@ run target="all" frontend_dir="frontend" backend_cmd="uv run python backend/main
             ;;
     esac
 
-# Run local lint/format checks via pre-commit (matches CI)
-lint: _check-completion
-    uv run pre-commit run --all-files --show-diff-on-failure
+# Run lint checks via pre-commit.
+# Usage:
+#   just lint          # commit-aligned staged-files pre-commit
+#   just lint --reuse  # duplicate/reuse/architecture diagnostics
+#   just lint --full   # all-files pre-commit gate
+#   just lint --repo   # full local repository gate
+lint mode="": _check-completion
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    source ./scripts/hooks/quality_flag.sh
+
+    print_lint_usage() {
+        echo "Usage:"
+        echo "  just lint          # commit-aligned staged-files pre-commit"
+        echo "  just lint --reuse  # duplicate/reuse/architecture diagnostics"
+        echo "  just lint --full   # all-files pre-commit gate"
+        echo "  just lint --repo   # full local repository gate"
+    }
+
+    run_full_lint() {
+        git_dir="$(quality_git_dir)"
+        flag_file="$git_dir/.last_linted_commit"
+        branch_name="$(quality_branch_name)"
+        head_hash="$(quality_head_hash)"
+        current_tree="$(quality_effective_tree working lint)"
+        staged_archive_prd_transition=0
+        if quality_has_staged_archive_prd_transition; then
+            staged_archive_prd_transition=1
+        fi
+
+        if quality_skip_is_empty_or_only "check-test-flag" && [ "$staged_archive_prd_transition" -eq 0 ] && quality_flag_matches "$flag_file" "$branch_name" "$head_hash" "$current_tree"; then
+            if ! quality_skip_contains "check-test-flag"; then
+                bash ./scripts/hooks/check_test_flag.sh
+            fi
+            echo "✅ just lint --full flag valid: $branch_name @ ${head_hash:0:8}"
+            return 0
+        fi
+
+        if [ "$staged_archive_prd_transition" -eq 1 ]; then
+            echo "🔍 staged archive PRD detected; running full lint checks."
+        fi
+
+        uv run pre-commit run --all-files --show-diff-on-failure
+
+        if quality_skip_is_empty_or_only "check-test-flag"; then
+            current_tree="$(quality_effective_tree working lint)"
+            quality_write_flag "$flag_file" "$branch_name" "$head_hash" "$current_tree"
+            echo "✅ just lint --full flag updated: $branch_name @ ${head_hash:0:8}"
+        fi
+    }
+
+    run_reuse_lint() {
+        reuse_status=0
+        manual_reuse_hooks=(
+            jscpd
+            pylint-duplicate-code
+        )
+        regular_reuse_hooks=(
+            check-architecture
+            check-guidelines-consistency
+            check-max-file-lines
+        )
+
+        for hook_id in "${manual_reuse_hooks[@]}"; do
+            echo "🔍 Running reuse hook: $hook_id"
+            if ! uv run pre-commit run "$hook_id" --hook-stage manual --all-files --show-diff-on-failure; then
+                reuse_status=1
+            fi
+        done
+
+        for hook_id in "${regular_reuse_hooks[@]}"; do
+            echo "🔍 Running reuse hook: $hook_id"
+            if ! uv run pre-commit run "$hook_id" --all-files --show-diff-on-failure; then
+                reuse_status=1
+            fi
+        done
+
+        return "$reuse_status"
+    }
+
+    case "{{mode}}" in
+        "")
+            uv run pre-commit run --show-diff-on-failure
+            ;;
+        --full)
+            run_full_lint
+            ;;
+        --reuse)
+            run_reuse_lint
+            ;;
+        --repo)
+            SKIP=check-test-flag just lint --full
+            just lint --reuse
+            just test
+            uv run mkdocs build --strict
+            just lint --full
+            ;;
+        *)
+            echo "❌ Unknown lint mode: {{mode}}"
+            print_lint_usage
+            exit 1
+            ;;
+    esac
 
 # Serve MkDocs site locally with live reload (configurable port, default 8000)
 docs-serve port="8000": _check-completion
@@ -466,20 +567,56 @@ sync-template flags="":
         ./scripts/sync_template.sh
     fi
 
-# Run tests (usage: just test [all|local|real])
+# Run tests after `just lint --full` (usage: just test [all|local|real])
 #   just test        - Run local tests (no API keys needed)
 #   just test all    - Run all tests
 #   just test real   - Run tests requiring API keys
 @test type="local": _check-completion
     #!/usr/bin/env bash
-    set -e
+    set -euo pipefail
+
+    echo "🔍 Running full lint checks..."
+    if ! SKIP=check-test-flag just lint --full >/dev/null 2>&1; then
+        echo "❌ Lint failed. Fix lint errors before running tests."
+        echo "   Run: just lint --full"
+        exit 1
+    fi
+    source ./scripts/hooks/quality_flag.sh
+    lint_tree_after_lint="$(quality_effective_tree working lint)"
+    echo "✅ Lint passed. Proceeding to tests..."
+
+    # Check Alembic migration heads if Alembic is installed
+    if command -v alembic &>/dev/null; then
+        alembic_heads="$(uv run alembic heads 2>/dev/null || true)"
+        if [ -n "$alembic_heads" ]; then
+            alembic_head_count="$(printf "%s\n" "$alembic_heads" | sed '/^[[:space:]]*$/d' | wc -l | tr -d ' ')"
+            if [ "$alembic_head_count" -gt 1 ]; then
+                echo "ERROR: Alembic migration graph must have exactly one head; found $alembic_head_count."
+                printf "%s\n" "$alembic_heads"
+                exit 1
+            fi
+        fi
+    fi
+
     if [ "{{type}}" = "all" ]; then
         uv run pytest tests/ -v
     elif [ "{{type}}" = "real" ]; then
         uv run pytest tests/ -v -k "expensive or not expensive"
     else
-        uv run pytest tests/ -v --ignore=tests/test_model_loader_real.py -m "not expensive"
+        uv run pytest tests/ -v
     fi
+
+    # 测试通过后写入 flag，绑定分支、HEAD 和有效 tree
+    # 有效 tree 只包含可能进入 test/lint 的文件，排除文档、图片等无关类型
+    # 这样修改 .md 等文件不会导致代码提交时被要求重测
+    git_dir="$(quality_git_dir)"
+    branch_name="$(quality_branch_name)"
+    head_hash="$(quality_head_hash)"
+    test_tree="$(quality_effective_tree working test)"
+    quality_write_flag "$git_dir/.last_tested_commit" "$branch_name" "$head_hash" "$test_tree"
+    quality_write_flag "$git_dir/.last_linted_commit" "$branch_name" "$head_hash" "$lint_tree_after_lint"
+    echo "✅ just test flag updated: $branch_name @ $head_hash"
+    echo "✅ just lint --full flag updated: $branch_name @ $head_hash"
 
 
 # Run Playwright e2e tests (requires: just e2e-install first)

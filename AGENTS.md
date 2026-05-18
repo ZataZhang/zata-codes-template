@@ -30,6 +30,10 @@
 - 公共 Python API 使用 Google Style Docstrings
 - Python 文本文件 I/O 必须显式写 `encoding="utf-8"`
 - 变量命名必须具有来源、类型或状态语义，避免 `data`、`item`、`res`
+- 新增或修改代码前先搜索现有实现；禁止复制粘贴后微调，参数超过 4 个时收敛到对象
+- 除非用户明确要求，否则不要自动执行 `git add`、`git commit`、`git push` 等 Git 变更操作
+- 单代码文件非空行不超过 1000 行；`just lint` 会对此发出警告
+- PRD 对应任务全部完成后：将已完成项打勾，所有 Acceptance Checklist 条目达到完成态后，再将 PRD 从 `tasks/pending/` 归档到 `tasks/archive/`
 - 变更代码时同步更新 `docs/` 与 `mkdocs.yml`
 - `tests/playwright-e2e/` 是独立 TypeScript/Node 包，使用 `npm`，不强制套用 Python SSA 命名规范
 

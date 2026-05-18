@@ -73,11 +73,61 @@ PRD 默认应描述**完整目标态**，不要把必做迁移、旧入口删除
 - 最终目标态是什么
 - 第一阶段后哪些条件必须成立，避免过渡态变成永久遗留层
 
-## 改动清单表模板
+## Change Matrix 格式规则
+
+Change Matrix 应在 PRD 初稿阶段写入，作为 **Planned Change Matrix** 使用。
+它记录实现前预期会修改的领域、文件、动作、摘要和关键子变更，用来提前暴露范围、复用点、依赖边界和评审风险。
+
+### 格式选择
+
+简单、小范围 PRD 可以使用表格格式。
+涉及多个目录、多个架构层、数据库迁移、测试和文档联动的 PRD，必须使用树状文本格式。
+
+### 表格格式模板
 
 | 改动对象 | 当前状态 | 目标状态 | 修改方式 | 为什么符合现有架构 | 影响文件 |
 |---|---|---|---|---|---|
-| [对象] | [现状] | [目标] | [怎么改] | [复用/边界说明] | `[path/to/file]` |
+| `[path/to/file]` | [现状] | [目标] | [怎么改] | [复用/边界说明] | [影响文件] |
+
+### 树状文本格式模板
+
+```text
+Domain
+├── path/to/file.py
+│   [新增|修改|删除|验证]
+│   【总结】一句话说明该文件的目标变化
+│
+│   ├── 关键子变化 1
+│   ├── 关键子变化 2
+│   └── 关键子变化 3
+```
+
+优先按架构或职责分组，而不是按文件名排序。常用分组包括：
+
+- Database
+- API
+- Core
+- Engines
+- Infrastructure
+- Scripts
+- Tests
+- Docs
+
+每个文件块必须包含：
+
+- 文件路径
+- 动作标记：`[新增]`、`[修改]`、`[删除]`、`[验证]`
+- `【总结】`：一句话说明这个文件为什么要变
+- 关键子变更：只写会影响实现、Review 或验收的点，不写流水账
+
+### 生命周期
+
+实现完成并归档 PRD 前，必须校准 Change Matrix：
+
+- 实际未修改的文件应删除，或标记为 `[未改]`
+- 实际新增但 PRD 未预判的文件应补入
+- 如果实现路径偏离原计划，应同步更新 Change Matrix 和 Decision Log
+- Acceptance Checklist 应按校准后的最终状态验收
 
 ## 流程图模板
 
@@ -183,6 +233,17 @@ flowchart TD
 - [ ] 搜索仓库后，不存在旧入口或残留兼容层引用
 ```
 
+## PRD 完成同步
+
+复杂任务完成前，必须把实际交付结果同步回对应 PRD：
+
+- 优先在 `tasks/` 中查找匹配的 active PRD
+- 只有当 archived PRD 明确就是对应任务记录时，才把 `tasks/archive/` 作为主目标
+- 如果找到匹配 PRD，应更新实际交付内容、执行过的验证命令、偏离原计划的地方和必要 follow-up
+- 如果没有匹配 PRD，应创建 `tasks/[YYYYMMDD-HHMMSS]-prd-[feature-name].md`
+- PRD 归档前必须校准 Change Matrix；如果实现路径变化，也必须同步更新 Decision Log
+- Acceptance Checklist 应按最终实现状态全部完成后再归档
+
 ## Decision Log 规则
 
 Decision Log 是本项目替代独立 ADR 目录的决策记录机制。
@@ -254,7 +315,7 @@ Web 搜索不是默认步骤，只在这些场景启用：
 2. 扫描代码结构，识别最接近的现有路径和复用点。
 3. 先比较最小改动方案与更重方案，再决定推荐项。
 4. 确认是否真的需要原型、ER 图、或 Web 搜索。
-5. 写 Change Matrix、流程图、Definition Of Done、Acceptance Checklist、User Stories、FR 和 Non-Goals。
+5. 写 Planned Change Matrix、流程图、Definition Of Done、Acceptance Checklist、User Stories、FR 和 Non-Goals。
 6. **填写 Decision Log**：将第 3 步的每个 Option A/B 取舍转换为一行记录。
 
 ## 参考

@@ -38,6 +38,7 @@
 ## Standards Map
 
 - [Architecture](architecture.md)
+- [Code Reuse](code-reuse.md)
 - [Naming](naming.md)
 - [Comments And Docstrings](comments-docstrings.md)
 - [Documentation](documentation.md)

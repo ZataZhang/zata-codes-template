@@ -85,8 +85,10 @@
 review 需要明确披露这些命令是否执行过：
 
 - `just lint`
+- `just lint --reuse`（涉及复用、架构、AI 规范入口或重复风险时）
+- `just lint --full` 或 `just lint --repo`
 - 与改动相关的测试
-- `uv run mkdocs build`
+- `uv run mkdocs build`（涉及文档时使用 `--strict`）
 
 建议使用以下状态：
 

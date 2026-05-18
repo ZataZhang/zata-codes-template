@@ -80,6 +80,28 @@ repos:
         language: system
         files: \.py$
         pass_filenames: true
+      - id: jscpd
+        name: Check copy-paste duplication
+        entry: uv run python hooks/run_jscpd_duplication_check.py
+        language: node
+        additional_dependencies: [jscpd@4.1.1]
+        files: ^(backend|frontend)/.*\.(py|js|jsx|ts|tsx)$
+        pass_filenames: true
+        stages: [manual]
+      - id: pylint-duplicate-code
+        name: Check Python duplicate code
+        entry: uv run python hooks/run_pylint_duplication_check.py
+        language: system
+        files: ^backend/.*\.py$
+        pass_filenames: true
+        stages: [manual]
+      - id: check-test-flag
+        name: Check just test flag
+        entry: bash scripts/hooks/check_test_flag.sh
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
       - id: archive-planning-session
         name: Archive planning session on commit
         entry: bash hooks/archive_planning_session.sh
