@@ -114,6 +114,7 @@ sync mode="": _check-completion
 #   just run                 # start backend + frontend
 #   just run backend         # start backend only
 #   just run frontend        # start frontend only
+#   just run docker          # start with Docker Compose (one-click deploy)
 #   just run all frontend_dir=web frontend_cmd="pnpm dev"
 run target="all" frontend_dir="frontend" backend_cmd="uv run python backend/main.py" frontend_cmd="npm run dev": _check-completion
     #!/usr/bin/env bash
@@ -192,9 +193,32 @@ run target="all" frontend_dir="frontend" backend_cmd="uv run python backend/main
             frontend_pid=$!
             wait_for_first_exit
             ;;
+        docker)
+            echo "Starting services with Docker Compose..."
+            has_remote="false"
+            if [ -f ".env" ]; then
+                db_url=$(grep "^DATABASE_URL=" .env | head -1 | cut -d'=' -f2- | sed 's/^[[:space:]]*//;s/[[:space:]]*$//;s/^"//;s/"$//;s/^'"'"'//;s/'"'"'$//')
+                if [ -n "$db_url" ]; then
+                    case "$db_url" in
+                        *@db:*|*@localhost*|*@127.0.0.1*)
+                            has_remote="false"
+                            ;;
+                        *)
+                            has_remote="true"
+                            ;;
+                    esac
+                fi
+            fi
+            if [ "$has_remote" = "true" ]; then
+                echo "Detected remote DATABASE_URL; backend will connect directly to remote database"
+            else
+                echo "Using local PostgreSQL database"
+            fi
+            docker compose up --build
+            ;;
         *)
             echo "❌ Unknown run target: $target"
-            echo "Usage: just run [backend|frontend|all]"
+            echo "Usage: just run [backend|frontend|all|docker]"
             exit 1
             ;;
     esac

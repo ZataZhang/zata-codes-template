@@ -72,7 +72,7 @@ repos:
         name: Check architecture layer dependencies
         entry: uv run python hooks/check_architecture.py
         language: system
-        files: ^(backend/(apps|core|capabilities|infrastructure))/.*\.py$
+        files: ^(backend/(api|core|engines|infrastructure))/.*\.py$
         pass_filenames: false
       - id: check-max-file-lines
         name: Check max file lines (non-empty)
