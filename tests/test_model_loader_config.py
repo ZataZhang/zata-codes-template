@@ -59,8 +59,7 @@ class TestModelsConfigLoading:
         config: dict[str, Any] = load_models_config()
 
         assert isinstance(config, dict)
-        assert "dashscope" in config
-        assert "openrouter" in config
+        assert "openai" in config
 
     def test_load_models_config_cached(self) -> None:
         """Test that models config is cached."""
@@ -90,17 +89,6 @@ class TestModelsConfigLoading:
 class TestProviderInference:
     """Tests for provider inference from model names."""
 
-    def test_infer_dashscope_from_qwen(self) -> None:
-        """Test inferring dashscope provider from qwen model name."""
-        assert _infer_provider("qwen-max") == "dashscope"
-        assert _infer_provider("qwen-plus") == "dashscope"
-        assert _infer_provider("qwen-turbo") == "dashscope"
-        assert _infer_provider("qwen-flash") == "dashscope"
-
-    def test_infer_dashscope_from_dashscope(self) -> None:
-        """Test inferring dashscope from dashscope in name."""
-        assert _infer_provider("my-dashscope-model") == "dashscope"
-
     def test_infer_anthropic_from_claude(self) -> None:
         """Test inferring anthropic provider from claude model name."""
         assert _infer_provider("claude-3") == "anthropic"
@@ -115,17 +103,17 @@ class TestProviderInference:
 class TestListModels:
     """Tests for listing available models."""
 
-    def test_list_dashscope_chat_models(self) -> None:
-        """Test listing dashscope chat models."""
-        models: list[dict[str, Any]] = list_models("dashscope", "chat_models")
+    def test_list_openai_chat_models(self) -> None:
+        """Test listing openai chat models."""
+        models: list[dict[str, Any]] = list_models("openai", "chat_models")
 
         assert isinstance(models, list)
         assert len(models) > 0
-        assert any(m["name"] == "qwen-flash" for m in models)
+        assert any(m["name"] == "gpt-4" for m in models)
 
-    def test_list_dashscope_all_models(self) -> None:
-        """Test listing all dashscope models without category filter."""
-        models: list[dict[str, Any]] = list_models("dashscope")
+    def test_list_openai_all_models(self) -> None:
+        """Test listing all openai models without category filter."""
+        models: list[dict[str, Any]] = list_models("openai")
 
         assert isinstance(models, list)
         assert len(models) > 0
@@ -140,19 +128,19 @@ class TestListModels:
 class TestFindModelProviders:
     """Tests for finding providers for a specific model."""
 
-    def test_find_qwen_flash_providers(self) -> None:
-        """Test finding providers for qwen-flash model."""
+    def test_find_gpt4_providers(self) -> None:
+        """Test finding providers for gpt-4 model."""
         config: dict[str, Any] = load_models_config()
-        providers: list[tuple[str, Any]] = _find_model_providers("qwen-flash", config)
+        providers: list[tuple[str, Any]] = _find_model_providers("gpt-4", config)
 
         assert len(providers) > 0
-        assert any(p[0] == "dashscope" for p in providers)
+        assert any(p[0] == "openai" for p in providers)
 
     def test_find_unknown_model_infers_provider(self) -> None:
         """Test that unknown model infers provider."""
         config: dict[str, Any] = load_models_config()
         providers: list[tuple[str, Any]] = _find_model_providers(
-            "gpt-4-unknown", config
+            "unknown-model", config
         )
 
         assert len(providers) == 1
@@ -179,31 +167,17 @@ class TestExpandBaseUrls:
         assert "https://api1.example.com" in urls
         assert "https://api2.example.com" in urls
 
-    def test_expand_dict_base_url_dashscope(self) -> None:
-        """Test expanding dict base_url for dashscope."""
-        config: dict[str, Any] = {
-            "base_url": {
-                "beijing": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-                "singapore": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
-            }
-        }
-        urls: list[str | None] = _expand_base_urls("dashscope", config)
-
-        assert "https://dashscope.aliyuncs.com/compatible-mode/v1" in urls
-
     def test_expand_dict_base_url_with_preferred_key(self) -> None:
         """Test expanding dict base_url with preferred key."""
         config: dict[str, Any] = {
             "base_url": {
-                "beijing": "https://beijing.example.com",
-                "singapore": "https://singapore.example.com",
+                "us": "https://us.example.com",
+                "eu": "https://eu.example.com",
             }
         }
-        urls: list[str | None] = _expand_base_urls(
-            "dashscope", config, preferred_key="singapore"
-        )
+        urls: list[str | None] = _expand_base_urls("test", config, preferred_key="eu")
 
-        assert urls == ["https://singapore.example.com"]
+        assert urls == ["https://eu.example.com"]
 
     def test_expand_empty_base_url_returns_none(self) -> None:
         """Test that empty base_url returns [None]."""
@@ -238,12 +212,12 @@ class TestResolveProviderApiKey:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Test resolving API key from default env var."""
-        monkeypatch.setenv("DASHSCOPE_API_KEY", "dashscope-key-value")
+        monkeypatch.setenv("OPENAI_API_KEY", "openai-key-value")
         config: dict[str, Any] = {}
 
-        resolved_key: str | None = _resolve_provider_api_key("dashscope", config, None)
+        resolved_key: str | None = _resolve_provider_api_key("openai", config, None)
 
-        assert resolved_key == "dashscope-key-value"
+        assert resolved_key == "openai-key-value"
 
     def test_resolve_no_api_key_returns_none(self) -> None:
         """Test that missing API key returns None."""
@@ -257,46 +231,33 @@ class TestResolveProviderApiKey:
 class TestResolveModelCredentials:
     """Tests for model credential resolution."""
 
-    def test_resolve_qwen_flash_credentials(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Test resolving credentials for qwen-flash."""
-        monkeypatch.setenv("DASHSCOPE_API_KEY", "test-dashscope-key")
+    def test_resolve_gpt4_credentials(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test resolving credentials for gpt-4."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
 
         credentials: list[tuple[str, str | None, str | None]] = (
-            resolve_model_credentials("qwen-flash")
+            resolve_model_credentials("gpt-4")
         )
 
         assert len(credentials) > 0
         provider, base_url, api_key = credentials[0]
-        assert provider == "dashscope"
-        assert api_key == "test-dashscope-key"
+        assert provider == "openai"
+        assert api_key == "test-openai-key"
         assert base_url is not None
 
     def test_resolve_with_explicit_api_key(self) -> None:
         """Test resolving with explicit API key override."""
         credentials: list[tuple[str, str | None, str | None]] = (
-            resolve_model_credentials("qwen-flash", api_key="my-explicit-key")
+            resolve_model_credentials("gpt-4", api_key="my-explicit-key")
         )
 
         assert len(credentials) > 0
         assert any(c[2] == "my-explicit-key" for c in credentials)
 
-    def test_resolve_with_dashscope_region(self) -> None:
-        """Test resolving with dashscope region preference."""
-        credentials: list[tuple[str, str | None, str | None]] = (
-            resolve_model_credentials("qwen-flash", dashscope_region="singapore")
-        )
-
-        assert len(credentials) > 0
-        # Should prefer singapore URL when specified (intl endpoint)
-        singapore_urls = [c for c in credentials if c[1] and "intl" in c[1]]
-        assert len(singapore_urls) > 0
-
     def test_resolve_deduplicates_credentials(self) -> None:
         """Test that duplicate credentials are deduplicated."""
         credentials: list[tuple[str, str | None, str | None]] = (
-            resolve_model_credentials("qwen-flash")
+            resolve_model_credentials("gpt-4")
         )
 
         # Convert to set to check for duplicates
@@ -321,14 +282,11 @@ class TestConfigurationIntegration:
         models_config: dict[str, Any] = load_models_config()
 
         # Verify that configured providers exist in models.json
-        if app_config.chat_model.provider == "dashscope":
-            assert "dashscope" in models_config
-            dashscope_models: list[dict[str, Any]] = list_models("dashscope")
-            model_names: list[str] = [m["name"] for m in dashscope_models]
-            assert (
-                app_config.chat_model.name in model_names
-                or app_config.chat_model.name.startswith("qwen")
-            )
+        if app_config.chat_model.provider == "openai":
+            assert "openai" in models_config
+            openai_models: list[dict[str, Any]] = list_models("openai")
+            model_names: list[str] = [m["name"] for m in openai_models]
+            assert app_config.chat_model.name in model_names
 
     def test_embedding_config_has_model(self) -> None:
         """Test that embedding model configuration is valid."""

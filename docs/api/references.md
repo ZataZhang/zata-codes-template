@@ -36,27 +36,11 @@
       show_root_heading: true
       members_order: source
 
-## 模型与爬虫模块
+## 模型模块
 
 ### `backend.infrastructure.models.model_loader`
 
 ::: backend.infrastructure.models.model_loader
-    handler: python
-    options:
-      show_root_heading: true
-      members_order: source
-
-### `backend.capabilities.crawling.crawler`
-
-::: backend.capabilities.crawling.crawler
-    handler: python
-    options:
-      show_root_heading: true
-      members_order: source
-
-### `backend.infrastructure.persistence.crawler_records`
-
-::: backend.infrastructure.persistence.crawler_records
     handler: python
     options:
       show_root_heading: true

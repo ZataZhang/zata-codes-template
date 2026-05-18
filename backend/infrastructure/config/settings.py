@@ -77,7 +77,7 @@ class DatabaseSettings(BaseSettings):
     backend: str = "postgresql"
     host: str = "localhost"
     port: int = 5432
-    name: str = "chameleon_meta"
+    name: str = "app_database"
     driver: str = "psycopg2"
 
     @classmethod
@@ -102,8 +102,8 @@ class ChatModelSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="CHAT_MODEL_")
 
-    name: str = "qwen-flash"
-    provider: str = "dashscope"
+    name: str = "gpt-4"
+    provider: str = "openai"
     temperature: float = 0.2
 
     @classmethod
@@ -130,7 +130,7 @@ class MinioSettings(BaseSettings):
 
     endpoint: str = "localhost:9000"
     secure: bool = False
-    bucket_raw_documents: str = "raw-documents"
+    bucket_raw_documents: str = "default-bucket"
 
     @classmethod
     def settings_customise_sources(
@@ -156,7 +156,7 @@ class QdrantSettings(BaseSettings):
 
     host: str = "localhost"
     port: int = 6333
-    collection_name: str = "document_vectors"
+    collection_name: str = "default_collection"
 
     @classmethod
     def settings_customise_sources(

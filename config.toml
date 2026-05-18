@@ -14,7 +14,7 @@
 # Application Settings
 # =============================================================================
 [app]
-name = "zata-codes-template"
+name = "my-app"
 log_level = "INFO"
 
 # =============================================================================
@@ -51,15 +51,15 @@ project_include_paths = []
 backend = "postgresql"
 host = "localhost"
 port = 5432
-name = "chameleon_meta"
+name = "app_database"
 driver = "psycopg2"
 
 # =============================================================================
 # Chat Model Settings
 # =============================================================================
 [chat_model]
-name = "qwen-flash"
-provider = "dashscope"
+name = "gpt-4"
+provider = "openai"
 temperature = 0.2
 
 # =============================================================================
@@ -68,7 +68,7 @@ temperature = 0.2
 [minio]
 endpoint = "localhost:9000"
 secure = false
-bucket_raw_documents = "raw-documents"
+bucket_raw_documents = "default-bucket"
 
 # =============================================================================
 # Qdrant Vector Database Settings
@@ -76,7 +76,7 @@ bucket_raw_documents = "raw-documents"
 [qdrant]
 host = "localhost"
 port = 6333
-collection_name = "document_vectors"
+collection_name = "default_collection"
 
 # =============================================================================
 # Embedding Model Settings

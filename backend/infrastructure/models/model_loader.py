@@ -22,7 +22,6 @@ DEFAULT_MODELS_CONFIG = Path(__file__).resolve().parent / "models.json"
 
 DEFAULT_API_KEY_ENVS = {
     "openai": "OPENAI_API_KEY",
-    "dashscope": "DASHSCOPE_API_KEY",
     "anthropic": "ANTHROPIC_API_KEY",
 }
 
@@ -135,6 +134,9 @@ def list_models(
 def _infer_provider(model_name: str) -> str:
     """从模型名称推测上游提供商。
 
+    模板只保留最基础的启发式规则。
+    项目应在 models.json 中显式配置模型，而非依赖推断。
+
     Args:
         model_name (str): 模型的名称标识符。
 
@@ -146,13 +148,9 @@ def _infer_provider(model_name: str) -> str:
         'openai'
         >>> _infer_provider("claude-3")
         'anthropic'
-        >>> _infer_provider("qwen-turbo")
-        'dashscope'
     """
 
     lowered = model_name.lower()
-    if "qwen" in lowered or "dashscope" in lowered:
-        return "dashscope"
     if "claude" in lowered:
         return "anthropic"
     return "openai"
@@ -221,8 +219,6 @@ def _expand_base_urls(
             target = base_value.get(preferred_key)
             if isinstance(target, str):
                 return [target]
-        if provider == "dashscope" and isinstance(base_value.get("beijing"), str):
-            urls.append(base_value["beijing"])
         for value in base_value.values():
             if isinstance(value, str) and value not in urls:
                 urls.append(value)

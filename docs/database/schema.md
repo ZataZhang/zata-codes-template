@@ -1,54 +1,12 @@
 # Schema 设计
 
-当前项目在 `backend/infrastructure/persistence/crawler_records.py` 中提供了示例实体，用于展示爬虫数据与执行日志的持久化方式。
+本项目使用 SQLAlchemy 进行数据库持久化。
 
-## 实体总览
+数据库连接配置和会话管理位于 `backend/infrastructure/persistence/database.py`。
+具体的实体模型（Entity）和表结构应在各项目的 `backend/core/` 或
+`backend/infrastructure/persistence/` 中按业务需求定义。
 
-- `CrawlerData`：存储爬取的核心业务数据。
-- `CrawlerLog`：存储爬虫运行日志和错误信息。
+## 占位说明
 
-## 字段说明
-
-### CrawlerData
-
-- `id`：主键。
-- `source`：数据来源。
-- `title`：标题。
-- `content`：正文内容。
-- `url`：源链接。
-- `created_at` / `updated_at`：时间戳。
-
-### CrawlerLog
-
-- `id`：主键。
-- `crawler_name`：爬虫名称。
-- `status`：执行状态。
-- `message`：日志文本。
-- `error_detail`：错误详情。
-- `created_at`：创建时间。
-
-## ER 关系示意
-
-```mermaid
-erDiagram
-    CRAWLER_DATA {
-        int id PK
-        string source
-        string title
-        text content
-        string url
-        datetime created_at
-        datetime updated_at
-    }
-
-    CRAWLER_LOG {
-        int id PK
-        string crawler_name
-        string status
-        text message
-        text error_detail
-        datetime created_at
-    }
-```
-
-当前示例模型之间未建立显式外键关系，可按业务需要扩展。
+模板仓库不预设任何业务表结构。
+新项目创建后，请在此文档中补充实际的数据库 schema 设计。

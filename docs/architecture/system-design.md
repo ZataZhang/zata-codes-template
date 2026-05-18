@@ -44,7 +44,7 @@
 - `backend/infrastructure/persistence/`：承接数据库与持久化实现。
 - `backend/infrastructure/helpers.py`：承接通用无状态辅助函数。
 - `backend/infrastructure/models/`：承接模型配置解析与 LLM 客户端装配。
-- `backend/capabilities/crawling/`：承接正式爬虫能力。
+- `backend/capabilities/`：承接项目特定的平台能力（如 RAG、爬虫、OCR 等）。
 - `tests/`：用于验证边界、用例和适配器行为。
 
 ## 模块关系图
