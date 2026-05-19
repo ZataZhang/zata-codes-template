@@ -652,13 +652,13 @@ implement prd_file ai_tool prompt="":
     echo "Prompt: $prompt_text"
     echo ""
 
-    # Create worktree
-    ./scripts/worktree/create.sh "$branch_name"
+    # Create worktree under tasks/ subdirectory
+    ./scripts/worktree/create.sh "$branch_name" --subdir tasks
     echo ""
 
     # Determine worktree path
     repo_root="$(git rev-parse --show-toplevel)"
-    worktree_path="$(dirname "$repo_root")/$branch_name"
+    worktree_path="$(dirname "$repo_root")/tasks/$branch_name"
 
     # Copy PRD file into worktree preserving relative path
     prd_abs="$(cd "$(dirname "$prd_file")" && pwd)/$(basename "$prd_file")"

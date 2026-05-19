@@ -22,7 +22,7 @@ set -euo pipefail
 #
 # Preconditions:
 #   - Must run inside a Git repository.
-#   - Merge mode requires a clean working tree.
+#   - Merge mode requires relevant feature/base worktrees to be clean.
 #   - Merge mode requires local feature/base branches to exist.
 #
 resolve_worktree_path_by_branch() {
@@ -206,8 +206,9 @@ Options:
 
 Checks before merge:
   - Current directory must be in a Git repository.
-  - Working tree must be clean.
+  - Relevant feature/base worktrees must be clean.
   - Local <feature_branch> and [base_branch] must exist.
+  - If [base_branch] is already checked out in another worktree, that worktree is reused.
 
 Examples:
   ./scripts/worktree/merge.sh feature-login
@@ -474,7 +475,7 @@ leave_feature_worktree_for_cleanup() {
 
 cleanup_feature_branch() {
     local resolved_cleanup_worktree_path="$worktree_path"
-    local current_checked_out_branch=""
+    local cleanup_worktree_branch=""
 
     if [[ -z "$resolved_cleanup_worktree_path" ]]; then
         resolved_cleanup_worktree_path="$(resolve_worktree_path_by_branch "$feature_branch")"
@@ -495,16 +496,28 @@ cleanup_feature_branch() {
     fi
 
     if git worktree list --porcelain | grep -Fq "worktree $resolved_cleanup_worktree_path"; then
-        if [[ "$force_delete_mode" != "true" ]]; then
-            preflight_check_worktree_permissions "$resolved_cleanup_worktree_path"
-        fi
-        if ! git worktree remove "${remove_flags[@]}" "$resolved_cleanup_worktree_path"; then
-            echo "❌ git worktree remove failed for: $resolved_cleanup_worktree_path"
+        if [[ ! -d "$resolved_cleanup_worktree_path" ]]; then
+            echo "❌ Registered worktree path is missing on disk:"
+            echo "   $resolved_cleanup_worktree_path"
             diagnose_failed_worktree_remove "$resolved_cleanup_worktree_path"
-            echo "❌ Aborting cleanup because worktree removal failed."
             return 1
         fi
-        echo "✅ Removed worktree: $resolved_cleanup_worktree_path"
+        cleanup_worktree_branch="$(git -C "$resolved_cleanup_worktree_path" symbolic-ref --short -q HEAD || true)"
+        if [[ "$cleanup_worktree_branch" != "$feature_branch" ]]; then
+            echo "⚠️ Worktree path is not checked out on '$feature_branch', skipped:"
+            echo "   $resolved_cleanup_worktree_path"
+        else
+            if [[ "$force_delete_mode" != "true" ]]; then
+                preflight_check_worktree_permissions "$resolved_cleanup_worktree_path"
+            fi
+            if ! git worktree remove "${remove_flags[@]}" "$resolved_cleanup_worktree_path"; then
+                echo "❌ git worktree remove failed for: $resolved_cleanup_worktree_path"
+                diagnose_failed_worktree_remove "$resolved_cleanup_worktree_path"
+                echo "❌ Aborting cleanup because worktree removal failed."
+                return 1
+            fi
+            echo "✅ Removed worktree: $resolved_cleanup_worktree_path"
+        fi
     else
         echo "⚠️ Worktree not found, skipped: $resolved_cleanup_worktree_path"
     fi
@@ -535,11 +548,6 @@ if [[ "$delete_only_mode" == "true" ]]; then
     cleanup_feature_branch
     echo "✅ Delete-only flow completed successfully."
     exit 0
-fi
-
-if [[ -n "$(git status --porcelain)" ]]; then
-    echo "❌ Working tree is not clean. Please commit/stash changes before merging."
-    exit 1
 fi
 
 if ! git show-ref --verify --quiet "refs/heads/$feature_branch"; then
@@ -576,7 +584,7 @@ ensure_worktree_clean "$(pwd)" "Base branch '$base_branch'"
 git pull --ff-only "$remote_name" "$base_branch"
 
 echo "🔀 Merging $feature_branch into $base_branch..."
-git merge --no-ff "$feature_branch"
+git merge "$feature_branch"
 
 echo "📤 Pushing $base_branch to $remote_name..."
 git push "$remote_name" "$base_branch"

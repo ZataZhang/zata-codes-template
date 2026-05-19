@@ -16,6 +16,7 @@ Options:
                     从指定本地分支创建 worktree。默认使用: main
   --cmd [code_cmd]  创建完成后自动执行: <code_cmd> --add <worktree_path>
                     不传 code_cmd 时默认使用: code
+  --subdir <dir>    在 <repo_parent>/<dir>/ 下创建 worktree，而非直接放在 <repo_parent>/
   -h, --help        显示帮助
 
 Examples:
@@ -282,6 +283,7 @@ function ai_worktree() {
     local base_branch_name="${KODA_WORKTREE_BASE_BRANCH:-main}"
     local enable_vscode_add="false"
     local vscode_command_name="code"
+    local subdir_name=""
     local repo_root_path=""
     local repo_parent_path=""
     local target_abs_path=""
@@ -327,6 +329,17 @@ function ai_worktree() {
                     return 1
                 fi
                 ;;
+            --subdir)
+                if [ "$#" -le 1 ] || [[ "$2" == -* ]]; then
+                    echo "❌ --subdir 后需要提供子目录名，例如: --subdir tasks"
+                    return 1
+                fi
+                subdir_name="$2"
+                shift
+                ;;
+            --subdir=*)
+                subdir_name="${1#--subdir=}"
+                ;;
             -*)
                 echo "❌ 未知参数: $1"
                 ai_worktree_usage
@@ -359,7 +372,12 @@ function ai_worktree() {
     repo_root_path="$(git rev-parse --show-toplevel)"
     repo_parent_path="$(dirname "$repo_root_path")"
     # 1. 约定 worktree 建立在仓库根目录上级的同名文件夹中
-    target_abs_path="$repo_parent_path/$branch_name"
+    #    指定 --subdir 时放在 repo_parent_path/<subdir>/<branch_name>
+    if [ -n "$subdir_name" ]; then
+        target_abs_path="$repo_parent_path/$subdir_name/$branch_name"
+    else
+        target_abs_path="$repo_parent_path/$branch_name"
+    fi
     if [ -e "$target_abs_path" ]; then
         echo "❌ 目标目录已存在: $target_abs_path"
         return 1
