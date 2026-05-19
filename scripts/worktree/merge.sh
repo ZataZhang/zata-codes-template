@@ -487,10 +487,8 @@ cleanup_feature_branch() {
     leave_feature_worktree_for_cleanup
 
     echo "🧹 Cleanup enabled."
-    local remove_flags=()
     local branch_delete_flag="-d"
     if [[ "$force_delete_mode" == "true" ]]; then
-        remove_flags=("--force")
         branch_delete_flag="-D"
         echo "💪 Force mode enabled."
     fi
@@ -510,11 +508,20 @@ cleanup_feature_branch() {
             if [[ "$force_delete_mode" != "true" ]]; then
                 preflight_check_worktree_permissions "$resolved_cleanup_worktree_path"
             fi
-            if ! git worktree remove "${remove_flags[@]}" "$resolved_cleanup_worktree_path"; then
-                echo "❌ git worktree remove failed for: $resolved_cleanup_worktree_path"
-                diagnose_failed_worktree_remove "$resolved_cleanup_worktree_path"
-                echo "❌ Aborting cleanup because worktree removal failed."
-                return 1
+            if [[ "$force_delete_mode" == "true" ]]; then
+                if ! git worktree remove --force "$resolved_cleanup_worktree_path"; then
+                    echo "❌ git worktree remove failed for: $resolved_cleanup_worktree_path"
+                    diagnose_failed_worktree_remove "$resolved_cleanup_worktree_path"
+                    echo "❌ Aborting cleanup because worktree removal failed."
+                    return 1
+                fi
+            else
+                if ! git worktree remove "$resolved_cleanup_worktree_path"; then
+                    echo "❌ git worktree remove failed for: $resolved_cleanup_worktree_path"
+                    diagnose_failed_worktree_remove "$resolved_cleanup_worktree_path"
+                    echo "❌ Aborting cleanup because worktree removal failed."
+                    return 1
+                fi
             fi
             echo "✅ Removed worktree: $resolved_cleanup_worktree_path"
         fi
