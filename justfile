@@ -589,12 +589,14 @@ worktree arg1 arg2="" arg3="" arg4="" arg5="":
 
 # Create worktree from a PRD and start AI-assisted implementation.
 # Automatically derives branch name from the PRD filename.
+# When prompt is omitted, a default prompt is auto-generated from the PRD name.
 # Usage:
-#   just implement <prd-file> <clauded|kim> "<prompt>"
+#   just implement <prd-file> <clauded|kim> ["<prompt>"]
 # Examples:
 #   just implement tasks/pending/20260518-feature-x.md clauded "请根据 PRD 实现该功能"
 #   just implement tasks/pending/feature-x.md kim "请实现这个功能"
-implement prd_file ai_tool prompt:
+#   just implement tasks/pending/feature-x.md clauded  # uses default prompt
+implement prd_file ai_tool prompt="":
     #!/usr/bin/env bash
     set -euo pipefail
 
@@ -617,11 +619,21 @@ implement prd_file ai_tool prompt:
         exit 1
     fi
 
-    # Validate prompt is not empty
+    # Auto-generate default prompt if not provided
     if [ -z "$prompt_text" ]; then
-        echo "Prompt cannot be empty"
-        echo "Usage: just implement <prd-file> <clauded|kim> \"<prompt>\""
-        exit 1
+        filename=$(basename "$prd_file")
+        prd_name="${filename%.md}"
+        # Strip date prefix for display
+        if [[ "$prd_name" =~ ^[0-9]{8}-[0-9]{6}-(.+)$ ]]; then
+            prd_display="${BASH_REMATCH[1]}"
+        elif [[ "$prd_name" =~ ^[0-9]{8}-(.+)$ ]]; then
+            prd_display="${BASH_REMATCH[1]}"
+        else
+            prd_display="$prd_name"
+        fi
+        prompt_text="请根据 PRD《${prd_display}》的要求实现该功能，完成验收清单"
+        echo "ℹ️  No prompt provided, using default: $prompt_text"
+        echo ""
     fi
 
     # Extract branch name from PRD filename
@@ -660,7 +672,13 @@ implement prd_file ai_tool prompt:
     # Run AI tool in worktree via user's interactive shell (needed for alias resolution)
     echo "Running $ai_tool in worktree..."
     cd "$worktree_path"
-    "${SHELL:-bash}" -i -c "$(printf '%s %q' "$ai_tool" "$prompt_text")" || true
+    if [ "$ai_tool" = "kim" ]; then
+        # kimi uses --prompt flag instead of positional argument
+        "${SHELL:-bash}" -i -c "$(printf '%s --prompt %q' "$ai_tool" "$prompt_text")" || true
+    else
+        # clauded and others accept prompt as positional argument
+        "${SHELL:-bash}" -i -c "$(printf '%s %q' "$ai_tool" "$prompt_text")" || true
+    fi
 
     echo ""
     echo "AI tool finished. Entering worktree shell..."

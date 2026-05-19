@@ -2,7 +2,7 @@
 
 ## 1. 背景与目标
 
-当前项目根目录直接存放 `backend/` 文件夹，包含后端四层架构（apps、core、capabilities、infrastructure）。为了统一 Python 项目的 src-layout 规范，并确保 `src/` 下的**每个模块**（当前是 `backend`，未来可能是 `worker`、`cli` 等）都遵循相同的分层架构约束，需要将 `backend/` 整体迁移到 `src/backend/`。
+当前项目根目录直接存放 `backend/` 文件夹，包含后端四层架构（api、core、engines、infrastructure）。为了统一 Python 项目的 src-layout 规范，并确保 `src/` 下的**每个模块**（当前是 `backend`，未来可能是 `worker`、`cli` 等）都遵循相同的分层架构约束，需要将 `backend/` 整体迁移到 `src/backend/`。
 
 **核心目标：**
 
@@ -47,9 +47,9 @@
 ```text
 zata_code_template/
 ├── backend/
-│   ├── apps/
+│   ├── api/
 │   ├── core/
-│   ├── capabilities/
+│   ├── engines/
 │   ├── infrastructure/
 │   └── main.py
 ├── main.py
@@ -63,9 +63,9 @@ zata_code_template/
 zata_code_template/
 ├── src/
 │   └── backend/
-│       ├── apps/
+│       ├── api/
 │       ├── core/
-│       ├── capabilities/
+│       ├── engines/
 │       ├── infrastructure/
 │       └── main.py
 ├── main.py
@@ -76,7 +76,7 @@ zata_code_template/
 `src/backend/` 内部四层架构保持不变，依赖方向仍为：
 
 ```text
-src/backend/apps/ → src/backend/core/ → src/backend/capabilities/ → src/backend/infrastructure/
+src/backend/api/ → src/backend/core/ → src/backend/engines/ → src/backend/infrastructure/
 ```
 
 ### 3.2 Python 包配置（pyproject.toml）
@@ -108,7 +108,7 @@ where = ["src"]
 新增 `_discover_layered_modules(project_root: Path) -> list[tuple[str, Path]]`：
 
 - 遍历 `project_root / "src"` 下的所有子目录。
-- 对每个子目录，检查是否包含至少一个已知层目录（`apps`、`core`、`capabilities`、`infrastructure`）。
+- 对每个子目录，检查是否包含至少一个已知层目录（`api`、`core`、`engines`、`infrastructure`）。
 - 返回符合条件的模块列表，如 `[("backend", Path("src/backend")), ("worker", Path("src/worker"))]`。
 
 #### 3.4.2 文件层与模块解析
@@ -116,14 +116,14 @@ where = ["src"]
 将 `_resolve_layer` 重构为 `_resolve_module_and_layer`：
 
 - **只识别 `src/<module>/<layer>/...` 格式**。根目录下遗留的 `backend/` 不再被识别（避免逃过检查）。
-- 返回 `(module_name, layer_name)` 元组。例如 `src/backend/apps/api.py` → `("backend", "apps")`；`src/worker/core/tasks.py` → `("worker", "core")`。
+- 返回 `(module_name, layer_name)` 元组。例如 `src/backend/api/api.py` → `("backend", "api")`；`src/worker/core/tasks.py` → `("worker", "core")`。
 
 #### 3.4.3 Import 解析通用化
 
 修改 `_extract_imported_modules`：
 
 - 当前逻辑只对 `import backend.xxx` 提取 `parts[1]`，写死了模块名判断。
-- **新逻辑**：无论模块名是什么，只要 import 路径的第二段是已知层名（`apps`/`core`/`capabilities`/`infrastructure`），就提取该层名作为 `imported_layer_name`。
+- **新逻辑**：无论模块名是什么，只要 import 路径的第二段是已知层名（`api`/`core`/`engines`/`infrastructure`），就提取该层名作为 `imported_layer_name`。
 - 示例：
   - `from backend.infrastructure.config import settings` → 提取 `infrastructure`
   - `from worker.core.use_cases import execute` → 提取 `core`
@@ -144,7 +144,7 @@ where = ["src"]
 `ArchitectureViolation` 增加 `module_name` 字段，`_format_report` 输出格式从 `[source_layer]` 升级为 `[module_name/source_layer]`，例如：
 
 ```
-[backend/apps] → [infrastructure]  src/backend/apps/api.py:42
+[backend/api] → [infrastructure]  src/backend/api/api.py:42
 [worker/core] → [infrastructure]  src/worker/core/tasks.py:15
 ```
 
@@ -153,13 +153,13 @@ where = ["src"]
 将脚本 docstring 和注释中的路径描述更新为通用表述，例如：
 
 > 检查 `src/` 下所有分层模块（如 `backend`、`worker`）的 import 方向是否合法。
-> 层次规则：`<module>/apps/ → <module>/core/ → <module>/capabilities/ → <module>/infrastructure/`
+> 层次规则：`<module>/api/ → <module>/core/ → <module>/engines/ → <module>/infrastructure/`
 
 ### 3.5 规范一致性检查（hooks/check_guidelines_consistency.py）
 
 `check_hub_content` 中 `required_phrases["architecture"]` 的硬编码路径短语：
 
-- `"backend/apps/"` → `"src/backend/apps/"`
+- `"backend/api/"` → `"src/backend/api/"`
 - `"backend/core/"` → `"src/backend/core/"`
 - `"docs/architecture/system-design.md"` 保留不变（仍为必须存在的引用）。
 
@@ -167,16 +167,16 @@ where = ["src"]
 
 `check-architecture` 的 `files` 正则：
 
-- 旧：`^(backend/(apps|core|capabilities|infrastructure))/.*\.py$`
-- 新：`^(src/[^/]+/(apps|core|capabilities|infrastructure))/.*\.py$`
+- 旧：`^(backend/(api|core|engines|infrastructure))/.*\.py$`
+- 新：`^(src/[^/]+/(api|core|engines|infrastructure))/.*\.py$`
 
-新正则匹配 `src/` 下**任意模块**的四层目录，例如 `src/backend/apps/...` 或 `src/worker/core/...`。
+新正则匹配 `src/` 下**任意模块**的四层目录，例如 `src/backend/api/...` 或 `src/worker/core/...`。
 
 ### 3.7 架构文档更新
 
 **docs/architecture/system-design.md**
 
-- 所有 `backend/apps/`、`backend/core/`、`backend/capabilities/`、`backend/infrastructure/` 文本引用改为 `src/backend/*` 形式。
+- 所有 `backend/api/`、`backend/core/`、`backend/engines/`、`backend/infrastructure/` 文本引用改为 `src/backend/*` 形式。
 - mermaid 图中节点标签同步更新。
 - `backend/main.py` 改为 `src/backend/main.py`。
 - 依赖规则代码块同步更新，并补充说明：该规则适用于 `src/` 下**所有**遵循四层结构的模块。
@@ -186,7 +186,7 @@ where = ["src"]
 - Backend Layers 表格中的 Path 列全部更新为 `src/backend/*` 形式。
 - Dependency Direction 代码块同步更新，并补充说明通用性：
   ```text
-  src/<module>/apps/ → src/<module>/core/ → src/<module>/capabilities/ → src/<module>/infrastructure/
+  src/<module>/api/ → src/<module>/core/ → src/<module>/engines/ → src/<module>/infrastructure/
   ```
 - Composition Root 说明同步更新：
   - `backend/main.py` → `src/backend/main.py`
@@ -197,7 +197,7 @@ where = ["src"]
 
 **AGENTS.md**
 
-- `backend/apps/ -> backend/core/ -> backend/capabilities/ -> backend/infrastructure/` 改为 `src/backend/*` 形式。
+- `backend/api/ -> backend/core/ -> backend/engines/ -> backend/infrastructure/` 改为 `src/backend/*` 形式。
 
 **.github/copilot-instructions.md**
 
@@ -205,7 +205,7 @@ where = ["src"]
 
 ### 3.9 测试硬编码路径（tests/test_sync_template.py）
 
-该测试使用字符串字典模拟仓库文件结构，其中硬编码了 `"backend/apps/api.py"` 多处。全部替换为 `"src/backend/apps/api.py"`，同时 `config.toml` 中 `project_skip_paths` 的 `"backend/"` 也需要在测试中同步替换为 `"src/backend/"`。
+该测试使用字符串字典模拟仓库文件结构，其中硬编码了 `"backend/api/api.py"` 多处。全部替换为 `"src/backend/api/api.py"`，同时 `config.toml` 中 `project_skip_paths` 的 `"backend/"` 也需要在测试中同步替换为 `"src/backend/"`。
 
 ### 3.10 配置与脚本
 
@@ -228,16 +228,16 @@ where = ["src"]
 ## 5. 验收清单
 
 - [ ] `backend/` 已完整移动到 `src/backend/`，原 `backend/` 目录已删除。
-- [ ] `src/backend/` 内部四层子目录（apps、core、capabilities、infrastructure）结构完整，无文件遗漏。
+- [ ] `src/backend/` 内部四层子目录（api、core、engines、infrastructure）结构完整，无文件遗漏。
 - [ ] `pyproject.toml` 已配置 src-layout 包发现，使得 `from backend.main import main` 无需改动即可正常 import。
 - [ ] `just run backend` 命令正常启动后端（使用 `uv run python -m backend.main`）。
 - [ ] `uv run python hooks/check_architecture.py` 自动发现 `src/backend/` 模块并扫描全部四层，报告通过（0 违规）。
 - [ ] `uv run python hooks/check_guidelines_consistency.py` 通过。
-- [ ] `.pre-commit-config.yaml` 中 `check-architecture` 的 `files` 正则已改为通用模式 `src/[^/]+/(apps|core|capabilities|infrastructure)`。
+- [ ] `.pre-commit-config.yaml` 中 `check-architecture` 的 `files` 正则已改为通用模式 `src/[^/]+/(api|core|engines|infrastructure)`。
 - [ ] `docs/architecture/system-design.md` 中所有 `backend/` 路径引用已更新为 `src/backend/`。
 - [ ] `docs/ai-standards/architecture.md` 中所有 `backend/` 路径引用已更新为 `src/backend/`。
 - [ ] `AGENTS.md` 和 `.github/copilot-instructions.md` 中四层依赖方向描述已更新。
-- [ ] `tests/test_sync_template.py` 中所有硬编码 `"backend/apps/api.py"` 已改为 `"src/backend/apps/api.py"`，且测试通过。
+- [ ] `tests/test_sync_template.py` 中所有硬编码 `"backend/api/api.py"` 已改为 `"src/backend/api/api.py"`，且测试通过。
 - [ ] `config.toml` 和 `scripts/template/sync_template.sh` 中的 skip paths 已更新。
 - [ ] `uv run pytest` 全量测试通过（或至少与迁移前状态一致）。
 - [ ] `uv run mkdocs build` 文档构建通过。
