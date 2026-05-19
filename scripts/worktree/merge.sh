@@ -45,6 +45,15 @@ resolve_worktree_path_by_branch() {
     printf '%s' "$resolved_worktree_path"
 }
 
+resolve_git_common_dir() {
+    local resolved_git_common_dir=""
+    resolved_git_common_dir="$(git rev-parse --git-common-dir)"
+    if [[ "$resolved_git_common_dir" != /* ]]; then
+        resolved_git_common_dir="$(git rev-parse --show-toplevel)/$resolved_git_common_dir"
+    fi
+    printf '%s' "$resolved_git_common_dir"
+}
+
 run_worktree_doctor() {
     # Worktree doctor / cleanup-check mode.
     # When called without arguments: scan all registered worktrees for obvious inconsistencies.
@@ -60,17 +69,14 @@ run_worktree_doctor() {
     repo_root="$(git rev-parse --show-toplevel)"
     cd "$repo_root"
 
-    local git_dir=""
-    git_dir="$(git rev-parse --git-dir)"
-    if [[ "$git_dir" != /* ]]; then
-        git_dir="$repo_root/$git_dir"
-    fi
+    local git_common_dir=""
+    git_common_dir="$(resolve_git_common_dir)"
 
-    local worktrees_dir="$git_dir/worktrees"
+    local worktrees_dir="$git_common_dir/worktrees"
 
     echo "🩺 Worktree cleanup doctor"
     echo "   Repository root: $repo_root"
-    echo "   Git dir        : $git_dir"
+    echo "   Git common dir : $git_common_dir"
     echo
 
     if [[ -z "$doctor_feature_branch" ]]; then
@@ -334,13 +340,10 @@ diagnose_failed_worktree_remove() {
     # After a failed 'git worktree remove', check .git/worktrees metadata vs the on-disk directory.
     local target_worktree_path="$1"
 
-    local git_dir=""
-    git_dir="$(git rev-parse --git-dir)"
-    if [[ "$git_dir" != /* ]]; then
-        git_dir="$repo_root/$git_dir"
-    fi
+    local git_common_dir=""
+    git_common_dir="$(resolve_git_common_dir)"
 
-    local worktrees_dir="$git_dir/worktrees"
+    local worktrees_dir="$git_common_dir/worktrees"
     local dir_exists="false"
 
     if [[ -d "$target_worktree_path" ]]; then
@@ -386,6 +389,89 @@ diagnose_failed_worktree_remove() {
     fi
 }
 
+ensure_worktree_clean() {
+    local target_worktree_path="$1"
+    local worktree_label="$2"
+    local status_output=""
+
+    if [[ -z "$target_worktree_path" || ! -d "$target_worktree_path" ]]; then
+        echo "❌ Worktree path does not exist for $worktree_label:"
+        echo "   $target_worktree_path"
+        exit 1
+    fi
+
+    status_output="$(git -C "$target_worktree_path" status --porcelain)"
+    if [[ -n "$status_output" ]]; then
+        echo "❌ $worktree_label working tree is not clean:"
+        echo "   $target_worktree_path"
+        printf '%s\n' "$status_output" | sed 's/^/   /'
+        exit 1
+    fi
+}
+
+enter_base_worktree_for_merge() {
+    local target_base_worktree_path="$1"
+    local current_checked_out_branch=""
+
+    current_checked_out_branch="$(git symbolic-ref --short -q HEAD || true)"
+    if [[ "$current_checked_out_branch" == "$base_branch" ]]; then
+        echo "🚀 Updating $base_branch from $remote_name..."
+        return 0
+    fi
+
+    if [[ -n "$target_base_worktree_path" ]]; then
+        if [[ ! -d "$target_base_worktree_path" ]]; then
+            echo "❌ Base branch worktree metadata exists, but the directory is missing:"
+            echo "   $target_base_worktree_path"
+            echo "   Try: git worktree prune"
+            exit 1
+        fi
+        echo "🚀 Using existing $base_branch worktree and updating from $remote_name:"
+        echo "   $target_base_worktree_path"
+        cd "$target_base_worktree_path"
+    else
+        echo "🚀 Switching to $base_branch and updating from $remote_name..."
+        git checkout "$base_branch"
+    fi
+
+    current_checked_out_branch="$(git symbolic-ref --short -q HEAD || true)"
+    if [[ "$current_checked_out_branch" != "$base_branch" ]]; then
+        echo "❌ Expected to be on '$base_branch', but current branch is '${current_checked_out_branch:-detached HEAD}'."
+        exit 1
+    fi
+}
+
+leave_feature_worktree_for_cleanup() {
+    local current_checked_out_branch=""
+    local existing_base_worktree_path=""
+
+    current_checked_out_branch="$(git symbolic-ref --short -q HEAD || true)"
+    if [[ "$current_checked_out_branch" != "$feature_branch" ]]; then
+        return 0
+    fi
+
+    existing_base_worktree_path="$(resolve_worktree_path_by_branch "$base_branch")"
+    if [[ -n "$existing_base_worktree_path" ]]; then
+        if [[ ! -d "$existing_base_worktree_path" ]]; then
+            echo "❌ Base branch worktree metadata exists, but the directory is missing:"
+            echo "   $existing_base_worktree_path"
+            echo "   Try: git worktree prune"
+            exit 1
+        fi
+        echo "↪ Leaving current feature worktree via existing $base_branch worktree:"
+        echo "   $existing_base_worktree_path"
+        cd "$existing_base_worktree_path"
+        return 0
+    fi
+
+    if git show-ref --verify --quiet "refs/heads/$base_branch"; then
+        git checkout "$base_branch"
+    else
+        echo "❌ Cannot cleanup checked-out branch '$feature_branch' because base branch '$base_branch' does not exist."
+        exit 1
+    fi
+}
+
 cleanup_feature_branch() {
     local resolved_cleanup_worktree_path="$worktree_path"
     local current_checked_out_branch=""
@@ -397,15 +483,7 @@ cleanup_feature_branch() {
         fi
     fi
 
-    current_checked_out_branch="$(git symbolic-ref --short -q HEAD || true)"
-    if [[ "$current_checked_out_branch" == "$feature_branch" ]]; then
-        if git show-ref --verify --quiet "refs/heads/$base_branch"; then
-            git checkout "$base_branch"
-        else
-            echo "❌ Cannot cleanup checked-out branch '$feature_branch' because base branch '$base_branch' does not exist."
-            exit 1
-        fi
-    fi
+    leave_feature_worktree_for_cleanup
 
     echo "🧹 Cleanup enabled."
     local remove_flags=()
@@ -479,8 +557,22 @@ if ! git remote get-url "$remote_name" >/dev/null 2>&1; then
     exit 1
 fi
 
-echo "🚀 Switching to $base_branch and updating from $remote_name..."
-git checkout "$base_branch"
+feature_worktree_path="$(resolve_worktree_path_by_branch "$feature_branch")"
+base_worktree_path="$(resolve_worktree_path_by_branch "$base_branch")"
+current_checked_out_branch="$(git symbolic-ref --short -q HEAD || true)"
+
+if [[ -n "$feature_worktree_path" ]]; then
+    ensure_worktree_clean "$feature_worktree_path" "Feature branch '$feature_branch'"
+fi
+
+if [[ -n "$base_worktree_path" ]]; then
+    ensure_worktree_clean "$base_worktree_path" "Base branch '$base_branch'"
+elif [[ "$current_checked_out_branch" != "$feature_branch" && "$current_checked_out_branch" != "$base_branch" ]]; then
+    ensure_worktree_clean "$repo_root" "Current worktree"
+fi
+
+enter_base_worktree_for_merge "$base_worktree_path"
+ensure_worktree_clean "$(pwd)" "Base branch '$base_branch'"
 git pull --ff-only "$remote_name" "$base_branch"
 
 echo "🔀 Merging $feature_branch into $base_branch..."
