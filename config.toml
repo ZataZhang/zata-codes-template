@@ -24,7 +24,7 @@ log_level = "INFO"
 # Project-specific paths skipped by default by `just sync-template`.
 # Use `just sync-template --all` to include these paths for a one-off sync.
 project_skip_paths = [
-    "backend/",
+    "src/backend/",
     "frontend/",
     "docs/",
     "tests/",

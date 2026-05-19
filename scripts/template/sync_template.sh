@@ -15,7 +15,7 @@ trap 'rm -rf "$TEMP_DIR"' EXIT
 
 LIST_ONLY_MODE="${SYNC_TEMPLATE_LIST_ONLY:-0}"
 DEFAULT_PROJECT_SKIP_PATHS=(
-    "backend/"
+    "src/backend/"
     "frontend/"
     "docs/"
     "tests/"

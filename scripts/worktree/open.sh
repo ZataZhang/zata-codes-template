@@ -130,8 +130,8 @@ function ai_open() {
     fi
 
     echo "🚀 正在使用 $vscode_command_name 打开: $worktree_path ..."
-    if ! "$vscode_command_name" --add "$worktree_path"; then
-        echo "❌ 执行失败: $vscode_command_name --add \"$worktree_path\""
+    if ! "$vscode_command_name" "$worktree_path"; then
+        echo "❌ 执行失败: $vscode_command_name \"$worktree_path\""
         return 1
     fi
 

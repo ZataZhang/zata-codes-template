@@ -6,9 +6,9 @@
 
 新增或修改功能前，先搜索现有实现：
 
-- Python 优先用 `rg` 搜索 `backend/core/`、`backend/api/`、`backend/engines/`
+- Python 优先用 `rg` 搜索 `src/backend/core/`、`src/backend/api/`、`src/backend/engines/`
 - 前端优先搜索 `frontend/src/lib/`、`frontend/shared/`、`frontend/src/hooks/`
-- 业务规则优先复用 `backend/core/`
+- 业务规则优先复用 `src/backend/core/`
 - 前端纯工具、格式化、API 客户端优先复用 `frontend/src/lib/` 或 `frontend/shared/`
 
 禁止复制粘贴已有代码后微调。发现逻辑重复率明显超过 50% 时，优先直接调用已有函数；如果调用方向不合适，先提取公共业务规则或纯转换函数，再由调用方复用。
@@ -29,7 +29,7 @@
 - 判断"是否合法/有效/满足条件"的逻辑必须提取为 `is_`、`can_` 或 `validate_` 开头的命名函数
 - 业务代码不得直接调用"加载全量数据"的函数作为判断依据；调用方应只依赖规则函数，规则函数内部决定缓存、预计算或加载方式
 - 同一判断逻辑在当前变更中出现 2 次以上，即使只有两行，也必须提取为命名函数
-- `backend/core/` 是后端业务规则唯一可信源；`backend/api/` 只做入口适配、参数校验、DTO 转换和用例调用
+- `src/backend/core/` 是后端业务规则唯一可信源；`src/backend/api/` 只做入口适配、参数校验、DTO 转换和用例调用
 
 ## 参数收敛
 
@@ -81,7 +81,7 @@ cost_values = fetch_costs("2026-01-01", "2026-01-31", True)
 
 - 不创建只被引用一次的小 helper；只有当抽象减少真实复杂度、复用真实存在或匹配既有模式时才提取
 - 不在同一文件里无限追加逻辑；接近 500 行时先判断是否需要新子模块
-- 向 `backend/core/` 添加代码前，必须确认没有更合适的已有模块、能力层或共享前端目录
+- 向 `src/backend/core/` 添加代码前，必须确认没有更合适的已有模块、能力层或共享前端目录
 - 如果两个模块出现重复，第一反应是抽象层级错了，而不是再写一份
 
 ## Hook 防线
@@ -91,7 +91,7 @@ cost_values = fetch_costs("2026-01-01", "2026-01-31", True)
 - `jscpd`：跨 Python / TypeScript / JavaScript 的复制粘贴级重复检测
 - `pylint duplicate-code`：Python 结构级重复检测，只启用 `duplicate-code`
 
-这些 hook 使用候选文件和比较语料分离的策略：候选文件来自当前变更，`jscpd` 比较 `backend/` 与 `frontend/`，`pylint duplicate-code` 比较 `backend/`。`backend/core/`、`frontend/src/lib/` 和 `frontend/shared/` 必须始终作为优先复用目录参与判断。历史重复不会因为全量 lint 被一次性阻断，但新增或修改文件触达重复时必须修复。
+这些 hook 使用候选文件和比较语料分离的策略：候选文件来自当前变更，`jscpd` 比较 `src/backend/` 与 `frontend/`，`pylint duplicate-code` 比较 `src/backend/`。`src/backend/core/`、`frontend/src/lib/` 和 `frontend/shared/` 必须始终作为优先复用目录参与判断。历史重复不会因为全量 lint 被一次性阻断，但新增或修改文件触达重复时必须修复。
 
 ## AI 编码自检清单
 

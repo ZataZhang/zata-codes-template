@@ -66,8 +66,8 @@ class GuidelinesChecker:
                 "code-reuse.md",
             ],
             "architecture": [
-                "backend/api/",
-                "backend/core/",
+                "src/backend/api/",
+                "src/backend/core/",
                 "docs/architecture/system-design.md",
             ],
             "code_reuse": ["复用优先", "参数游行", "AI 编码自检清单"],

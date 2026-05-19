@@ -115,7 +115,7 @@ uv run pre-commit run --show-diff-on-failure
 - `jscpd`：跨 Python / TypeScript / JavaScript 的复制粘贴检测，版本由 `.pre-commit-config.yaml` 的 `additional_dependencies` 固定
 - `pylint duplicate-code`：Python 结构级重复检测，版本由 `pyproject.toml` 与 `uv.lock` 固定
 
-重复检测区分"候选文件"和"比较语料"：候选文件来自当前变更；`jscpd` 比较 `backend/` 与 `frontend/`，`pylint duplicate-code` 比较 `backend/`。这样可以阻断新增重复，同时避免历史重复让干净工作区的 `just lint` 永久失败。
+重复检测区分"候选文件"和"比较语料"：候选文件来自当前变更；`jscpd` 比较 `src/backend/` 与 `frontend/`，`pylint duplicate-code` 比较 `src/backend/`。这样可以阻断新增重复，同时避免历史重复让干净工作区的 `just lint` 永久失败。
 
 常用调试命令：
 

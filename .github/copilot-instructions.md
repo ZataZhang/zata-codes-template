@@ -1,6 +1,6 @@
 Canonical AI standards live in `docs/ai-standards/`. Treat that directory as the source of truth and treat this file as the GitHub Copilot adapter.
 
-Before new backend features, read `docs/architecture/system-design.md` and follow the four-layer dependency direction: `backend/api/ -> backend/core/ -> backend/engines/ -> backend/infrastructure/`.
+Before new backend features, read `docs/architecture/system-design.md` and follow the four-layer dependency direction: `src/backend/api/ -> src/backend/core/ -> src/backend/engines/ -> src/backend/infrastructure/`.
 
 Use `uv` and `just` for Python workflows. Public Python APIs require Google Style Docstrings. Python text file I/O must explicitly set `encoding="utf-8"`.
 

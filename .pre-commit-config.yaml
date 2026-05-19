@@ -72,7 +72,7 @@ repos:
         name: Check architecture layer dependencies
         entry: uv run python hooks/check_architecture.py
         language: system
-        files: ^(backend/(api|core|engines|infrastructure))/.*\.py$
+        files: ^(src/[^/]+/(api|core|engines|infrastructure))/.*\.py$
         pass_filenames: false
       - id: check-max-file-lines
         name: Check max file lines (non-empty)
@@ -85,14 +85,14 @@ repos:
         entry: uv run python hooks/run_jscpd_duplication_check.py
         language: node
         additional_dependencies: [jscpd@4.1.1]
-        files: ^(backend|frontend)/.*\.(py|js|jsx|ts|tsx)$
+        files: ^(src/[^/]+|frontend)/.*\.(py|js|jsx|ts|tsx)$
         pass_filenames: true
         stages: [manual]
       - id: pylint-duplicate-code
         name: Check Python duplicate code
         entry: uv run python hooks/run_pylint_duplication_check.py
         language: system
-        files: ^backend/.*\.py$
+        files: ^src/[^/]+/.*\.py$
         pass_filenames: true
         stages: [manual]
       - id: check-test-flag
