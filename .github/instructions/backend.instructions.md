@@ -1,17 +1,17 @@
 ---
-applyTo: "backend/**/*.py"
+applyTo: "src/backend/**/*.py"
 ---
 
 Use `docs/ai-standards/` as the canonical standards hub and `docs/architecture/system-design.md` as the detailed backend architecture authority.
 
 Respect the layer boundaries:
 
-- `backend/api/` handles request entry, validation, and DTO conversion
-- `backend/core/` owns business rules and orchestration
-- `backend/engines/` implements pluggable platform capabilities
-- `backend/infrastructure/` owns concrete integrations and external systems
+- `src/backend/api/` handles request entry, validation, and DTO conversion
+- `src/backend/core/` owns business rules and orchestration
+- `src/backend/engines/` implements pluggable platform capabilities
+- `src/backend/infrastructure/` owns concrete integrations and external systems
 
-Do not violate dependency direction. Cross-layer dependencies must go through `backend/core/shared/interfaces/`.
+Do not violate dependency direction. Cross-layer dependencies must go through `src/backend/core/shared/interfaces/`.
 
 Use descriptive variable names, avoid generic placeholders like `data` or `res`, and prefer SSA-style intermediate variables in Python.
 

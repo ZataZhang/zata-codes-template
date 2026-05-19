@@ -2,9 +2,9 @@
 
 本项目使用 SQLAlchemy 进行数据库持久化。
 
-数据库连接配置和会话管理位于 `backend/infrastructure/persistence/database.py`。
-具体的实体模型（Entity）和表结构应在各项目的 `backend/core/` 或
-`backend/infrastructure/persistence/` 中按业务需求定义。
+数据库连接配置和会话管理位于 `src/backend/infrastructure/persistence/database.py`。
+具体的实体模型（Entity）和表结构应在各项目的 `src/backend/core/` 或
+`src/backend/infrastructure/persistence/` 中按业务需求定义。
 
 ## 占位说明
 

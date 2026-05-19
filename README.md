@@ -4,12 +4,12 @@
 
 它保留了模板的低门槛启动体验，同时把仓库的目标结构明确为四层：
 
-- `backend/api/` 请求接入层
-- `backend/core/` 核心编排层
-- `backend/engines/` 平台能力层
-- `backend/infrastructure/` 基础设施层
+- `src/backend/api/` 请求接入层
+- `src/backend/core/` 核心编排层
+- `src/backend/engines/` 平台能力层
+- `src/backend/infrastructure/` 基础设施层
 
-当前仓库的正式结构以 `backend/api/`、`backend/core/`、`backend/engines/`、`backend/infrastructure/` 四层目录为准。
+当前仓库的正式结构以 `src/backend/api/`、`src/backend/core/`、`src/backend/engines/`、`src/backend/infrastructure/` 四层目录为准。
 
 ## 快速开始
 
@@ -36,7 +36,7 @@ just run        # 同时启动后端 + 前端
 | 命令 | 说明 |
 |------|------|
 | `just run` | 默认同时启动后端和前端 |
-| `just run backend` | 只启动后端（默认命令为 `uv run python backend/main.py`） |
+| `just run backend` | 只启动后端（默认命令为 `uv run python -m backend.main`） |
 | `just run frontend` | 只启动前端（默认进入 `frontend/` 执行 `npm run dev`） |
 | `just run all frontend_dir=web frontend_cmd="pnpm dev"` | 覆盖前端目录或启动命令 |
 | `just test` | 运行本地测试（无需 API key） |
@@ -96,10 +96,10 @@ uv run pre-commit autoupdate
 
 ## 基础设施模块
 
-### `backend/infrastructure/config/settings.py`
+### `src/backend/infrastructure/config/settings.py`
 集中管理环境变量与路径配置，统一从 `.env` 与 `config.toml` 加载，其余模块只从 `config` 对象读取。
 
-### `backend/infrastructure/logging/logger.py`
+### `src/backend/infrastructure/logging/logger.py`
 单例 `Logger`，读取 `config.log_level` 与 `config.log_file`，同时输出到控制台与文件，在 Windows 上处理 UTF-8。
 
 ```python
@@ -107,16 +107,16 @@ from backend.infrastructure.logging.logger import logger
 logger.info("started")
 ```
 
-### `backend/infrastructure/helpers.py`
+### `src/backend/infrastructure/helpers.py`
 无状态的小工具函数，可按需补充，如格式化时间、批量重试等。
 
 ## 架构口径
 
 这个仓库不是微服务模板，也不是单纯的脚本集合，而是一个 **四层模块化单体** 的 AI Agent 骨架：
 
-1. `backend/api/` 负责接入。
-2. `backend/core/` 负责业务编排和领域规则。
-3. `backend/engines/` 负责可插拔能力。
-4. `backend/infrastructure/` 负责具体技术实现。
+1. `src/backend/api/` 负责接入。
+2. `src/backend/core/` 负责业务编排和领域规则。
+3. `src/backend/engines/` 负责可插拔能力。
+4. `src/backend/infrastructure/` 负责具体技术实现。
 
 架构参考来自整洁架构与 DDD 的组合思路。外部文章提供的是设计方向和结构示例，本仓库会结合自己的模板定位、目录现状和迁移成本做落地，不机械照搬命名。

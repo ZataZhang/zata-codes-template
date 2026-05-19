@@ -116,7 +116,7 @@ sync mode="": _check-completion
 #   just run frontend        # start frontend only
 #   just run docker          # start with Docker Compose (one-click deploy)
 #   just run all frontend_dir=web frontend_cmd="pnpm dev"
-run target="all" frontend_dir="frontend" backend_cmd="uv run python backend/main.py" frontend_cmd="npm run dev": _check-completion
+run target="all" frontend_dir="frontend" backend_cmd="uv run python -m backend.main" frontend_cmd="npm run dev": _check-completion
     #!/usr/bin/env bash
     set -euo pipefail
 

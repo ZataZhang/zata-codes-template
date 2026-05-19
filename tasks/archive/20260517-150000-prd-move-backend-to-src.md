@@ -227,17 +227,17 @@ where = ["src"]
 
 ## 5. 验收清单
 
-- [ ] `backend/` 已完整移动到 `src/backend/`，原 `backend/` 目录已删除。
-- [ ] `src/backend/` 内部四层子目录（api、core、engines、infrastructure）结构完整，无文件遗漏。
-- [ ] `pyproject.toml` 已配置 src-layout 包发现，使得 `from backend.main import main` 无需改动即可正常 import。
-- [ ] `just run backend` 命令正常启动后端（使用 `uv run python -m backend.main`）。
-- [ ] `uv run python hooks/check_architecture.py` 自动发现 `src/backend/` 模块并扫描全部四层，报告通过（0 违规）。
-- [ ] `uv run python hooks/check_guidelines_consistency.py` 通过。
-- [ ] `.pre-commit-config.yaml` 中 `check-architecture` 的 `files` 正则已改为通用模式 `src/[^/]+/(api|core|engines|infrastructure)`。
-- [ ] `docs/architecture/system-design.md` 中所有 `backend/` 路径引用已更新为 `src/backend/`。
-- [ ] `docs/ai-standards/architecture.md` 中所有 `backend/` 路径引用已更新为 `src/backend/`。
-- [ ] `AGENTS.md` 和 `.github/copilot-instructions.md` 中四层依赖方向描述已更新。
-- [ ] `tests/test_sync_template.py` 中所有硬编码 `"backend/api/api.py"` 已改为 `"src/backend/api/api.py"`，且测试通过。
-- [ ] `config.toml` 和 `scripts/template/sync_template.sh` 中的 skip paths 已更新。
-- [ ] `uv run pytest` 全量测试通过（或至少与迁移前状态一致）。
-- [ ] `uv run mkdocs build` 文档构建通过。
+- [x] `backend/` 已完整移动到 `src/backend/`，原 `backend/` 目录已删除。
+- [x] `src/backend/` 内部四层子目录（api、core、engines、infrastructure）结构完整，无文件遗漏。
+- [x] `pyproject.toml` 已配置 src-layout 包发现，使得 `from backend.main import main` 无需改动即可正常 import。
+- [x] `just run backend` 命令正常启动后端（使用 `uv run python -m backend.main`）。
+- [x] `uv run python hooks/check_architecture.py` 自动发现 `src/backend/` 模块并扫描全部四层，报告通过（0 违规）。
+- [x] `uv run python hooks/check_guidelines_consistency.py` 通过。
+- [x] `.pre-commit-config.yaml` 中 `check-architecture` 的 `files` 正则已改为通用模式 `src/[^/]+/(api|core|engines|infrastructure)`。
+- [x] `docs/architecture/system-design.md` 中所有 `backend/` 路径引用已更新为 `src/backend/`。
+- [x] `docs/ai-standards/architecture.md` 中所有 `backend/` 路径引用已更新为 `src/backend/`。
+- [x] `AGENTS.md` 和 `.github/copilot-instructions.md` 中四层依赖方向描述已更新。
+- [x] `tests/test_sync_template.py` 中所有硬编码 `"backend/api/api.py"` 已改为 `"src/backend/api/api.py"`，且测试通过。
+- [x] `config.toml` 和 `scripts/template/sync_template.sh` 中的 skip paths 已更新。
+- [x] `uv run pytest` 全量测试通过（或至少与迁移前状态一致）。
+- [x] `uv run mkdocs build` 文档构建通过。

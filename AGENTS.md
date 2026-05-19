@@ -25,7 +25,7 @@
 ## Critical Summary
 
 - 后端必须遵守四层依赖方向：
-  `backend/api/ -> backend/core/ -> backend/engines/ -> backend/infrastructure/`
+  `src/backend/api/ -> src/backend/core/ -> src/backend/engines/ -> src/backend/infrastructure/`
 - Python 项目优先使用 `uv` 和 `just`
 - 公共 Python API 使用 Google Style Docstrings
 - Python 文本文件 I/O 必须显式写 `encoding="utf-8"`

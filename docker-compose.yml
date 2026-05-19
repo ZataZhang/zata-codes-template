@@ -29,7 +29,7 @@ services:
   backend:
     build:
       context: .
-      dockerfile: backend/Dockerfile
+      dockerfile: src/backend/Dockerfile
     container_name: app-backend
     ports:
       - "8000:8000"

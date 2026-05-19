@@ -1,6 +1,6 @@
 # 配置说明
 
-本项目通过 `backend/infrastructure/config/settings.py` 中的 `AppSettings` 统一管理配置，并组合多个子配置模型，实现工程化的配置分层。
+本项目通过 `src/backend/infrastructure/config/settings.py` 中的 `AppSettings` 统一管理配置，并组合多个子配置模型，实现工程化的配置分层。
 
 ## 配置来源优先级
 
@@ -43,7 +43,7 @@
 
 `just sync-template` 会读取 `config.toml` 中的 `[template_sync]` 表，用来决定默认模式下哪些项目路径不参与模板同步。
 
-- `project_skip_paths`：默认跳过的项目路径，例如 `backend/`、`frontend/`、`infra/`。
+- `project_skip_paths`：默认跳过的项目路径，例如 `src/backend/`、`frontend/`、`infra/`。
 - `project_include_paths`：即使命中 `project_skip_paths` 也仍然显示的路径。
 
 运行 `just sync-template --all` 时会忽略这些项目路径过滤规则，临时查看所有模板差异。

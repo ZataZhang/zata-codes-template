@@ -32,7 +32,7 @@ COPY alembic.ini ./
 COPY alembic ./alembic
 
 # Copy application source code and startup script
-COPY backend ./backend
+COPY src/backend ./backend
 
 # Set ownership
 RUN chown -R appuser:appgroup /app

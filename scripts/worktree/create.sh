@@ -438,11 +438,11 @@ function ai_worktree() {
             echo "   请确认该 CLI 已安装并在 PATH 中。"
             return 1
         fi
-        if ! "$vscode_command_name" --add "$target_abs_path"; then
-            echo "❌ 执行失败: $vscode_command_name --add \"$target_abs_path\""
+        if ! "$vscode_command_name" "$target_abs_path"; then
+            echo "❌ 执行失败: $vscode_command_name \"$target_abs_path\""
             return 1
         fi
-        echo "🧩 已将目录加入工作区: $target_abs_path"
+        echo "🧩 已打开 worktree: $target_abs_path"
     fi
 
     echo "✅ 准备完毕！AI 可以开始在 $target_abs_path 愉快地写代码了。"
