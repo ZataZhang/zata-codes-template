@@ -45,15 +45,24 @@
 
 ## 5. Implementation Guide
 
+This section is a living implementation guide based on current repository analysis. If implementation discovers additional affected files, hidden dependencies, edge cases, or a better path, update this PRD before proceeding.
+
 ### 5.1 Core Logic
 - [How data and control move through the existing system]
 
-### 5.2 Change Matrix
+### 5.2 Change Impact Tree
 
-| Change Target | Current State | Target State | How to Modify | Why This Fits Existing Architecture | Affected Files |
-|---|---|---|---|---|---|
-| [Target 1] | [Current] | [Target] | [Implementation approach] | [Architecture-fit rationale] | `[path/a]`, `[path/b]` |
-| [Target 2] | [Current] | [Target] | [Implementation approach] | [Architecture-fit rationale] | `[path/c]` |
+```text
+.
+├── [Layer]
+│   └── [path/to/file]
+│       [新增] / [修改] / [删除]
+│       【总结】[One-sentence summary of the file-level change]
+│
+│       ├── [Concrete change 1]
+│       ├── [Concrete change 2]
+│       └── [Concrete change 3]
+```
 
 ### 5.3 Flow Or Architecture Diagram
 

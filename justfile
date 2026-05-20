@@ -916,3 +916,12 @@ copy name force='':
 
     echo "Resetting README.md to template..."
     python3 "$TEMPLATE_DIR/scripts/template/generate_readme.py" "$PROJECT_NAME" "$NEW_DIR/README.md"
+
+    echo "Setting up git and pre-commit hooks..."
+    if git -C "$NEW_DIR" rev-parse --git-dir > /dev/null 2>&1; then
+        echo "Git repository already exists, running pre-commit install..."
+    else
+        echo "Initializing git repository..."
+        git -C "$NEW_DIR" init
+    fi
+    (cd "$NEW_DIR" && uv run pre-commit install)

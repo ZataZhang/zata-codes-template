@@ -1,6 +1,6 @@
 ---
 name: prd
-description: "[Updated 2026-04-09] Generate an architecture-aware technical PRD. Triggers on: create a prd, write prd for, plan this feature. Prioritizes reuse, minimal-change plans, and conditional web research."
+description: "[Updated 2026-05-20] Generate an architecture-aware technical PRD. Triggers on: create a prd, write prd for, plan this feature. Prioritizes reuse, minimal-change plans, required output compliance, and conditional web research."
 ---
 
 # PRD Generator (Architecture-First)
@@ -18,6 +18,7 @@ The default recommendation must be the smallest change that cleanly solves the p
 4. **No Redundant Abstractions:** Every newly proposed abstraction must be justified against the current codebase.
 5. **Target-State Bias:** Default to a complete end-state plan. Do not split required work into `Phase 1` / `Phase 2`, temporary facades, or deferred cleanup unless a real constraint makes single-stage delivery unsafe or impossible.
 6. **Conditional Web Research:** Browse only when the answer depends on external facts that are not stable in the repository.
+7. **Output Contract:** Treat the required PRD structure as mandatory. Do not omit, rename, or bury required sections unless the user explicitly requests a different format.
 
 ---
 
@@ -137,9 +138,28 @@ Write the PRD to:
 Feature slug must be lowercase with hyphens.
 Timestamp must use local current time in `YYYYMMDD-HHMMSS` format.
 
+### Phase 7: PRD Compliance Gate
+
+Before handing off the PRD, verify the whole document has:
+- all required top-level sections in the required order
+- Section 5 starts with the required living implementation guide statement
+- a Change Impact Tree
+- at least one Mermaid flow or architecture diagram
+- an Acceptance Checklist with grouped headings and concrete checkbox items
+- Functional Requirements using `FR-1`, `FR-2`, ... identifiers
+- Non-Goals
+- Risks And Follow-Ups
+- a Decision Log with at least one row
+
+When updating an existing PRD, run this gate against the entire file. If the existing file is non-compliant, preserve valid context and decisions but reorganize the document into the required structure instead of appending a compliant fragment to a non-compliant PRD.
+
+Use `rg -n "^## " <prd-file>` or an equivalent section-header check when a PRD file exists.
+
 ---
 
 ## Required PRD Structure
+
+This structure is the output contract for generated and updated PRDs.
 
 ### 1. Introduction & Goals
 
@@ -170,8 +190,9 @@ Must include:
 
 ### 5. Implementation Guide
 
-This section is a living guide based on current repository analysis.
-During implementation, if you discover additional affected files, hidden dependencies, edge cases, or a better path that was not visible at planning time, update this PRD to reflect the actual plan before proceeding.
+This section must start with this sentence or a close equivalent:
+
+> This section is a living implementation guide based on current repository analysis. If implementation discovers additional affected files, hidden dependencies, edge cases, or a better path, update this PRD before proceeding.
 
 Must include:
 - **Core Logic:** how data and control move through the existing system
@@ -341,11 +362,14 @@ The checklist must validate the final target state, not merely the completion of
 * [ ] Rejected redundant layers where reuse was sufficient
 * [ ] Included a Change Impact Tree with architecture-fit reasoning
 * [ ] Included at least one flow or architecture diagram
+* [ ] Implementation Guide includes the required living implementation guide statement
 * [ ] Added low-fidelity prototype only when actually needed
 * [ ] Added ER diagram only when data model changes are present
 * [ ] Used web research only when external facts were required
 * [ ] Cited sources and dates for any web-derived claims
 * [ ] Saved to `tasks/[YYYYMMDD-HHMMSS]-prd-[feature-name].md`
+* [ ] For existing PRD updates, restructured the whole PRD to the required shape instead of appending to a non-compliant file
+* [ ] Ran a section compliance check, manually or with `rg -n "^## " <prd-file>`
 * [ ] Included a dedicated `Acceptance Checklist` section and did not collapse it into `Definition Of Done` or User Story acceptance criteria
 * [ ] Recommended a full target state rather than leaving required work in `Phase 2`, `follow-up`, or temporary compatibility layers unless a hard constraint was explicitly documented
 * [ ] Decision Log has at least one row for each major trade-off or documented alternative resolved in Section 4
