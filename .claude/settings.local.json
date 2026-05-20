@@ -15,7 +15,9 @@
       "Bash(echo \"exit code: $?\")",
       "WebSearch",
       "Bash(gh api:*)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(bash -n scripts/template/sync_template.sh)",
+      "Bash(bash -n scripts/sync_template.sh)"
     ]
   }
 }

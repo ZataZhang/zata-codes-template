@@ -401,16 +401,18 @@ services:
 
 ## Review Output Format
 
+最终评审报告必须使用中文输出。
+
 Present findings first, ordered by severity, and include file references when available.
 
 Use this structure:
 
 ```text
-[HIGH][requirement] Missing export flow required by the PRD
-File: app/services/export.py:88
-Why it matters: The task requires CSV and JSON export, but the implementation only adds CSV.
-Evidence: tasks/20260410-101907-prd-review-skill-delivery-gates.md states both formats are in scope.
-Fix: Implement the JSON branch or narrow the requirement before merge.
+[HIGH][requirement] 缺少 PRD 要求的导出流程
+文件: app/services/export.py:88
+影响: 任务要求支持 CSV 和 JSON 导出，但实现仅添加了 CSV。
+依据: tasks/20260410-101907-prd-review-skill-delivery-gates.md 明确说明两种格式均在范围内。
+修复建议: 在合并前实现 JSON 分支，或收窄需求范围。
 ```
 
 Allowed finding categories:
@@ -422,37 +424,38 @@ Allowed finding categories:
 
 ### Review Summary
 
-End every review with a concise delivery summary:
+End every review with a concise delivery summary using symbols for clarity. Keep it short and text-based, no tables.
 
 ```text
-## Review Summary
+## 评审总结
 
-| Severity | Count | Status |
-|----------|-------|--------|
-| CRITICAL | 0     | pass   |
-| HIGH     | 2     | warn   |
-| MEDIUM   | 1     | info   |
-| LOW      | 0     | note   |
+🔴 严重: 0  ✅
+🟠 高: 2  ⚠️
+  1. 缺少 PRD 要求的 JSON 导出分支
+  2. 相关接口无集成测试覆盖
+🟡 中: 1  ⚠️
+  1. 导出服务缺少输入参数校验
+🔵 低: 0  ✅
 
-Requirement Status: pass | warn | fail
-Validation Status: pass | partial | fail
-Docs Status: pass | partial | fail
+需求状态: ✅ 通过
+验证状态: ⚠️ 部分
+文档状态: ✅ 通过
 
-Commands Checked:
-- just lint: passed
-- relevant tests: partial
-- uv run mkdocs build: passed
+已检查命令:
+- just lint: ✅ 通过
+- 相关测试: ⚠️ 部分
+- uv run mkdocs build: ✅ 通过
 
-Verdict: WARNING -- two HIGH findings remain before merge.
+结论: ⚠️ 警告 -- 合并前仍有 2 项高优先级问题待解决。
 ```
 
 If requirement context is incomplete, add an `Assumptions` section and state exactly what requirement source you relied on.
 
 ## Approval Criteria
 
-- **Approve** -- No CRITICAL issues, no unresolved HIGH issues, and no failing requirement or docs status
-- **Warning** -- HIGH issues exist, or validation status is partial, but the change may still be mergeable with explicit risk acceptance
-- **Block** -- CRITICAL issues exist, required behavior is missing, or risky interface changes lack necessary validation evidence
+- **通过** -- 无严重问题，无未解决的高优先级问题，且需求和文档状态均未失败
+- **警告** -- 存在高优先级问题，或验证状态为部分通过，但变更可在明确接受风险后合并
+- **阻止** -- 存在严重问题，缺少必需行为，或高风险接口变更缺乏必要的验证证据
 
 ## AI-Generated Code Review Addendum
 

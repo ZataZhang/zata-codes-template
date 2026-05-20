@@ -170,9 +170,11 @@ Must include:
 
 ### 5. Implementation Guide
 
+This section is a living guide based on current repository analysis.
+During implementation, if you discover additional affected files, hidden dependencies, edge cases, or a better path that was not visible at planning time, update this PRD to reflect the actual plan before proceeding.
+
 Must include:
 - **Core Logic:** how data and control move through the existing system
-- **Affected Files:** predicted file paths
 - **Change Impact Tree**
 - **Flow or Architecture Diagram**
 - **Low-Fidelity Prototype** when required

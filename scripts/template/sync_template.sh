@@ -37,9 +37,25 @@ PROJECT_SKIP_PATH_COUNT=0
 PROJECT_INCLUDE_PATH_COUNT=0
 
 SHOW_ALL=false
-if [ "${1:-}" = "--all" ]; then
-    SHOW_ALL=true
-fi
+LOCAL_SKILLS_MODE=false
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --all)
+            SHOW_ALL=true
+            shift
+            ;;
+        --local-skills)
+            LOCAL_SKILLS_MODE=true
+            shift
+            ;;
+        *)
+            echo "Unknown option: $1" >&2
+            echo "Usage: $0 [--all] [--local-skills]" >&2
+            exit 1
+            ;;
+    esac
+done
 
 # ──────────────────────────────────────────────────────────────
 # Skip rules — files that should never or optionally be synced
@@ -635,13 +651,19 @@ diff --color=always /dev/null /dev/null 2>/dev/null && DIFF_COLOR_FLAG="--color=
 _load_configured_project_paths
 
 # ──────────────────────────────────────────────────────────────
-# Clone template
+# Clone template (or use local source)
 # ──────────────────────────────────────────────────────────────
-echo "🔍 Fetching template from $TEMPLATE_REPO ..."
-git clone --depth=1 --quiet "$TEMPLATE_REPO" "$TEMP_DIR/template"
-TEMPLATE_ROOT="$TEMP_DIR/template"
-echo "✅ Template fetched."
-echo ""
+if $LOCAL_SKILLS_MODE; then
+    TEMPLATE_ROOT="$LOCAL_ROOT"
+    echo "📁 Using local project skills: $LOCAL_ROOT/skills"
+    echo ""
+else
+    echo "🔍 Fetching template from $TEMPLATE_REPO ..."
+    git clone --depth=1 --quiet "$TEMPLATE_REPO" "$TEMP_DIR/template"
+    TEMPLATE_ROOT="$TEMP_DIR/template"
+    echo "✅ Template fetched."
+    echo ""
+fi
 
 # ──────────────────────────────────────────────────────────────
 # Phase 1: Scan — collect changed / new entries
@@ -653,64 +675,66 @@ echo ""
 changed_entries=()  # may include "justfile::recipe" entries
 new_entries=()
 
-while IFS= read -r rel_path; do
-    if _is_never_synced "$rel_path"; then
-        continue
-    fi
+if ! $LOCAL_SKILLS_MODE; then
+    while IFS= read -r rel_path; do
+        if _is_never_synced "$rel_path"; then
+            continue
+        fi
 
-    if ! $SHOW_ALL && _is_skipped_by_default "$rel_path"; then
-        continue
-    fi
+        if ! $SHOW_ALL && _is_skipped_by_default "$rel_path"; then
+            continue
+        fi
 
-    local_file="$LOCAL_ROOT/$rel_path"
-    tmpl_file="$TEMPLATE_ROOT/$rel_path"
+        local_file="$LOCAL_ROOT/$rel_path"
+        tmpl_file="$TEMPLATE_ROOT/$rel_path"
 
-    # ── New file ──────────────────────────────────────────────
-    if [ ! -f "$local_file" ]; then
-        new_entries+=("$rel_path")
-        continue
-    fi
+        # ── New file ──────────────────────────────────────────────
+        if [ ! -f "$local_file" ]; then
+            new_entries+=("$rel_path")
+            continue
+        fi
 
-    # ── Identical ─────────────────────────────────────────────
-    if diff -q "$local_file" "$tmpl_file" > /dev/null 2>&1; then
-        continue
-    fi
+        # ── Identical ─────────────────────────────────────────────
+        if diff -q "$local_file" "$tmpl_file" > /dev/null 2>&1; then
+            continue
+        fi
 
-    # ── Changed: justfile gets recipe-level expansion ─────────
-    if [ "$rel_path" = "justfile" ]; then
-        # macOS ships Bash 3.2, so avoid Bash 4-only mapfile/readarray here.
-        local_recipes=()
-        while IFS= read -r recipe_name; do
-            local_recipes+=("$recipe_name")
-        done < <(python3 "$JF_HELPER" names "$local_file" 2>/dev/null || true)
+        # ── Changed: justfile gets recipe-level expansion ─────────
+        if [ "$rel_path" = "justfile" ]; then
+            # macOS ships Bash 3.2, so avoid Bash 4-only mapfile/readarray here.
+            local_recipes=()
+            while IFS= read -r recipe_name; do
+                local_recipes+=("$recipe_name")
+            done < <(python3 "$JF_HELPER" names "$local_file" 2>/dev/null || true)
 
-        tmpl_recipes=()
-        while IFS= read -r recipe_name; do
-            tmpl_recipes+=("$recipe_name")
-        done < <(python3 "$JF_HELPER" names "$tmpl_file" 2>/dev/null || true)
+            tmpl_recipes=()
+            while IFS= read -r recipe_name; do
+                tmpl_recipes+=("$recipe_name")
+            done < <(python3 "$JF_HELPER" names "$tmpl_file" 2>/dev/null || true)
 
-        for recipe in "${tmpl_recipes[@]}"; do
-            local_block=$(python3 "$JF_HELPER" block "$local_file" "$recipe" 2>/dev/null || true)
-            tmpl_block=$(python3  "$JF_HELPER" block "$tmpl_file"  "$recipe" 2>/dev/null || true)
+            for recipe in "${tmpl_recipes[@]}"; do
+                local_block=$(python3 "$JF_HELPER" block "$local_file" "$recipe" 2>/dev/null || true)
+                tmpl_block=$(python3  "$JF_HELPER" block "$tmpl_file"  "$recipe" 2>/dev/null || true)
 
-            if [ -z "$local_block" ]; then
-                new_entries+=("justfile::$recipe")
-            elif [ "$local_block" != "$tmpl_block" ]; then
-                changed_entries+=("justfile::$recipe")
-            fi
-        done
-        continue
-    fi
+                if [ -z "$local_block" ]; then
+                    new_entries+=("justfile::$recipe")
+                elif [ "$local_block" != "$tmpl_block" ]; then
+                    changed_entries+=("justfile::$recipe")
+                fi
+            done
+            continue
+        fi
 
-    # ── Changed: normal file ──────────────────────────────────
-    changed_entries+=("$rel_path")
+        # ── Changed: normal file ──────────────────────────────────
+        changed_entries+=("$rel_path")
 
-done < <(
-    find "$TEMPLATE_ROOT" -type f \
-        ! -path '*/.git/*' \
-        | sed "s|$TEMPLATE_ROOT/||" \
-        | sort
-)
+    done < <(
+        find "$TEMPLATE_ROOT" -type f \
+            ! -path '*/.git/*' \
+            | sed "s|$TEMPLATE_ROOT/||" \
+            | sort
+    )
+fi
 
 total_found=$(( ${#changed_entries[@]} + ${#new_entries[@]} ))
 
