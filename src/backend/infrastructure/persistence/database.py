@@ -38,14 +38,22 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 def create_tables(base: Any = None) -> None:
-    """Create all tables for the provided declarative base."""
+    """Create all tables for the provided declarative base.
+
+    Args:
+        base: Declarative base class. Defaults to the project's ``Base``.
+    """
     target_base = base or Base
     target_base.metadata.create_all(bind=engine)
     logger.info("数据库表创建成功！")
 
 
 def get_db() -> Generator[Session, None, None]:
-    """Yield a database session for dependency injection."""
+    """Yield a database session for dependency injection.
+
+    Yields:
+        Session: SQLAlchemy database session.
+    """
     db = SessionLocal()
     try:
         yield db
@@ -54,7 +62,11 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def init_database(base: Any = None) -> None:
-    """Initialize database tables."""
+    """Initialize database tables.
+
+    Args:
+        base: Declarative base class. Defaults to the project's ``Base``.
+    """
     create_tables(base)
 
 

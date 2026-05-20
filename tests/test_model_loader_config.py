@@ -276,24 +276,11 @@ class TestConfigurationIntegration:
         This test verifies the integration between the infrastructure model loader
         and the centralized settings configuration.
         """
-        from backend.infrastructure.config.settings import config as app_config
-
         # Load model configuration
         models_config: dict[str, Any] = load_models_config()
 
-        # Verify that configured providers exist in models.json
-        if app_config.chat_model.provider == "openai":
-            assert "openai" in models_config
-            openai_models: list[dict[str, Any]] = list_models("openai")
-            model_names: list[str] = [m["name"] for m in openai_models]
-            assert app_config.chat_model.name in model_names
-
-    def test_embedding_config_has_model(self) -> None:
-        """Test that embedding model configuration is valid."""
-        from backend.infrastructure.config.settings import config as app_config
-
-        # Embedding model should be a valid sentence-transformers model
-        # or other supported format
-        assert app_config.embedding.model
-        assert app_config.embedding.dim > 0
-        assert app_config.embedding.model_dir
+        # Verify that default providers exist in models.json
+        assert "openai" in models_config
+        openai_models: list[dict[str, Any]] = list_models("openai")
+        model_names: list[str] = [m["name"] for m in openai_models]
+        assert "gpt-4" in model_names

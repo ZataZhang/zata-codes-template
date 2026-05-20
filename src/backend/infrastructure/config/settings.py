@@ -41,7 +41,7 @@ def _load_toml_section_data(section_name: str) -> dict[str, Any]:
         with open(_TOML_CONFIG_FILE_PATH, "rb") as toml_file:
             toml_data: dict[str, Any] = tomllib.load(toml_file)
         return toml_data.get(section_name, {})
-    except Exception:
+    except (OSError, tomllib.TOMLDecodeError):
         return {}
 
 
@@ -97,163 +97,6 @@ class DatabaseSettings(BaseSettings):
         )
 
 
-class ChatModelSettings(BaseSettings):
-    """默认聊天模型配置。"""
-
-    model_config = SettingsConfigDict(env_prefix="CHAT_MODEL_")
-
-    name: str = "gpt-4"
-    provider: str = "openai"
-    temperature: float = 0.2
-
-    @classmethod
-    def settings_customise_sources(
-        cls,
-        settings_cls: type[BaseSettings],
-        init_settings: PydanticBaseSettingsSource,
-        env_settings: PydanticBaseSettingsSource,
-        dotenv_settings: PydanticBaseSettingsSource,  # noqa: ARG003
-        file_secret_settings: PydanticBaseSettingsSource,  # noqa: ARG003
-    ) -> tuple[PydanticBaseSettingsSource, ...]:
-        toml_source: _TomlSectionSource = _TomlSectionSource(settings_cls, "chat_model")
-        return (
-            env_settings,
-            toml_source,
-            init_settings,
-        )
-
-
-class MinioSettings(BaseSettings):
-    """MinIO 对象存储配置（非敏感部分）。"""
-
-    model_config = SettingsConfigDict(env_prefix="MINIO_")
-
-    endpoint: str = "localhost:9000"
-    secure: bool = False
-    bucket_raw_documents: str = "default-bucket"
-
-    @classmethod
-    def settings_customise_sources(
-        cls,
-        settings_cls: type[BaseSettings],
-        init_settings: PydanticBaseSettingsSource,
-        env_settings: PydanticBaseSettingsSource,
-        dotenv_settings: PydanticBaseSettingsSource,  # noqa: ARG003
-        file_secret_settings: PydanticBaseSettingsSource,  # noqa: ARG003
-    ) -> tuple[PydanticBaseSettingsSource, ...]:
-        toml_source: _TomlSectionSource = _TomlSectionSource(settings_cls, "minio")
-        return (
-            env_settings,
-            toml_source,
-            init_settings,
-        )
-
-
-class QdrantSettings(BaseSettings):
-    """Qdrant 向量数据库配置。"""
-
-    model_config = SettingsConfigDict(env_prefix="QDRANT_")
-
-    host: str = "localhost"
-    port: int = 6333
-    collection_name: str = "default_collection"
-
-    @classmethod
-    def settings_customise_sources(
-        cls,
-        settings_cls: type[BaseSettings],
-        init_settings: PydanticBaseSettingsSource,
-        env_settings: PydanticBaseSettingsSource,
-        dotenv_settings: PydanticBaseSettingsSource,  # noqa: ARG003
-        file_secret_settings: PydanticBaseSettingsSource,  # noqa: ARG003
-    ) -> tuple[PydanticBaseSettingsSource, ...]:
-        toml_source: _TomlSectionSource = _TomlSectionSource(settings_cls, "qdrant")
-        return (
-            env_settings,
-            toml_source,
-            init_settings,
-        )
-
-
-class EmbeddingSettings(BaseSettings):
-    """Embedding 模型配置。"""
-
-    model_config = SettingsConfigDict(env_prefix="EMBEDDING_")
-
-    model: str = "sentence-transformers/all-MiniLM-L6-v2"
-    dim: int = 384
-    offline_mode: bool = True
-    model_dir: str = "resources/models"
-
-    @classmethod
-    def settings_customise_sources(
-        cls,
-        settings_cls: type[BaseSettings],
-        init_settings: PydanticBaseSettingsSource,
-        env_settings: PydanticBaseSettingsSource,
-        dotenv_settings: PydanticBaseSettingsSource,  # noqa: ARG003
-        file_secret_settings: PydanticBaseSettingsSource,  # noqa: ARG003
-    ) -> tuple[PydanticBaseSettingsSource, ...]:
-        toml_source: _TomlSectionSource = _TomlSectionSource(settings_cls, "embedding")
-        return (
-            env_settings,
-            toml_source,
-            init_settings,
-        )
-
-
-class ChunkingSettings(BaseSettings):
-    """文档分块配置。"""
-
-    model_config = SettingsConfigDict(env_prefix="CHUNK_")
-
-    size: int = 512
-    overlap: int = 50
-
-    @classmethod
-    def settings_customise_sources(
-        cls,
-        settings_cls: type[BaseSettings],
-        init_settings: PydanticBaseSettingsSource,
-        env_settings: PydanticBaseSettingsSource,
-        dotenv_settings: PydanticBaseSettingsSource,  # noqa: ARG003
-        file_secret_settings: PydanticBaseSettingsSource,  # noqa: ARG003
-    ) -> tuple[PydanticBaseSettingsSource, ...]:
-        toml_source: _TomlSectionSource = _TomlSectionSource(settings_cls, "chunking")
-        return (
-            env_settings,
-            toml_source,
-            init_settings,
-        )
-
-
-class TimeoutSettings(BaseSettings):
-    """超时配置（秒）。"""
-
-    model_config = SettingsConfigDict(env_prefix="TIMEOUT_")
-
-    embedding_model_load_seconds: int = 300
-    ingestion_document_seconds: int = 600
-    ingestion_job_seconds: int = 7200
-    minio_seconds: int = 60
-
-    @classmethod
-    def settings_customise_sources(
-        cls,
-        settings_cls: type[BaseSettings],
-        init_settings: PydanticBaseSettingsSource,
-        env_settings: PydanticBaseSettingsSource,
-        dotenv_settings: PydanticBaseSettingsSource,  # noqa: ARG003
-        file_secret_settings: PydanticBaseSettingsSource,  # noqa: ARG003
-    ) -> tuple[PydanticBaseSettingsSource, ...]:
-        toml_source: _TomlSectionSource = _TomlSectionSource(settings_cls, "timeouts")
-        return (
-            env_settings,
-            toml_source,
-            init_settings,
-        )
-
-
 class AppSettings(BaseSettings):
     """应用主配置 - 聚合所有子配置。"""
 
@@ -269,18 +112,8 @@ class AppSettings(BaseSettings):
     postgres_user: str = ""
     postgres_password: SecretStr = SecretStr("")
     database_url: str = ""
-    minio_access_key: str = Field(default="minioadmin")
-    minio_secret_key: SecretStr = SecretStr("minioadmin")
-    minio_root_user: str = ""
-    minio_root_password: SecretStr = SecretStr("")
 
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
-    chat_model: ChatModelSettings = Field(default_factory=ChatModelSettings)
-    minio: MinioSettings = Field(default_factory=MinioSettings)
-    qdrant: QdrantSettings = Field(default_factory=QdrantSettings)
-    embedding: EmbeddingSettings = Field(default_factory=EmbeddingSettings)
-    chunking: ChunkingSettings = Field(default_factory=ChunkingSettings)
-    timeouts: TimeoutSettings = Field(default_factory=TimeoutSettings)
 
     base_dir: Path = _PROJECT_ROOT_PATH
     log_dir: Path = Field(default_factory=lambda: _PROJECT_ROOT_PATH / "logs")
@@ -311,22 +144,6 @@ class AppSettings(BaseSettings):
 
         resolved_url: str = f"{db_config.backend}+{db_config.driver}://{netloc}:{db_config.port}/{db_config.name}"
         return resolved_url
-
-    @property
-    def resolved_minio_access_key(self) -> str:
-        """解析 MinIO access key。"""
-        if self.minio_access_key != "minioadmin":
-            return self.minio_access_key
-        return self.minio_root_user or "minioadmin"
-
-    @property
-    def resolved_minio_secret_key(self) -> str:
-        """解析 MinIO secret key。"""
-        secret_value: str = self.minio_secret_key.get_secret_value()
-        if secret_value != "minioadmin":
-            return secret_value
-        root_password: str = self.minio_root_password.get_secret_value()
-        return root_password or "minioadmin"
 
     def ensure_log_directory(self) -> None:
         """确保日志目录存在。"""
@@ -371,12 +188,6 @@ _ensure_no_proxy_for_local_services()
 
 __all__ = [
     "AppSettings",
-    "ChatModelSettings",
-    "ChunkingSettings",
     "DatabaseSettings",
-    "EmbeddingSettings",
-    "MinioSettings",
-    "QdrantSettings",
-    "TimeoutSettings",
     "config",
 ]

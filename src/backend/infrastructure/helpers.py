@@ -40,11 +40,13 @@ def safe_json_loads(json_str: str, default: Any = None) -> Any:
         return default
 
 
-def safe_get_nested(data: dict[str, Any], keys: list[str], default: Any = None) -> Any:
+def safe_get_nested(
+    source_dict: dict[str, Any], keys: list[str], default: Any = None
+) -> Any:
     """Safely read a nested dictionary path.
 
     Args:
-        data (dict[str, Any]): Source dictionary.
+        source_dict (dict[str, Any]): Source dictionary.
         keys (list[str]): Nested key path.
         default (Any): Value returned when any lookup fails.
 
@@ -52,7 +54,7 @@ def safe_get_nested(data: dict[str, Any], keys: list[str], default: Any = None) 
         Any: Resolved nested value or ``default``.
     """
     try:
-        resolved_value: Any = data
+        resolved_value: Any = source_dict
         for nested_key in keys:
             resolved_value = resolved_value[nested_key]
         return resolved_value

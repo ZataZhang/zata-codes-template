@@ -62,7 +62,11 @@ class Logger:
             print(f"Warning: 无法创建日志文件处理器: {error}")
 
     def get_logger(self) -> logging.Logger:
-        """Return the underlying ``logging.Logger`` instance."""
+        """Return the underlying ``logging.Logger`` instance.
+
+        Returns:
+            logging.Logger: The configured logger instance.
+        """
         if self._logger is None:
             self._setup_logger()
         return self._logger
