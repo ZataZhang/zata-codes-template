@@ -358,6 +358,11 @@ function ai_worktree() {
         shift
     done
 
+    # Fallback from code to code-insiders if code is not installed
+    if [ "$vscode_command_name" = "code" ] && ! command -v code &>/dev/null && command -v code-insiders &>/dev/null; then
+        vscode_command_name="code-insiders"
+    fi
+
     if [ -z "$branch_name" ]; then
         echo "请提供分支名称！例如: ai_worktree feature-login"
         ai_worktree_usage

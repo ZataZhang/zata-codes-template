@@ -681,6 +681,16 @@ implement prd_file ai_tool prompt="":
     fi
 
     echo ""
+
+    # Open worktree in VS Code (fallback to Code - Insiders)
+    if command -v code &>/dev/null; then
+        code "$worktree_path"
+        echo "🚀 Opened worktree in VS Code: $worktree_path"
+    elif command -v code-insiders &>/dev/null; then
+        code-insiders "$worktree_path"
+        echo "🚀 Opened worktree in VS Code Insiders: $worktree_path"
+    fi
+
     echo "AI tool finished. Entering worktree shell..."
     echo "Run 'exit' to return to previous shell."
     echo ""
