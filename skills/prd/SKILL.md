@@ -1,6 +1,6 @@
 ---
 name: prd
-description: "[Updated 2026-05-20] Generate an architecture-aware technical PRD. Triggers on: create a prd, write prd for, plan this feature. Prioritizes reuse, minimal-change plans, required output compliance, and conditional web research."
+description: "[Updated 2026-05-22] Generate an architecture-aware technical PRD. Triggers on: create a prd, write prd for, plan this feature. Prioritizes reuse, minimal-change plans, required output compliance, realistic validation, and conditional web research."
 ---
 
 # PRD Generator (Architecture-First)
@@ -19,6 +19,7 @@ The default recommendation must be the smallest change that cleanly solves the p
 5. **Target-State Bias:** Default to a complete end-state plan. Do not split required work into `Phase 1` / `Phase 2`, temporary facades, or deferred cleanup unless a real constraint makes single-stage delivery unsafe or impossible.
 6. **Conditional Web Research:** Browse only when the answer depends on external facts that are not stable in the repository.
 7. **Output Contract:** Treat the required PRD structure as mandatory. Do not omit, rename, or bury required sections unless the user explicitly requests a different format.
+8. **Realistic Validation:** Every PRD must identify the highest-fidelity validation needed to prove the behavior works through real project entry points, not only isolated unit or integration tests.
 
 ---
 
@@ -92,6 +93,19 @@ For every proposed new item, answer:
 
 If you cannot justify the new item, do not recommend it.
 
+### Phase 3.5: Realistic Validation Gate
+
+Before finalizing the PRD, identify the highest-fidelity validation needed to prove the requested behavior works through real project entry points.
+
+For each behavior that changes user-visible output, API behavior, persistence, background workflow, external integration, or deployment/runtime behavior, specify:
+- the real entry point to exercise, such as CLI command, HTTP API, app startup, Playwright flow, worker job, migration, or service composition root
+- which dependencies may be mocked and which must remain real
+- required test data, environment variables, service state, or sandbox accounts
+- the exact automated command or manual/sandbox validation procedure
+- why lower-level unit or integration tests alone are sufficient or insufficient
+
+Do not require live external services by default. If live or sandbox validation is necessary, make it opt-in, explicitly gated by environment variables, and document the fallback validation when credentials are unavailable.
+
 ### Phase 4: Conditional Web Research
 
 Use web search only when the decision depends on external facts that may have changed, such as:
@@ -145,6 +159,7 @@ Before handing off the PRD, verify the whole document has:
 - Section 5 starts with the required living implementation guide statement
 - a Change Impact Tree
 - at least one Mermaid flow or architecture diagram
+- a Realistic Validation Plan
 - an Acceptance Checklist with grouped headings and concrete checkbox items
 - Functional Requirements using `FR-1`, `FR-2`, ... identifiers
 - Non-Goals
@@ -198,6 +213,7 @@ Must include:
 - **Core Logic:** how data and control move through the existing system
 - **Change Impact Tree**
 - **Flow or Architecture Diagram**
+- **Realistic Validation Plan**
 - **Low-Fidelity Prototype** when required
 - **ER Diagram** when required
 - **Interactive Prototype Change Log** when prototype files changed
@@ -207,6 +223,7 @@ Must include:
 
 Include:
 - implementation validation
+- realistic validation through the highest feasible real entry point
 - docs updates
 - no regression checks
 - architecture-fit checks
@@ -219,7 +236,8 @@ Include:
 - grouped checklist headings such as `Architecture Acceptance`, `Dependency Acceptance`, `Behavior Acceptance`, `Documentation Acceptance`, and `Validation Acceptance` when relevant
 - concrete, repository-verifiable checkbox items
 - exact paths, API contracts, commands, or search assertions where applicable
-- no checklist item may be replaced by a `Definition Of Done` bullet or by per-story acceptance criteria
+- at least one `Validation Acceptance` item that exercises the changed behavior through the highest feasible real entry point, or documents why no real entry-point validation applies
+- no checklist item may be replaced by a `Definition Of Done` bullet or by local requirement acceptance notes
 
 ### 8. Functional Requirements
 
@@ -318,7 +336,25 @@ Include only when prototype files were actually changed.
 If no prototype files changed, state:
 - `No interactive prototype file changes in this PRD.`
 
-### F. External Validation
+### F. Realistic Validation Plan
+
+Every PRD must include this section.
+
+Use this structure:
+
+| Behavior | Real Entry Point | Test Layer | Mock Boundary | Data/Env Needed | Command Or Procedure | Required For Acceptance |
+|---|---|---|---|---|---|---|
+| [changed behavior] | [API/CLI/UI/job/startup/migration/etc.] | [unit/integration/e2e/smoke/sandbox/manual] | [what is mocked vs real] | [fixtures/env/services] | `[exact command]` | Yes/No |
+
+If the change has no executable behavior, state:
+- `No executable behavior changes; realistic validation is limited to documentation/build checks.`
+
+If live or sandbox validation needs credentials or external services that may be unavailable, state:
+- the opt-in environment variables or service prerequisites
+- the fallback automated validation that must still run without those credentials
+- whether skipped live validation blocks acceptance
+
+### G. External Validation
 
 Include only when web research was used.
 
@@ -331,7 +367,7 @@ Use this structure:
 If no web research was needed, state:
 - `No external validation required; repository evidence was sufficient.`
 
-### G. Acceptance Checklist
+### H. Acceptance Checklist
 
 This section is required even when Functional Requirements already include acceptance criteria.
 Do not merge it into `Definition Of Done`.
@@ -346,6 +382,7 @@ For architecture-heavy or refactor work, prefer:
 
 Each checkbox must describe a concrete, verifiable end state.
 Prefer exact file paths, commands, API paths/contracts, dependency boundaries, or repository search assertions over vague quality statements.
+Validation Acceptance must include the highest feasible real entry point from the Realistic Validation Plan, not only isolated lower-level tests, unless the PRD explicitly explains why no executable behavior changed.
 If a default group does not fit the task, rename or replace it with a more precise group instead of dropping the section entirely.
 The checklist must validate the final target state, not merely the completion of an interim first phase.
 
@@ -363,6 +400,7 @@ The checklist must validate the final target state, not merely the completion of
 * [ ] Included a Change Impact Tree with architecture-fit reasoning
 * [ ] Included at least one flow or architecture diagram
 * [ ] Implementation Guide includes the required living implementation guide statement
+* [ ] Included a Realistic Validation Plan that names real entry points, mock boundaries, data/env needs, and commands or procedures
 * [ ] Added low-fidelity prototype only when actually needed
 * [ ] Added ER diagram only when data model changes are present
 * [ ] Used web research only when external facts were required
@@ -370,7 +408,8 @@ The checklist must validate the final target state, not merely the completion of
 * [ ] Saved to `tasks/[YYYYMMDD-HHMMSS]-prd-[feature-name].md`
 * [ ] For existing PRD updates, restructured the whole PRD to the required shape instead of appending to a non-compliant file
 * [ ] Ran a section compliance check, manually or with `rg -n "^## " <prd-file>`
-* [ ] Included a dedicated `Acceptance Checklist` section and did not collapse it into `Definition Of Done` or User Story acceptance criteria
+* [ ] Included a dedicated `Acceptance Checklist` section and did not collapse it into `Definition Of Done` or local requirement notes
+* [ ] Validation Acceptance includes the highest feasible real entry-point validation or explicitly documents why no executable behavior changed
 * [ ] Recommended a full target state rather than leaving required work in `Phase 2`, `follow-up`, or temporary compatibility layers unless a hard constraint was explicitly documented
 * [ ] Decision Log has at least one row for each major trade-off or documented alternative resolved in Section 4
 * [ ] Each Decision Log row names a concrete rejected alternative (not a vague "other approaches")

@@ -34,6 +34,7 @@
 - 除非用户明确要求，否则不要自动执行 `git add`、`git commit`、`git push` 等 Git 变更操作
 - 单代码文件非空行不超过 1000 行；`just lint` 会对此发出警告
 - PRD 对应任务全部完成后：将已完成项打勾，所有 Acceptance Checklist 条目达到完成态后，再将 PRD 从 `tasks/pending/` 归档到 `tasks/archive/`
+- PRD 必须包含 Realistic Validation Plan，验收清单需覆盖最高可行保真度的真实入口验证，或说明无可执行行为变更
 - 变更代码时同步更新 `docs/` 与 `mkdocs.yml`
 - `tests/playwright-e2e/` 是独立 TypeScript/Node 包，使用 `npm`，不强制套用 Python SSA 命名规范
 

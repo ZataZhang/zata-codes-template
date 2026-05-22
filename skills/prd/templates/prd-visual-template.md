@@ -107,11 +107,14 @@ erDiagram
 If not required:
 - No data model changes in this PRD.
 
-### 5.6 Affected Files
+### 5.6 Realistic Validation Plan
 
-| File | Change Type | Description |
-|---|---|---|
-| `[path/to/file]` | Modify/Add/Delete | [What changes and why] |
+| Behavior | Real Entry Point | Test Layer | Mock Boundary | Data/Env Needed | Command Or Procedure | Required For Acceptance |
+|---|---|---|---|---|---|---|
+| [changed behavior] | [API/CLI/UI/job/startup/migration/etc.] | [unit/integration/e2e/smoke/sandbox/manual] | [what is mocked vs real] | [fixtures/env/services] | `[exact command]` | Yes/No |
+
+If the change has no executable behavior:
+- No executable behavior changes; realistic validation is limited to documentation/build checks.
 
 ### 5.7 Interactive Prototype Change Log (Only When Files Actually Changed)
 
@@ -171,22 +174,12 @@ This checklist must validate the final target state, not only an interim first p
 ### Validation Acceptance
 
 - [ ] `[validation command]` passes
+- [ ] `[real entry command]` exercises the changed behavior through `[API/CLI/UI/job/startup/migration]` without bypassing `[critical boundary]`
 - [ ] [Repository search confirms no legacy entry point, duplicate path, or compatibility shim remains]
 
 ---
 
-## 8. User Stories
-
-### US-001: [Story Title]
-**Description:** As a [role], I want [feature], so that [benefit].
-
-**Acceptance Criteria:**
-- [ ] [Unique business logic 1]
-- [ ] [Unique business logic 2]
-
----
-
-## 9. Functional Requirements
+## 8. Functional Requirements
 
 - FR-1: [Requirement statement]
 - FR-2: [Requirement statement]
@@ -194,20 +187,20 @@ This checklist must validate the final target state, not only an interim first p
 
 ---
 
-## 10. Non-Goals
+## 9. Non-Goals
 
 - [Out-of-scope item 1]
 - [Out-of-scope item 2]
 
 ---
 
-## 11. Risks And Follow-Ups
+## 10. Risks And Follow-Ups
 
 - [Unavoidable risk or explicitly approved non-blocking follow-up]
 
 ---
 
-## 12. Decision Log
+## 11. Decision Log
 
 每条记录对应本 PRD 中做出的一个关键决策，归档后作为永久参考。
 
