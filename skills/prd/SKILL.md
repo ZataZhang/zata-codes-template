@@ -104,6 +104,8 @@ For each behavior that changes user-visible output, API behavior, persistence, b
 - the exact automated command or manual/sandbox validation procedure
 - why lower-level unit or integration tests alone are sufficient or insufficient
 
+**Hard rule:** If the PRD introduces or changes executable behavior (CLI commands, API endpoints, background jobs, file output, or external integrations), the Realistic Validation Plan MUST contain at least one validation row that exercises the behavior through the real entry point. "Unit tests are sufficient" is NOT an acceptable substitute unless the change is purely internal refactoring with no user-visible or executable surface. Use dry-run, local file output, or sandbox mode to avoid requiring live external services when credentials are unavailable.
+
 Do not require live external services by default. If live or sandbox validation is necessary, make it opt-in, explicitly gated by environment variables, and document the fallback validation when credentials are unavailable.
 
 ### Phase 4: Conditional Web Research
@@ -156,10 +158,11 @@ Timestamp must use local current time in `YYYYMMDD-HHMMSS` format.
 
 Before handing off the PRD, verify the whole document has:
 - all required top-level sections in the required order
+- Section 1 includes a `### Realistic Validation` checklist immediately after the goals/objectives
 - Section 5 starts with the required living implementation guide statement
 - a Change Impact Tree
 - at least one Mermaid flow or architecture diagram
-- a Realistic Validation Plan
+- a Realistic Validation Plan that contains at least one row with a real entry point (not only pytest/helper functions), unless the PRD explicitly documents why the change is pure internal refactoring with no executable surface
 - an Acceptance Checklist with grouped headings and concrete checkbox items
 - Functional Requirements using `FR-1`, `FR-2`, ... identifiers
 - Non-Goals
@@ -167,6 +170,8 @@ Before handing off the PRD, verify the whole document has:
 - a Decision Log with at least one row
 
 When updating an existing PRD, run this gate against the entire file. If the existing file is non-compliant, preserve valid context and decisions but reorganize the document into the required structure instead of appending a compliant fragment to a non-compliant PRD.
+
+**If the PRD changes executable behavior and the Realistic Validation Plan contains only unit/integration test entries with no real entry point, or the Validation Acceptance lacks a real entry-point item without a justified internal-refactoring exception, this gate FAILS. Do not hand off the PRD.**
 
 Use `rg -n "^## " <prd-file>` or an equivalent section-header check when a PRD file exists.
 
@@ -179,6 +184,25 @@ This structure is the output contract for generated and updated PRDs.
 ### 1. Introduction & Goals
 
 Brief problem statement plus measurable objectives.
+
+Must include a `### Realistic Validation` checklist before Section 2.
+This first-section checklist is a concise, reviewer-facing summary of the highest-fidelity validation expected for the task. It must use Markdown checkbox items and mirror the style of:
+
+```markdown
+### Realistic Validation
+
+除单元测试和集成测试外，本 PRD 要求通过**真实项目入口点**验证关键行为，确保真实使用路径生效，而非仅在隔离 fixture 中通过。
+
+- [ ] **[行为名称] 真实验证**：通过 `[真实入口命令或流程]` 验证 `[关键可观察结果]`。
+- [ ] **[配置/状态/回退] 真实验证**：通过 `[真实入口命令或流程]` 验证 `[关键可观察结果]`。
+- [ ] **为什么单元测试不够**：说明真实入口验证覆盖了哪些单元测试无法证明的行为。
+```
+
+Rules:
+- Keep this checklist short enough to scan, usually 2-5 items.
+- Use concrete real entry points such as CLI commands, HTTP endpoints, app startup, Playwright flows, worker jobs, migrations, or publish/deploy procedures.
+- Include dry-run, local file output, sandbox mode, or mocked external boundary details when live services are not required.
+- This checklist does not replace the detailed `Realistic Validation Plan` table in Section 5.
 
 ### 2. Requirement Shape
 
@@ -236,7 +260,7 @@ Include:
 - grouped checklist headings such as `Architecture Acceptance`, `Dependency Acceptance`, `Behavior Acceptance`, `Documentation Acceptance`, and `Validation Acceptance` when relevant
 - concrete, repository-verifiable checkbox items
 - exact paths, API contracts, commands, or search assertions where applicable
-- at least one `Validation Acceptance` item that exercises the changed behavior through the highest feasible real entry point, or documents why no real entry-point validation applies
+- at least one `Validation Acceptance` item that exercises the changed behavior through the highest feasible real entry point; if no real entry-point validation is included, the PRD must explicitly document that the change is pure internal refactoring with no executable surface, and this justification must be reviewed in the Decision Log
 - no checklist item may be replaced by a `Definition Of Done` bullet or by local requirement acceptance notes
 
 ### 8. Functional Requirements
@@ -382,13 +406,15 @@ For architecture-heavy or refactor work, prefer:
 
 Each checkbox must describe a concrete, verifiable end state.
 Prefer exact file paths, commands, API paths/contracts, dependency boundaries, or repository search assertions over vague quality statements.
-Validation Acceptance must include the highest feasible real entry point from the Realistic Validation Plan, not only isolated lower-level tests, unless the PRD explicitly explains why no executable behavior changed.
+Validation Acceptance must include the highest feasible real entry point from the Realistic Validation Plan, not only isolated lower-level tests, unless the PRD explicitly explains why no executable behavior changed. "Mocked at boundary" or "unit tests cover it" are not valid justifications for skipping real entry-point validation when executable behavior changed.
 If a default group does not fit the task, rename or replace it with a more precise group instead of dropping the section entirely.
 The checklist must validate the final target state, not merely the completion of an interim first phase.
 
 ---
 
 ## Checklist
+
+**BLOCKER items must be satisfied before the PRD can be handed off. Non-blocker items should be satisfied but do not stop delivery.**
 
 * [ ] Rewrote the request into a concrete behavior change
 * [ ] Inspected the repository before asking questions
@@ -400,7 +426,7 @@ The checklist must validate the final target state, not merely the completion of
 * [ ] Included a Change Impact Tree with architecture-fit reasoning
 * [ ] Included at least one flow or architecture diagram
 * [ ] Implementation Guide includes the required living implementation guide statement
-* [ ] Included a Realistic Validation Plan that names real entry points, mock boundaries, data/env needs, and commands or procedures
+* [ ] **BLOCKER:** Included a Realistic Validation Plan that names real entry points, mock boundaries, data/env needs, and commands or procedures
 * [ ] Added low-fidelity prototype only when actually needed
 * [ ] Added ER diagram only when data model changes are present
 * [ ] Used web research only when external facts were required
@@ -409,7 +435,7 @@ The checklist must validate the final target state, not merely the completion of
 * [ ] For existing PRD updates, restructured the whole PRD to the required shape instead of appending to a non-compliant file
 * [ ] Ran a section compliance check, manually or with `rg -n "^## " <prd-file>`
 * [ ] Included a dedicated `Acceptance Checklist` section and did not collapse it into `Definition Of Done` or local requirement notes
-* [ ] Validation Acceptance includes the highest feasible real entry-point validation or explicitly documents why no executable behavior changed
+* [ ] **BLOCKER:** Validation Acceptance includes the highest feasible real entry-point validation or explicitly documents why the change is pure internal refactoring with no executable surface
 * [ ] Recommended a full target state rather than leaving required work in `Phase 2`, `follow-up`, or temporary compatibility layers unless a hard constraint was explicitly documented
 * [ ] Decision Log has at least one row for each major trade-off or documented alternative resolved in Section 4
 * [ ] Each Decision Log row names a concrete rejected alternative (not a vague "other approaches")
