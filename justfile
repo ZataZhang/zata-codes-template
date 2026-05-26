@@ -905,6 +905,7 @@ copy name force='':
         --exclude='/findings.md' \
         --exclude='/progress.md' \
         --exclude='/task_plan.md' \
+        --exclude='docker-compose.testing.yml' \
         --exclude='.claude/planning' \
         "$TEMPLATE_DIR/" "$NEW_DIR/"
 

@@ -114,6 +114,7 @@ class AppSettings(BaseSettings):
     postgres_user: str = ""
     postgres_password: SecretStr = SecretStr("")
     database_url: str = ""
+    db_migration_mode: str = Field(default="auto")
 
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
 

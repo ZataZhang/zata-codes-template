@@ -2,6 +2,8 @@
 
 from typing import Any, Generator
 
+from alembic import command
+from alembic.config import Config as AlembicConfig
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -14,6 +16,13 @@ Base = declarative_base()
 DATABASE_URL = config.resolved_database_url
 if DATABASE_URL.startswith("mysql://"):
     DATABASE_URL = DATABASE_URL.replace("mysql://", "mysql+pymysql://")
+
+_ALEMBIC_INI_PATH = str(config.base_dir / "alembic.ini")
+
+
+def _run_alembic_upgrade() -> None:
+    alembic_cfg = AlembicConfig(_ALEMBIC_INI_PATH)
+    command.upgrade(alembic_cfg, "head")
 
 
 def create_database_engine(**kwargs: Any) -> Any:
@@ -37,14 +46,13 @@ engine = create_database_engine()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
-def create_tables(base: Any = None) -> None:
-    """Create all tables for the provided declarative base.
+def create_tables(base: Any = None) -> None:  # noqa: ARG001
+    """Run Alembic migrations to create or upgrade all tables.
 
     Args:
-        base: Declarative base class. Defaults to the project's ``Base``.
+        base: Unused; kept for backward compatibility.
     """
-    target_base = base or Base
-    target_base.metadata.create_all(bind=engine)
+    _run_alembic_upgrade()
     logger.info("数据库表创建成功！")
 
 
@@ -62,12 +70,15 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def init_database(base: Any = None) -> None:
-    """Initialize database tables.
+    """Initialize database tables via Alembic migration.
 
     Args:
-        base: Declarative base class. Defaults to the project's ``Base``.
+        base: Unused; kept for backward compatibility.
     """
-    create_tables(base)
+    if config.db_migration_mode == "auto":
+        create_tables(base)
+    else:
+        logger.info("db_migration_mode=manual, skipping auto migration.")
 
 
 __all__ = [
