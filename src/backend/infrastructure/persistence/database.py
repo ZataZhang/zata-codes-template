@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session, declarative_base, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from backend.infrastructure.config.settings import config
-from backend.infrastructure.logging.logger import logger
+from backend.infrastructure.logger import logger
 
 Base = declarative_base()
 

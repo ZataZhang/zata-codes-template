@@ -12,9 +12,9 @@
       show_root_heading: true
       members_order: source
 
-### `backend.infrastructure.logging.logger`
+### `backend.infrastructure.logger`
 
-::: backend.infrastructure.logging.logger
+::: backend.infrastructure.logger
     handler: python
     options:
       show_root_heading: true

@@ -99,11 +99,11 @@ uv run pre-commit autoupdate
 ### `src/backend/infrastructure/config/settings.py`
 集中管理环境变量与路径配置，统一从 `.env` 与 `config.toml` 加载，其余模块只从 `config` 对象读取。
 
-### `src/backend/infrastructure/logging/logger.py`
+### `src/backend/infrastructure/logger.py`
 单例 `Logger`，读取 `config.log_level` 与 `config.log_file`，同时输出到控制台与文件，在 Windows 上处理 UTF-8。
 
 ```python
-from backend.infrastructure.logging.logger import logger
+from backend.infrastructure.logger import logger
 logger.info("started")
 ```
 
