@@ -1,30 +1,46 @@
-"""Regression tests for the PRD acceptance checklist hook."""
+"""Regression tests for PRD acceptance checklist checkers."""
 
 from __future__ import annotations
 
 import importlib.util
 import subprocess
+import sys
 from pathlib import Path
 from types import ModuleType
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PRD_ACCEPTANCE_CHECKLIST_SCRIPT_PATH = (
+HOOK_ACCEPTANCE_CHECKLIST_SCRIPT_PATH = (
     REPO_ROOT / "hooks" / "check_prd_acceptance_checklist.py"
+)
+SKILL_ACCEPTANCE_CHECKLIST_SCRIPT_PATH = (
+    REPO_ROOT / "skills" / "prd" / "scripts" / "check_prd_acceptance_checklist.py"
 )
 
 
-def load_prd_acceptance_checklist_module() -> ModuleType:
-    """Load the PRD acceptance checklist hook module directly from disk."""
+def load_module(script_path: Path) -> ModuleType:
+    """Load a PRD acceptance checklist checker module directly from disk."""
 
     module_spec = importlib.util.spec_from_file_location(
-        "prd_acceptance_checklist_hook", PRD_ACCEPTANCE_CHECKLIST_SCRIPT_PATH
+        f"prd_acceptance_checklist_{script_path.parent.name}", script_path
     )
     assert module_spec is not None
     assert module_spec.loader is not None
     prd_acceptance_checklist_module = importlib.util.module_from_spec(module_spec)
     module_spec.loader.exec_module(prd_acceptance_checklist_module)
     return prd_acceptance_checklist_module
+
+
+def load_hook_module() -> ModuleType:
+    """Load the project-local pre-commit hook implementation."""
+
+    return load_module(HOOK_ACCEPTANCE_CHECKLIST_SCRIPT_PATH)
+
+
+def load_skill_module() -> ModuleType:
+    """Load the bundled skill checker implementation."""
+
+    return load_module(SKILL_ACCEPTANCE_CHECKLIST_SCRIPT_PATH)
 
 
 def run_command(
@@ -42,10 +58,24 @@ def run_command(
     )
 
 
+def test_repo_root_uses_git_root_when_available(tmp_path: Path) -> None:
+    """Repository root discovery should work outside this template repository."""
+
+    prd_acceptance_checklist_module = load_skill_module()
+
+    init_process = run_command(["git", "init", "-q"], cwd_path=tmp_path)
+    assert init_process.returncode == 0
+
+    nested_path = tmp_path / "nested"
+    nested_path.mkdir()
+
+    assert prd_acceptance_checklist_module._repo_root(nested_path) == tmp_path  # noqa: SLF001
+
+
 def test_is_active_prd_path_only_accepts_root_level_active_prds(tmp_path: Path) -> None:
     """Only root-level active PRDs should be treated as hook candidates."""
 
-    prd_acceptance_checklist_module = load_prd_acceptance_checklist_module()
+    prd_acceptance_checklist_module = load_hook_module()
 
     tasks_dir = tmp_path / "tasks"
     archive_dir = tasks_dir / "archive"
@@ -79,7 +109,7 @@ def test_candidate_prd_paths_include_active_root_prd_when_provided(
 ) -> None:
     """Root-level task PRDs should be active validation candidates."""
 
-    prd_acceptance_checklist_module = load_prd_acceptance_checklist_module()
+    prd_acceptance_checklist_module = load_hook_module()
 
     active_prd_path = tmp_path / "tasks" / "20260423-100000-prd-active.md"
     active_prd_path.parent.mkdir(parents=True, exist_ok=True)
@@ -97,7 +127,7 @@ def test_candidate_prd_paths_include_active_root_prd_when_provided(
 def test_candidate_prd_paths_keep_pending_prds_exempt(tmp_path: Path) -> None:
     """Pending PRDs may keep unchecked checklist items before delivery."""
 
-    prd_acceptance_checklist_module = load_prd_acceptance_checklist_module()
+    prd_acceptance_checklist_module = load_hook_module()
 
     pending_prd_path = tmp_path / "tasks" / "pending" / "20260423-100001-prd-pending.md"
     pending_prd_path.parent.mkdir(parents=True, exist_ok=True)
@@ -112,12 +142,64 @@ def test_candidate_prd_paths_keep_pending_prds_exempt(tmp_path: Path) -> None:
     assert candidate_prd_paths == []
 
 
+def test_check_provided_can_validate_pending_prd_before_archive(
+    tmp_path: Path,
+) -> None:
+    """Explicit validation should support pending PRDs before archive moves."""
+
+    pending_prd_path = tmp_path / "tasks" / "pending" / "20260423-100001-prd-pending.md"
+    pending_prd_path.parent.mkdir(parents=True, exist_ok=True)
+    pending_prd_path.write_text(
+        """# PRD: Pending
+
+## 7. Acceptance Checklist
+
+- [ ] Still pending
+""",
+        encoding="utf-8",
+    )
+
+    check_process = run_command(
+        [
+            sys.executable,
+            str(SKILL_ACCEPTANCE_CHECKLIST_SCRIPT_PATH),
+            "--repo-root",
+            str(tmp_path),
+            "--check-provided",
+            "tasks/pending/20260423-100001-prd-pending.md",
+        ],
+        cwd_path=tmp_path,
+    )
+
+    assert check_process.returncode == 1
+    assert "Still pending" in check_process.stdout
+
+
+def test_check_provided_fails_when_explicit_path_is_missing(tmp_path: Path) -> None:
+    """Explicit validation should not silently pass missing PRD paths."""
+
+    check_process = run_command(
+        [
+            sys.executable,
+            str(SKILL_ACCEPTANCE_CHECKLIST_SCRIPT_PATH),
+            "--repo-root",
+            str(tmp_path),
+            "--check-provided",
+            "tasks/pending/missing-prd.md",
+        ],
+        cwd_path=tmp_path,
+    )
+
+    assert check_process.returncode == 1
+    assert "Missing PRD path" in check_process.stdout
+
+
 def test_archived_prd_is_candidate_only_when_staged_archive_target(
     tmp_path: Path,
 ) -> None:
     """Archive PRDs are checked only when newly staged into the archive."""
 
-    prd_acceptance_checklist_module = load_prd_acceptance_checklist_module()
+    prd_acceptance_checklist_module = load_hook_module()
 
     archived_relative_path = Path("tasks/archive/20260423-100002-prd-archived.md")
     archived_prd_path = tmp_path / archived_relative_path
@@ -142,7 +224,7 @@ def test_archived_prd_is_candidate_only_when_staged_archive_target(
 def test_staged_archive_prd_paths_collect_added_archive_prds(tmp_path: Path) -> None:
     """Git-index discovery should find newly staged archive PRDs."""
 
-    prd_acceptance_checklist_module = load_prd_acceptance_checklist_module()
+    prd_acceptance_checklist_module = load_hook_module()
 
     init_process = run_command(["git", "init", "-q"], cwd_path=tmp_path)
     assert init_process.returncode == 0
@@ -171,7 +253,7 @@ def test_staged_archive_prd_paths_collect_added_archive_prds(tmp_path: Path) -> 
 def test_unchecked_items_outside_acceptance_section_are_ignored(tmp_path: Path) -> None:
     """Unchecked boxes outside the acceptance section should not fail validation."""
 
-    prd_acceptance_checklist_module = load_prd_acceptance_checklist_module()
+    prd_acceptance_checklist_module = load_hook_module()
 
     prd_path = tmp_path / "tasks" / "20260423-110000-prd-example.md"
     prd_path.parent.mkdir(parents=True, exist_ok=True)
@@ -207,7 +289,7 @@ def test_unchecked_items_outside_acceptance_section_are_ignored(tmp_path: Path) 
 def test_missing_or_unchecked_acceptance_items_are_reported(tmp_path: Path) -> None:
     """Missing sections and unchecked boxes in the acceptance section should fail."""
 
-    prd_acceptance_checklist_module = load_prd_acceptance_checklist_module()
+    prd_acceptance_checklist_module = load_hook_module()
 
     missing_section_path = tmp_path / "tasks" / "20260423-120000-prd-missing.md"
     missing_section_path.parent.mkdir(parents=True, exist_ok=True)
@@ -241,7 +323,7 @@ def test_missing_or_unchecked_acceptance_items_are_reported(tmp_path: Path) -> N
 def test_bilingual_acceptance_heading_reports_unchecked_items() -> None:
     """Bilingual checklist headings are parsed as acceptance checklist sections."""
 
-    prd_acceptance_checklist_module = load_prd_acceptance_checklist_module()
+    prd_acceptance_checklist_module = load_hook_module()
 
     unchecked_items = (
         prd_acceptance_checklist_module._unchecked_items_in_acceptance_section(  # noqa: SLF001

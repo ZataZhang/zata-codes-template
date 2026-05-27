@@ -59,12 +59,22 @@ This section is a living implementation guide based on current repository analys
 │       [新增] / [修改] / [删除]
 │       【总结】[One-sentence summary of the file-level change]
 │
-│       ├── [Concrete change 1]
-│       ├── [Concrete change 2]
-│       └── [Concrete change 3]
+│       ├── [Concrete logical change 1; use symbol/config/route anchors, not line numbers]
+│       ├── [Concrete logical change 2; include rg anchor when useful]
+│       └── [Concrete logical change 3]
 ```
 
-### 5.3 Flow Or Architecture Diagram
+### 5.3 Executor Drift Guard
+
+The file list above is the expected implementation surface from current repository analysis. During implementation, treat it as a starting point and use these repository searches to catch hidden references or drift before marking the PRD complete.
+
+| Check | Command | Expected Result | If It Fails, Inspect First |
+|---|---|---|---|
+| [Legacy reference search] | `rg -n "[legacy-symbol-or-path]" [scope]` | [No obsolete references remain / only approved references remain] | [Config keys, build context, working directory, route, import, or docs area] |
+| [Target reference search] | `rg -n "[new-symbol-or-path]" [scope]` | [Expected target references exist in the owning files] | [Composition root, entry command, generated config, or docs index] |
+| [Hidden entry point search] | `rg -n "[command|env|artifact|route-pattern]" [scope]` | [No unreviewed entry points bypass the new target state] | [CI, scripts, Docker, deployment, README, IDE config] |
+
+### 5.4 Flow Or Architecture Diagram
 
 ```mermaid
 flowchart TD
@@ -74,7 +84,7 @@ flowchart TD
     VALIDATE --> OUTPUT[Deliver]
 ```
 
-### 5.4 Low-Fidelity Prototype (Only When Required)
+### 5.5 Low-Fidelity Prototype (Only When Required)
 
 ```text
 +--------------------------------------------------+
@@ -89,7 +99,7 @@ flowchart TD
 If not required:
 - No low-fidelity prototype required for this PRD.
 
-### 5.5 ER Diagram (Only When Data Model Changes)
+### 5.6 ER Diagram (Only When Data Model Changes)
 
 ```mermaid
 erDiagram
@@ -107,16 +117,20 @@ erDiagram
 If not required:
 - No data model changes in this PRD.
 
-### 5.6 Realistic Validation Plan
+### 5.7 Realistic Validation Plan
 
 | Behavior | Real Entry Point | Test Layer | Mock Boundary | Data/Env Needed | Command Or Procedure | Required For Acceptance |
 |---|---|---|---|---|---|---|
 | [changed behavior] | [API/CLI/UI/job/startup/migration/etc.] | [unit/integration/e2e/smoke/sandbox/manual] | [what is mocked vs real] | [fixtures/env/services] | `[exact command]` | Yes/No |
 
+Failure triage:
+- If `[high-friction command]` fails, inspect `[first config/path/boundary]` before changing implementation strategy.
+- Treat production, vendor, or credential-dependent validation as `[opt-in/post-merge/blocking only if truly required]`.
+
 If the change has no executable behavior:
 - No executable behavior changes; realistic validation is limited to documentation/build checks.
 
-### 5.7 Interactive Prototype Change Log (Only When Files Actually Changed)
+### 5.8 Interactive Prototype Change Log (Only When Files Actually Changed)
 
 | File Path | Change Type | Before | After | Why |
 |---|---|---|---|---|
@@ -125,7 +139,7 @@ If the change has no executable behavior:
 If no prototype changes:
 - No interactive prototype file changes in this PRD.
 
-### 5.8 External Validation (Only When Web Research Was Used)
+### 5.9 External Validation (Only When Web Research Was Used)
 
 | Topic | Source | Checked On | Relevant Finding | Impact On Recommendation |
 |---|---|---|---|---|
@@ -175,7 +189,8 @@ This checklist must validate the final target state, not only an interim first p
 
 - [ ] `[validation command]` passes
 - [ ] `[real entry command]` exercises the changed behavior through `[API/CLI/UI/job/startup/migration]` without bypassing `[critical boundary]`
-- [ ] [Repository search confirms no legacy entry point, duplicate path, or compatibility shim remains]
+- [ ] `[rg search command]` confirms no legacy entry point, duplicate path, or compatibility shim remains
+- [ ] `[rg search command]` confirms expected target references exist in the owning files
 
 ---
 

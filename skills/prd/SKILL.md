@@ -20,6 +20,7 @@ The default recommendation must be the smallest change that cleanly solves the p
 6. **Conditional Web Research:** Browse only when the answer depends on external facts that are not stable in the repository.
 7. **Output Contract:** Treat the required PRD structure as mandatory. Do not omit, rename, or bury required sections unless the user explicitly requests a different format.
 8. **Realistic Validation:** Every PRD must identify the highest-fidelity validation needed to prove the behavior works through real project entry points, not only isolated unit or integration tests.
+9. **Executor-Resilient Detail:** Write implementation detail for a less capable executor: be concrete, but prefer semantic anchors and repository searches over brittle coordinates such as line numbers.
 
 ---
 
@@ -108,6 +109,21 @@ For each behavior that changes user-visible output, API behavior, persistence, b
 
 Do not require live external services by default. If live or sandbox validation is necessary, make it opt-in, explicitly gated by environment variables, and document the fallback validation when credentials are unavailable.
 
+When validating delivery/archive readiness, run the bundled checklist checker when a Python runtime is available. Resolve `scripts/check_prd_acceptance_checklist.py` relative to this skill directory; do not hard-code an installation path.
+
+```bash
+python scripts/check_prd_acceptance_checklist.py --repo-root <repo-root> --all
+```
+
+For a pending PRD that is about to be archived, explicitly validate that file:
+
+```bash
+python scripts/check_prd_acceptance_checklist.py --repo-root <repo-root> --check-provided tasks/pending/20260527-120000-prd-example.md
+```
+
+Pending PRDs may intentionally keep unchecked acceptance items while waiting for implementation, so do not run the acceptance-completion checker as a blocker for a normal newly generated PRD.
+This checker is intentionally bundled with the skill for installed-skill usage; repository `pre-commit` integration is optional and may use a project-local hook instead.
+
 ### Phase 4: Conditional Web Research
 
 Use web search only when the decision depends on external facts that may have changed, such as:
@@ -146,10 +162,27 @@ Create or modify interactive prototype files under `docs/prototypes/` only when:
 
 Do not create prototype files merely because the feature touches UI.
 
+### Phase 5.5: Executor Resilience Gate
+
+Implementation guidance may be detailed, especially when the PRD will be handed to another agent, but it must be resilient to normal repository drift.
+
+Required:
+- use file paths, symbol names, recipe names, config keys, routes, selectors, or section headings as anchors
+- include `rg` search commands for legacy references, new target references, and likely hidden references when repository-wide references may exist
+- state that the listed files are the starting point, not a guarantee that no other affected files exist
+- include short validation-failure triage notes for risky commands, such as Docker build context, CI working directory, cache path, artifact path, route path, env var, or composition-root checks
+- mark live production, vendor, or credential-dependent validation as opt-in or post-merge unless it is truly required to prove the change
+
+Forbidden:
+- instructions that depend on deleting, editing, or trusting exact line numbers or line ranges
+- shell commands that are not copy-paste executable in the target repository environment
+- `grep` alternation such as `a\|b` unless the command explicitly uses a compatible mode such as `grep -E`; prefer `rg`
+- acceptance criteria that imply the explicit file list is exhaustive when a repository search can verify the final state
+
 ### Phase 6: Generate And Save The PRD
 
 Write the PRD to:
-- `tasks/[YYYYMMDD-HHMMSS]-prd-[feature-name].md`
+- `tasks/pending/[YYYYMMDD-HHMMSS]-prd-[feature-name].md`
 
 Feature slug must be lowercase with hyphens.
 Timestamp must use local current time in `YYYYMMDD-HHMMSS` format.
@@ -168,6 +201,9 @@ Before handing off the PRD, verify the whole document has:
 - Non-Goals
 - Risks And Follow-Ups
 - a Decision Log with at least one row
+- no line-number-dependent implementation instructions
+- copy-paste executable validation/search commands, with `rg` preferred for repository searches
+- executor drift guards for repository-wide refactors, migrations, path moves, config rewires, or other changes where hidden references are likely
 
 When updating an existing PRD, run this gate against the entire file. If the existing file is non-compliant, preserve valid context and decisions but reorganize the document into the required structure instead of appending a compliant fragment to a non-compliant PRD.
 
@@ -236,6 +272,7 @@ This section must start with this sentence or a close equivalent:
 Must include:
 - **Core Logic:** how data and control move through the existing system
 - **Change Impact Tree**
+- **Executor Drift Guard** when hidden references or repository drift could affect implementation
 - **Flow or Architecture Diagram**
 - **Realistic Validation Plan**
 - **Low-Fidelity Prototype** when required
@@ -326,6 +363,12 @@ Docs
 
 不要包含：import 调整、格式化、lint 修复、无意义 rename、与任务无关的小改动。
 
+For executor handoff quality:
+- keep file-level and logical specificity, but do not reference exact line numbers or line ranges
+- locate fragile edits by semantic anchors such as function names, recipe names, route names, config keys, or headings
+- include the `rg` command an executor can use to find each important anchor when helpful
+- if the file list could be incomplete, say so and point to the Executor Drift Guard instead of pretending the tree is exhaustive
+
 ### B. Flow / Architecture Diagram
 
 At least one Mermaid diagram is required.
@@ -378,6 +421,13 @@ If live or sandbox validation needs credentials or external services that may be
 - the fallback automated validation that must still run without those credentials
 - whether skipped live validation blocks acceptance
 
+Command rules:
+- commands must be copy-paste executable from the documented working directory
+- prefer `rg` over `grep` for repository searches
+- if `grep` is used with alternation, use an explicit compatible form such as `grep -E 'a|b'`
+- do not make production deploys or live vendor calls blocking acceptance unless the behavior cannot be proven through local, CI, dry-run, sandbox, or staged validation
+- add a short failure-triage note for high-friction validation, naming the first paths, config keys, or boundaries to inspect
+
 ### G. External Validation
 
 Include only when web research was used.
@@ -407,6 +457,7 @@ For architecture-heavy or refactor work, prefer:
 Each checkbox must describe a concrete, verifiable end state.
 Prefer exact file paths, commands, API paths/contracts, dependency boundaries, or repository search assertions over vague quality statements.
 Validation Acceptance must include the highest feasible real entry point from the Realistic Validation Plan, not only isolated lower-level tests, unless the PRD explicitly explains why no executable behavior changed. "Mocked at boundary" or "unit tests cover it" are not valid justifications for skipping real entry-point validation when executable behavior changed.
+For repository-wide refactors, migrations, or path moves, include at least one repository search assertion that proves obsolete references are gone and expected target references remain.
 If a default group does not fit the task, rename or replace it with a more precise group instead of dropping the section entirely.
 The checklist must validate the final target state, not merely the completion of an interim first phase.
 
@@ -424,17 +475,21 @@ The checklist must validate the final target state, not merely the completion of
 * [ ] Justified every new abstraction, dependency, or file path
 * [ ] Rejected redundant layers where reuse was sufficient
 * [ ] Included a Change Impact Tree with architecture-fit reasoning
+* [ ] **BLOCKER:** Did not include line-number-dependent edit instructions; all fragile edits use semantic anchors and/or `rg` search commands
 * [ ] Included at least one flow or architecture diagram
 * [ ] Implementation Guide includes the required living implementation guide statement
+* [ ] Included an Executor Drift Guard when hidden references, moved paths, config rewires, or repository-wide updates are likely
 * [ ] **BLOCKER:** Included a Realistic Validation Plan that names real entry points, mock boundaries, data/env needs, and commands or procedures
 * [ ] Added low-fidelity prototype only when actually needed
 * [ ] Added ER diagram only when data model changes are present
 * [ ] Used web research only when external facts were required
 * [ ] Cited sources and dates for any web-derived claims
-* [ ] Saved to `tasks/[YYYYMMDD-HHMMSS]-prd-[feature-name].md`
+* [ ] Saved new PRDs to `tasks/pending/[YYYYMMDD-HHMMSS]-prd-[feature-name].md`
+* [ ] Did not require acceptance-completion checks for normal pending PRDs; for archive readiness, ran the bundled `scripts/check_prd_acceptance_checklist.py` checker when available
 * [ ] For existing PRD updates, restructured the whole PRD to the required shape instead of appending to a non-compliant file
 * [ ] Ran a section compliance check, manually or with `rg -n "^## " <prd-file>`
 * [ ] Included a dedicated `Acceptance Checklist` section and did not collapse it into `Definition Of Done` or local requirement notes
+* [ ] **BLOCKER:** All validation/search commands are copy-paste executable; repository searches prefer `rg`, and any `grep` alternation uses an explicit compatible mode
 * [ ] **BLOCKER:** Validation Acceptance includes the highest feasible real entry-point validation or explicitly documents why the change is pure internal refactoring with no executable surface
 * [ ] Recommended a full target state rather than leaving required work in `Phase 2`, `follow-up`, or temporary compatibility layers unless a hard constraint was explicitly documented
 * [ ] Decision Log has at least one row for each major trade-off or documented alternative resolved in Section 4

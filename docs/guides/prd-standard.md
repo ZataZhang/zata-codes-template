@@ -1,7 +1,7 @@
 # PRD 编写规范（架构优先版）
 
 本规范用于统一本项目的 PRD 产出质量，目标不是把 PRD 写得更长，而是让方案更贴合现有架构、更少引入冗余实现。
-所有 PRD 文件统一保存到 `tasks/[YYYYMMDD-HHMMSS]-prd-[feature-name].md`。
+新生成、待执行的 PRD 统一保存到 `tasks/pending/[YYYYMMDD-HHMMSS]-prd-[feature-name].md`；交付完成并勾选所有验收项后归档到 `tasks/archive/`。
 
 ## 核心原则
 
@@ -229,13 +229,25 @@ flowchart TD
 - 明确最高可行保真度的真实入口验证
 - 明确仓库搜索断言（例如确认旧入口、兼容层、重复实现已不存在）
 
-仓库当前会通过 `pre-commit` 的本地 hook 检查 PRD 的 `Acceptance Checklist` 章节是否仍存在未勾选项，因此这里的条目应当在交付前全部转为完成态。
+PRD skill 自带 `scripts/check_prd_acceptance_checklist.py` 检查脚本；本仓库的 `pre-commit` 使用项目本地 `hooks/check_prd_acceptance_checklist.py` 检查 PRD 的 `Acceptance Checklist` 章节是否仍存在未勾选项。因此这里的条目应当在归档前全部转为完成态。
 检查范围包括：
 
-- `tasks/` 根目录下的活跃 PRD
+- `tasks/` 根目录下的旧 active PRD
 - 新增、复制或重命名进入 `tasks/archive/` 的归档 PRD
 
-`tasks/pending/` 下的草稿 PRD 不检查；历史 archive PRD 的普通修改也不会被新规则重新翻旧账。标题可使用 `Acceptance Checklist`、`验收清单` 或双语标题。
+`tasks/pending/` 下的待执行 PRD 不检查；历史 archive PRD 的普通修改也不会被新规则重新翻旧账。标题可使用 `Acceptance Checklist`、`验收清单` 或双语标题。
+
+当 agent 已加载 PRD skill 时，也可以运行 skill 内的相对脚本；脚本路径按当前 skill 目录解析，`--repo-root` 指向目标仓库：
+
+```bash
+python scripts/check_prd_acceptance_checklist.py --repo-root "$PWD" --all
+```
+
+归档前主动检查某个 pending PRD 时使用：
+
+```bash
+python scripts/check_prd_acceptance_checklist.py --repo-root "$PWD" --check-provided tasks/pending/<prd-file>.md
+```
 
 格式参考：
 
@@ -258,10 +270,11 @@ flowchart TD
 
 复杂任务完成前，必须把实际交付结果同步回对应 PRD：
 
-- 优先在 `tasks/` 中查找匹配的 active PRD
+- 优先在 `tasks/pending/` 中查找匹配的待执行 PRD
+- 兼容旧文档时，再检查 `tasks/` 根目录下是否存在匹配的 active PRD
 - 只有当 archived PRD 明确就是对应任务记录时，才把 `tasks/archive/` 作为主目标
 - 如果找到匹配 PRD，应更新实际交付内容、执行过的验证命令、真实入口验证结果、偏离原计划的地方和必要 follow-up
-- 如果没有匹配 PRD，应创建 `tasks/[YYYYMMDD-HHMMSS]-prd-[feature-name].md`
+- 如果没有匹配 PRD，应创建 `tasks/pending/[YYYYMMDD-HHMMSS]-prd-[feature-name].md`
 - PRD 归档前必须校准 Change Impact Tree；如果实现路径变化，也必须同步更新 Decision Log
 - Acceptance Checklist 应按最终实现状态全部完成后再归档
 
@@ -344,6 +357,7 @@ Web 搜索不是默认步骤，只在这些场景启用：
 
 - 技能说明：`skills/prd/SKILL.md`
 - 可复用模板：`skills/prd/templates/prd-visual-template.md`
+- 验收清单检查脚本：`skills/prd/scripts/check_prd_acceptance_checklist.py`
 - 示例 PRD：`tasks/archive/prd-visual-change-spec.md`
 - 架构文档：[`docs/architecture/system-design.md`](../architecture/system-design.md)
 - 原型规范入口：[`docs/prototypes/index.md`](../prototypes/index.md)

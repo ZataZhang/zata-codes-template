@@ -25,15 +25,21 @@
 
 ## PRD Workflow Hooks
 
-本仓库通过 `pre-commit` 维护 PRD 交付状态：
+本仓库通过 `pre-commit` 调用项目本地 `hooks/check_prd_acceptance_checklist.py` 维护 PRD 交付状态；PRD skill 另带 `scripts/check_prd_acceptance_checklist.py`，供 agent 按 skill 相对路径运行，或由其他仓库自行接入：
 
 - `tasks/pending/` 下的 PRD 可以保留未完成验收项
-- `tasks/` 根目录下的 active PRD 必须完成 `Acceptance Checklist`
+- `tasks/` 根目录下的旧 active PRD 必须完成 `Acceptance Checklist`
 - 新增、复制或重命名进入 `tasks/archive/` 的 PRD 也必须完成验收清单
 - 已存在的历史 archive PRD 不会因为普通修改被重新套用新规则
 - 验收清单标题支持英文 `Acceptance Checklist`、中文 `验收清单` 和双语标题
 
 这条规则的目标是让“归档”代表交付完成，同时避免历史归档文档被新标准批量翻旧账。
+
+当 agent 已加载 PRD skill 时，也可以从 skill 目录运行：
+
+```bash
+python scripts/check_prd_acceptance_checklist.py --repo-root "$PWD" --all
+```
 
 ## Platform Notes
 
@@ -110,15 +116,21 @@ uv run pre-commit run --show-diff-on-failure
 
 ## PRD Workflow Hooks
 
-本仓库通过 `pre-commit` 维护 PRD 交付状态：
+本仓库通过 `pre-commit` 调用项目本地 `hooks/check_prd_acceptance_checklist.py` 维护 PRD 交付状态；PRD skill 另带 `scripts/check_prd_acceptance_checklist.py`，供 agent 按 skill 相对路径运行，或由其他仓库自行接入：
 
 - `tasks/pending/` 下的 PRD 可以保留未完成验收项
-- `tasks/` 根目录下的 active PRD 必须完成 `Acceptance Checklist`
+- `tasks/` 根目录下的旧 active PRD 必须完成 `Acceptance Checklist`
 - 新增、复制或重命名进入 `tasks/archive/` 的 PRD 也必须完成验收清单
 - 已存在的历史 archive PRD 不会因为普通修改被重新套用新规则
 - 验收清单标题支持英文 `Acceptance Checklist`、中文 `验收清单` 和双语标题
 
 这条规则的目标是让"归档"代表交付完成，同时避免历史归档文档被新标准批量翻旧账。
+
+当 agent 已加载 PRD skill 时，也可以从 skill 目录运行：
+
+```bash
+python scripts/check_prd_acceptance_checklist.py --repo-root "$PWD" --all
+```
 
 **PRD 归档动作**：实现完成后，将对应 PRD 从 `tasks/pending/` 移动到 `tasks/archive/`，并确保验收清单已全部完成。
 
