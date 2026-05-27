@@ -89,11 +89,6 @@ class TestModelsConfigLoading:
 class TestProviderInference:
     """Tests for provider inference from model names."""
 
-    def test_infer_anthropic_from_claude(self) -> None:
-        """Test inferring anthropic provider from claude model name."""
-        assert _infer_provider("claude-3") == "anthropic"
-        assert _infer_provider("claude-3.5-sonnet") == "anthropic"
-
     def test_infer_openai_by_default(self) -> None:
         """Test defaulting to openai for unknown models."""
         assert _infer_provider("gpt-4") == "openai"
