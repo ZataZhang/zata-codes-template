@@ -10,8 +10,12 @@ from pathlib import Path
 from typing import Iterable
 
 
-ACTIVE_PRD_PATH_RE = re.compile(r"^tasks/[^/]+-prd-[^/]+\.md$")
-ARCHIVED_PRD_PATH_RE = re.compile(r"^tasks/archive/[^/]+-prd-[^/]+\.md$")
+ACTIVE_PRD_PATH_RE = re.compile(
+    r"^tasks/([^/]+-prd-[^/]+|P[0-3]-[A-Z]+-\d{8}-\d{6}-[^/]+)\.md$"
+)
+ARCHIVED_PRD_PATH_RE = re.compile(
+    r"^tasks/archive/([^/]+-prd-[^/]+|P[0-3]-[A-Z]+-\d{8}-\d{6}-[^/]+)\.md$"
+)
 ACCEPTANCE_CHECKLIST_HEADING_RE = re.compile(
     r"^##\s+(?:\d+\.\s+)?(?:Acceptance Checklist\b.*|验收清单.*)\s*$"
 )
@@ -128,7 +132,7 @@ def _candidate_prd_paths(
         return []
 
     discovered_paths: list[Path] = []
-    for prd_path in sorted(tasks_dir.glob("*-prd-*.md")):
+    for prd_path in sorted(tasks_dir.glob("*.md")):
         if _is_active_prd_path(prd_path, repo_root):
             discovered_paths.append(prd_path)
     for archived_prd_path in sorted(staged_archive_prd_paths):

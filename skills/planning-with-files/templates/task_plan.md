@@ -91,7 +91,7 @@ Phase 1
 - [ ] Review all output files
 - [ ] Ensure deliverables are complete
 - [ ] Review the matching PRD in `tasks/` and update it with actual outcomes
-- [ ] If no PRD exists, create `tasks/[YYYYMMDD-HHMMSS]-prd-[feature-name].md`
+- [ ] If no PRD exists, create `tasks/pending/<PRIORITY>-<TYPE>-<YYYYMMDD-HHMMSS>-<feature-name>.md`
 - [ ] Record the final PRD path in the Completion Summary
 - [ ] Deliver to user
 - **Status:** pending
@@ -149,7 +149,7 @@ Phase 1
 <!-- Uncomment and fill this for simple tasks -->
 <!--
 - **Status:** ✅ Complete (YYYY-MM-DD)
-- **PRD:** Updated `tasks/YYYYMMDD-HHMMSS-prd-feature-name.md` or created a new PRD there
+- **PRD:** Updated `tasks/pending/<PRIORITY>-<TYPE>-<YYYYMMDD-HHMMSS>-<feature-name>.md` or created a new PRD there
 - **Deliverables:** `path/to/file1`, `path/to/file2`
 - **Notes:** [任何值得记录的关键决策或坑点]
 -->
@@ -180,7 +180,7 @@ Phase 1
 
 #### PRD Sync
 <!-- Record how the final implementation was reconciled with the PRD -->
-- **PRD Path:** `tasks/YYYYMMDD-HHMMSS-prd-feature-name.md`
+- **PRD Path:** `tasks/pending/<PRIORITY>-<TYPE>-<YYYYMMDD-HHMMSS>-<feature-name>.md`
 - **Action:** [updated existing PRD / created new PRD]
 - **Variances:** [List important deviations between plan and delivered outcome]
 

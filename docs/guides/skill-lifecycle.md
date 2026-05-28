@@ -15,7 +15,7 @@
 | 阶段 | 主 skill | 进入条件 | 退出产物 | 默认不串用 |
 |---|---|---|---|---|
 | Pre-planning | `requirement-sanity-reviewer` | 需求有歧义、冲突、边界不清、验收缺失 | 风险、假设、澄清结论 | `code-reviewer` |
-| Planning | `prd` | 需要形成可执行方案或 PRD | `tasks/[YYYYMMDD-HHMMSS]-prd-[feature-name].md` | `code-reviewer` |
+| Planning | `prd` | 需要形成可执行方案或 PRD | `tasks/pending/<PRIORITY>-<TYPE>-<YYYYMMDD-HHMMSS>-<feature-name>.md` | `code-reviewer` |
 | Implementation | 无 | 需求和方案已明确，进入编码 | 代码、测试、文档改动 | 默认不引入额外主 skill |
 | Pre-merge review | `code-reviewer` | 实现完成，准备合并前审查 | review findings、severity verdict、requirement/validation/docs 状态 | 第二个 reviewer skill |
 

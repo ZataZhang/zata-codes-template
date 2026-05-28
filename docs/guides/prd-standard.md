@@ -1,7 +1,12 @@
 # PRD 编写规范（架构优先版）
 
 本规范用于统一本项目的 PRD 产出质量，目标不是把 PRD 写得更长，而是让方案更贴合现有架构、更少引入冗余实现。
-新生成、待执行的 PRD 统一保存到 `tasks/pending/[YYYYMMDD-HHMMSS]-prd-[feature-name].md`；交付完成并勾选所有验收项后归档到 `tasks/archive/`。
+新生成、待执行的 PRD 统一保存到 `tasks/pending/<PRIORITY>-<TYPE>-<YYYYMMDD-HHMMSS>-<feature-name>.md`；交付完成并勾选所有验收项后归档到 `tasks/archive/`。
+
+| 字段 | 说明 |
+|------|------|
+| `PRIORITY` | 优先级：`P0`（紧急）、`P1`（高优）、`P2`（正常）、`P3`（低优） |
+| `TYPE` | 类型：`BUG`（缺陷）、`FEAT`（新功能）、`REFACTOR`（重构）、`PERF`（性能）、`DOCS`（文档）、`CHORE`（杂项）、`SECURITY`（安全） |
 
 ## 核心原则
 
@@ -274,7 +279,7 @@ python scripts/check_prd_acceptance_checklist.py --repo-root "$PWD" --check-prov
 - 兼容旧文档时，再检查 `tasks/` 根目录下是否存在匹配的 active PRD
 - 只有当 archived PRD 明确就是对应任务记录时，才把 `tasks/archive/` 作为主目标
 - 如果找到匹配 PRD，应更新实际交付内容、执行过的验证命令、真实入口验证结果、偏离原计划的地方和必要 follow-up
-- 如果没有匹配 PRD，应创建 `tasks/pending/[YYYYMMDD-HHMMSS]-prd-[feature-name].md`
+- 如果没有匹配 PRD，应创建 `tasks/pending/<PRIORITY>-<TYPE>-<YYYYMMDD-HHMMSS>-<feature-name>.md`
 - PRD 归档前必须校准 Change Impact Tree；如果实现路径变化，也必须同步更新 Decision Log
 - Acceptance Checklist 应按最终实现状态全部完成后再归档
 

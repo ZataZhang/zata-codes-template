@@ -218,7 +218,7 @@ When a task is fully complete, fill in the **Completion Summary** section.
 ```markdown
 ## Completion Summary
 - **Status:** ✅ Complete (2026-02-10)
-- **PRD:** Created `tasks/20260210-101500-prd-config-typo-fix.md`
+- **PRD:** Created `tasks/pending/P2-DOCS-20260210-101500-config-typo-fix.md`
 - **Deliverables:** `config/settings.yaml`
 - **Notes:** Fixed typo in database URL, no other changes needed
 ```
@@ -251,7 +251,7 @@ When a task is fully complete, fill in the **Completion Summary** section.
 | Documentation | docs/dark-mode.md | ✓ Complete |
 
 ### PRD Sync
-- **PRD Path:** `tasks/20260210-093000-prd-dark-mode-toggle.md`
+- **PRD Path:** `tasks/pending/P2-FEAT-20260210-093000-dark-mode-toggle.md`
 - **Action:** Updated existing PRD
 - **Variances:** Added system preference detection during implementation, which was not in the original draft
 

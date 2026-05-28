@@ -181,7 +181,7 @@ Before final delivery, reconcile the implementation against a PRD.
 - search `tasks/` first and `tasks/archive/` second for a PRD that matches the active task
 - prefer an existing non-archived PRD if it clearly belongs to the current task
 - if a PRD exists, update it with actual deliverables, verification evidence, deviations, lessons learned, and follow-up items
-- if no matching PRD exists, create `tasks/[YYYYMMDD-HHMMSS]-prd-[task-slug].md`
+- if no matching PRD exists, create `tasks/pending/<PRIORITY>-<TYPE>-<YYYYMMDD-HHMMSS>-<task-slug>.md`
 - use the repository PRD conventions from `skills/prd/SKILL.md` and `docs/guides/prd-standard.md` when creating a new PRD
 - record the final PRD path and whether it was `updated` or `created` in `.claude/planning/current/task_plan.md` and `.claude/planning/current/progress.md`
 
@@ -199,7 +199,7 @@ Simple task example:
 ## Completion Summary
 - **Status:** Complete (2026-02-10)
 - **Tests:** Passed (`pytest tests/test_core.py`)
-- **PRD:** Updated `tasks/20260210-101500-prd-theme-refresh.md`
+- **PRD:** Updated `tasks/pending/P2-FEAT-20260210-101500-theme-refresh.md`
 - **Deliverables:** `src/file1.ts`, `docs/readme.md`
 - **Notes:** Optional key decisions and caveats
 ```

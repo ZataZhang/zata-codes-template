@@ -118,7 +118,7 @@ python scripts/check_prd_acceptance_checklist.py --repo-root <repo-root> --all
 For a pending PRD that is about to be archived, explicitly validate that file:
 
 ```bash
-python scripts/check_prd_acceptance_checklist.py --repo-root <repo-root> --check-provided tasks/pending/20260527-120000-prd-example.md
+python scripts/check_prd_acceptance_checklist.py --repo-root <repo-root> --check-provided tasks/pending/P0-BUG-20260527-120000-example.md
 ```
 
 Pending PRDs may intentionally keep unchecked acceptance items while waiting for implementation, so do not run the acceptance-completion checker as a blocker for a normal newly generated PRD.
@@ -182,7 +182,14 @@ Forbidden:
 ### Phase 6: Generate And Save The PRD
 
 Write the PRD to:
-- `tasks/pending/[YYYYMMDD-HHMMSS]-prd-[feature-name].md`
+- `tasks/pending/<PRIORITY>-<TYPE>-<YYYYMMDD-HHMMSS>-<slug>.md`
+
+| Segment | Description |
+|---------|-------------|
+| `PRIORITY` | `P0` (urgent) / `P1` (high) / `P2` (normal) / `P3` (low) |
+| `TYPE` | `BUG` / `FEAT` / `REFACTOR` / `PERF` / `DOCS` / `CHORE` / `SECURITY` |
+| `YYYYMMDD-HHMMSS` | Local current time |
+| `slug` | Lowercase with hyphens |
 
 Feature slug must be lowercase with hyphens.
 Timestamp must use local current time in `YYYYMMDD-HHMMSS` format.
@@ -484,7 +491,7 @@ The checklist must validate the final target state, not merely the completion of
 * [ ] Added ER diagram only when data model changes are present
 * [ ] Used web research only when external facts were required
 * [ ] Cited sources and dates for any web-derived claims
-* [ ] Saved new PRDs to `tasks/pending/[YYYYMMDD-HHMMSS]-prd-[feature-name].md`
+* [ ] Saved new PRDs to `tasks/pending/<PRIORITY>-<TYPE>-<YYYYMMDD-HHMMSS>-<slug>.md`
 * [ ] Did not require acceptance-completion checks for normal pending PRDs; for archive readiness, ran the bundled `scripts/check_prd_acceptance_checklist.py` checker when available
 * [ ] For existing PRD updates, restructured the whole PRD to the required shape instead of appending to a non-compliant file
 * [ ] Ran a section compliance check, manually or with `rg -n "^## " <prd-file>`

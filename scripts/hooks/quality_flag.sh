@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-QUALITY_TEST_EXCLUDED_FILE_PATTERN='\.(md|rst|txt|log|png|jpg|jpeg|gif|svg|ico|drawio|pdf|docx|xlsx|zip|tar|gz|bz2)$'
-QUALITY_ARCHIVED_PRD_PATH_PATTERN='^tasks/archive/[^/]+-prd-[^/]+\.md$'
+QUALITY_TEST_EXCLUDED_FILE_PATTERN='\.(md|rst|txt|log|png|jpg|jpeg|gif|svg|ico|drawio|pdf|docx|xlsx|zip|tar|gz|bz2|example)$'
+QUALITY_ARCHIVED_PRD_PATH_PATTERN='^tasks/archive/([^/]+-prd-[^/]+|P[0-3]-[A-Z]+-[0-9]{8}-[0-9]{6}-[^/]+)\.md$'
 
 quality_git_dir() {
     git rev-parse --git-dir 2>/dev/null || echo ".git"
