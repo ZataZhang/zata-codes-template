@@ -26,8 +26,6 @@ HARDCODED_ENV_KEYS: set[str] = {
     "RESOURCES_DIR",
     "WORK_DIR",
 }
-SPECIAL_LABEL_KEYS: set[str] = {"DOMAIN"}
-
 # Historical env keys that are no longer referenced in the codebase.
 # When a key is removed from the application, add it here so the test
 # flags stale documentation in the templates.
@@ -133,6 +131,15 @@ def _parse_all_service_env_keys(compose_file_path: Path) -> dict[str, set[str]]:
     return services
 
 
+def _parse_compose_var_refs(compose_file_path: Path) -> set[str]:
+    """Extract ${VAR} and ${VAR:-default} variable references from compose text."""
+    import re
+
+    raw_text: str = compose_file_path.read_text(encoding="utf-8")
+    var_ref_pattern = re.compile(r"\$\{(\w+)")
+    return set(var_ref_pattern.findall(raw_text))
+
+
 def test_active_dokploy_template_keys_are_used_in_compose() -> None:
     """Every active .env.dokploy variable must appear in at least one compose service."""
     template_active: set[str] = _parse_active_env_keys(DOKPLOY_ENV_TEMPLATE_PATH)
@@ -140,10 +147,10 @@ def test_active_dokploy_template_keys_are_used_in_compose() -> None:
         DOKPLOY_COMPOSE_PATH
     )
     all_compose_env_keys: set[str] = set().union(*service_envs.values())
+    all_compose_var_refs: set[str] = _parse_compose_var_refs(DOKPLOY_COMPOSE_PATH)
+    all_compose_keys: set[str] = all_compose_env_keys | all_compose_var_refs
 
-    unused_keys: list[str] = sorted(
-        template_active - all_compose_env_keys - SPECIAL_LABEL_KEYS
-    )
+    unused_keys: list[str] = sorted(template_active - all_compose_keys)
 
     assert not unused_keys, (
         "Active .env.dokploy variables must be used by at least one compose service: "

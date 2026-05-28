@@ -9,7 +9,9 @@
 #   2. Set DATABASE_URL to your production database.
 #   3. Ensure "dokploy-network" exists (Dokploy creates it).
 #
-# Traefik labels route traffic to the frontend (Nginx).
+# Traefik labels route traffic to the frontend (Nginx). DOMAIN must be set in
+# the Dokploy Compose environment; otherwise Docker Compose fails early instead
+# of generating Host(``) routes that return Traefik 404.
 # -----------------------------------------------------------------------------
 
 services:
@@ -63,9 +65,15 @@ services:
       - dokploy-network
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.app.rule=Host(`${DOMAIN}`)"
+      - "traefik.docker.network=dokploy-network"
+      - "traefik.http.middlewares.app-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.routers.app-web.rule=Host(`${DOMAIN:?Set DOMAIN in Dokploy environment}`)"
+      - "traefik.http.routers.app-web.entrypoints=web"
+      - "traefik.http.routers.app-web.middlewares=app-https-redirect"
+      - "traefik.http.routers.app.rule=Host(`${DOMAIN:?Set DOMAIN in Dokploy environment}`)"
       - "traefik.http.routers.app.entrypoints=websecure"
-      - "traefik.http.routers.app.tls.certResolver=letsencrypt"
+      - "traefik.http.routers.app.tls=true"
+      - "traefik.http.routers.app.tls.certresolver=letsencrypt"
       - "traefik.http.services.app.loadbalancer.server.port=80"
     deploy:
       resources:
