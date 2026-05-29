@@ -1,10 +1,29 @@
-"""Model-loading helpers for provider-configured chat models."""
+"""OpenAI-protocol chat model loader.
+
+模型加载器只关心一件事：根据模型名查表，生成一个 ``ChatOpenAI`` 客户端。
+
+模型配置存在 ``config.toml`` 的 ``[models]`` section 中：每个子表就是一个模型条目，
+其值描述该模型对应的 OpenAI 协议端点。不再有 provider 分组、不再有多 base_url 回退、
+不再有 provider 特定参数；多区域 / 多端点请配置成独立模型条目。
+
+配置示例（``config.toml``）::
+
+    [models."gpt-4"]
+    base_url = "https://api.openai.com/v1"
+    api_key_env = "OPENAI_API_KEY"
+    description = "OpenAI GPT-4 model"
+
+    # 可选：透传给 ChatOpenAI 的额外关键字参数
+    [models."gpt-4".extra]
+    organization = "org-..."
+
+API 密钥本身始终通过 ``.env`` / 环境变量提供，配置文件只声明应读取哪个环境变量名。
+"""
 
 from __future__ import annotations
 
-import json
 import os
-from functools import lru_cache
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, MutableMapping
 
@@ -12,326 +31,147 @@ from dotenv import load_dotenv
 from langchain_core.language_models import BaseLanguageModel
 from langchain_openai import ChatOpenAI
 
-# Load repository-level environment variables when present.
+from backend.infrastructure.config.settings import load_models_config
+
 PROJECT_ROOT_DIR = Path(__file__).resolve().parents[2]
 load_dotenv(PROJECT_ROOT_DIR / ".env", override=False)
-
-
-DEFAULT_MODELS_CONFIG = Path(__file__).resolve().parent / "models.json"
-
-DEFAULT_API_KEY_ENVS = {
-    "openai": "OPENAI_API_KEY",
-}
 
 
 class ModelConfigError(RuntimeError):
     """当模型配置无法满足请求时抛出的异常。
 
-    当尝试创建模型但配置不完整或无效时会引发此异常。
+    例如：模型名未在 ``[models]`` 中声明，或对应的 API key 环境变量缺失。
     """
 
 
-def _resolve_config_path(config_path: str | Path | None) -> Path:
-    """返回应从中加载提供商配置的路径。
+@dataclass(frozen=True)
+class ModelEndpoint:
+    """单个模型对应的 OpenAI 协议端点描述。
 
-    Args:
-        config_path (str | Path | None): 配置文件的可选路径。
-
-    Returns:
-        Path: 配置文件的解析路径。
-
-    Raises:
-        FileNotFoundError: 如果配置文件不存在。
-
-    Examples:
-        >>> from pathlib import Path
-        >>> path = _resolve_config_path(None)
-        >>> path.exists()
-        True
-
-        >>> path = _resolve_config_path("custom_config.json")
-        >>> # 如果文件存在，则返回该路径
+    Attributes:
+        model_name (str): 模型名称（与配置文件中的键一致）。
+        base_url (str): OpenAI 协议端点的基础 URL。
+        api_key (str): 已经解析好的 API 密钥。
+        extra (Mapping[str, Any]): 透传给 ``ChatOpenAI`` 的额外关键字参数。
     """
 
-    path = Path(config_path) if config_path else DEFAULT_MODELS_CONFIG
-    if not path.exists():
-        raise FileNotFoundError(f"Model config file not found: {path}")
-    return path
-
-
-@lru_cache(maxsize=4)
-def load_models_config(config_path: str | Path | None = None) -> dict[str, Any]:
-    """加载并缓存提供商配置文件。
-
-    Args:
-        config_path (str | Path | None): 配置文件的可选路径覆盖。
-
-    Returns:
-        dict[str, Any]: 解析后的提供商配置数据。
-
-    Raises:
-        FileNotFoundError: 如果无法找到配置文件。
-        json.JSONDecodeError: 如果文件包含无效的 JSON。
-
-    Examples:
-        >>> config = load_models_config()
-        >>> isinstance(config, dict)
-        True
-        >>> "openai" in config
-        True
-
-        >>> config = load_models_config("custom_models.json")
-        >>> # 从自定义路径加载配置
-    """
-
-    path = _resolve_config_path(config_path)
-    with path.open("r", encoding="utf-8") as fp:
-        return json.load(fp)
+    model_name: str
+    base_url: str
+    api_key: str
+    extra: Mapping[str, Any]
 
 
 def list_models(
-    provider: str,
-    category: str | None = None,
     *,
     config_path: str | Path | None = None,
 ) -> list[dict[str, Any]]:
-    """返回给定提供商/类别的已配置模型。
+    """返回配置中所有可用模型的元数据列表。
 
     Args:
-        provider (str): 配置文件中定义的提供商键。
-        category (str | None): 可选的类别键，例如 ``omni_models``。
         config_path (str | Path | None): 配置文件路径的覆盖。
 
     Returns:
-        list[dict[str, Any]]: 包含元数据的匹配模型条目。
-
-    Examples:
-        >>> models = list_models("openai")
-        >>> isinstance(models, list)
-        True
-        >>> len(models) > 0
-        True
-
-        >>> chat_models = list_models("openai", "chat_models")
-        >>> # 获取 OpenAI 的聊天模型列表
+        list[dict[str, Any]]: 形如 ``{"name": ..., "base_url": ..., ...}`` 的条目列表。
     """
 
-    config = load_models_config(config_path)
-    provider_data = config.get(provider.lower())
-    if provider_data is None:
-        return []
-    if not category:
-        models: list[dict[str, Any]] = []
-        for value in provider_data.values():
-            if isinstance(value, list):
-                models.extend(value)
-        return models
-    return provider_data.get(category, [])
+    raw_models_config: dict[str, Any] = load_models_config(config_path)
+    listed_models: list[dict[str, Any]] = []
+    for model_name, model_entry in raw_models_config.items():
+        if not isinstance(model_entry, Mapping):
+            continue
+        listed_models.append({"name": model_name, **dict(model_entry)})
+    return listed_models
 
 
-def _infer_provider(model_name: str) -> str:
-    """从模型名称推测上游提供商。
-
-    模板只保留最基础的启发式规则。
-    项目应在 models.json 中显式配置模型，而非依赖推断。
-
-    Args:
-        model_name (str): 模型的名称标识符。
-
-    Returns:
-        str: 推测的提供商名称。
-
-    Examples:
-        >>> _infer_provider("gpt-4")
-        'openai'
-    """
-
-    return "openai"
-
-
-def _find_model_providers(
+def _lookup_model_entry(
     model_name: str,
-    config: Mapping[str, Any],
-) -> list[tuple[str, Mapping[str, Any] | None]]:
-    """查找可提供指定模型的全部提供商。
+    models_config: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    """根据模型名在配置中查找条目（大小写不敏感、忽略首尾空白）。
 
     Args:
-        model_name (str): 模型的名称标识符。
-        config (Mapping[str, Any]): 解析后的提供商配置。
+        model_name (str): 模型标识符。
+        models_config (Mapping[str, Any]): 已加载的模型配置。
 
     Returns:
-        list[tuple[str, Mapping[str, Any] | None]]: 每个提供商及其配置。
+        Mapping[str, Any]: 对应的模型条目。
+
+    Raises:
+        ModelConfigError: 如果模型名未在配置中声明。
     """
 
-    normalized = model_name.strip().lower()
-    matches: list[tuple[str, Mapping[str, Any] | None]] = []
-    for provider_name, provider_config in config.items():
-        for value in provider_config.values():
-            if isinstance(value, list):
-                for entry in value:
-                    if entry.get("name", "").strip().lower() == normalized:
-                        matches.append((provider_name, provider_config))
-                        break
-                else:
-                    continue
-                break
-    if matches:
-        return matches
-
-    inferred = _infer_provider(model_name)
-    matches.append((inferred, config.get(inferred)))
-    return matches
+    normalized_model_name: str = model_name.strip().lower()
+    for declared_model_name, model_entry in models_config.items():
+        if declared_model_name.strip().lower() == normalized_model_name and isinstance(
+            model_entry, Mapping
+        ):
+            return model_entry
+    raise ModelConfigError(f"Model '{model_name}' is not declared in models config.")
 
 
-def _expand_base_urls(
-    provider: str,
-    provider_config: Mapping[str, Any],
-    *,
-    preferred_key: str | None = None,
-) -> list[str | None]:
-    """生成提供商配置中声明的基础 URL 列表。
-
-    Args:
-        provider (str): 提供商名称。
-        provider_config (Mapping[str, Any]): 提供商特定配置。
-        preferred_key (str | None): 可选的首选 base_url 键（用于区域）。
-
-    Returns:
-        list[str | None]: 候选基础 URL，若未配置则返回 ``[None]``。
-    """
-
-    base_value = provider_config.get("base_url")
-    urls: list[str] = []
-
-    if isinstance(base_value, str):
-        urls = [base_value]
-    elif isinstance(base_value, list):
-        urls = [value for value in base_value if isinstance(value, str)]
-    elif isinstance(base_value, Mapping):
-        if preferred_key and preferred_key in base_value:
-            target = base_value.get(preferred_key)
-            if isinstance(target, str):
-                return [target]
-        for value in base_value.values():
-            if isinstance(value, str) and value not in urls:
-                urls.append(value)
-
-    if not urls:
-        return [None]
-    return urls
-
-
-def _resolve_provider_api_key(
-    provider: str,
-    provider_config: Mapping[str, Any],
-    explicit_api_key: str | None,
-) -> str | None:
-    """解析提供商可用的 API 密钥。
-
-    Args:
-        provider (str): 提供商名称。
-        provider_config (Mapping[str, Any]): 提供商特定配置。
-        explicit_api_key (str | None): 用户显式传入的 API 密钥。
-
-    Returns:
-        str | None: 解析后的 API 密钥（若无法解析则为 ``None``）。
-    """
-
-    if explicit_api_key:
-        return explicit_api_key
-
-    env_name = provider_config.get("api_key_env")
-    if env_name:
-        env_value = os.getenv(env_name)
-        if env_value:
-            return env_value
-
-    default_env = DEFAULT_API_KEY_ENVS.get(provider)
-    if default_env:
-        env_value = os.getenv(default_env)
-        if env_value:
-            return env_value
-
-    return None
-
-
-def _collect_provider_credentials(
-    provider: str,
-    provider_config: Mapping[str, Any] | None,
-    *,
-    explicit_api_key: str | None,
-    dashscope_region: str | None,
-) -> list[tuple[str, str | None, str | None]]:
-    """生成指定提供商的全部凭据信息组合。
-
-    Args:
-        provider (str): 提供商名称。
-        provider_config (Mapping[str, Any] | None): 提供商配置。
-        explicit_api_key (str | None): 显式 API 密钥。
-        dashscope_region (str | None): DashScope 区域选择器。
-
-    Returns:
-        list[tuple[str, str | None, str | None]]: (provider, base_url, api_key) 列表。
-    """
-
-    normalized_config = provider_config or {}
-    base_urls = _expand_base_urls(
-        provider,
-        normalized_config,
-        preferred_key=dashscope_region if provider == "dashscope" else None,
-    )
-    resolved_api_key = _resolve_provider_api_key(
-        provider, normalized_config, explicit_api_key
-    )
-    return [(provider, base_url, resolved_api_key) for base_url in base_urls]
-
-
-def resolve_model_credentials(
+def resolve_model_endpoint(
     model_name: str,
     *,
     config_path: str | Path | None = None,
     api_key: str | None = None,
-    dashscope_region: str | None = None,
-) -> list[tuple[str, str | None, str | None]]:
-    """解析模型可用的全部提供商、基础 URL 和 API 密钥组合。
+) -> ModelEndpoint:
+    """解析模型对应的 OpenAI 协议端点。
+
+    解析顺序：
+
+    1. 在 ``[models]`` 中按模型名查表
+    2. 读取 ``base_url``（必填）
+    3. 读取 API key：显式入参 > 条目里 ``api_key_env`` 指向的环境变量
+    4. 读取可选 ``extra`` 字段，透传给 ``ChatOpenAI``
 
     Args:
-        model_name (str): 要检查的模型标识符。
-        config_path (str | Path | None): 可选的配置文件覆盖。
-        api_key (str | None): 优先使用的显式 API 密钥。
-        dashscope_region (str | None): DashScope 基础 URL 的区域选择器。
+        model_name (str): 模型名称。
+        config_path (str | Path | None): 可选的配置文件路径覆盖。
+        api_key (str | None): 显式覆盖的 API 密钥；优先级最高。
 
     Returns:
-        list[tuple[str, str | None, str | None]]: (provider, base_url, api_key)
-        组合，覆盖所有匹配的提供商和 URL。
+        ModelEndpoint: 已解析好的端点描述。
 
-    Examples:
-        >>> resolve_model_credentials("gpt-4")
-        [('openai', None, 'sk-...')]
-
-        >>> resolve_model_credentials("qwen-turbo", dashscope_region="beijing")
-        [('dashscope', 'https://dashscope.aliyuncs.com/compatible-mode/v1', 'ak-...')]
+    Raises:
+        ModelConfigError: 当模型未声明、缺少 ``base_url`` 或 API 密钥无法解析时抛出。
     """
 
-    config = load_models_config(config_path)
-    providers = _find_model_providers(model_name, config)
-    credentials: list[tuple[str, str | None, str | None]] = []
-    seen: set[tuple[str | None, str | None, str | None]] = set()
+    models_config: dict[str, Any] = load_models_config(config_path)
+    model_entry: Mapping[str, Any] = _lookup_model_entry(model_name, models_config)
 
-    for provider, provider_config in providers:
-        combos = _collect_provider_credentials(
-            provider,
-            provider_config,
-            explicit_api_key=api_key,
-            dashscope_region=dashscope_region,
+    base_url_value: Any = model_entry.get("base_url")
+    if not isinstance(base_url_value, str) or not base_url_value:
+        raise ModelConfigError(
+            f"Model '{model_name}' is missing a string 'base_url' in models config."
         )
-        for combo in combos:
-            dedupe_key = (combo[0], combo[1], combo[2])
-            if dedupe_key not in seen:
-                seen.add(dedupe_key)
-                credentials.append(combo)
 
-    return credentials
+    if api_key:
+        resolved_api_key: str = api_key
+    else:
+        api_key_env_name: Any = model_entry.get("api_key_env")
+        if not isinstance(api_key_env_name, str) or not api_key_env_name:
+            raise ModelConfigError(
+                f"Model '{model_name}' is missing 'api_key_env' and no explicit api_key was provided."
+            )
+        env_api_key_value: str | None = os.getenv(api_key_env_name)
+        if not env_api_key_value:
+            raise ModelConfigError(
+                f"Environment variable '{api_key_env_name}' for model '{model_name}' is empty or unset."
+            )
+        resolved_api_key = env_api_key_value
+
+    extra_value: Any = model_entry.get("extra", {})
+    if not isinstance(extra_value, Mapping):
+        raise ModelConfigError(
+            f"Model '{model_name}' field 'extra' must be a mapping if provided."
+        )
+
+    return ModelEndpoint(
+        model_name=model_name,
+        base_url=base_url_value,
+        api_key=resolved_api_key,
+        extra=dict(extra_value),
+    )
 
 
 def create_chat_model(
@@ -340,60 +180,40 @@ def create_chat_model(
     temperature: float = 0.0,
     config_path: str | Path | None = None,
     api_key: str | None = None,
-    dashscope_region: str | None = None,
     client_kwargs: Mapping[str, Any] | None = None,
 ) -> BaseLanguageModel:
-    """根据提供商配置实例化聊天模型。
+    """根据模型配置实例化 OpenAI 协议聊天模型。
 
     Args:
-        model_name (str): 要实例化的模型名称。
+        model_name (str): 要实例化的模型名称（必须在 ``[models]`` 中声明）。
         temperature (float): 传递给底层客户端的温度值。
         config_path (str | Path | None): 可选的配置路径覆盖。
-        api_key (str | None): 显式传入的 API 密钥。
-        dashscope_region (str | None): DashScope 基础 URL 的区域选择器。
-        client_kwargs (Mapping[str, Any] | None): 额外传递的客户端参数。
+        api_key (str | None): 显式覆盖的 API 密钥；优先级最高。
+        client_kwargs (Mapping[str, Any] | None): 额外的 ``ChatOpenAI`` 关键字参数；
+            优先级高于配置文件 ``extra``。
 
     Returns:
-        BaseLanguageModel: 可直接调用的 LLM 客户端实例。
+        BaseLanguageModel: 已配置好的 ``ChatOpenAI`` 实例。
 
     Raises:
-        ModelConfigError: 当无法解析 API 密钥或配置缺失时抛出。
+        ModelConfigError: 当配置缺失、模型未声明或 API key 无法解析时抛出。
         FileNotFoundError: 当配置路径不存在时抛出。
     """
 
-    llm_kwargs: MutableMapping[str, Any] = {
-        "model": model_name,
-        "temperature": temperature,
-    }
-    if client_kwargs:
-        llm_kwargs.update(client_kwargs)
-
-    credential_options = resolve_model_credentials(
+    resolved_endpoint: ModelEndpoint = resolve_model_endpoint(
         model_name,
         config_path=config_path,
         api_key=api_key,
-        dashscope_region=dashscope_region,
     )
-    if not credential_options:
-        raise ModelConfigError(f"No credentials configured for model '{model_name}'.")
 
-    selected_provider, selected_base_url, resolved_api_key = credential_options[0]
-    for provider, base_url, candidate_key in credential_options:
-        if candidate_key:
-            selected_provider = provider
-            selected_base_url = base_url
-            resolved_api_key = candidate_key
-            break
+    chat_model_kwargs: MutableMapping[str, Any] = {
+        "model": resolved_endpoint.model_name,
+        "temperature": temperature,
+        "base_url": resolved_endpoint.base_url,
+        "api_key": resolved_endpoint.api_key,
+    }
+    chat_model_kwargs.update(resolved_endpoint.extra)
+    if client_kwargs:
+        chat_model_kwargs.update(client_kwargs)
 
-    if selected_base_url:
-        llm_kwargs.setdefault("base_url", selected_base_url)
-
-    llm_class = ChatOpenAI
-
-    if resolved_api_key:
-        llm_kwargs.setdefault("api_key", resolved_api_key)
-    if "api_key" not in llm_kwargs:
-        raise ModelConfigError(
-            f"API key missing for provider '{selected_provider}' and model '{model_name}'."
-        )
-    return llm_class(**llm_kwargs)
+    return ChatOpenAI(**chat_model_kwargs)

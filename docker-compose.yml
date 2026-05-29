@@ -12,7 +12,6 @@
 services:
   db:
     image: postgres:17-alpine
-    container_name: app-db
     environment:
       POSTGRES_USER: app
       POSTGRES_PASSWORD: app
@@ -30,7 +29,6 @@ services:
     build:
       context: .
       dockerfile: src/backend/Dockerfile
-    container_name: app-backend
     ports:
       - "8000:8000"
     environment:
@@ -54,11 +52,34 @@ services:
       retries: 3
       start_period: 10s
 
+  # ---------------------------------------------------------------------------
+  # Worker (uncomment if the project has async background tasks).
+  #
+  # Reuses the backend image with a different command. If you uncomment this,
+  # ALSO add an equivalent service to docker-compose.dokploy.yml — the
+  # tests/repo/test_compose_parity.py check will fail otherwise.
+  # ---------------------------------------------------------------------------
+  # worker:
+  #   build:
+  #     context: .
+  #     dockerfile: src/backend/Dockerfile
+  #   command: ["python", "-m", "backend.workers.<your_worker_module>"]
+  #   environment:
+  #     - DATABASE_URL=${DATABASE_URL:-postgresql+psycopg2://app:app@db:5432/app}
+  #     - DB_MIGRATION_MODE=skip
+  #     # Mirror any other env keys the backend service receives.
+  #   volumes:
+  #     - backend-logs:/app/backend/logs
+  #     - backend-data:/app/backend/data
+  #   depends_on:
+  #     backend:
+  #       condition: service_healthy
+  #   restart: unless-stopped
+
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: app-frontend
     ports:
       - "80:80"
     depends_on:
@@ -70,7 +91,6 @@ services:
     build:
       context: .
       dockerfile: scripts/backup_service/Dockerfile
-    container_name: app-backup
     environment:
       - DATABASE_URL=${DATABASE_URL:-postgresql+psycopg2://app:app@db:5432/app}
       - S3_ENDPOINT=${S3_ENDPOINT}

@@ -1,281 +1,261 @@
-"""Tests for model loader configuration loading.
+"""Tests for the OpenAI-protocol model loader.
 
-Tests focus on configuration parsing, credential resolution,
-and model metadata without requiring actual API calls.
+These tests cover configuration parsing, endpoint resolution, and chat-model
+instantiation. They never make outbound network calls.
+
+Test fixtures write minimal ``config.toml`` files with only the ``[models]``
+section because that is the only section the loader consumes.
 """
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
+from textwrap import dedent
 from typing import Any
 
 import pytest
 
+from backend.infrastructure.config import settings as settings_module
 from backend.infrastructure.models import (
-    _expand_base_urls,
-    _find_model_providers,
-    _infer_provider,
-    _resolve_config_path,
-    _resolve_provider_api_key,
-    load_models_config,
+    ModelConfigError,
+    ModelEndpoint,
+    create_chat_model,
     list_models,
-    resolve_model_credentials,
+    load_models_config,
+    resolve_model_endpoint,
 )
 
 
-class TestConfigPathResolution:
-    """Tests for configuration path resolution."""
+@pytest.fixture(autouse=True)
+def _clear_models_config_cache() -> None:
+    """Each test starts with a fresh models config cache.
 
-    def test_resolve_default_config_path(self) -> None:
-        """Test that default config path resolves to existing file."""
-        config_path: Path = _resolve_config_path(None)
+    ``load_models_config`` is wrapped in ``lru_cache`` at module scope. Without
+    clearing between tests, a custom config path read once would leak into the
+    next test that uses the default path.
+    """
 
-        assert config_path.exists()
-        assert config_path.name == "models.json"
-
-    def test_resolve_custom_config_path(self, tmp_path: Path) -> None:
-        """Test resolution of custom config path."""
-        custom_config: Path = tmp_path / "custom_models.json"
-        custom_config.write_text(json.dumps({"test": {}}), encoding="utf-8")
-
-        resolved_path: Path = _resolve_config_path(custom_config)
-
-        assert resolved_path == custom_config
-
-    def test_resolve_nonexistent_config_raises_error(self, tmp_path: Path) -> None:
-        """Test that nonexistent config path raises FileNotFoundError."""
-        nonexistent_path: Path = tmp_path / "nonexistent.json"
-
-        with pytest.raises(FileNotFoundError):
-            _resolve_config_path(nonexistent_path)
+    load_models_config.cache_clear()
 
 
-class TestModelsConfigLoading:
-    """Tests for models configuration loading."""
+@pytest.fixture()
+def custom_config_toml(tmp_path: Path) -> Path:
+    """写入一个最小化的 config.toml，仅包含 [models] section。"""
+
+    config_payload: str = dedent(
+        """
+        [models."test-model"]
+        base_url = "https://api.example.com/v1"
+        api_key_env = "TEST_API_KEY"
+        description = "Test model"
+
+        [models."test-model".extra]
+        organization = "org-test"
+
+        [models."no-extra-model"]
+        base_url = "https://api.example.com/v1"
+        api_key_env = "TEST_API_KEY"
+        """
+    ).strip()
+    config_file_path: Path = tmp_path / "config.toml"
+    config_file_path.write_text(config_payload, encoding="utf-8")
+    return config_file_path
+
+
+class TestLoadModelsConfig:
+    """Tests for ``load_models_config``."""
 
     def test_load_default_models_config(self) -> None:
-        """Test loading default models.json configuration."""
-        config: dict[str, Any] = load_models_config()
+        """默认仓库 config.toml 中应至少声明 gpt-4。"""
 
-        assert isinstance(config, dict)
-        assert "openai" in config
+        loaded_default_config: dict[str, Any] = load_models_config()
+
+        assert isinstance(loaded_default_config, dict)
+        assert "gpt-4" in loaded_default_config
+        assert loaded_default_config["gpt-4"]["base_url"].startswith("https://")
 
     def test_load_models_config_cached(self) -> None:
-        """Test that models config is cached."""
-        config1: dict[str, Any] = load_models_config()
-        config2: dict[str, Any] = load_models_config()
+        """相同入参的加载结果应来自缓存。"""
 
-        assert config1 is config2
+        first_load_result: dict[str, Any] = load_models_config()
+        second_load_result: dict[str, Any] = load_models_config()
 
-    def test_load_custom_models_config(self, tmp_path: Path) -> None:
-        """Test loading custom models configuration."""
-        custom_config: dict[str, Any] = {
-            "test_provider": {
-                "api_key_env": "TEST_API_KEY",
-                "base_url": "https://test.example.com/v1",
-                "chat_models": [{"name": "test-model", "description": "Test model"}],
-            }
-        }
-        config_file: Path = tmp_path / "test_models.json"
-        config_file.write_text(json.dumps(custom_config), encoding="utf-8")
+        assert first_load_result is second_load_result
 
-        loaded_config: dict[str, Any] = load_models_config(config_file)
+    def test_load_custom_models_config(self, custom_config_toml: Path) -> None:
+        """自定义路径应能加载并保留 TOML 子表键。"""
 
-        assert "test_provider" in loaded_config
-        assert loaded_config["test_provider"]["api_key_env"] == "TEST_API_KEY"
+        loaded_custom_config: dict[str, Any] = load_models_config(custom_config_toml)
 
+        assert "test-model" in loaded_custom_config
+        assert loaded_custom_config["test-model"]["api_key_env"] == "TEST_API_KEY"
 
-class TestProviderInference:
-    """Tests for provider inference from model names."""
+    def test_load_nonexistent_path_raises(self, tmp_path: Path) -> None:
+        """显式传入不存在的路径应抛出 FileNotFoundError。"""
 
-    def test_infer_openai_by_default(self) -> None:
-        """Test defaulting to openai for unknown models."""
-        assert _infer_provider("gpt-4") == "openai"
-        assert _infer_provider("unknown-model") == "openai"
+        nonexistent_path: Path = tmp_path / "nope.toml"
+
+        with pytest.raises(FileNotFoundError):
+            load_models_config(nonexistent_path)
+
+    def test_load_missing_default_returns_empty(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """默认 config.toml 缺失时应返回空 dict，而不是抛错。"""
+
+        monkeypatch.setattr(
+            settings_module, "_TOML_CONFIG_FILE_PATH", tmp_path / "missing.toml"
+        )
+
+        assert load_models_config() == {}
 
 
 class TestListModels:
-    """Tests for listing available models."""
+    """Tests for ``list_models``."""
 
-    def test_list_openai_chat_models(self) -> None:
-        """Test listing openai chat models."""
-        models: list[dict[str, Any]] = list_models("openai", "chat_models")
+    def test_list_default_models(self) -> None:
+        """默认配置应至少返回一条模型条目，且包含名称字段。"""
 
-        assert isinstance(models, list)
-        assert len(models) > 0
-        assert any(m["name"] == "gpt-4" for m in models)
+        listed_default_models: list[dict[str, Any]] = list_models()
 
-    def test_list_openai_all_models(self) -> None:
-        """Test listing all openai models without category filter."""
-        models: list[dict[str, Any]] = list_models("openai")
+        assert any(entry["name"] == "gpt-4" for entry in listed_default_models)
 
-        assert isinstance(models, list)
-        assert len(models) > 0
+    def test_list_custom_models(self, custom_config_toml: Path) -> None:
+        """自定义配置中的所有模型都应被列出。"""
 
-    def test_list_unknown_provider_returns_empty(self) -> None:
-        """Test that unknown provider returns empty list."""
-        models: list[dict[str, Any]] = list_models("nonexistent_provider")
-
-        assert models == []
-
-
-class TestFindModelProviders:
-    """Tests for finding providers for a specific model."""
-
-    def test_find_gpt4_providers(self) -> None:
-        """Test finding providers for gpt-4 model."""
-        config: dict[str, Any] = load_models_config()
-        providers: list[tuple[str, Any]] = _find_model_providers("gpt-4", config)
-
-        assert len(providers) > 0
-        assert any(p[0] == "openai" for p in providers)
-
-    def test_find_unknown_model_infers_provider(self) -> None:
-        """Test that unknown model infers provider."""
-        config: dict[str, Any] = load_models_config()
-        providers: list[tuple[str, Any]] = _find_model_providers(
-            "unknown-model", config
+        listed_custom_models: list[dict[str, Any]] = list_models(
+            config_path=custom_config_toml
         )
+        listed_model_names: list[str] = [
+            entry["name"] for entry in listed_custom_models
+        ]
 
-        assert len(providers) == 1
-        assert providers[0][0] == "openai"
-
-
-class TestExpandBaseUrls:
-    """Tests for base URL expansion."""
-
-    def test_expand_string_base_url(self) -> None:
-        """Test expanding string base_url."""
-        config: dict[str, Any] = {"base_url": "https://api.example.com/v1"}
-        urls: list[str | None] = _expand_base_urls("test", config)
-
-        assert urls == ["https://api.example.com/v1"]
-
-    def test_expand_list_base_url(self) -> None:
-        """Test expanding list base_url."""
-        config: dict[str, Any] = {
-            "base_url": ["https://api1.example.com", "https://api2.example.com"]
-        }
-        urls: list[str | None] = _expand_base_urls("test", config)
-
-        assert "https://api1.example.com" in urls
-        assert "https://api2.example.com" in urls
-
-    def test_expand_dict_base_url_with_preferred_key(self) -> None:
-        """Test expanding dict base_url with preferred key."""
-        config: dict[str, Any] = {
-            "base_url": {
-                "us": "https://us.example.com",
-                "eu": "https://eu.example.com",
-            }
-        }
-        urls: list[str | None] = _expand_base_urls("test", config, preferred_key="eu")
-
-        assert urls == ["https://eu.example.com"]
-
-    def test_expand_empty_base_url_returns_none(self) -> None:
-        """Test that empty base_url returns [None]."""
-        config: dict[str, Any] = {}
-        urls: list[str | None] = _expand_base_urls("test", config)
-
-        assert urls == [None]
+        assert listed_model_names == ["test-model", "no-extra-model"]
 
 
-class TestResolveProviderApiKey:
-    """Tests for API key resolution."""
+class TestResolveModelEndpoint:
+    """Tests for ``resolve_model_endpoint``."""
 
-    def test_resolve_explicit_api_key(self) -> None:
-        """Test that explicit API key takes priority."""
-        config: dict[str, Any] = {"api_key_env": "TEST_ENV_KEY"}
-        resolved_key: str | None = _resolve_provider_api_key(
-            "test", config, "explicit-api-key"
-        )
-
-        assert resolved_key == "explicit-api-key"
-
-    def test_resolve_from_config_env_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test resolving API key from config-specified env var."""
-        monkeypatch.setenv("CUSTOM_API_KEY", "custom-key-value")
-        config: dict[str, Any] = {"api_key_env": "CUSTOM_API_KEY"}
-
-        resolved_key: str | None = _resolve_provider_api_key("test", config, None)
-
-        assert resolved_key == "custom-key-value"
-
-    def test_resolve_from_default_env_var(
-        self, monkeypatch: pytest.MonkeyPatch
+    def test_resolve_endpoint_from_env(
+        self,
+        custom_config_toml: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Test resolving API key from default env var."""
-        monkeypatch.setenv("OPENAI_API_KEY", "openai-key-value")
-        config: dict[str, Any] = {}
+        """配置里的 api_key_env 指向的环境变量应被读取。"""
 
-        resolved_key: str | None = _resolve_provider_api_key("openai", config, None)
+        monkeypatch.setenv("TEST_API_KEY", "env-key-value")
 
-        assert resolved_key == "openai-key-value"
-
-    def test_resolve_no_api_key_returns_none(self) -> None:
-        """Test that missing API key returns None."""
-        config: dict[str, Any] = {}
-
-        resolved_key: str | None = _resolve_provider_api_key("unknown", config, None)
-
-        assert resolved_key is None
-
-
-class TestResolveModelCredentials:
-    """Tests for model credential resolution."""
-
-    def test_resolve_gpt4_credentials(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test resolving credentials for gpt-4."""
-        monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
-
-        credentials: list[tuple[str, str | None, str | None]] = (
-            resolve_model_credentials("gpt-4")
+        resolved_endpoint: ModelEndpoint = resolve_model_endpoint(
+            "test-model", config_path=custom_config_toml
         )
 
-        assert len(credentials) > 0
-        provider, base_url, api_key = credentials[0]
-        assert provider == "openai"
-        assert api_key == "test-openai-key"
-        assert base_url is not None
+        assert resolved_endpoint.model_name == "test-model"
+        assert resolved_endpoint.base_url == "https://api.example.com/v1"
+        assert resolved_endpoint.api_key == "env-key-value"
+        assert resolved_endpoint.extra == {"organization": "org-test"}
 
-    def test_resolve_with_explicit_api_key(self) -> None:
-        """Test resolving with explicit API key override."""
-        credentials: list[tuple[str, str | None, str | None]] = (
-            resolve_model_credentials("gpt-4", api_key="my-explicit-key")
+    def test_resolve_endpoint_with_explicit_api_key(
+        self,
+        custom_config_toml: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """显式传入的 api_key 优先于环境变量。"""
+
+        monkeypatch.setenv("TEST_API_KEY", "env-key-value")
+
+        resolved_endpoint: ModelEndpoint = resolve_model_endpoint(
+            "test-model",
+            config_path=custom_config_toml,
+            api_key="explicit-key-value",
         )
 
-        assert len(credentials) > 0
-        assert any(c[2] == "my-explicit-key" for c in credentials)
+        assert resolved_endpoint.api_key == "explicit-key-value"
 
-    def test_resolve_deduplicates_credentials(self) -> None:
-        """Test that duplicate credentials are deduplicated."""
-        credentials: list[tuple[str, str | None, str | None]] = (
-            resolve_model_credentials("gpt-4")
+    def test_resolve_endpoint_without_extra(
+        self,
+        custom_config_toml: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """未声明 extra 时应返回空字典。"""
+
+        monkeypatch.setenv("TEST_API_KEY", "env-key-value")
+
+        resolved_endpoint: ModelEndpoint = resolve_model_endpoint(
+            "no-extra-model", config_path=custom_config_toml
         )
 
-        # Convert to set to check for duplicates
-        unique_credentials: set[tuple[str | None, str | None, str | None]] = set(
-            (c[0], c[1], c[2]) for c in credentials
+        assert resolved_endpoint.extra == {}
+
+    def test_resolve_endpoint_unknown_model_raises(
+        self, custom_config_toml: Path
+    ) -> None:
+        """未声明的模型名应抛出 ModelConfigError。"""
+
+        with pytest.raises(ModelConfigError, match="not declared"):
+            resolve_model_endpoint("no-such-model", config_path=custom_config_toml)
+
+    def test_resolve_endpoint_missing_env_raises(
+        self,
+        custom_config_toml: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """环境变量未设置时应抛出明确的 ModelConfigError。"""
+
+        monkeypatch.delenv("TEST_API_KEY", raising=False)
+
+        with pytest.raises(ModelConfigError, match="TEST_API_KEY"):
+            resolve_model_endpoint("test-model", config_path=custom_config_toml)
+
+    def test_resolve_endpoint_missing_base_url_raises(self, tmp_path: Path) -> None:
+        """缺失 base_url 的条目应抛出 ModelConfigError。"""
+
+        broken_config_payload: str = dedent(
+            """
+            [models."broken-model"]
+            api_key_env = "TEST_API_KEY"
+            """
+        ).strip()
+        broken_config_file: Path = tmp_path / "broken.toml"
+        broken_config_file.write_text(broken_config_payload, encoding="utf-8")
+
+        with pytest.raises(ModelConfigError, match="base_url"):
+            resolve_model_endpoint("broken-model", config_path=broken_config_file)
+
+
+class TestCreateChatModel:
+    """Tests for ``create_chat_model``."""
+
+    def test_create_chat_model_uses_resolved_endpoint(
+        self,
+        custom_config_toml: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """生成的客户端应携带配置中的 base_url 与解析后的 api_key。"""
+
+        monkeypatch.setenv("TEST_API_KEY", "env-key-value")
+
+        chat_model_instance: Any = create_chat_model(
+            "test-model",
+            config_path=custom_config_toml,
         )
-        assert len(unique_credentials) == len(credentials)
 
+        assert chat_model_instance.model_name == "test-model"
+        assert str(chat_model_instance.openai_api_base) == "https://api.example.com/v1"
+        assert chat_model_instance.openai_api_key.get_secret_value() == "env-key-value"
 
-class TestConfigurationIntegration:
-    """Integration tests for configuration loading."""
+    def test_create_chat_model_client_kwargs_override_extra(
+        self,
+        custom_config_toml: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """client_kwargs 应能覆盖配置中的 extra 字段。"""
 
-    def test_config_matches_settings_integration(self) -> None:
-        """Test that model loader config aligns with settings module.
+        monkeypatch.setenv("TEST_API_KEY", "env-key-value")
 
-        This test verifies the integration between the infrastructure model loader
-        and the centralized settings configuration.
-        """
-        # Load model configuration
-        models_config: dict[str, Any] = load_models_config()
+        chat_model_instance: Any = create_chat_model(
+            "test-model",
+            config_path=custom_config_toml,
+            client_kwargs={"max_retries": 5},
+        )
 
-        # Verify that default providers exist in models.json
-        assert "openai" in models_config
-        openai_models: list[dict[str, Any]] = list_models("openai")
-        model_names: list[str] = [m["name"] for m in openai_models]
-        assert "gpt-4" in model_names
+        assert chat_model_instance.max_retries == 5

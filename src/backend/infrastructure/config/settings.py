@@ -8,6 +8,7 @@
 
 import os
 import tomllib
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote_plus
@@ -170,6 +171,43 @@ class AppSettings(BaseSettings):
         )
 
 
+@lru_cache(maxsize=4)
+def load_models_config(config_path: str | Path | None = None) -> dict[str, Any]:
+    """加载 ``config.toml`` 中的 ``[models]`` section。
+
+    每个子表（``[models."<model-name>"]``）描述一个 OpenAI 协议端点。
+
+    Args:
+        config_path (str | Path | None): 可选的 TOML 文件路径覆盖；缺省为仓库根目录的
+            ``config.toml``。
+
+    Returns:
+        dict[str, Any]: 形如 ``{"gpt-4": {"base_url": ..., "api_key_env": ...}}``
+        的模型条目映射；若 section 缺失则返回空 dict。
+
+    Raises:
+        FileNotFoundError: 当显式传入的 ``config_path`` 不存在时抛出。
+    """
+
+    resolved_toml_path: Path = (
+        Path(config_path) if config_path else _TOML_CONFIG_FILE_PATH
+    )
+    if not resolved_toml_path.is_file():
+        if config_path is not None:
+            raise FileNotFoundError(
+                f"Models config file not found: {resolved_toml_path}"
+            )
+        return {}
+
+    with open(resolved_toml_path, "rb") as toml_file_handle:
+        raw_toml_data: dict[str, Any] = tomllib.load(toml_file_handle)
+
+    models_section: Any = raw_toml_data.get("models", {})
+    if not isinstance(models_section, dict):
+        return {}
+    return models_section
+
+
 def _ensure_no_proxy_for_local_services() -> None:
     """确保本地服务（localhost/127.0.0.1）不经过系统 HTTP 代理。"""
     existing_no_proxy: str = os.getenv("NO_PROXY", "")
@@ -193,4 +231,5 @@ __all__ = [
     "AppSettings",
     "DatabaseSettings",
     "config",
+    "load_models_config",
 ]

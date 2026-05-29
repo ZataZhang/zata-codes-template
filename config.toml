@@ -53,3 +53,21 @@ host = "localhost"
 port = 5432
 name = "app_database"
 driver = "psycopg2"
+
+# =============================================================================
+# OpenAI-Protocol Model Endpoints
+# =============================================================================
+# Each [models."<model-name>"] table declares one OpenAI-compatible endpoint.
+# The API key itself stays in .env; this file only records which env var to read.
+#
+# Optional [models."<model-name>".extra] table is forwarded verbatim to
+# ChatOpenAI (useful for default_headers, extra_body, organization, ...).
+[models."gpt-4"]
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
+description = "OpenAI GPT-4 model"
+
+[models."qwen3.6-plus"]
+base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+api_key_env = "DASHSCOPE_API_KEY"
+description = "Alibaba DashScope Qwen3.6 Plus (OpenAI-compatible endpoint)"

@@ -1,31 +1,24 @@
 """Model loading and client factories.
 
-This package is the canonical location for provider configuration parsing and
-LLM client instantiation.
+该包是 OpenAI 协议模型配置解析和客户端实例化的入口。
+模型配置本身存在 ``config.toml`` 的 ``[models]`` section 中。
 """
+
+from backend.infrastructure.config.settings import load_models_config
 
 from .model_loader import (
     ModelConfigError,
-    _expand_base_urls,
-    _find_model_providers,
-    _infer_provider,
-    _resolve_config_path,
-    _resolve_provider_api_key,
+    ModelEndpoint,
     create_chat_model,
     list_models,
-    load_models_config,
-    resolve_model_credentials,
+    resolve_model_endpoint,
 )
 
 __all__ = [
     "ModelConfigError",
-    "_expand_base_urls",
-    "_find_model_providers",
-    "_infer_provider",
-    "_resolve_config_path",
-    "_resolve_provider_api_key",
+    "ModelEndpoint",
     "create_chat_model",
     "list_models",
     "load_models_config",
-    "resolve_model_credentials",
+    "resolve_model_endpoint",
 ]
