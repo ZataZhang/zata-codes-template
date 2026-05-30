@@ -18,6 +18,7 @@ class S3Client:
         access_key: str,
         secret_key: str,
         bucket: str,
+        addressing_style: str = "path",
     ) -> None:
         self.bucket = bucket
         self.client = boto3.client(
@@ -25,7 +26,27 @@ class S3Client:
             endpoint_url=endpoint,
             aws_access_key_id=access_key,
             aws_secret_access_key=secret_key,
-            config=Config(connect_timeout=30, read_timeout=300),
+            # boto3 requires a region even when the target service ignores it.
+            # us-east-1 is the conventional placeholder for MinIO and most S3
+            # clones; real AWS deployments override via AWS_DEFAULT_REGION.
+            region_name="us-east-1",
+            config=Config(
+                connect_timeout=30,
+                read_timeout=300,
+                signature_version="s3v4",
+                # path-style works for MinIO and AWS; "virtual" is required by
+                # Alibaba OSS, Tencent COS, and other China-region S3 services
+                # that reject second-level-domain access.
+                s3={"addressing_style": addressing_style},
+                # botocore 1.36+ defaults to "when_supported", which adds
+                # aws-chunked streaming SHA256 to every PutObject. That
+                # extension is AWS-only — Alibaba OSS, Tencent COS, Cloudflare
+                # R2, and older MinIO reject it with InvalidArgument.
+                # "when_required" restores the pre-1.36 behavior and still
+                # works on real AWS S3, so it is the universal safe choice.
+                request_checksum_calculation="when_required",
+                response_checksum_validation="when_required",
+            ),
         )
 
     def upload_file(self, file_path: Path, key: str) -> None:

@@ -98,6 +98,7 @@ services:
       - S3_SECRET_KEY=${S3_SECRET_KEY}
       - S3_BUCKET=${S3_BUCKET:-app-backups}
       - S3_PREFIX=${S3_PREFIX:-app-backups}
+      - S3_ADDRESSING_STYLE=${S3_ADDRESSING_STYLE:-path}
       - BACKUP_TIME=${BACKUP_TIME:-18:00}
       - FULL_BACKUP_DAY=${FULL_BACKUP_DAY:-6}
       - LOGS_DIR=/app/backend/logs

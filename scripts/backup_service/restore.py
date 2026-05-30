@@ -43,8 +43,9 @@ class RestoreClient(S3Client):
         secret_key: str,
         bucket: str,
         prefix: str,
+        addressing_style: str = "path",
     ) -> None:
-        super().__init__(endpoint, access_key, secret_key, bucket)
+        super().__init__(endpoint, access_key, secret_key, bucket, addressing_style)
         self.prefix = prefix
 
     def list_backup_dates(self) -> list[str]:
@@ -671,6 +672,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help="S3 key prefix (default: $S3_PREFIX or app-backups)",
     )
     parser.add_argument(
+        "--s3-addressing-style",
+        default=os.getenv("S3_ADDRESSING_STYLE", "path"),
+        choices=["path", "virtual", "auto"],
+        help=(
+            "S3 addressing style (default: $S3_ADDRESSING_STYLE or path). "
+            "Use 'virtual' for Alibaba OSS / Tencent COS, 'auto' for AWS S3."
+        ),
+    )
+    parser.add_argument(
         "--database-url",
         default=os.getenv("DATABASE_URL", ""),
         help="Database URL (default: $DATABASE_URL)",
@@ -775,6 +785,7 @@ def run_restore(args: argparse.Namespace) -> int:
         args.s3_secret_key,
         args.s3_bucket,
         args.s3_prefix,
+        args.s3_addressing_style,
     )
 
     dates = client.list_backup_dates()

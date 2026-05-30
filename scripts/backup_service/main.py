@@ -170,6 +170,7 @@ def run_backup_scheduler() -> int:
         access_key=config.s3_access_key,
         secret_key=config.s3_secret_key,
         bucket=config.s3_bucket,
+        addressing_style=config.s3_addressing_style,
     )
 
     print(
@@ -222,6 +223,7 @@ def _run_backup_now() -> int:
             access_key=config.s3_access_key,
             secret_key=config.s3_secret_key,
             bucket=config.s3_bucket,
+            addressing_style=config.s3_addressing_style,
         )
         print("Running backup now...\n")
         _run_backup(config, s3)
@@ -242,6 +244,7 @@ def _list_backups() -> int:
             config.s3_secret_key,
             config.s3_bucket,
             config.s3_prefix,
+            config.s3_addressing_style,
         )
         dates = client.list_backup_dates()
         if not dates:

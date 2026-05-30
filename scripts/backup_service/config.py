@@ -14,6 +14,7 @@ class BackupConfig:
     s3_secret_key: str
     s3_bucket: str
     s3_prefix: str
+    s3_addressing_style: str
     backup_time: str
     full_backup_day: int
     logs_dir: str
@@ -31,6 +32,7 @@ class BackupConfig:
             s3_secret_key=os.getenv("S3_SECRET_KEY", ""),
             s3_bucket=os.getenv("S3_BUCKET", "app-backups"),
             s3_prefix=os.getenv("S3_PREFIX", "app-backups"),
+            s3_addressing_style=os.getenv("S3_ADDRESSING_STYLE", "path"),
             backup_time=os.getenv("BACKUP_TIME", "18:00"),
             full_backup_day=int(os.getenv("FULL_BACKUP_DAY", "6")),
             logs_dir=os.getenv("LOGS_DIR", "/app/backend/logs"),
