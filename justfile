@@ -544,7 +544,15 @@ worktree arg1 arg2="" arg3="" arg4="" arg5="":
     "${worktree_command[@]}"
 
     if [ "$enter_shell_value" = "true" ]; then
-        target_worktree_path="$(dirname "$(git rev-parse --show-toplevel)")/$branch_name"
+        target_worktree_path="$(git worktree list --porcelain \
+            | awk -v b="refs/heads/$branch_name" '
+                /^worktree / { wt = substr($0, 10) }
+                /^branch / && $2 == b { print wt; exit }
+            ')"
+        if [ -z "$target_worktree_path" ] || [ ! -d "$target_worktree_path" ]; then
+            echo "❌ Could not locate worktree for $branch_name"
+            exit 1
+        fi
         echo "Entering worktree shell: $target_worktree_path"
         echo "Run 'exit' to return to previous shell."
         cd "$target_worktree_path"
