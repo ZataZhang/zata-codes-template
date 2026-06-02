@@ -475,6 +475,9 @@ worktree arg1 arg2="" arg3="" arg4="" arg5="":
     enter_shell_value="true"
     expect_code_command="false"
     expect_base_branch="false"
+    expect_checkout_source="false"
+
+    known_flag_pattern='--cmd|--cmd=*|--base|--base=*|--checkout|--checkout=*|--new|enter_shell=true|enter_shell=false'
 
     for raw_arg in "{{arg2}}" "{{arg3}}" "{{arg4}}" "{{arg5}}"; do
         if [ -z "$raw_arg" ]; then
@@ -483,7 +486,7 @@ worktree arg1 arg2="" arg3="" arg4="" arg5="":
 
         if [ "$expect_code_command" = "true" ]; then
             case "$raw_arg" in
-                --cmd|--cmd=*|--base|--base=*|enter_shell=true|enter_shell=false)
+                --cmd|--cmd=*|--base|--base=*|--checkout|--checkout=*|--new|enter_shell=true|enter_shell=false)
                     expect_code_command="false"
                     ;;
                 *)
@@ -496,12 +499,25 @@ worktree arg1 arg2="" arg3="" arg4="" arg5="":
 
         if [ "$expect_base_branch" = "true" ]; then
             case "$raw_arg" in
-                --cmd|--cmd=*|--base|--base=*|enter_shell=true|enter_shell=false)
+                --cmd|--cmd=*|--base|--base=*|--checkout|--checkout=*|--new|enter_shell=true|enter_shell=false)
                     expect_base_branch="false"
                     ;;
                 *)
                     worktree_command+=("$raw_arg")
                     expect_base_branch="false"
+                    continue
+                    ;;
+            esac
+        fi
+
+        if [ "$expect_checkout_source" = "true" ]; then
+            case "$raw_arg" in
+                --cmd|--cmd=*|--base|--base=*|--checkout|--checkout=*|--new|enter_shell=true|enter_shell=false)
+                    expect_checkout_source="false"
+                    ;;
+                *)
+                    worktree_command+=("$raw_arg")
+                    expect_checkout_source="false"
                     continue
                     ;;
             esac
@@ -522,6 +538,16 @@ worktree arg1 arg2="" arg3="" arg4="" arg5="":
             --cmd=*)
                 worktree_command+=("$raw_arg")
                 ;;
+            --checkout)
+                worktree_command+=(--checkout)
+                expect_checkout_source="true"
+                ;;
+            --checkout=*)
+                worktree_command+=("$raw_arg")
+                ;;
+            --new)
+                worktree_command+=(--new)
+                ;;
             enter_shell=true)
                 enter_shell_value="true"
                 ;;
@@ -531,7 +557,7 @@ worktree arg1 arg2="" arg3="" arg4="" arg5="":
             *)
                 echo "❌ Invalid argument: $raw_arg"
                 echo "Usage:"
-                echo "  just worktree <branch> [--base branch] [--cmd [editor]] [enter_shell=false]"
+                echo "  just worktree <branch> [--checkout [<src>] | --new] [--base branch] [--cmd [editor]] [enter_shell=false]"
                 echo "  just worktree -o <branch> [--cmd editor]"
                 echo "  just worktree -d <branch>"
                 echo "  just worktree -m [<feature>] [base=main] [flags]"
@@ -921,7 +947,7 @@ copy name force='':
     python3 -c 'from pathlib import Path; import sys; justfile_path = Path(sys.argv[1]); justfile_text = justfile_path.read_text(encoding="utf-8"); copy_section_marker = "\n# Copy template to a new directory"; copy_section_index = justfile_text.find(copy_section_marker); trimmed_justfile_text = justfile_text[:copy_section_index].rstrip() + "\n" if copy_section_index != -1 else justfile_text; justfile_path.write_text(trimmed_justfile_text, encoding="utf-8")' "$NEW_JUSTFILE"
 
     echo "Updating project name in config files..."
-    python3 -c 'from pathlib import Path; import sys; project_file_paths = [Path(path) for path in sys.argv[1:5]]; old_project_name = sys.argv[5]; new_project_name = sys.argv[6]; [project_file_path.write_text(project_file_path.read_text(encoding="utf-8").replace(old_project_name, new_project_name), encoding="utf-8") for project_file_path in project_file_paths]' "$NEW_DIR/config.toml" "$NEW_DIR/mkdocs.yml" "$NEW_DIR/pyproject.toml" "$NEW_DIR/uv.lock" "$OLD_NAME" "$PROJECT_NAME"
+    python3 -c 'from pathlib import Path; import sys; project_file_paths = [Path(path) for path in sys.argv[1:8]]; old_project_name = sys.argv[8]; new_project_name = sys.argv[9]; [project_file_path.write_text(project_file_path.read_text(encoding="utf-8").replace(old_project_name, new_project_name), encoding="utf-8") for project_file_path in project_file_paths]' "$NEW_DIR/config.toml" "$NEW_DIR/mkdocs.yml" "$NEW_DIR/pyproject.toml" "$NEW_DIR/uv.lock" "$NEW_DIR/docker-compose.dokploy.yml" "$NEW_DIR/docker-compose.yml" "$NEW_DIR/frontend/nginx.conf" "$OLD_NAME" "$PROJECT_NAME"
 
     echo "Resetting README.md to template..."
     python3 "$TEMPLATE_DIR/scripts/template/generate_readme.py" "$PROJECT_NAME" "$NEW_DIR/README.md"

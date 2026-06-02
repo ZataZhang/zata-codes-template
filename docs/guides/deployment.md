@@ -36,7 +36,11 @@
 
 ## Dokploy Docker Compose 部署
 
-生产环境模板使用根目录的 `docker-compose.dokploy.yml`。该 compose 文件通过 Traefik 将外部流量路由到 `frontend` 服务，前端 Nginx 再把 `/api/*` 代理到内部 `backend:8000`。
+生产环境模板使用根目录的 `docker-compose.dokploy.yml`。该 compose 文件通过 Traefik 将外部流量路由到 `<slug>-frontend` 服务，前端 Nginx 再把 `/api/*` 代理到内部 `<slug>-backend:8000`。
+
+> **App-slug 命名空间（共部署约束）**：模板源文件中的服务名、卷名与 nginx 上游主机名统一使用占位前缀 `zata-codes-template-`（如 `zata-codes-template-backend`）。`just copy <slug>` 实例化时会把该前缀替换成项目目录名 `<slug>`，产出 `<slug>-backend` / `<slug>-frontend` / `<slug>-backup` 等唯一名。
+>
+> 这是为了在同一台服务器上通过 Dokploy 把多个模板派生应用接入同一外部网络 `dokploy-network` 时，避免服务名派生的网络别名相互碰撞。Docker Compose 会为每个服务在其网络上注册一个与服务名同名的别名；若两个应用都叫 `backend`，容器按名解析 `backend` 时 Docker DNS 会在两者间轮询，导致接口 404 或串数据。**同一 `dokploy-network` 上的服务名必须按 slug 唯一**，新项目经 `just copy` 实例化后无需任何手动改名即可满足该约束。
 
 在 Dokploy 的 Compose Environment 中必须配置：
 
@@ -49,17 +53,17 @@ DOMAIN=app.example.com
 DNS 需要把 `${DOMAIN}` 解析到 Dokploy 服务器。部署后访问 404 时，优先检查：
 
 1. `docker compose -f docker-compose.dokploy.yml config | grep 'Host'` 是否生成了正确域名。
-2. `frontend` 与 `backend` 容器是否都处于运行状态。
-3. `docker logs app-backend --tail=100` 是否有数据库、迁移或配置错误。
+2. `<slug>-frontend` 与 `<slug>-backend` 容器是否都处于运行状态。
+3. `docker logs <slug>-backend --tail=100` 是否有数据库、迁移或配置错误。
 4. 实际访问的域名是否正好匹配 Traefik 的 Host rule。
 
 前端 Nginx 配置使用 Docker 内置 DNS 做运行时重解析：
 
 - `resolver 127.0.0.11 ipv6=off valid=5s`
-- `set $backend_upstream backend:8000`
+- `set $backend_upstream <slug>-backend:8000`（模板源文件中为 `zata-codes-template-backend:8000`，实例化时替换）
 - `/api/*` 先 `rewrite` 去掉 `/api` 前缀，再 `proxy_pass http://$backend_upstream`
 
-这样可以避免 Dokploy 或 Docker Compose 只重建 `backend` 时，未重启的前端 Nginx 继续使用旧 backend 容器 IP。使用变量形式的 `proxy_pass` 时不要在 upstream 后追加尾部 `/`，否则 Nginx 不会沿用普通 `proxy_pass http://backend:8000/` 的 URI 替换语义，可能把请求错误转发到根路径。
+这样可以避免 Dokploy 或 Docker Compose 只重建 backend 时，未重启的前端 Nginx 继续使用旧 backend 容器 IP。使用变量形式的 `proxy_pass` 时不要在 upstream 后追加尾部 `/`，否则 Nginx 不会沿用普通 `proxy_pass http://<slug>-backend:8000/` 的 URI 替换语义，可能把请求错误转发到根路径。
 
 ## 环境变量管理
 

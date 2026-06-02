@@ -15,7 +15,7 @@
 # -----------------------------------------------------------------------------
 
 services:
-  backend:
+  zata-codes-template-backend:
     build:
       context: .
       dockerfile: src/backend/Dockerfile
@@ -36,8 +36,8 @@ services:
       retries: 3
       start_period: 10s
     volumes:
-      - backend-logs:/app/backend/logs
-      - backend-data:/app/backend/data
+      - zata-codes-template-backend-logs:/app/backend/logs
+      - zata-codes-template-backend-data:/app/backend/data
     networks:
       - dokploy-network
     deploy:
@@ -49,14 +49,14 @@ services:
           cpus: "0.25"
           memory: 512M
 
-  frontend:
+  zata-codes-template-frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     expose:
       - "80"
     depends_on:
-      backend:
+      zata-codes-template-backend:
         condition: service_healthy
     restart: unless-stopped
     networks:
@@ -82,7 +82,7 @@ services:
           cpus: "0.125"
           memory: 64M
 
-  backup:
+  zata-codes-template-backup:
     build:
       context: .
       dockerfile: scripts/backup_service/Dockerfile
@@ -101,9 +101,9 @@ services:
       - WORK_DIR=/tmp/backups
       - RETENTION_DAYS=${RETENTION_DAYS:-30}
     volumes:
-      - backend-logs:/app/backend/logs:ro
-      - backend-data:/app/backend/data:ro
-      - backup-work:/tmp/backups
+      - zata-codes-template-backend-logs:/app/backend/logs:ro
+      - zata-codes-template-backend-data:/app/backend/data:ro
+      - zata-codes-template-backup-work:/tmp/backups
     restart: unless-stopped
     networks:
       - dokploy-network
@@ -117,9 +117,9 @@ services:
           memory: 128M
 
 volumes:
-  backend-logs:
-  backend-data:
-  backup-work:
+  zata-codes-template-backend-logs:
+  zata-codes-template-backend-data:
+  zata-codes-template-backup-work:
 
 networks:
   dokploy-network:

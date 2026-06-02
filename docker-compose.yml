@@ -25,7 +25,7 @@ services:
       retries: 5
     restart: unless-stopped
 
-  backend:
+  zata-codes-template-backend:
     build:
       context: .
       dockerfile: src/backend/Dockerfile
@@ -39,8 +39,8 @@ services:
       - ADMIN_IDENTIFIER=${ADMIN_IDENTIFIER:-admin}
       - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH}
     volumes:
-      - backend-logs:/app/backend/logs
-      - backend-data:/app/backend/data
+      - zata-codes-template-backend-logs:/app/backend/logs
+      - zata-codes-template-backend-data:/app/backend/data
     depends_on:
       db:
         condition: service_healthy
@@ -59,7 +59,7 @@ services:
   # ALSO add an equivalent service to docker-compose.dokploy.yml — the
   # tests/repo/test_compose_parity.py check will fail otherwise.
   # ---------------------------------------------------------------------------
-  # worker:
+  # zata-codes-template-worker:
   #   build:
   #     context: .
   #     dockerfile: src/backend/Dockerfile
@@ -69,25 +69,25 @@ services:
   #     - DB_MIGRATION_MODE=skip
   #     # Mirror any other env keys the backend service receives.
   #   volumes:
-  #     - backend-logs:/app/backend/logs
-  #     - backend-data:/app/backend/data
+  #     - zata-codes-template-backend-logs:/app/backend/logs
+  #     - zata-codes-template-backend-data:/app/backend/data
   #   depends_on:
-  #     backend:
+  #     zata-codes-template-backend:
   #       condition: service_healthy
   #   restart: unless-stopped
 
-  frontend:
+  zata-codes-template-frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
       - "80:80"
     depends_on:
-      backend:
+      zata-codes-template-backend:
         condition: service_healthy
     restart: unless-stopped
 
-  backup:
+  zata-codes-template-backup:
     build:
       context: .
       dockerfile: scripts/backup_service/Dockerfile
@@ -106,15 +106,15 @@ services:
       - WORK_DIR=/tmp/backups
       - RETENTION_DAYS=${RETENTION_DAYS:-30}
     volumes:
-      - backend-logs:/app/backend/logs:ro
-      - backend-data:/app/backend/data:ro
-      - backup-work:/tmp/backups
+      - zata-codes-template-backend-logs:/app/backend/logs:ro
+      - zata-codes-template-backend-data:/app/backend/data:ro
+      - zata-codes-template-backup-work:/tmp/backups
     profiles:
       - backup
     restart: unless-stopped
 
 volumes:
   postgres-data:
-  backend-logs:
-  backend-data:
-  backup-work:
+  zata-codes-template-backend-logs:
+  zata-codes-template-backend-data:
+  zata-codes-template-backup-work:
