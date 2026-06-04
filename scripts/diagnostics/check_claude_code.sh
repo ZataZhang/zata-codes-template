@@ -81,17 +81,24 @@ print_response_summary() {
 fetch_json_payload() {
     local source_name="$1"
     local source_url="$2"
+    local curl_stderr_file
     local curl_combined_output
     local curl_exit_code
+    local curl_error_text
     local http_status
     local response_payload
 
-    curl_combined_output=$(curl -sS -m 5 -w "\n%{http_code}" "$source_url" 2>&1)
+    # Capture stderr to a separate file so curl warnings (TLS notices, captive
+    # portals, etc.) cannot interleave into the response body we parse.
+    curl_stderr_file=$(mktemp)
+    curl_combined_output=$(curl -sS -m 5 -w "\n%{http_code}" "$source_url" 2>"$curl_stderr_file")
     curl_exit_code=$?
+    curl_error_text=$(cat "$curl_stderr_file")
+    rm -f "$curl_stderr_file"
 
     if [ "$curl_exit_code" -ne 0 ]; then
         echo "   ⚠️ $source_name 请求失败 (curl exit $curl_exit_code)，改用备用查询源。"
-        print_response_summary "$curl_combined_output"
+        print_response_summary "$curl_error_text"
         return 1
     fi
 
@@ -243,7 +250,9 @@ if query_ipinfo_source || query_myip_source || query_httpbin_source; then
 
         # 常见的 Claude 不支持地区
         if [ -z "$COUNTRY" ]; then
-            echo "   ⚠️ 已获取出口 IP，但当前备用查询源无法判断地区；如 Claude 仍返回 403，请在代理客户端确认节点地区。"
+            echo "   ⚠️ 关键检查未执行: 当前查询源（$IP_SOURCE）不返回地区字段，无法验证节点是否位于 Claude 不支持的地区。"
+            echo "      这不代表地区没问题。若节点位于 CN/HK/RU/MO 等地区，Claude 仍会返回 403。"
+            echo "      请在代理客户端手动确认出口节点地区，或换用可返回地区信息的网络后重新运行本检查。"
         elif [[ "$COUNTRY" == "CN" || "$COUNTRY" == "HK" || "$COUNTRY" == "RU" || "$COUNTRY" == "MO" ]]; then
             echo "   ❌ 严重警告: 你的节点位于不支持的地区 ($COUNTRY)！Claude 极可能会在登录或使用时拒绝服务(返回 403)。请更换欧美、日韩、新加坡等节点。"
         else

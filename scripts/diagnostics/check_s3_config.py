@@ -90,37 +90,46 @@ def _try_cleanup(sdk_client, bucket_name: str, prefixed_object_key: str) -> None
         pass
 
 
+def _redact_presigned_url(presigned_url: str) -> str:
+    """Strip the query string so the SigV4 credential/signature are not logged."""
+    base_url, _, _ = presigned_url.partition("?")
+    return f"{base_url}?<redacted-signature>"
+
+
 def _check_presigned_browser_reachability(presigned_url: str) -> tuple[bool, str]:
     """Check whether a presigned URL is browser-reachable via CORS.
 
+    The presigned URL is signed for GET, so the probe must also use GET; a HEAD
+    probe would change the canonical request and fail SigV4 signature validation
+    on strict servers. A sample ``Origin`` header is sent because S3-compatible
+    services only emit ``Access-Control-Allow-Origin`` in response to an actual
+    CORS request, so a probe without ``Origin`` could never observe the header.
+
     Returns:
         Tuple of (is_reachable, classification) where classification is one of
-        'yes', 'cors-missing', 'dns', 'connection', 'status'.
+        'yes', 'cors-missing', 'dns', 'connection', or 'http-<status>'.
     """
-    try:
-        import urllib.request
+    import urllib.error
+    import urllib.request
 
-        request = urllib.request.Request(presigned_url, method="HEAD")
+    request = urllib.request.Request(presigned_url, method="GET")
+    request.add_header("Origin", "https://diagnostic.local")
+    request.add_header("Range", "bytes=0-0")
+    try:
         with urllib.request.urlopen(request, timeout=10) as response:
             cors_header = response.headers.get("Access-Control-Allow-Origin")
             if cors_header:
                 return True, "yes"
             return False, "cors-missing"
-    except Exception as exc:
-        exc_name = type(exc).__name__
-        underlying_exc = exc
-        if exc_name == "URLError" and hasattr(exc, "reason"):
-            underlying_exc = exc.reason
-        underlying_name = type(underlying_exc).__name__
+    except urllib.error.HTTPError as http_exc:
+        return False, f"http-{http_exc.code}"
+    except urllib.error.URLError as url_exc:
+        underlying_name = type(url_exc.reason).__name__
         if underlying_name in {"gaierror", "NameResolutionError"}:
             return False, "dns"
-        if underlying_name in {
-            "ConnectionRefusedError",
-            "TimeoutError",
-            "ConnectionError",
-        }:
-            return False, "connection"
-        return False, "status"
+        return False, "connection"
+    except Exception:
+        return False, "connection"
 
 
 def run_s3_config_diagnostic() -> int:
@@ -211,7 +220,7 @@ def run_s3_config_diagnostic() -> int:
             Params={"Bucket": backup_config.s3_bucket, "Key": prefixed_object_key},
             ExpiresIn=300,
         )
-        _print_ok(presigned_url)
+        _print_ok(_redact_presigned_url(presigned_url))
     except Exception as presign_exc:
         _print_failure(presign_exc)
         _try_cleanup(sdk_client, backup_config.s3_bucket, prefixed_object_key)
@@ -261,7 +270,7 @@ def run_s3_config_diagnostic() -> int:
     except Exception as remove_exc:
         _print_failure(remove_exc)
         print(f"     Leftover diagnostic object: {prefixed_object_key}")
-        return 0
+        return 1
 
     print()
     print("S3 configuration looks healthy.")

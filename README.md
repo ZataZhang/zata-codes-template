@@ -45,7 +45,8 @@ just run        # 同时启动后端 + 前端
 | `just docs-serve` | 本地预览 MkDocs 文档（`127.0.0.1:8000`） |
 | `just docs-serve port=9000` | 指定端口 |
 | `just clean` | 清理缓存与构建产物 |
-| `just check-net` | 检查当前终端的代理、Claude 服务连通性与出口 IP 地区 |
+| `just check net` | 检查当前终端的代理、Claude 服务连通性与出口 IP 地区 |
+| `just check s3` | 端到端验证 S3 配置（put → exists → presign → get → cleanup） |
 | `just staged_changes` | 将暂存区 diff 导出为 `staged_changes.diff` |
 
 ### Git Worktree
