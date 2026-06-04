@@ -347,9 +347,26 @@ clean:
 release:
     uv run python scripts/release.py
 
-# Check the current terminal network environment for Claude access.
-check-net:
-    ./scripts/diagnostics/check_claude_code.sh
+# Run a diagnostic check.
+# Usage:
+#   just check net   # Verify terminal network environment for Claude access.
+#   just check s3    # Verify S3 configuration end-to-end (put -> exists -> presign -> get -> cleanup).
+check target:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    case "{{target}}" in
+        net)
+            ./scripts/diagnostics/check_claude_code.sh
+            ;;
+        s3)
+            uv run python scripts/diagnostics/check_s3_config.py
+            ;;
+        *)
+            echo "❌ Unknown check target: {{target}}"
+            echo "Usage: just check [net|s3]"
+            exit 1
+            ;;
+    esac
 
 # Install or test macOS Shortcut notifications for Codex CLI.
 # Usage:
