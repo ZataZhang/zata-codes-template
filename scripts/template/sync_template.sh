@@ -238,7 +238,7 @@ _is_skipped_by_default() {
     local p="$1"
     case "$p" in
         README.md|pyproject.toml|config.toml|mkdocs.yml|uv.lock) return 0 ;;
-        CLAUDE.md|main.py) return 0 ;;
+        CLAUDE.md|main.py|justfile) return 0 ;;
         findings.md|progress.md|task_plan.md) return 0 ;;
         .DS_Store) return 0 ;;
     esac
