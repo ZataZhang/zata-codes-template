@@ -115,21 +115,98 @@ sync mode="": _check-completion
 #   just run backend         # start backend only
 #   just run frontend        # start frontend only
 #   just run docker          # start with Docker Compose (one-click deploy)
+#   just run backend_port=8010 frontend_port=5178
 #   just run all frontend_dir=web frontend_cmd="pnpm dev"
-run target="all" frontend_dir="frontend" backend_cmd="uv run python -m backend.main" frontend_cmd="npm run dev": _check-completion
+run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="": _check-completion
     #!/usr/bin/env bash
     set -euo pipefail
 
-    target="{{target}}"
-    frontend_dir="{{frontend_dir}}"
-    backend_cmd='{{backend_cmd}}'
-    frontend_cmd='{{frontend_cmd}}'
+    target="all"
+    frontend_dir="frontend"
+    backend_port=""
+    frontend_port=""
+    backend_cmd="uv run python -m backend.main"
+    frontend_cmd="npm run dev"
     backend_pid=""
     frontend_pid=""
+    run_state_file="$(git rev-parse --git-path vanta-run.env)"
+    positional_index=0
+
+    parse_run_arg() {
+        cli_arg="$1"
+        if [ -z "$cli_arg" ]; then
+            return 0
+        fi
+
+        case "$cli_arg" in
+            target=*)
+                target="${cli_arg#target=}"
+                ;;
+            frontend_dir=*)
+                frontend_dir="${cli_arg#frontend_dir=}"
+                ;;
+            backend_port=*)
+                backend_port="${cli_arg#backend_port=}"
+                ;;
+            frontend_port=*)
+                frontend_port="${cli_arg#frontend_port=}"
+                ;;
+            backend_cmd=*)
+                backend_cmd="${cli_arg#backend_cmd=}"
+                ;;
+            frontend_cmd=*)
+                frontend_cmd="${cli_arg#frontend_cmd=}"
+                ;;
+            *)
+                case "$positional_index" in
+                    0)
+                        target="$cli_arg"
+                        ;;
+                    1)
+                        frontend_dir="$cli_arg"
+                        ;;
+                    2)
+                        backend_cmd="$cli_arg"
+                        ;;
+                    3)
+                        frontend_cmd="$cli_arg"
+                        ;;
+                    *)
+                        echo "❌ Unexpected run argument: $cli_arg"
+                        echo "Usage: just run [backend|frontend|all|docker] [backend_port=<port>] [frontend_port=<port>]"
+                        exit 1
+                        ;;
+                esac
+                positional_index=$((positional_index + 1))
+                ;;
+        esac
+    }
+
+    for cli_arg in {{quote(arg1)}} {{quote(arg2)}} {{quote(arg3)}} {{quote(arg4)}} {{quote(arg5)}} {{quote(arg6)}}; do
+        parse_run_arg "$cli_arg"
+    done
+
+    load_run_ports() {
+        if [ -f "$run_state_file" ]; then
+            # shellcheck disable=SC1090
+            source "$run_state_file"
+        fi
+
+        backend_port="${backend_port:-${BACKEND_PORT:-8000}}"
+        frontend_port="${frontend_port:-${FRONTEND_PORT:-5173}}"
+    }
+
+    save_run_ports() {
+        mkdir -p "$(dirname "$run_state_file")"
+        {
+            printf 'BACKEND_PORT=%s\n' "$backend_port"
+            printf 'FRONTEND_PORT=%s\n' "$frontend_port"
+        } > "$run_state_file"
+    }
 
     run_backend() {
-        echo "Starting backend: $backend_cmd"
-        bash -lc "$backend_cmd"
+        echo "Starting backend on port $backend_port: $backend_cmd"
+        PORT="$backend_port" bash -lc "$backend_cmd"
     }
 
     run_frontend() {
@@ -146,10 +223,10 @@ run target="all" frontend_dir="frontend" backend_cmd="uv run python -m backend.m
             exit 1
         fi
 
-        echo "Starting frontend in $frontend_dir: $frontend_cmd"
+        echo "Starting frontend in $frontend_dir on port $frontend_port: $frontend_cmd"
         (
             cd "$frontend_dir"
-            bash -lc "$frontend_cmd"
+            BACKEND_PORT="$backend_port" FRONTEND_PORT="$frontend_port" bash -lc "$frontend_cmd"
         )
     }
 
@@ -177,6 +254,10 @@ run target="all" frontend_dir="frontend" backend_cmd="uv run python -m backend.m
             sleep 1
         done
     }
+
+    load_run_ports
+    save_run_ports
+    echo "Saved run ports to $run_state_file"
 
     case "$target" in
         backend)
@@ -219,6 +300,110 @@ run target="all" frontend_dir="frontend" backend_cmd="uv run python -m backend.m
         *)
             echo "❌ Unknown run target: $target"
             echo "Usage: just run [backend|frontend|all|docker]"
+            exit 1
+            ;;
+    esac
+
+# Stop local development services by remembered or provided ports.
+# Usage:
+#   just down
+#   just down backend
+#   just down frontend
+#   just down backend_port=8010 frontend_port=5178
+#   just down docker
+down arg1="" arg2="" arg3="": _check-completion
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    target="all"
+    backend_port=""
+    frontend_port=""
+    run_state_file="$(git rev-parse --git-path vanta-run.env)"
+    positional_index=0
+
+    parse_down_arg() {
+        cli_arg="$1"
+        if [ -z "$cli_arg" ]; then
+            return 0
+        fi
+
+        case "$cli_arg" in
+            target=*)
+                target="${cli_arg#target=}"
+                ;;
+            backend_port=*)
+                backend_port="${cli_arg#backend_port=}"
+                ;;
+            frontend_port=*)
+                frontend_port="${cli_arg#frontend_port=}"
+                ;;
+            *)
+                if [ "$positional_index" -eq 0 ]; then
+                    target="$cli_arg"
+                    positional_index=1
+                else
+                    echo "❌ Unexpected down argument: $cli_arg"
+                    echo "Usage: just down [backend|frontend|all|docker] [backend_port=<port>] [frontend_port=<port>]"
+                    exit 1
+                fi
+                ;;
+        esac
+    }
+
+    for cli_arg in {{quote(arg1)}} {{quote(arg2)}} {{quote(arg3)}}; do
+        parse_down_arg "$cli_arg"
+    done
+
+    load_run_ports() {
+        if [ -f "$run_state_file" ]; then
+            # shellcheck disable=SC1090
+            source "$run_state_file"
+        fi
+
+        backend_port="${backend_port:-${BACKEND_PORT:-8000}}"
+        frontend_port="${frontend_port:-${FRONTEND_PORT:-5173}}"
+    }
+
+    stop_port() {
+        port_label="$1"
+        port_value="$2"
+        process_ids="$(lsof -tiTCP:"$port_value" -sTCP:LISTEN 2>/dev/null | sort -u || true)"
+
+        if [ -z "$process_ids" ]; then
+            echo "No $port_label process listening on port $port_value"
+            return 0
+        fi
+
+        echo "Stopping $port_label process(es) on port $port_value: $process_ids"
+        kill $process_ids 2>/dev/null || true
+        sleep 1
+
+        remaining_process_ids="$(lsof -tiTCP:"$port_value" -sTCP:LISTEN 2>/dev/null | sort -u || true)"
+        if [ -n "$remaining_process_ids" ]; then
+            echo "Force stopping $port_label process(es) on port $port_value: $remaining_process_ids"
+            kill -9 $remaining_process_ids 2>/dev/null || true
+        fi
+    }
+
+    load_run_ports
+
+    case "$target" in
+        backend)
+            stop_port backend "$backend_port"
+            ;;
+        frontend)
+            stop_port frontend "$frontend_port"
+            ;;
+        all)
+            stop_port backend "$backend_port"
+            stop_port frontend "$frontend_port"
+            ;;
+        docker)
+            docker compose down
+            ;;
+        *)
+            echo "❌ Unknown down target: $target"
+            echo "Usage: just down [backend|frontend|all|docker]"
             exit 1
             ;;
     esac

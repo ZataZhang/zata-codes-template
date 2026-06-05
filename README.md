@@ -35,7 +35,9 @@ just run        # 同时启动后端 + 前端
 
 | 命令 | 说明 |
 |------|------|
-| `just run` | 默认同时启动后端和前端 |
+| `just run` | 默认同时启动后端和前端；会复用当前 Git worktree 保存的端口 |
+| `just run backend_port=8010 frontend_port=5178` | 指定并保存后端/前端端口 |
+| `just down` | 按保存的端口停止本地后端和前端 |
 | `just run backend` | 只启动后端（默认命令为 `uv run python -m backend.main`） |
 | `just run frontend` | 只启动前端（默认进入 `frontend/` 执行 `npm run dev`） |
 | `just run all frontend_dir=web frontend_cmd="pnpm dev"` | 覆盖前端目录或启动命令 |

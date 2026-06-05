@@ -19,9 +19,20 @@
 |---|---|
 | `just sync` | 同步开发依赖 |
 | `just run` | 运行主应用 |
+| `just run backend_port=8010 frontend_port=5178` | 使用指定端口运行主应用，并保存为当前 Git worktree 的默认端口 |
+| `just down` | 按当前 Git worktree 保存的端口停止本地开发服务 |
 | `just test` | 运行本地测试 |
 | `uv run mkdocs build` | 验证文档站点 |
 | `just docs-serve` | 本地预览文档 |
+
+## Run Port State
+
+`just run` 会通过 `git rev-parse --git-path vanta-run.env` 定位 Git 本地状态文件。该文件不进入版本控制；在主 worktree 中位于 `.git/vanta-run.env`，在 linked worktree 中位于对应 `.git/worktrees/<name>/vanta-run.env`。
+
+- 未传端口且状态文件不存在时，默认使用后端 `8000`、前端 `5173`。
+- 传入 `backend_port` 或 `frontend_port` 时，会保存本次端口配置。
+- 后续 `just run` 和 `just down` 会复用保存的端口。
+- 前端 Vite 使用 `strictPort`，端口被占用时直接失败，避免自动漂移后 `just down` 停错端口。
 
 ## PRD Workflow Hooks
 

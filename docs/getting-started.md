@@ -32,6 +32,22 @@ just run
 
 - 后端默认执行 `uv run python -m backend.main`
 - 前端默认进入 `frontend/` 目录执行 `npm run dev`
+- 后端端口默认 `8000`，前端端口默认 `5173`
+
+可以通过参数指定端口；端口会保存到 Git 本地状态文件，下次 `just run` 会自动复用：
+
+```bash
+just run backend_port=8010 frontend_port=5178
+just run
+```
+
+停止本地服务时会读取同一份端口状态：
+
+```bash
+just down
+just down backend
+just down frontend
+```
 
 如果只想启动其中一部分，可以这样运行：
 
