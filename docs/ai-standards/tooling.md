@@ -34,6 +34,15 @@
 - 后续 `just run` 和 `just down` 会复用保存的端口。
 - 前端 Vite 使用 `strictPort`，端口被占用时直接失败，避免自动漂移后 `just down` 停错端口。
 
+## Docker Local Run
+
+`just run docker` **强制要求当前目录存在 `.env.local`**（缺失时直接报错退出），并按 `settings.py` 的方式分层加载环境：**先 `.env`、后 `.env.local` 覆盖**。
+
+- 实际命令是 `docker compose --env-file .env --env-file .env.local up --build`（`.env` 不存在时自动省略）。多个 `--env-file` 后者优先，所以 `.env.local` 覆盖 `.env` 中的同名键，并让 compose 的 `${VAR}` 替换读到最终值。
+- `docker-compose.yml` 中各服务的 `env_file` 同样按 `[.env, .env.local]` 顺序列出（均 `required: false`），把两份文件合并注入容器，`.env.local` 优先。这与 `settings.py` 的 `env_file=(.env, .env.local)` 完全一致。
+- 不做任何地址改写——你连哪个数据库 / 存储，由你在 `.env.local` 中自行决定。
+- `docker-compose.dokploy.yml` 不使用 `env_file`，部署环境变量仍由 Dokploy 平台注入。
+
 ## PRD Workflow Hooks
 
 本仓库通过 `pre-commit` 调用项目本地 `hooks/check_prd_acceptance_checklist.py` 维护 PRD 交付状态；PRD skill 另带 `scripts/check_prd_acceptance_checklist.py`，供 agent 按 skill 相对路径运行，或由其他仓库自行接入：

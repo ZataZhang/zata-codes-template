@@ -31,6 +31,11 @@ services:
       dockerfile: src/backend/Dockerfile
     ports:
       - "8000:8000"
+    env_file:
+      - path: .env
+        required: false
+      - path: ${COMPOSE_LOCAL_ENV_FILE:-.env.local}
+        required: false
     environment:
       - HOST=0.0.0.0
       - PORT=8000
@@ -64,6 +69,11 @@ services:
   #     context: .
   #     dockerfile: src/backend/Dockerfile
   #   command: ["python", "-m", "backend.workers.<your_worker_module>"]
+  #   env_file:
+  #     - path: .env
+  #       required: false
+  #     - path: ${COMPOSE_LOCAL_ENV_FILE:-.env.local}
+  #       required: false
   #   environment:
   #     - DATABASE_URL=${DATABASE_URL:-postgresql+psycopg2://app:app@db:5432/app}
   #     - DB_MIGRATION_MODE=skip
@@ -91,6 +101,11 @@ services:
     build:
       context: .
       dockerfile: scripts/backup_service/Dockerfile
+    env_file:
+      - path: .env
+        required: false
+      - path: ${COMPOSE_LOCAL_ENV_FILE:-.env.local}
+        required: false
     environment:
       - DATABASE_URL=${DATABASE_URL:-postgresql+psycopg2://app:app@db:5432/app}
       - S3_ENDPOINT=${S3_ENDPOINT}

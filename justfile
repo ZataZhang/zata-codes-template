@@ -103,7 +103,7 @@ sync mode="": _check-completion
             uv sync
             ;;
         *)
-            echo "❌ Unknown mode: {{mode}}"
+            echo "ERROR: Unknown mode: {{mode}}"
             echo "Usage: just sync [prod|all|dev]"
             exit 1
             ;;
@@ -172,7 +172,7 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="": _check-completion
                         frontend_cmd="$cli_arg"
                         ;;
                     *)
-                        echo "❌ Unexpected run argument: $cli_arg"
+                        echo "ERROR: Unexpected run argument: $cli_arg"
                         echo "Usage: just run [backend|frontend|all|docker] [backend_port=<port>] [frontend_port=<port>]"
                         exit 1
                         ;;
@@ -211,13 +211,13 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="": _check-completion
 
     run_frontend() {
         if [ ! -d "$frontend_dir" ]; then
-            echo "❌ Frontend directory not found: $frontend_dir"
+            echo "ERROR: Frontend directory not found: $frontend_dir"
             echo "   Override it with: just run frontend frontend_dir=<path>"
             exit 1
         fi
 
         if [ ! -f "$frontend_dir/package.json" ]; then
-            echo "❌ package.json not found in frontend directory: $frontend_dir"
+            echo "ERROR: package.json not found in frontend directory: $frontend_dir"
             echo "   Override the directory or command, for example:"
             echo "   just run frontend frontend_dir=<path> frontend_cmd='pnpm dev'"
             exit 1
@@ -276,29 +276,32 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="": _check-completion
             ;;
         docker)
             echo "Starting services with Docker Compose..."
-            has_remote="false"
-            if [ -f ".env" ]; then
-                db_url=$(grep "^DATABASE_URL=" .env | head -1 | cut -d'=' -f2- | sed 's/^[[:space:]]*//;s/[[:space:]]*$//;s/^"//;s/"$//;s/^'"'"'//;s/'"'"'$//')
-                if [ -n "$db_url" ]; then
-                    case "$db_url" in
-                        *@db:*|*@localhost*|*@127.0.0.1*)
-                            has_remote="false"
-                            ;;
-                        *)
-                            has_remote="true"
-                            ;;
-                    esac
-                fi
+            if [ ! -f ".env.local" ]; then
+                echo ".env.local is required for 'just run docker'. Copy .env.example to"
+                echo ".env.local and set your own service addresses (DATABASE_URL, S3_*, ...)."
+                exit 1
             fi
-            if [ "$has_remote" = "true" ]; then
-                echo "Detected remote DATABASE_URL; backend will connect directly to remote database"
+            # Containers cannot reach the host via localhost/127.0.0.1; only the
+            # backend-facing DATABASE_URL / S3_ENDPOINT need host.docker.internal.
+            # Generate .env.local.docker from .env.local on first run, then keep
+            # the generated file so users can tweak it manually without being overwritten.
+            compose_env_file=".env.local.docker"
+            if [ -f "$compose_env_file" ]; then
+                echo "Using existing $compose_env_file (delete it to regenerate from .env.local)"
             else
-                echo "Using local PostgreSQL database"
+                sed -E \
+                    -e '/^(DATABASE_URL|S3_ENDPOINT)=/ s#(@|//)(localhost|127\.0\.0\.1)#\1host.docker.internal#g' \
+                    .env.local > "$compose_env_file"
+                echo "Generated $compose_env_file from .env.local (localhost -> host.docker.internal for DATABASE_URL/S3_ENDPOINT)"
             fi
-            docker compose up --build
+            # Layer env like settings.py: load .env first, then .env.local.docker overrides it.
+            env_file_args=()
+            [ -f ".env" ] && env_file_args+=(--env-file .env)
+            env_file_args+=(--env-file "$compose_env_file")
+            COMPOSE_LOCAL_ENV_FILE="$compose_env_file" docker compose "${env_file_args[@]}" up --build
             ;;
         *)
-            echo "❌ Unknown run target: $target"
+            echo "ERROR: Unknown run target: $target"
             echo "Usage: just run [backend|frontend|all|docker]"
             exit 1
             ;;
@@ -342,7 +345,7 @@ down arg1="" arg2="" arg3="": _check-completion
                     target="$cli_arg"
                     positional_index=1
                 else
-                    echo "❌ Unexpected down argument: $cli_arg"
+                    echo "ERROR: Unexpected down argument: $cli_arg"
                     echo "Usage: just down [backend|frontend|all|docker] [backend_port=<port>] [frontend_port=<port>]"
                     exit 1
                 fi
@@ -367,7 +370,8 @@ down arg1="" arg2="" arg3="": _check-completion
     stop_port() {
         port_label="$1"
         port_value="$2"
-        process_ids="$(lsof -tiTCP:"$port_value" -sTCP:LISTEN 2>/dev/null | sort -u || true)"
+        # Exclude Docker Desktop / dockerd processes so just down does not kill the Docker daemon
+        process_ids="$(lsof -nP -iTCP:"$port_value" -sTCP:LISTEN 2>/dev/null | awk 'NR>1 && $1 !~ /^(com\.docker|docker|vpnkit|hyperkit)/ {print $2}' | sort -u || true)"
 
         if [ -z "$process_ids" ]; then
             echo "No $port_label process listening on port $port_value"
@@ -378,7 +382,7 @@ down arg1="" arg2="" arg3="": _check-completion
         kill $process_ids 2>/dev/null || true
         sleep 1
 
-        remaining_process_ids="$(lsof -tiTCP:"$port_value" -sTCP:LISTEN 2>/dev/null | sort -u || true)"
+        remaining_process_ids="$(lsof -nP -iTCP:"$port_value" -sTCP:LISTEN 2>/dev/null | awk 'NR>1 && $1 !~ /^(com\.docker|docker|vpnkit|hyperkit)/ {print $2}' | sort -u || true)"
         if [ -n "$remaining_process_ids" ]; then
             echo "Force stopping $port_label process(es) on port $port_value: $remaining_process_ids"
             kill -9 $remaining_process_ids 2>/dev/null || true
@@ -402,7 +406,7 @@ down arg1="" arg2="" arg3="": _check-completion
             docker compose down
             ;;
         *)
-            echo "❌ Unknown down target: $target"
+            echo "ERROR: Unknown down target: $target"
             echo "Usage: just down [backend|frontend|all|docker]"
             exit 1
             ;;
@@ -507,7 +511,7 @@ lint mode="": _check-completion
             just lint --full
             ;;
         *)
-            echo "❌ Unknown lint mode: {{mode}}"
+            echo "ERROR: Unknown lint mode: {{mode}}"
             print_lint_usage
             exit 1
             ;;
@@ -547,7 +551,7 @@ check target:
             uv run python scripts/diagnostics/check_s3_config.py
             ;;
         *)
-            echo "❌ Unknown check target: {{target}}"
+            echo "ERROR: Unknown check target: {{target}}"
             echo "Usage: just check [net|s3]"
             exit 1
             ;;
@@ -569,7 +573,7 @@ codex-notify action="install" shortcut_name="codex通知":
             CODEX_NOTIFY_VERBOSE=1 CODEX_NOTIFY_SHORTCUT_NAME="{{shortcut_name}}" ./scripts/codex/notify_shortcut.sh '{"type":"agent-turn-complete","last-assistant-message":"Codex notify manual test"}'
             ;;
         *)
-            echo "❌ Unknown action: {{action}}"
+            echo "ERROR: Unknown action: {{action}}"
             echo "Usage: just codex-notify [install|test] [shortcut_name]"
             exit 1
             ;;
@@ -594,7 +598,7 @@ worktree arg1 arg2="" arg3="" arg4="" arg5="":
     # -o: open existing worktree
     if [ "{{arg1}}" = "-o" ]; then
         if [ -z "{{arg2}}" ]; then
-            echo "❌ Usage: just worktree -o <branch_name> [--cmd editor]"
+            echo "ERROR: Usage: just worktree -o <branch_name> [--cmd editor]"
             exit 1
         fi
         open_cmd=(./scripts/worktree/open.sh "{{arg2}}")
@@ -610,7 +614,7 @@ worktree arg1 arg2="" arg3="" arg4="" arg5="":
     # -d: delete worktree
     if [ "{{arg1}}" = "-d" ]; then
         if [ -z "{{arg2}}" ]; then
-            echo "❌ Usage: just worktree -d <branch_name>"
+            echo "ERROR: Usage: just worktree -d <branch_name>"
             exit 1
         fi
         ./scripts/worktree/merge.sh "{{arg2}}" -d
@@ -620,7 +624,7 @@ worktree arg1 arg2="" arg3="" arg4="" arg5="":
     # -D: force delete worktree (bypass dirty/unmerged checks)
     if [ "{{arg1}}" = "-D" ]; then
         if [ -z "{{arg2}}" ]; then
-            echo "❌ Usage: just worktree -D <branch_name>"
+            echo "ERROR: Usage: just worktree -D <branch_name>"
             exit 1
         fi
         ./scripts/worktree/merge.sh "{{arg2}}" -D
@@ -635,7 +639,7 @@ worktree arg1 arg2="" arg3="" arg4="" arg5="":
         if [ -z "$raw_arg2" ] || [[ "$raw_arg2" == -* ]]; then
             current_branch="$(git symbolic-ref --short HEAD 2>/dev/null || true)"
             if [ -z "$current_branch" ]; then
-                echo "❌ Could not determine current branch."
+                echo "ERROR: Could not determine current branch."
                 echo "Usage: just worktree -m [<feature_branch>] [base_branch=main] [flags]"
                 exit 1
             fi
@@ -757,7 +761,7 @@ worktree arg1 arg2="" arg3="" arg4="" arg5="":
                 enter_shell_value="false"
                 ;;
             *)
-                echo "❌ Invalid argument: $raw_arg"
+                echo "ERROR: Invalid argument: $raw_arg"
                 echo "Usage:"
                 echo "  just worktree <branch> [--checkout [<src>] | --new] [--base branch] [--cmd [editor]] [enter_shell=false]"
                 echo "  just worktree -o <branch> [--cmd editor]"
@@ -778,7 +782,7 @@ worktree arg1 arg2="" arg3="" arg4="" arg5="":
                 /^branch / && $2 == b { print wt; exit }
             ')"
         if [ -z "$target_worktree_path" ] || [ ! -d "$target_worktree_path" ]; then
-            echo "❌ Could not locate worktree for $branch_name"
+            echo "ERROR: Could not locate worktree for $branch_name"
             exit 1
         fi
         echo "Entering worktree shell: $target_worktree_path"
@@ -829,8 +833,8 @@ worktree arg1 arg2="" arg3="" arg4="" arg5="":
 # Usage:
 #   just implement <prd-file> <clauded|kim> ["<prompt>"]
 # Examples:
-#   just implement tasks/pending/20260518-feature-x.md clauded "请根据 PRD 实现该功能"
-#   just implement tasks/pending/feature-x.md kim "请实现这个功能"
+#   just implement tasks/pending/20260518-feature-x.md clauded "Implement the feature per the PRD"
+#   just implement tasks/pending/feature-x.md kim "Implement this feature"
 #   just implement tasks/pending/feature-x.md clauded  # uses default prompt
 implement prd_file ai_tool prompt="":
     #!/usr/bin/env bash
@@ -867,7 +871,7 @@ implement prd_file ai_tool prompt="":
         else
             prd_display="$prd_name"
         fi
-        prompt_text="请根据 PRD《${prd_display}》的要求实现该功能，完成验收清单"
+        prompt_text="Implement the feature per PRD '${prd_display}', complete the acceptance checklist"
         echo "ℹ️  No prompt provided, using default: $prompt_text"
         echo ""
     fi
@@ -968,7 +972,7 @@ sync-local-skills:
 
     echo "🔍 Running full lint checks..."
     if ! SKIP=check-test-flag just lint --full >/dev/null 2>&1; then
-        echo "❌ Lint failed. Fix lint errors before running tests."
+        echo "ERROR: Lint failed. Fix lint errors before running tests."
         echo "   Run: just lint --full"
         exit 1
     fi
@@ -997,9 +1001,9 @@ sync-local-skills:
         uv run pytest tests/ -v
     fi
 
-    # 测试通过后写入 flag，绑定分支、HEAD 和有效 tree
-    # 有效 tree 只包含可能进入 test/lint 的文件，排除文档、图片等无关类型
-    # 这样修改 .md 等文件不会导致代码提交时被要求重测
+    # Write flag after tests pass, binding branch, HEAD and effective tree.
+    # Effective tree includes only files that may enter test/lint, excluding
+    # docs, images and other unrelated types so .md edits don't trigger retest.
     git_dir="$(quality_git_dir)"
     branch_name="$(quality_branch_name)"
     head_hash="$(quality_head_hash)"
@@ -1026,7 +1030,7 @@ e2e type="":
         report)  npm run report ;;
         "")      npm test ;;
         *)
-            echo "❌ Unknown type: {{type}}"
+            echo "ERROR: Unknown type: {{type}}"
             echo "Usage: just e2e [smoke|no-auth|report]"
             exit 1
             ;;
@@ -1059,7 +1063,7 @@ frontend action="dev":
             npm install
             ;;
         *)
-            echo "❌ Unknown action: {{action}}"
+            echo "ERROR: Unknown action: {{action}}"
             echo "Usage: just frontend [dev|build|install]"
             exit 1
             ;;

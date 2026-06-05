@@ -9,7 +9,7 @@
 #   docker compose -f docker-compose.testing.yml down
 #
 # Connection strings for .env:
-#   DATABASE_URL=postgresql+psycopg2://testuser:testpass@localhost:5433/testdb
+#   DATABASE_URL=postgresql+psycopg2://testuser:testpass@localhost:5432/testdb
 #   REDIS_URL=redis://:redis123@localhost:6379/0
 #   S3_ENDPOINT=http://localhost:9000
 #   S3_ACCESS_KEY=minioadmin
@@ -59,13 +59,13 @@ services:
   # PostgreSQL 17
   # ---------------------------------------------------------------------------
   # 独立于主项目的测试数据库，避免污染开发库。
-  # psql -h localhost -p 5433 -U testuser -d testdb
+  # psql -h localhost -p 5432 -U testuser -d testdb
   # ---------------------------------------------------------------------------
   postgres:
     image: postgres:17-alpine
     container_name: test-postgres
     ports:
-      - "5433:5432"
+      - "5432:5432"
     environment:
       POSTGRES_USER: testuser
       POSTGRES_PASSWORD: testpass
