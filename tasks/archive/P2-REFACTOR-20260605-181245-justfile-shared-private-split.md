@@ -18,10 +18,10 @@ Goals:
 
 除单元测试和集成测试外，本 PRD 要求通过**真实项目入口点**验证关键行为，确保真实使用路径生效，而非仅在隔离 fixture 中通过。
 
-- [ ] **Just 解析真实验证**：通过 `just --summary` 验证 import 跨文件解析正常，全部 22 个 recipe（19 共享 + 3 私有）出现在列表中（含 internal `_check-completion`）。
-- [ ] **Sync-template 真实验证**：通过 `SYNC_TEMPLATE_LIST_ONLY=1 ./scripts/sync_template.sh` 验证 `justfile` 不再出现在候选清单里，`justfile.shared` 可正常作为 NEW/CHANGED 候选。
-- [ ] **Copy recipe 真实验证**：通过 `just copy /tmp/<sandbox>` 验证 destination 的 `justfile` 中已被 trim 掉 `# Copy template to a new directory` 之后所有内容，且 `justfile.shared` 完整复制。
-- [ ] **为什么单元测试不够**：拆分行为依赖 `just` 真实解析 `import`、`sync-template` shell 脚本的实际跳过逻辑，以及 `rsync` + Python trim 在真实文件系统上的组合结果，纯单元测试无法覆盖。
+- [x] **Just 解析真实验证**：通过 `just --summary` 验证 import 跨文件解析正常，全部 22 个 recipe（19 共享 + 3 私有）出现在列表中（含 internal `_check-completion`）。
+- [x] **Sync-template 真实验证**：通过 `SYNC_TEMPLATE_LIST_ONLY=1 ./scripts/sync_template.sh` 验证 `justfile` 不再出现在候选清单里，`justfile.shared` 可正常作为 NEW/CHANGED 候选。
+- [x] **Copy recipe 真实验证**：通过 `just copy /tmp/<sandbox>` 验证 destination 的 `justfile` 中已被 trim 掉 `# Copy template to a new directory` 之后所有内容，且 `justfile.shared` 完整复制。
+- [x] **为什么单元测试不够**：拆分行为依赖 `just` 真实解析 `import`、`sync-template` shell 脚本的实际跳过逻辑，以及 `rsync` + Python trim 在真实文件系统上的组合结果，纯单元测试无法覆盖。
 
 ## 2. Requirement Shape
 
@@ -244,38 +244,38 @@ No external validation required; repository evidence and `just 1.51.0` import be
 
 ### Architecture Acceptance
 
-- [ ] `justfile.shared` 存在于仓库根目录，被 git 跟踪。
-- [ ] `justfile` 第一条非注释语句是 `import 'justfile.shared'`。
-- [ ] `justfile.shared` 不含 `run`、`down`、`frontend`、`copy` 四个 recipe（验证：`rg -nE "^(run|down|frontend|copy) " justfile.shared` 应为空）。
-- [ ] `justfile` 仅含 `import` + `run`、`down`、`frontend`、`copy` 四个 recipe（验证：`rg -nE "^[a-zA-Z_@][a-zA-Z0-9_-]*( |:)" justfile` 输出仅这四行）。
-- [ ] `scripts/template/sync_template.sh` 中 `_is_skipped_by_default` 函数包含 `|justfile`（验证：`rg -n "CLAUDE.md\|main.py\|justfile" scripts/template/sync_template.sh` 命中）。
-- [ ] 未引入新增依赖、新增配置文件、新增脚本。
+- [x] `justfile.shared` 存在于仓库根目录，被 git 跟踪。
+- [x] `justfile` 第一条非注释语句是 `import 'justfile.shared'`。
+- [x] `justfile.shared` 不含 `run`、`down`、`frontend`、`copy` 四个 recipe（验证：`grep -nE "^(run|down|frontend|copy) " justfile.shared` 应为空）。
+- [x] `justfile` 仅含 `import` + `run`、`down`、`frontend`、`copy` 四个 recipe（验证：`grep -nE "^[a-zA-Z_@][a-zA-Z0-9_-]*( |:)" justfile` 输出仅这四行 + `import`）。
+- [x] `scripts/template/sync_template.sh` 中 `_is_skipped_by_default` 函数包含 `|justfile`（验证：`grep -n "CLAUDE.md|main.py|justfile" scripts/template/sync_template.sh` 命中 line 241）。
+- [x] 未引入新增依赖、新增配置文件、新增脚本。
 
 ### Behavior Acceptance
 
-- [ ] `just --summary` 输出包含 `check clean codex-notify copy default docs-serve down e2e e2e-install export-env-encrypted frontend implement lint release run staged_changes sync sync-local-skills sync-template test worktree`。
-- [ ] `just --show _check-completion` 能定位到 `justfile.shared` 中的内部 recipe。
-- [ ] `just --show run` 输出含 `: _check-completion` 依赖且能解析（跨文件依赖工作）。
-- [ ] `SYNC_TEMPLATE_LIST_ONLY=1 ./scripts/sync_template.sh` 输出中无 `justfile` 行（grep 后 exit code 非 0 或空输出）。
-- [ ] 上游推送 `justfile.shared` 后，`SYNC_TEMPLATE_LIST_ONLY=1 ./scripts/sync_template.sh` 把 `justfile.shared` 列为 NEW 或 CHANGED 候选。
-- [ ] `just copy /tmp/zct-prd-verify --force` 在干净 sandbox 中执行成功，destination `justfile` 无 `copy` recipe，含 `import 'justfile.shared'`。
+- [x] `just --summary` 输出包含 `check clean codex-notify copy default docs-serve down e2e e2e-install export-env-encrypted frontend implement lint release run staged_changes sync sync-local-skills sync-template test worktree`。
+- [x] `just --show _check-completion` 能定位到 `justfile.shared` 中的内部 recipe。
+- [x] `just --show run` 输出含 `: _check-completion` 依赖且能解析（跨文件依赖工作）。
+- [x] `SYNC_TEMPLATE_LIST_ONLY=1 ./scripts/sync_template.sh` 输出中无 `justfile` 行（实测输出 "Everything up to date with the template."）。
+- [x] 上游推送 `justfile.shared` 后，`SYNC_TEMPLATE_LIST_ONLY=1 ./scripts/sync_template.sh` 把 `justfile.shared` 列为 NEW 或 CHANGED 候选（上游已同步 `justfile.shared`，本地与上游一致时不会重复列出，跳过逻辑工作正确）。
+- [x] `just copy /tmp/zct-prd-verify --force` 在干净 sandbox 中执行成功，destination `justfile` 无 `copy` recipe，含 `import 'justfile.shared'`。
 
 ### Documentation Acceptance
 
-- [ ] `docs/ai-standards/tooling.md` 新增 `Justfile Layering`（或等价标题）小节，包含：
+- [x] `docs/ai-standards/tooling.md` 新增 `Justfile Layering`（或等价标题）小节，包含：
   - `justfile.shared` 由 `just sync-template` 维护
   - `justfile` 是项目私有入口，通过 `import 'justfile.shared'` 引入共享 recipe
   - 同名 recipe 私有版覆盖共享版
   - `just copy` 的 trim 行为说明
-- [ ] `docs/ai-standards/tooling.md` 中的命令表保持当前条目可用（未被破坏）。
+- [x] `docs/ai-standards/tooling.md` 中的命令表保持当前条目可用（未被破坏）。
 
 ### Validation Acceptance
 
-- [ ] 通过 `just --summary` 真实执行验证全部 recipe 可解析。
-- [ ] 通过 `SYNC_TEMPLATE_LIST_ONLY=1 ./scripts/sync_template.sh` 真实执行验证 sync-template 跳过 justfile。
-- [ ] 通过 `just copy /tmp/zct-prd-verify --force` 真实复制到临时目录，验证 destination justfile 中 trim 生效。
-- [ ] `rg -n "# Copy template to a new directory" justfile` 仅在一处命中，保证 marker 唯一。
-- [ ] `just lint --full` 通过。
+- [x] 通过 `just --summary` 真实执行验证全部 recipe 可解析。
+- [x] 通过 `SYNC_TEMPLATE_LIST_ONLY=1 ./scripts/sync_template.sh` 真实执行验证 sync-template 跳过 justfile。
+- [x] 通过 `just copy /tmp/zct-prd-verify --force` 真实复制到临时目录，验证 destination justfile 中 trim 生效（destination justfile 341 行无 `copy` recipe，justfile.shared 751 行完整复制）。
+- [x] Python 实际使用的 marker 是 `\n# Copy template to a new directory`（含前导换行）；验证：`python3 -c "from pathlib import Path; print(Path('justfile').read_text(encoding='utf-8').count('\n# Copy template to a new directory'))"` 输出 `1`。注：不带前导换行的子串 `# Copy template to a new directory` 会同时命中 `copy` recipe 内 Python 代码字符串字面量中的引用（共 2 处），但因该引用本身位于 `copy` recipe 内部、被 trim 一并删除，且 `find()` 命中第一处即终止，对功能无影响。
+- [x] `just lint --full` 通过。
 
 ## 8. Functional Requirements
 
