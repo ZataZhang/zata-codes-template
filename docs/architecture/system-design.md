@@ -39,11 +39,10 @@
 
 - `src/backend/main.py`：后端真实 composition root，只做依赖组装。
 - `main.py`：根目录兼容启动包装器，转发到 `backend.main`。
-- `src/backend/infrastructure/config/`：承接配置管理。
+- `src/backend/infrastructure/config/`：承接配置管理；还承接 OpenAI 协议 provider 注册表与 `create_chat_model` 工厂（按 `provider/model_id` 分发）。
 - `src/backend/infrastructure/logging/`：承接日志实现。
 - `src/backend/infrastructure/persistence/`：承接数据库与持久化实现。
 - `src/backend/infrastructure/helpers.py`：承接通用无状态辅助函数。
-- `src/backend/infrastructure/models/`：承接模型配置解析与 LLM 客户端装配。
 - `src/backend/engines/`：承接项目特定的平台能力（如 RAG、爬虫、OCR 等）。
 - `tests/`：用于验证边界、用例和适配器行为。
 

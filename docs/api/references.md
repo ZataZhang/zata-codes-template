@@ -38,10 +38,5 @@
 
 ## 模型模块
 
-### `backend.infrastructure.models.model_loader`
-
-::: backend.infrastructure.models.model_loader
-    handler: python
-    options:
-      show_root_heading: true
-      members_order: source
+`create_chat_model` / `list_providers` / `ModelConfigError` 由上方的
+`backend.infrastructure.config.settings` 块通过 mkdocstrings 自动渲染。

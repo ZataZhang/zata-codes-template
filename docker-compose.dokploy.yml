@@ -28,6 +28,10 @@ services:
       - API_SECRET_KEY
       - ADMIN_IDENTIFIER
       - ADMIN_PASSWORD_HASH
+      - OPENAI_API_KEY
+      - DASHSCOPE_API_KEY
+      - DEEPSEEK_API_KEY
+      - OPENROUTER_API_KEY
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]

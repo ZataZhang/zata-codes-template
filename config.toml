@@ -55,19 +55,40 @@ name = "app_database"
 driver = "psycopg2"
 
 # =============================================================================
-# OpenAI-Protocol Model Endpoints
+# OpenAI-Protocol Provider Registry
 # =============================================================================
-# Each [models."<model-name>"] table declares one OpenAI-compatible endpoint.
+# Each [providers.<name>] table declares one OpenAI-compatible endpoint.
 # The API key itself stays in .env; this file only records which env var to read.
 #
-# Optional [models."<model-name>".extra] table is forwarded verbatim to
-# ChatOpenAI (useful for default_headers, extra_body, organization, ...).
-[models."gpt-4"]
+# Model names in code are passed as "provider/model_id" strings, e.g.:
+#   "openai/gpt-4o"
+#   "dashscope/qwen3-max"
+#   "deepseek/deepseek-chat"
+#   "openrouter/anthropic/claude-3.5-sonnet"
+# Adding a new provider = copy one block, change name / base_url / api_key_env,
+# then use `create_chat_model("<name>/<model>")` in code. No Python changes.
+#
+# Scope: OpenAI-protocol providers only. Native Anthropic / Google adapters
+# would need separate chat-model classes and are intentionally out of scope.
+#
+# Optional [providers.<name>.extra] table is forwarded verbatim to ChatOpenAI
+# (useful for default_headers, extra_body, organization, ...).
+[providers.openai]
 base_url = "https://api.openai.com/v1"
 api_key_env = "OPENAI_API_KEY"
-description = "OpenAI GPT-4 model"
+description = "OpenAI"
 
-[models."qwen3.6-plus"]
+[providers.dashscope]
 base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 api_key_env = "DASHSCOPE_API_KEY"
-description = "Alibaba DashScope Qwen3.6 Plus (OpenAI-compatible endpoint)"
+description = "Alibaba DashScope (Qwen) — OpenAI-compatible"
+
+[providers.deepseek]
+base_url = "https://api.deepseek.com/v1"
+api_key_env = "DEEPSEEK_API_KEY"
+description = "DeepSeek — OpenAI-compatible"
+
+[providers.openrouter]
+base_url = "https://openrouter.ai/api/v1"
+api_key_env = "OPENROUTER_API_KEY"
+description = "OpenRouter multi-provider aggregator"

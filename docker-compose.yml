@@ -43,6 +43,10 @@ services:
       - API_SECRET_KEY=${API_SECRET_KEY}
       - ADMIN_IDENTIFIER=${ADMIN_IDENTIFIER:-admin}
       - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY:-}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
     volumes:
       - zata-codes-template-backend-logs:/app/backend/logs
       - zata-codes-template-backend-data:/app/backend/data

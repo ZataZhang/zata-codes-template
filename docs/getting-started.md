@@ -116,7 +116,6 @@ just worktree feature-branch --base develop
 - `src/backend/infrastructure/config/`：应用配置与环境变量解析。
 - `src/backend/infrastructure/logging/`：日志器配置。
 - `src/backend/infrastructure/helpers.py`：无状态通用辅助函数。
-- `src/backend/infrastructure/models/`：模型配置加载与 LLM 客户端装配。
 - `src/backend/engines/`：平台能力扩展点（项目按需挂载具体能力）。
 - `src/backend/infrastructure/persistence/`：数据库接入与通用持久化工具。
 - `tests/`：单元测试与集成测试。

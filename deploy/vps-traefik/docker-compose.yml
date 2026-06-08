@@ -1,0 +1,114 @@
+# -----------------------------------------------------------------------------
+# Docker Compose — VPS + Traefik Production Deployment
+# -----------------------------------------------------------------------------
+# This compose file is intended for /opt/apps/zata-codes-template on a server
+# that already runs host-level Traefik on an external Docker network.
+#
+# Required files beside this compose file:
+#   - .env      deployment metadata: DOMAIN, TRAEFIK_NETWORK, image refs
+#   - app.env   runtime secrets and application configuration
+#
+# Bring up:
+#   docker compose up -d
+# -----------------------------------------------------------------------------
+
+services:
+  zata-codes-template-backend:
+    image: ${BACKEND_IMAGE:?Set BACKEND_IMAGE in .env}
+    pull_policy: always
+    expose:
+      - "8000"
+    env_file:
+      - app.env
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    volumes:
+      - zata-codes-template-backend-logs:/app/backend/logs
+      - zata-codes-template-backend-data:/app/backend/data
+    networks:
+      - traefik
+    deploy:
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: 8G
+        reservations:
+          cpus: "0.25"
+          memory: 512M
+
+  zata-codes-template-frontend:
+    image: ${FRONTEND_IMAGE:?Set FRONTEND_IMAGE in .env}
+    pull_policy: always
+    expose:
+      - "80"
+    depends_on:
+      zata-codes-template-backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=${TRAEFIK_NETWORK:-traefik}"
+      - "traefik.http.middlewares.zata-codes-template-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.routers.zata-codes-template-web.rule=Host(`${DOMAIN:?Set DOMAIN in .env}`)"
+      - "traefik.http.routers.zata-codes-template-web.entrypoints=web"
+      - "traefik.http.routers.zata-codes-template-web.middlewares=zata-codes-template-https-redirect"
+      - "traefik.http.routers.zata-codes-template.rule=Host(`${DOMAIN:?Set DOMAIN in .env}`)"
+      - "traefik.http.routers.zata-codes-template.entrypoints=websecure"
+      - "traefik.http.routers.zata-codes-template.tls=true"
+      - "traefik.http.routers.zata-codes-template.tls.certresolver=letsencrypt"
+      - "traefik.http.services.zata-codes-template.loadbalancer.server.port=80"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          cpus: "0.125"
+          memory: 64M
+
+  zata-codes-template-backup:
+    image: ${BACKUP_IMAGE:-zata-codes-template-backup:disabled}
+    pull_policy: always
+    env_file:
+      - app.env
+    environment:
+      - LOGS_DIR=/app/backend/logs
+      - RESOURCES_DIR=/app/backend/data
+      - WORK_DIR=/tmp/backups
+    volumes:
+      - zata-codes-template-backend-logs:/app/backend/logs:ro
+      - zata-codes-template-backend-data:/app/backend/data:ro
+      - zata-codes-template-backup-work:/tmp/backups
+    profiles:
+      - backup
+    restart: unless-stopped
+    networks:
+      - traefik
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+        reservations:
+          cpus: "0.125"
+          memory: 128M
+
+volumes:
+  zata-codes-template-backend-logs:
+  zata-codes-template-backend-data:
+  zata-codes-template-backup-work:
+
+networks:
+  traefik:
+    name: ${TRAEFIK_NETWORK:-traefik}
+    external: true
