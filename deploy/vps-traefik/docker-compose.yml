@@ -10,6 +10,9 @@
 #
 # Bring up:
 #   docker compose up -d
+#
+# Backups, S3 diagnostics, and VPS provisioning have moved to the standalone
+# `zata-ops` CLI; install it and schedule `zata-ops db backup` externally.
 # -----------------------------------------------------------------------------
 
 services:
@@ -76,37 +79,9 @@ services:
           cpus: "0.125"
           memory: 64M
 
-  zata-codes-template-backup:
-    image: ${BACKUP_IMAGE:-zata-codes-template-backup:disabled}
-    pull_policy: always
-    env_file:
-      - app.env
-    environment:
-      - LOGS_DIR=/app/backend/logs
-      - RESOURCES_DIR=/app/backend/data
-      - WORK_DIR=/tmp/backups
-    volumes:
-      - zata-codes-template-backend-logs:/app/backend/logs:ro
-      - zata-codes-template-backend-data:/app/backend/data:ro
-      - zata-codes-template-backup-work:/tmp/backups
-    profiles:
-      - backup
-    restart: unless-stopped
-    networks:
-      - traefik
-    deploy:
-      resources:
-        limits:
-          cpus: "0.5"
-          memory: 512M
-        reservations:
-          cpus: "0.125"
-          memory: 128M
-
 volumes:
   zata-codes-template-backend-logs:
   zata-codes-template-backend-data:
-  zata-codes-template-backup-work:
 
 networks:
   traefik:

@@ -6,17 +6,20 @@
 3. 代码中的默认值
 """
 
+from __future__ import annotations
+
 import os
 import tomllib
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Mapping, MutableMapping
+from typing import TYPE_CHECKING, Any, Mapping, MutableMapping
 from urllib.parse import quote_plus
 
-from langchain_core.language_models import BaseLanguageModel
-from langchain_openai import ChatOpenAI
 from pydantic import Field, SecretStr
+
+if TYPE_CHECKING:
+    from langchain_core.language_models import BaseLanguageModel
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
@@ -409,6 +412,8 @@ def create_chat_model(
     chat_model_kwargs.update(resolved_endpoint.extra)
     if client_kwargs:
         chat_model_kwargs.update(client_kwargs)
+
+    from langchain_openai import ChatOpenAI
 
     return ChatOpenAI(**chat_model_kwargs)
 

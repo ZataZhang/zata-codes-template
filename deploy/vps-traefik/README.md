@@ -10,13 +10,17 @@ Use this package when you manage a plain Ubuntu/Debian VPS yourself and want:
 - An application directory such as `/opt/apps/zata-codes-template`.
 - GitHub Actions or local SSH deploys that update immutable image tags.
 
+> **Where did the shell scripts go?** `install-docker-traefik.sh`,
+> `bootstrap.sh`, and `fix-acme-email.sh` moved into the standalone
+> [`zata-ops`](../../../zata-ops/README.md) CLI. Install it once
+> (`uv tool install --force /path/to/zata-ops`) and use
+> `zata-ops env provision` / `zata-ops env fix`. Pass `--dry-run` first to
+> see the exact remote commands before they run.
+
 ## Files
 
 | File | Purpose |
 | --- | --- |
-| `install-docker-traefik.sh` | Installs Docker Engine, Compose plugin, and host-level Traefik. |
-| `fix-acme-email.sh` | Repairs a Traefik install that used a placeholder Let's Encrypt email. |
-| `bootstrap.sh` | Prepares deploy user, SSH key, app directory, compose file, and initial env files. |
 | `docker-compose.yml` | Production app compose file behind the external Traefik network. |
 | `.env.example` | Deployment metadata template: domain, network, image references. |
 | `app.env.example` | Runtime configuration and secrets template. |
@@ -24,45 +28,37 @@ Use this package when you manage a plain Ubuntu/Debian VPS yourself and want:
 
 ## First Server Setup
 
-Run on the VPS as root or a sudo-capable user:
-
 ```bash
-ACME_EMAIL=you@your-domain.com bash deploy/vps-traefik/install-docker-traefik.sh
+zata-ops env provision \
+    --host 1.2.3.4 \
+    --user root \
+    --acme-email you@your-domain.com \
+    --traefik-network traefik \
+    --dry-run
 ```
 
-The installer is idempotent. It creates the external Docker network named
-`traefik` by default and starts Traefik with the `letsencrypt` resolver when a
-real `ACME_EMAIL` is provided.
+Drop `--dry-run` to actually SSH into the host and run the bundled
+`install-docker-traefik.sh` template. The installer is idempotent — it creates
+the external Docker network named `traefik` by default and starts Traefik with
+the `letsencrypt` resolver when a real `ACME_EMAIL` is provided.
 
 If the server already has Traefik but browsers show Traefik's default
-certificate, repair the ACME email on the server:
+certificate:
 
 ```bash
-sudo bash fix-acme-email.sh --email you@your-domain.com
+zata-ops env fix --host 1.2.3.4 --user root --email you@your-domain.com
 ```
 
-## App Bootstrap
+## App Directory
 
-Run from your local machine:
+Copy `docker-compose.yml`, `.env.example`, and `app.env.example` into
+`/opt/apps/<slug>/` on the server, rename the `.example` files, fill in the
+values, then `docker compose up -d`. The compose file references images via
+`${BACKEND_IMAGE}` / `${FRONTEND_IMAGE}`; the GitHub Actions example rewrites
+those on every release.
 
-```bash
-./deploy/vps-traefik/bootstrap.sh --server 1.2.3.4 --domain app.example.com
-```
-
-For a template-derived project, `just copy <slug>` rewrites the default
-`zata-codes-template` slug in these deployment files. You can still override it
-manually:
-
-```bash
-./deploy/vps-traefik/bootstrap.sh \
-  --app-slug my-app \
-  --server 1.2.3.4 \
-  --domain app.example.com
-```
-
-`bootstrap.sh` does not overwrite existing `.env` or `app.env` on the server.
-After it completes, edit `/opt/apps/<slug>/app.env` and fill the database,
-admin password hash, provider keys, and optional backup storage values.
+`app.env` no longer contains S3 / backup variables — backup-related settings
+live alongside `zata-ops` (typically in the same project's `.env.local`).
 
 ## Optional GitHub Actions Deployment
 
@@ -100,6 +96,8 @@ PRODUCTION_DOMAIN
 PRODUCTION_APP_DIR
 ```
 
-The workflow builds backend, frontend, and backup images tagged by commit SHA,
-updates image references in `/opt/apps/<slug>/.env`, and runs
-`docker compose pull && docker compose up -d --remove-orphans`.
+The workflow builds backend and frontend images tagged by commit SHA, updates
+image references in `/opt/apps/<slug>/.env`, and runs
+`docker compose pull && docker compose up -d --remove-orphans`. Backup images
+are no longer built by template CD; install `zata-ops` on the deploy host (or
+in a sidecar CI workflow) for scheduled backups.

@@ -341,6 +341,55 @@ frontend action="dev":
     esac
 
 
+# ── Ops Toolkit (zata-ops) ────────────────────────────────────────────────────
+# Delegates to the standalone `zata-ops` CLI, which must be installed globally first:
+#   cd /path/to/zata-ops && uv tool install --force .
+#
+# Loads this project's .env / .env.local via `zata-ops`'s own pydantic-settings
+# layer; additional CLI flags can be passed after `--`.
+
+# Ops helper
+# Usage:
+#   just ops backup                # real backup
+#   just ops backup --dry-run      # plan-only, no network calls
+#   just ops backup --force-full
+#   just ops restore --from 2026-06-07_180000 --restore-db --yes
+#   just ops provision --host example.com --user deploy --dry-run
+#   just ops check
+#   just ops dashboard
+ops action *args="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if ! command -v zata-ops >/dev/null 2>&1; then
+        echo "ERROR: zata-ops is not installed. Install it with:"
+        echo "  cd /path/to/zata-ops && uv tool install --force ."
+        exit 1
+    fi
+    cd "{{justfile_directory()}}"
+    case "{{action}}" in
+        backup)
+            zata-ops db backup {{args}}
+            ;;
+        restore)
+            zata-ops db restore {{args}}
+            ;;
+        check)
+            zata-ops db check {{args}}
+            ;;
+        provision)
+            zata-ops env provision {{args}}
+            ;;
+        dashboard)
+            zata-ops dashboard {{args}}
+            ;;
+        *)
+            echo "ERROR: Unknown action: {{action}}"
+            echo "Usage: just ops [backup|restore|check|provision|dashboard]"
+            exit 1
+            ;;
+    esac
+
+
 # Copy template to a new directory (excluding .git, caches, and generated dependencies/build outputs)
 # Usage: just copy <new-directory-name|target-directory-path> [--force]
 copy name force='':
@@ -421,7 +470,7 @@ copy name force='':
     python3 -c 'from pathlib import Path; import sys; justfile_path = Path(sys.argv[1]); justfile_text = justfile_path.read_text(encoding="utf-8"); copy_section_marker = "\n# Copy template to a new directory"; copy_section_index = justfile_text.find(copy_section_marker); trimmed_justfile_text = justfile_text[:copy_section_index].rstrip() + "\n" if copy_section_index != -1 else justfile_text; justfile_path.write_text(trimmed_justfile_text, encoding="utf-8")' "$NEW_JUSTFILE"
 
     echo "Updating project name in config files..."
-    python3 -c 'from pathlib import Path; import sys; old_project_name = sys.argv[1]; new_project_name = sys.argv[2]; target_root = Path(sys.argv[3]); project_file_paths = [target_root / path for path in sys.argv[4:]]; [project_file_path.write_text(project_file_path.read_text(encoding="utf-8").replace(old_project_name, new_project_name), encoding="utf-8") for project_file_path in project_file_paths if project_file_path.exists()]' "$OLD_NAME" "$PROJECT_NAME" "$NEW_DIR" config.toml mkdocs.yml pyproject.toml uv.lock docker-compose.dokploy.yml docker-compose.yml frontend/nginx.conf deploy/vps-traefik/README.md deploy/vps-traefik/docker-compose.yml deploy/vps-traefik/.env.example deploy/vps-traefik/app.env.example deploy/vps-traefik/bootstrap.sh deploy/vps-traefik/github-actions-deploy.yml.example
+    python3 -c 'from pathlib import Path; import sys; old_project_name = sys.argv[1]; new_project_name = sys.argv[2]; target_root = Path(sys.argv[3]); project_file_paths = [target_root / path for path in sys.argv[4:]]; [project_file_path.write_text(project_file_path.read_text(encoding="utf-8").replace(old_project_name, new_project_name), encoding="utf-8") for project_file_path in project_file_paths if project_file_path.exists()]' "$OLD_NAME" "$PROJECT_NAME" "$NEW_DIR" config.toml mkdocs.yml pyproject.toml uv.lock docker-compose.dokploy.yml docker-compose.yml frontend/nginx.conf deploy/vps-traefik/README.md deploy/vps-traefik/docker-compose.yml deploy/vps-traefik/.env.example deploy/vps-traefik/app.env.example deploy/vps-traefik/github-actions-deploy.yml.example
 
     echo "Resetting README.md to template..."
     python3 "$TEMPLATE_DIR/scripts/template/generate_readme.py" "$PROJECT_NAME" "$NEW_DIR/README.md"

@@ -4,6 +4,10 @@
 # 数据库模式：
 #   - 本地模式（默认）：启动本地 PostgreSQL 容器
 #   - 远程模式：.env 中配置 DATABASE_URL 时，backend 直接连接远程数据库
+#
+# 备份/S3 诊断/VPS 初始化能力已迁出到独立 CLI `zata-ops`。安装方式：
+#   cd /path/to/zata-ops && uv tool install --force .
+#   zata-ops db backup --dry-run
 # -----------------------------------------------------------------------------
 # Usage:
 #   docker compose up --build
@@ -101,39 +105,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  zata-codes-template-backup:
-    build:
-      context: .
-      dockerfile: scripts/backup_service/Dockerfile
-    env_file:
-      - path: .env
-        required: false
-      - path: ${COMPOSE_LOCAL_ENV_FILE:-.env.local}
-        required: false
-    environment:
-      - DATABASE_URL=${DATABASE_URL:-postgresql+psycopg2://app:app@db:5432/app}
-      - S3_ENDPOINT=${S3_ENDPOINT}
-      - S3_ACCESS_KEY=${S3_ACCESS_KEY}
-      - S3_SECRET_KEY=${S3_SECRET_KEY}
-      - S3_BUCKET=${S3_BUCKET:-app-backups}
-      - S3_PREFIX=${S3_PREFIX:-app-backups}
-      - S3_ADDRESSING_STYLE=${S3_ADDRESSING_STYLE:-path}
-      - BACKUP_TIME=${BACKUP_TIME:-18:00}
-      - FULL_BACKUP_DAY=${FULL_BACKUP_DAY:-6}
-      - LOGS_DIR=/app/backend/logs
-      - RESOURCES_DIR=/app/backend/data
-      - WORK_DIR=/tmp/backups
-      - RETENTION_DAYS=${RETENTION_DAYS:-30}
-    volumes:
-      - zata-codes-template-backend-logs:/app/backend/logs:ro
-      - zata-codes-template-backend-data:/app/backend/data:ro
-      - zata-codes-template-backup-work:/tmp/backups
-    profiles:
-      - backup
-    restart: unless-stopped
-
 volumes:
   postgres-data:
   zata-codes-template-backend-logs:
   zata-codes-template-backend-data:
-  zata-codes-template-backup-work:

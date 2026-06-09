@@ -34,10 +34,6 @@ jobs:
             image_name: zata-codes-template-frontend
             context: ./frontend
             dockerfile: ./frontend/Dockerfile
-          - service: backup
-            image_name: zata-codes-template-backup
-            context: .
-            dockerfile: scripts/backup_service/Dockerfile
 
     steps:
       - name: Checkout repository
@@ -92,19 +88,16 @@ jobs:
           SERVER_PORT: ${{ secrets.SERVER_PORT }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
           APP_DIR: ${{ vars.PRODUCTION_APP_DIR }}
-          COMPOSE_PROFILES: ${{ vars.PRODUCTION_COMPOSE_PROFILES }}
           BACKEND_IMAGE: ${{ env.REGISTRY_HOST }}/${{ env.REGISTRY_NAMESPACE }}/zata-codes-template-backend:${{ github.sha }}
           FRONTEND_IMAGE: ${{ env.REGISTRY_HOST }}/${{ env.REGISTRY_NAMESPACE }}/zata-codes-template-frontend:${{ github.sha }}
-          BACKUP_IMAGE: ${{ env.REGISTRY_HOST }}/${{ env.REGISTRY_NAMESPACE }}/zata-codes-template-backup:${{ github.sha }}
         run: |
           set -euo pipefail
           SERVER_PORT="${SERVER_PORT:-22}"
           APP_DIR="${APP_DIR:-/opt/apps/zata-codes-template}"
-          COMPOSE_PROFILES="${COMPOSE_PROFILES:-}"
 
           ssh -i ~/.ssh/deploy-vps-traefik -p "$SERVER_PORT" \
             "${SERVER_USER}@${SERVER_HOST}" \
-            "APP_DIR='$APP_DIR' COMPOSE_PROFILES='$COMPOSE_PROFILES' BACKEND_IMAGE='$BACKEND_IMAGE' FRONTEND_IMAGE='$FRONTEND_IMAGE' BACKUP_IMAGE='$BACKUP_IMAGE' bash -s" <<'REMOTE'
+            "APP_DIR='$APP_DIR' BACKEND_IMAGE='$BACKEND_IMAGE' FRONTEND_IMAGE='$FRONTEND_IMAGE' bash -s" <<'REMOTE'
           set -euo pipefail
 
           cd "$APP_DIR"
@@ -121,21 +114,16 @@ jobs:
           }
 
           test -f .env || {
-            echo "Missing $APP_DIR/.env. Run deploy/vps-traefik/bootstrap.sh first."
+            echo "Missing $APP_DIR/.env. Prepare the deploy directory before running CD (run zata-ops env provision or your own bootstrap script first)."
             exit 1
           }
           test -f app.env || {
-            echo "Missing $APP_DIR/app.env. Run deploy/vps-traefik/bootstrap.sh first."
+            echo "Missing $APP_DIR/app.env. Prepare the deploy directory before running CD."
             exit 1
           }
 
           upsert_env_value BACKEND_IMAGE "$BACKEND_IMAGE" .env
           upsert_env_value FRONTEND_IMAGE "$FRONTEND_IMAGE" .env
-          upsert_env_value BACKUP_IMAGE "$BACKUP_IMAGE" .env
-
-          if [ -n "${COMPOSE_PROFILES:-}" ]; then
-            export COMPOSE_PROFILES
-          fi
 
           docker compose pull
           docker compose up -d --remove-orphans
