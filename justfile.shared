@@ -664,12 +664,6 @@ sync-template flags="":
         ./scripts/sync_template.sh
     fi
 
-# Sync skills from the local project to the AI assistant's skill directory.
-# Usage:
-#   just sync-local-skills
-sync-local-skills:
-    ./scripts/sync_template.sh --local-skills
-
 # Run tests after `just lint --full` (usage: just test [all|local|real])
 #   just test        - Run local tests (no API keys needed)
 #   just test all    - Run all tests

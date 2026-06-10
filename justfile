@@ -390,6 +390,13 @@ ops action *args="":
     esac
 
 
+# Sync skills from the local project to the AI assistant's skill directory.
+# Usage:
+#   just sync-local-skills
+sync-local-skills:
+    ./scripts/sync_template.sh --local-skills
+
+
 # Copy template to a new directory (excluding .git, caches, and generated dependencies/build outputs)
 # Usage: just copy <new-directory-name|target-directory-path> [--force]
 copy name force='':

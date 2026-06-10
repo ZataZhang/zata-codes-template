@@ -29,8 +29,8 @@
 
 仓库根目录下的 `just` 入口被拆分为两层，分别由模板上游和派生项目自己拥有：
 
-- `justfile.shared`：模板上游维护的共享 recipe 集合，由 `just sync-template` 同步。所有项目无关的脚手架命令（`sync`、`lint`、`test`、`docs-serve`、`clean`、`release`、`check`、`codex-notify`、`staged_changes`、`worktree`、`implement`、`sync-template`、`sync-local-skills`、`e2e`、`e2e-install`、`export-env-encrypted` 以及内部 `_check-completion`）都在这里。**不要手改这个文件**——改了下次 `just sync-template` 会提示覆盖。
-- `justfile`：项目私有入口，第一行通过 `import 'justfile.shared'` 引入共享层，之后只保留与项目结构耦合或仅模板维护者使用的 recipe：`run`、`down`、`frontend`、`copy`。派生项目可以自由增删此文件中的 recipe，`just sync-template` 默认会跳过它。
+- `justfile.shared`：模板上游维护的共享 recipe 集合，由 `just sync-template` 同步。所有项目无关的脚手架命令（`sync`、`lint`、`test`、`docs-serve`、`clean`、`release`、`check`、`codex-notify`、`staged_changes`、`worktree`、`implement`、`sync-template`、`e2e`、`e2e-install`、`export-env-encrypted` 以及内部 `_check-completion`）都在这里。**不要手改这个文件**——改了下次 `just sync-template` 会提示覆盖。
+- `justfile`：项目私有入口，第一行通过 `import 'justfile.shared'` 引入共享层，之后只保留与项目结构耦合、仅模板维护者使用，或会触达本机 AI 工具目录的 recipe：`run`、`down`、`frontend`、`ops`、`sync-local-skills`、`copy`。派生项目可以自由增删此文件中的 recipe，`just sync-template` 默认会跳过它。
 
 行为约定：
 
