@@ -2,11 +2,17 @@
 # justfile — project-private recipes.
 #
 # Shared recipes live in `justfile.shared` and are kept in sync with the
-# upstream template repository via `just sync-template`. Add or override
-# project-specific commands below; same-name recipes here override shared ones.
+# upstream template repository via `just sync-template`. Add project-specific
+# commands below; same-name recipes here intentionally override shared ones.
 # ───────────────────────────────────────────────────────────────────────────────
 
+set allow-duplicate-recipes
+
 import 'justfile.shared'
+
+# Default recipe (runs when you type `just`)
+default: _check-completion
+    @just --list
 
 # Run the development entrypoint
 # Usage:

@@ -43,11 +43,21 @@ Before asking questions or proposing changes, inspect the repository for:
 - existing extension points and reusable code paths
 - current data model and state ownership
 - existing docs, tests, and workflows relevant to the request
+- existing PRDs under `tasks/pending/` and related archived PRDs under `tasks/archive/`
+
+You must inspect existing PRDs before creating a new one:
+- search `tasks/pending/` first for duplicate, overlapping, prerequisite, or downstream work
+- search `tasks/archive/` when a completed PRD may define context, prior decisions, or reusable acceptance criteria
+- reuse or update an existing pending PRD when it clearly represents the same work instead of creating a duplicate
+- populate `Delivery Dependencies` from explicit pending PRD relationships when a task must wait for another task or group
+- use `none` only after checking pending PRDs and finding no sequencing dependency
+- do not infer hard dependencies from vague topic similarity; record uncertain relationships as `soft` or ask the user when dependency choice changes scope or execution order
 
 You must explicitly identify:
 - **Existing Path:** the current code path that is closest to the requested change
 - **Reuse Candidates:** files/modules that can be extended directly
 - **Architecture Constraints:** boundaries that should not be broken
+- **Existing PRD Relationship:** whether the request duplicates, depends on, blocks, or is independent from current pending PRDs
 - **Potential Redundancy Risks:** likely sources of duplicated logic or parallel abstractions
 
 Do not ask questions that can be answered by reading the repository.
@@ -198,7 +208,10 @@ Timestamp must use local current time in `YYYYMMDD-HHMMSS` format.
 
 Before handing off the PRD, verify the whole document has:
 - all required top-level sections in the required order
+- Section 1 includes a concise `### Proposed Solution Summary` that names the recommended mechanism before the measurable objectives
 - Section 1 includes a `### Realistic Validation` checklist immediately after the goals/objectives
+- Section 1 includes a tool-neutral `### Delivery Dependencies` block before Section 2, using `none` values when the task has no sequencing dependency
+- Section 3 includes an explicit note about matching or related pending PRDs, even when the result is "none found"
 - Section 5 starts with the required living implementation guide statement
 - a Change Impact Tree
 - at least one Mermaid flow or architecture diagram
@@ -226,7 +239,16 @@ This structure is the output contract for generated and updated PRDs.
 
 ### 1. Introduction & Goals
 
-Brief problem statement plus measurable objectives.
+Brief problem statement, proposed solution summary, and measurable objectives.
+
+Must include a concise `### Proposed Solution Summary` before the measurable objectives.
+This summary should give reviewers the implementation direction before they reach Section 4 or Section 5:
+
+- name the core mechanism or architecture path being recommended
+- state who supplies any required declaration, configuration, or input, and whether the system infers it or only consumes explicit data
+- identify the existing entry point, module boundary, API, workflow, or UI surface it plugs into
+- state the main system state, output, or user-visible behavior change
+- state what important complexity is intentionally avoided, such as new storage, a parallel abstraction, or a changed state machine
 
 Must include a `### Realistic Validation` checklist before Section 2.
 This first-section checklist is a concise, reviewer-facing summary of the highest-fidelity validation expected for the task. It must use Markdown checkbox items and mirror the style of:
@@ -247,6 +269,33 @@ Rules:
 - Include dry-run, local file output, sandbox mode, or mocked external boundary details when live services are not required.
 - This checklist does not replace the detailed `Realistic Validation Plan` table in Section 5.
 
+Must include a `### Delivery Dependencies` block after the first-section `### Realistic Validation` checklist and before Section 2.
+This block is tool-neutral sequencing metadata, not a tool-specific queue syntax.
+Use `none` explicitly when the task has no dependency.
+
+Use this shape:
+
+```markdown
+### Delivery Dependencies
+
+- Group: [logical-delivery-group-or-none]
+- Depends on groups:
+  - none
+- Depends on tasks/issues:
+  - none
+- Gate type: none
+- Notes: [Use tool-neutral dependency names. Do not put tool-specific hidden markers here.]
+```
+
+Rules:
+- `Group` names the logical delivery group for this PRD, or `none`.
+- `Depends on groups` lists logical upstream groups, not tool-specific labels.
+- `Depends on tasks/issues` lists upstream task names, PRD slugs, issue numbers, or `none`.
+- `Gate type` must be `none`, `soft`, or `hard`.
+- `hard` means an execution tool may treat the dependency as a blocking gate when that repository has a deterministic adapter.
+- `soft` documents sequencing context but must not be treated as a blocking gate unless a repository-specific PRD explicitly defines that behavior.
+- Do not place tool-specific hidden markers, labels, or queue syntax in this block. Repository-specific publish tooling may translate the block into its own markers or labels.
+
 ### 2. Requirement Shape
 
 - actor
@@ -261,6 +310,17 @@ Must include:
 - existing architecture pattern to follow
 - ownership and dependency boundaries
 - constraints from runtime, docs, tests, or workflows
+- matching or related PRDs found in `tasks/pending/` and relevant prior PRDs from `tasks/archive/`
+
+If no related PRDs are found, state that explicitly.
+If related PRDs are found, identify whether this PRD:
+
+- duplicates existing pending work and should update that PRD instead
+- depends on another pending PRD
+- blocks another pending PRD
+- can run independently
+
+Reflect dependency decisions in the first-section `Delivery Dependencies` block.
 
 ### 4. Recommendation
 
@@ -476,11 +536,16 @@ The checklist must validate the final target state, not merely the completion of
 
 * [ ] Rewrote the request into a concrete behavior change
 * [ ] Inspected the repository before asking questions
+* [ ] Searched existing `tasks/pending/` PRDs for duplicate, prerequisite, blocking, or downstream work before creating/updating this PRD
+* [ ] Checked relevant `tasks/archive/` PRDs when prior decisions or completed related work could affect the plan
 * [ ] Identified the closest existing code path
+* [ ] Documented the Existing PRD Relationship in Section 3 and reflected sequencing decisions in Delivery Dependencies
 * [ ] Handled critical unresolved questions correctly: asked the user only when repository evidence was insufficient and the answer would materially affect the PRD
 * [ ] Compared a minimal-change option against a heavier option
 * [ ] Justified every new abstraction, dependency, or file path
 * [ ] Rejected redundant layers where reuse was sufficient
+* [ ] Section 1 includes a concise proposed solution summary before measurable objectives, including who supplies required declarations/configuration/input, so the PRD does not jump from problem statement directly to validation or implementation detail
+* [ ] Section 1 includes a tool-neutral Delivery Dependencies block, using explicit `none` values when no sequencing dependency exists
 * [ ] Included a Change Impact Tree with architecture-fit reasoning
 * [ ] **BLOCKER:** Did not include line-number-dependent edit instructions; all fragile edits use semantic anchors and/or `rg` search commands
 * [ ] Included at least one flow or architecture diagram

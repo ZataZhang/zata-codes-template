@@ -30,13 +30,14 @@
 仓库根目录下的 `just` 入口被拆分为两层，分别由模板上游和派生项目自己拥有：
 
 - `justfile.shared`：模板上游维护的共享 recipe 集合，由 `just sync-template` 同步。所有项目无关的脚手架命令（`sync`、`lint`、`test`、`docs-serve`、`clean`、`release`、`check`、`codex-notify`、`staged_changes`、`worktree`、`implement`、`sync-template`、`e2e`、`e2e-install`、`export-env-encrypted` 以及内部 `_check-completion`）都在这里。**不要手改这个文件**——改了下次 `just sync-template` 会提示覆盖。
-- `justfile`：项目私有入口，第一行通过 `import 'justfile.shared'` 引入共享层，之后只保留与项目结构耦合、仅模板维护者使用，或会触达本机 AI 工具目录的 recipe：`run`、`down`、`frontend`、`ops`、`sync-local-skills`、`copy`。派生项目可以自由增删此文件中的 recipe，`just sync-template` 默认会跳过它。
+- `justfile`：项目私有入口，第一行启用 `set allow-duplicate-recipes` 后通过 `import 'justfile.shared'` 引入共享层，之后只保留与项目结构耦合、仅模板维护者使用，或会触达本机 AI 工具目录的 recipe：`default`、`run`、`down`、`frontend`、`ops`、`sync-local-skills`、`copy`。派生项目可以自由增删此文件中的 recipe，`just sync-template` 默认会跳过它。
 
 行为约定：
 
-- `import` 是 just 1.19+ 原生命名空间合并；私有 `justfile` 中定义的同名 recipe 会覆盖共享版本（later definition wins）。需要本地化某条共享命令时，直接在 `justfile` 中重写同名 recipe 即可，不要去改 `justfile.shared`。
+- `import` 是 just 1.19+ 原生命名空间合并；私有 `justfile` 使用 `set allow-duplicate-recipes` 允许本地同名 recipe 覆盖共享版本。需要本地化某条共享命令时，直接在 `justfile` 中重写同名 recipe 即可，不要去改 `justfile.shared`。
+- 裸 `just` 默认运行 `default` recipe；根 `justfile` 需要保留本地 `default`，并委托执行 `just --list`。
 - `just sync-template` 的默认跳过名单（`scripts/template/sync_template.sh` 的 `_is_skipped_by_default`）已包含 `justfile`；`justfile.shared` 仍按常规规则进入 NEW/CHANGED 候选清单。
-- `just copy <dir>` 通过定位 `justfile` 中的 `# Copy template to a new directory` 段落标记，把 `copy` recipe 及其之后的内容从 destination 的 `justfile` 中 trim 掉；destination 仍保留 `import 'justfile.shared'` 与 `run`/`down`/`frontend` 起始版本。该 marker 是 contract，调整 `copy` 上方注释时需保持 marker 文本不变。
+- `just copy <dir>` 通过定位 `justfile` 中的 `# Copy template to a new directory` 段落标记，把 `copy` recipe 及其之后的内容从 destination 的 `justfile` 中 trim 掉；destination 仍保留 `set allow-duplicate-recipes`、`import 'justfile.shared'` 与 `default`/`run`/`down`/`frontend` 起始版本。该 marker 是 contract，调整 `copy` 上方注释时需保持 marker 文本不变。
 - 从单文件旧版升级时，建议手工把本地 `justfile` 重写为最小私有版（`import 'justfile.shared'` + 项目特有 recipe），避免与 import 进来的共享 recipe 重复定义。
 
 ## Run Port State

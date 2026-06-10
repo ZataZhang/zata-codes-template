@@ -2,12 +2,36 @@
 
 ## 1. Introduction & Goals
 
-[Brief problem statement and feature objective.]
+### Problem Statement
+
+[Briefly describe the current pain, who experiences it, and why the existing workflow or behavior is insufficient.]
+
+### Proposed Solution Summary
+
+[Summarize the recommended implementation approach in one short paragraph. Name the core mechanism, who supplies any required declaration/configuration/input, where it plugs into the existing system, what state/API/UI changes it makes, and what it intentionally avoids.]
 
 ### Measurable Objectives
 - [Objective 1]
 - [Objective 2]
 - [Objective 3]
+
+### Realistic Validation
+
+除单元测试和集成测试外，本 PRD 要求通过**真实项目入口点**验证关键行为，确保真实使用路径生效，而非仅在隔离 fixture 中通过。
+
+- [ ] **[行为名称] 真实验证**：通过 `[真实入口命令或流程]` 验证 `[关键可观察结果]`。
+- [ ] **[配置/状态/回退] 真实验证**：通过 `[真实入口命令或流程]` 验证 `[关键可观察结果]`。
+- [ ] **为什么单元测试不够**：说明真实入口验证覆盖了哪些单元测试无法证明的行为。
+
+### Delivery Dependencies
+
+- Group: [logical-delivery-group-or-none]
+- Depends on groups:
+  - none
+- Depends on tasks/issues:
+  - none
+- Gate type: none
+- Notes: [Use tool-neutral dependency names. Do not put tool-specific hidden markers here.]
 
 ---
 
@@ -26,6 +50,7 @@
 - Reuse candidates: [Files/modules to extend directly]
 - Architecture pattern to preserve: [Relevant boundary or dependency direction]
 - Constraints: [Runtime, dependency, coding standard, workflow, or rollout constraints]
+- Existing PRD relationship: [Result of checking tasks/pending/ first and relevant tasks/archive/ second: duplicate / depends on / blocks / independent / none found]
 - Redundancy risks: [Likely duplication or parallel abstraction risks]
 
 ---
