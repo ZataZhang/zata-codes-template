@@ -109,7 +109,27 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="": _check-completion
         } > "$run_state_file"
     }
 
+    check_port() {
+        port_label="$1"
+        port_value="$2"
+        occupying_pids="$(lsof -nP -iTCP:"$port_value" -sTCP:LISTEN 2>/dev/null | awk 'NR>1 && $1 !~ /^(com\.docker|docker|vpnkit|hyperkit)/ {print $2}' | sort -u || true)"
+
+        if [ -n "$occupying_pids" ]; then
+            echo ""
+            echo "⚠️  $port_label port $port_value is already in use by process(es): $occupying_pids"
+            echo ""
+            echo "   You can switch to a different port:"
+            echo "      just run backend_port=8010 frontend_port=5178"
+            echo ""
+            echo "   Or stop the existing process:"
+            echo "      just down backend_port=$backend_port frontend_port=$frontend_port"
+            echo ""
+            exit 1
+        fi
+    }
+
     run_backend() {
+        check_port "Backend" "$backend_port"
         echo "Starting backend on port $backend_port: $backend_cmd"
         PORT="$backend_port" bash -lc "$backend_cmd"
     }
@@ -128,6 +148,7 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="": _check-completion
             exit 1
         fi
 
+        check_port "Frontend" "$frontend_port"
         echo "Starting frontend in $frontend_dir on port $frontend_port: $frontend_cmd"
         (
             cd "$frontend_dir"
