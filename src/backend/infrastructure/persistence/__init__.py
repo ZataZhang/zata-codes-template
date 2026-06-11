@@ -1,6 +1,5 @@
 """Infrastructure persistence exports."""
 
-from .crawler_records import CrawlerData, CrawlerLog
 from .database import (
     Base,
     SessionLocal,
@@ -10,12 +9,13 @@ from .database import (
     get_db,
     init_database,
 )
+from .models import TimestampMixin, UserProfile
 
 __all__ = [
     "Base",
-    "CrawlerData",
-    "CrawlerLog",
     "SessionLocal",
+    "TimestampMixin",
+    "UserProfile",
     "create_database_engine",
     "create_tables",
     "engine",
