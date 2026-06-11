@@ -1,4 +1,4 @@
-import { IconDotsVertical, IconLogout, IconUserCircle } from "@tabler/icons-react";
+import { LogOut, MoreVertical, UserCircle } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -19,7 +19,7 @@ export function NavUser() {
 
   const displayName = userSession?.display_name ?? "User";
   const email = userSession?.email ?? "";
-  const initials = displayName.slice(0, 2).toUpperCase();
+  const initials = displayName.slice(0, 2).toUpperCase() || "U";
 
   return (
     <SidebarMenu>
@@ -35,9 +35,9 @@ export function NavUser() {
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium">{displayName}</span>
-                <span className="truncate text-xs text-slate-500 dark:text-slate-400">{email}</span>
+                <span className="truncate text-xs text-muted-foreground">{email}</span>
               </div>
-              <IconDotsVertical className="ml-auto size-4" />
+              <MoreVertical className="ml-auto size-4" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
@@ -53,20 +53,20 @@ export function NavUser() {
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-medium">{displayName}</span>
-                  <span className="truncate text-xs text-slate-500">{email}</span>
+                  <span className="truncate text-xs text-muted-foreground">{email}</span>
                 </div>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem>
-                <IconUserCircle />
+                <UserCircle />
                 账户
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => void signOut()}>
-              <IconLogout />
+              <LogOut />
               退出登录
             </DropdownMenuItem>
           </DropdownMenuContent>

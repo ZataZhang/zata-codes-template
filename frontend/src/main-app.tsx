@@ -3,7 +3,7 @@ import { Navigate, Route, Routes } from "react-router";
 
 import { RequireSession } from "@/auth/RequireSession";
 import { AppSidebar } from "@/components/app-sidebar";
-import { SiteHeader } from "@/components/site-header";
+import { RouteErrorBoundary } from "@/components/route-error-boundary";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 
 const LoginPage = lazy(async () => ({
@@ -14,9 +14,13 @@ const DashboardPage = lazy(async () => ({
   default: (await import("@/pages/dashboard-page")).DashboardPage,
 }));
 
+const NotFoundPage = lazy(async () => ({
+  default: (await import("@/pages/not-found-page")).NotFoundPage,
+}));
+
 function PageLoadingFallback() {
   return (
-    <div className="flex min-h-screen items-center justify-center text-sm text-slate-500">
+    <div className="flex min-h-[60vh] items-center justify-center text-sm text-muted-foreground">
       加载中...
     </div>
   );
@@ -27,14 +31,16 @@ function AppShell() {
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
-        <SiteHeader />
-        <Suspense fallback={<PageLoadingFallback />}>
-          <Routes>
-            <Route index element={<Navigate to="/dashboard" replace />} />
-            <Route path="dashboard" element={<DashboardPage />} />
-            {/* TODO: 在此添加更多受保护的路由 */}
-          </Routes>
-        </Suspense>
+        <RouteErrorBoundary>
+          <Suspense fallback={<PageLoadingFallback />}>
+            <Routes>
+              <Route index element={<Navigate to="/dashboard" replace />} />
+              <Route path="dashboard" element={<DashboardPage />} />
+              {/* TODO: 在此添加更多受保护的路由 */}
+              <Route path="*" element={<NotFoundPage />} />
+            </Routes>
+          </Suspense>
+        </RouteErrorBoundary>
       </SidebarInset>
     </SidebarProvider>
   );
@@ -54,7 +60,6 @@ export function MainApp() {
       <Route element={<RequireSession />}>
         <Route path="/*" element={<AppShell />} />
       </Route>
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );
 }

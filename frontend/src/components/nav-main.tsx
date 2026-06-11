@@ -1,9 +1,10 @@
-import type { Icon } from "@tabler/icons-react";
+import type { LucideIcon } from "lucide-react";
 import { Link, useLocation } from "react-router";
 
 import {
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -12,13 +13,20 @@ import {
 type NavItem = {
   title: string;
   url: string;
-  icon?: Icon;
+  icon?: LucideIcon;
 };
 
-export function NavMain({ items }: { items: NavItem[] }) {
+export function NavMain({
+  label,
+  items,
+}: {
+  label?: string;
+  items: NavItem[];
+}) {
   const location = useLocation();
   return (
     <SidebarGroup>
+      {label ? <SidebarGroupLabel>{label}</SidebarGroupLabel> : null}
       <SidebarGroupContent>
         <SidebarMenu>
           {items.map((item) => (

@@ -8,7 +8,7 @@ export function RequireSession() {
 
   if (status === "loading") {
     return (
-      <div className="flex min-h-screen items-center justify-center text-sm text-slate-500">
+      <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
         加载中...
       </div>
     );

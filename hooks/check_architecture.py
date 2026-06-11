@@ -44,6 +44,15 @@ FORBIDDEN_IMPORTS: dict[str, list[str]] = {
 LEGACY_MODULES: set[str] = set()
 """迁移期兼容模块，不参与架构检查（见 system-design.md 迁移策略）。"""
 
+WHITELISTED_SUBMODULES: dict[str, list[str]] = {
+    "infrastructure": ["core.shared.interfaces"],
+}
+"""白名单：允许指定层导入其他层的特定子模块路径。
+
+键为来源层，值为允许导入的目标层完整子模块路径列表。
+例如：infrastructure 允许导入 core.shared.interfaces 中的抽象接口。
+"""
+
 
 @dataclass
 class ArchitectureViolation:
@@ -214,20 +223,34 @@ def _check_single_file(
         raw_source_code
     )
 
-    for line_number, imported_module_name in imported_module_entries:
-        if imported_module_name in forbidden_targets:
-            raw_source_lines: list[str] = raw_source_code.splitlines()
-            import_statement_text: str = raw_source_lines[line_number - 1].strip()
+    whitelisted_submodules: list[str] = WHITELISTED_SUBMODULES.get(source_layer, [])
 
-            single_violation: ArchitectureViolation = ArchitectureViolation(
-                file_path=python_file,
-                line_number=line_number,
-                module_name=module_name,
-                source_layer=source_layer,
-                forbidden_layer=imported_module_name,
-                import_statement=import_statement_text,
-            )
-            file_violations.append(single_violation)
+    for line_number, imported_module_name in imported_module_entries:
+        if imported_module_name not in forbidden_targets:
+            continue
+
+        raw_source_lines: list[str] = raw_source_code.splitlines()
+        import_statement_text: str = raw_source_lines[line_number - 1].strip()
+
+        # 检查是否在白名单中（按完整模块路径匹配）
+        is_whitelisted: bool = False
+        for whitelist_path in whitelisted_submodules:
+            if whitelist_path in import_statement_text:
+                is_whitelisted = True
+                break
+
+        if is_whitelisted:
+            continue
+
+        single_violation: ArchitectureViolation = ArchitectureViolation(
+            file_path=python_file,
+            line_number=line_number,
+            module_name=module_name,
+            source_layer=source_layer,
+            forbidden_layer=imported_module_name,
+            import_statement=import_statement_text,
+        )
+        file_violations.append(single_violation)
 
     return file_violations
 

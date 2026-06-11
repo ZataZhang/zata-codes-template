@@ -1,5 +1,3 @@
-// TODO: 替换为实际后端认证接口路径
-
 import { get, post } from "./client";
 import type { UserSession } from "./types";
 
