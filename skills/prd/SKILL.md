@@ -260,13 +260,15 @@ This first-section checklist is a concise, reviewer-facing summary of the highes
 
 - [ ] **[行为名称] 真实验证**：通过 `[真实入口命令或流程]` 验证 `[关键可观察结果]`。
 - [ ] **[配置/状态/回退] 真实验证**：通过 `[真实入口命令或流程]` 验证 `[关键可观察结果]`。
-- [ ] **为什么单元测试不够**：说明真实入口验证覆盖了哪些单元测试无法证明的行为。
+
+**为什么单元测试不够**：说明真实入口验证覆盖了哪些单元测试无法证明的行为。
 ```
 
 Rules:
 - Keep this checklist short enough to scan, usually 2-5 items.
 - Use concrete real entry points such as CLI commands, HTTP endpoints, app startup, Playwright flows, worker jobs, migrations, or publish/deploy procedures.
 - Include dry-run, local file output, sandbox mode, or mocked external boundary details when live services are not required.
+- The checkbox items are actionable real-entry verifications. Capture "为什么单元测试不够" (why unit tests are insufficient) as a one-line rationale beneath the checklist, not as a checkbox, since it states reasoning rather than a task to complete.
 - This checklist does not replace the detailed `Realistic Validation Plan` table in Section 5.
 
 Must include a `### Delivery Dependencies` block after the first-section `### Realistic Validation` checklist and before Section 2.
