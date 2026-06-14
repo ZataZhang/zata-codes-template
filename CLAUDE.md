@@ -16,4 +16,5 @@
 ## Claude Notes
 
 - 在开始新的后端功能前，额外阅读 `@docs/architecture/system-design.md`
+- 记录或总结"随手想法"时，遵循 `docs/guides/idea-inbox.md`：原话只追加到 `tasks/inbox/ideas.md`，总结写入 `tasks/inbox/summary.md`
 - 共享规范应放回 `docs/ai-standards/`，不要在本文件中复制成长篇正文

@@ -60,11 +60,11 @@ nav:
       - 配置说明: guides/configuration.md
       - 部署指南: guides/deployment.md
       - 备份与恢复: guides/backup.md
+      - 想法 Inbox: guides/idea-inbox.md
       - PRD 编写规范: guides/prd-standard.md
       - Review Workflow: guides/review-workflow.md
       - Skill Lifecycle: guides/skill-lifecycle.md
       - Codex macOS 通知: guides/codex-notifications.md
-      - 前端开发: guides/frontend.md
   - 原型演示:
       - 概览: prototypes/index.md
       - PRD Demo UI: prototypes/prd-demo.html

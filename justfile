@@ -490,6 +490,7 @@ copy name force='':
         --exclude='scripts/template/generate_readme.py' \
         --exclude='tasks/archive/*.md' \
         --exclude='tasks/pending/*.md' \
+        --exclude='tasks/inbox/*.md' \
         --exclude='/findings.md' \
         --exclude='/progress.md' \
         --exclude='/task_plan.md' \
