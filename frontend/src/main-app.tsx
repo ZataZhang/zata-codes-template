@@ -14,6 +14,22 @@ const DashboardPage = lazy(async () => ({
   default: (await import("@/pages/dashboard-page")).DashboardPage,
 }));
 
+const ProjectsPage = lazy(async () => ({
+  default: (await import("@/pages/projects-page")).ProjectsPage,
+}));
+
+const TasksPage = lazy(async () => ({
+  default: (await import("@/pages/tasks-page")).TasksPage,
+}));
+
+const TeamPage = lazy(async () => ({
+  default: (await import("@/pages/team-page")).TeamPage,
+}));
+
+const SettingsPage = lazy(async () => ({
+  default: (await import("@/pages/settings-page")).SettingsPage,
+}));
+
 const NotFoundPage = lazy(async () => ({
   default: (await import("@/pages/not-found-page")).NotFoundPage,
 }));
@@ -36,7 +52,10 @@ function AppShell() {
             <Routes>
               <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="dashboard" element={<DashboardPage />} />
-              {/* TODO: 在此添加更多受保护的路由 */}
+              <Route path="projects" element={<ProjectsPage />} />
+              <Route path="tasks" element={<TasksPage />} />
+              <Route path="team" element={<TeamPage />} />
+              <Route path="settings" element={<SettingsPage />} />
               <Route path="*" element={<NotFoundPage />} />
             </Routes>
           </Suspense>
