@@ -70,9 +70,22 @@ just run        # 同时启动后端 + 前端
 | 命令 | 说明 |
 |------|------|
 | `just copy <name>` | 将本模版复制为新项目到 `../<name>/`，不包含 `node_modules`、`dist` 等依赖和构建产物 |
-| `just sync-template` | 与上游模版对比，交互式选择更新（默认跳过 `config.toml` 中 `[template_sync].project_skip_paths` 配置的项目路径，以及 README、配置等项目特定文件）；如有模板技能更新，可选择安装到 `~/.cc-switch/skills`，若该目录不存在则提示选择 Codex 或 Claude 的 skills 目录 |
-| `just sync-template --all` | 同上，但包含 README、pyproject.toml 等项目特定文件 |
+| `just sync-template` | 与上游模版对比，交互式选择更新。默认同步模板维护的通用文件；跳过 `tasks/`、环境/缓存产物、`config.toml` 中 `[template_sync].project_skip_paths` 配置的项目路径，以及 README、CLAUDE.md、main.py、justfile、pyproject.toml、config.toml、mkdocs.yml、uv.lock 等项目特定文件。如有模板技能更新，可选择安装到 `~/.cc-switch/skills`，若该目录不存在则提示选择 Codex 或 Claude 的 skills 目录 |
+| `just sync-template --all` | 同上，但额外包含 `project_skip_paths` 中的项目路径（如 `src/backend/`、`frontend/`、`docs/`、`tests/`、`deploy/` 等）；`tasks/` 和顶层身份文件仍跳过 |
 | `just release` | 通过 `scripts/shared/release.py` 构建发布包 |
+
+### Template Sync 规则说明
+
+`just sync-template` 会对比上游模板仓库与本地的文件差异，默认只同步模板维护的通用骨架文件。以下类别默认会被跳过：
+
+- **永不同步**：`tasks/`（项目任务文件）。
+- **顶层项目身份/配置**：`README.md`、`CLAUDE.md`、`main.py`、`justfile`、`pyproject.toml`、`config.toml`、`mkdocs.yml`、`uv.lock`。
+- **环境/缓存/产物**：`.git/`、`.venv/`、`.uv-cache/`、`__pycache__/`、`.pytest_cache/`、`.ruff_cache/`、`logs/`、`site/`、`.env`、`.env.*`、`.DS_Store`、*.pyc、*.egg-info。
+- **项目特定目录**：`src/backend/`、`frontend/`、`docs/`、`tests/`、`deploy/`、`apps/`、`services/`、`infra/`、`helm/`、`terraform/`、`ansible/`、`data/`、`uploads/`、`artifacts/`、`tmp/`（由 `config.toml` 中 `[template_sync].project_skip_paths` 配置）。
+- **脚本分层**：`scripts/shared/` 由上游模板维护并同步；`scripts/` 根目录下其他文件默认跳过。
+- **其他**：`prompt/`、`skills/`、`.claude/`。
+
+使用 `just sync-template --all` 可将 `project_skip_paths` 中的目录也纳入对比，但仍不会同步 `tasks/` 和上述顶层身份文件。完整的过滤逻辑见 `scripts/shared/template/sync_template.sh` 中的 `_is_never_synced()` 与 `_is_skipped_by_default()`。
 
 ### Secrets
 
