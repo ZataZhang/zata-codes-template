@@ -487,7 +487,6 @@ copy name force='':
         --exclude='__pycache__' \
         --exclude='prompt' \
         --exclude='skills' \
-        --exclude='scripts/template/generate_readme.py' \
         --exclude='tasks/archive/*.md' \
         --exclude='tasks/pending/*.md' \
         --exclude='tasks/inbox/*.md' \
@@ -508,7 +507,7 @@ copy name force='':
     python3 -c 'from pathlib import Path; import sys; old_project_name = sys.argv[1]; new_project_name = sys.argv[2]; target_root = Path(sys.argv[3]); project_file_paths = [target_root / path for path in sys.argv[4:]]; [project_file_path.write_text(project_file_path.read_text(encoding="utf-8").replace(old_project_name, new_project_name), encoding="utf-8") for project_file_path in project_file_paths if project_file_path.exists()]' "$OLD_NAME" "$PROJECT_NAME" "$NEW_DIR" config.toml mkdocs.yml pyproject.toml uv.lock docker-compose.dokploy.yml docker-compose.yml frontend/nginx.conf deploy/vps-traefik/README.md deploy/vps-traefik/docker-compose.yml deploy/vps-traefik/.env.example deploy/vps-traefik/app.env.example deploy/vps-traefik/github-actions-deploy.yml.example
 
     echo "Resetting README.md to template..."
-    python3 "$TEMPLATE_DIR/scripts/template/generate_readme.py" "$PROJECT_NAME" "$NEW_DIR/README.md"
+    python3 "$TEMPLATE_DIR/scripts/shared/template/generate_readme.py" "$PROJECT_NAME" "$NEW_DIR/README.md"
 
     echo "Cleaning up empty directories..."
     find "$NEW_DIR" -type d -empty -delete

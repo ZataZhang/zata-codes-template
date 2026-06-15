@@ -126,7 +126,7 @@ lint mode="": _check-completion
     #!/usr/bin/env bash
     set -euo pipefail
 
-    source ./scripts/hooks/quality_flag.sh
+    source ./scripts/shared/hooks/quality_flag.sh
 
     print_lint_usage() {
         echo "Usage:"
@@ -149,7 +149,7 @@ lint mode="": _check-completion
 
         if quality_skip_is_empty_or_only "check-test-flag" && [ "$staged_archive_prd_transition" -eq 0 ] && quality_flag_matches "$flag_file" "$branch_name" "$head_hash" "$current_tree"; then
             if ! quality_skip_contains "check-test-flag"; then
-                bash ./scripts/hooks/check_test_flag.sh
+                bash ./scripts/shared/hooks/check_test_flag.sh
             fi
             echo "✅ just lint --full flag valid: $branch_name @ ${head_hash:0:8}"
             return 0
@@ -238,7 +238,7 @@ clean:
 
 # Build a release zip (does NOT modify local workspace)
 release:
-    uv run python scripts/release.py
+    uv run python scripts/shared/release.py
 
 # Run a diagnostic check.
 # Usage:
@@ -275,10 +275,10 @@ codex-notify action="install" shortcut_name="codex通知":
     set -euo pipefail
     case "{{action}}" in
         install)
-            ./scripts/codex/install_macos_notify.sh "{{shortcut_name}}"
+            ./scripts/shared/codex/install_macos_notify.sh "{{shortcut_name}}"
             ;;
         test)
-            CODEX_NOTIFY_VERBOSE=1 CODEX_NOTIFY_SHORTCUT_NAME="{{shortcut_name}}" ./scripts/codex/notify_shortcut.sh '{"type":"agent-turn-complete","last-assistant-message":"Codex notify manual test"}'
+            CODEX_NOTIFY_VERBOSE=1 CODEX_NOTIFY_SHORTCUT_NAME="{{shortcut_name}}" ./scripts/shared/codex/notify_shortcut.sh '{"type":"agent-turn-complete","last-assistant-message":"Codex notify manual test"}'
             ;;
         *)
             echo "ERROR: Unknown action: {{action}}"
@@ -290,7 +290,7 @@ codex-notify action="install" shortcut_name="codex通知":
 staged_changes:
     git diff --cached > staged_changes.diff
 
-# Git worktree helper (implemented in scripts/worktree/)
+# Git worktree helper (implemented in scripts/shared/worktree/)
 # Usage:
 #   just worktree <branch>                            # create/enter worktree
 #   just worktree <branch> --cmd trae                 # open in editor
@@ -309,7 +309,7 @@ worktree arg1 arg2="" arg3="" arg4="" arg5="":
             echo "ERROR: Usage: just worktree -o <branch_name> [--cmd editor]"
             exit 1
         fi
-        open_cmd=(./scripts/worktree/open.sh "{{arg2}}")
+        open_cmd=(./scripts/shared/worktree/open.sh "{{arg2}}")
         for raw_arg in "{{arg3}}" "{{arg4}}" "{{arg5}}"; do
             if [ -n "$raw_arg" ]; then
                 open_cmd+=("$raw_arg")
@@ -325,7 +325,7 @@ worktree arg1 arg2="" arg3="" arg4="" arg5="":
             echo "ERROR: Usage: just worktree -d <branch_name>"
             exit 1
         fi
-        ./scripts/worktree/merge.sh "{{arg2}}" -d
+        ./scripts/shared/worktree/merge.sh "{{arg2}}" -d
         exit 0
     fi
 
@@ -335,7 +335,7 @@ worktree arg1 arg2="" arg3="" arg4="" arg5="":
             echo "ERROR: Usage: just worktree -D <branch_name>"
             exit 1
         fi
-        ./scripts/worktree/merge.sh "{{arg2}}" -D
+        ./scripts/shared/worktree/merge.sh "{{arg2}}" -D
         exit 0
     fi
 
@@ -369,23 +369,23 @@ worktree arg1 arg2="" arg3="" arg4="" arg5="":
             done
         fi
 
-        ./scripts/worktree/merge.sh "${merge_args[@]}"
+        ./scripts/shared/worktree/merge.sh "${merge_args[@]}"
         exit 0
     fi
 
     # --doctor: cleanup-check
     if [ "{{arg1}}" = "--doctor" ]; then
         if [ -n "{{arg2}}" ]; then
-            ./scripts/worktree/merge.sh --doctor "{{arg2}}"
+            ./scripts/shared/worktree/merge.sh --doctor "{{arg2}}"
         else
-            ./scripts/worktree/merge.sh --doctor
+            ./scripts/shared/worktree/merge.sh --doctor
         fi
         exit 0
     fi
 
     # Default: create/enter worktree
     branch_name="{{arg1}}"
-    worktree_command=(./scripts/worktree/create.sh "$branch_name")
+    worktree_command=(./scripts/shared/worktree/create.sh "$branch_name")
     enter_shell_value="true"
     expect_code_command="false"
     expect_base_branch="false"
@@ -601,7 +601,7 @@ implement prd_file ai_tool prompt="":
     echo ""
 
     # Create worktree under tasks/ subdirectory
-    ./scripts/worktree/create.sh "$branch_name" --subdir tasks
+    ./scripts/shared/worktree/create.sh "$branch_name" --subdir tasks
     echo ""
 
     # Determine worktree path
@@ -678,7 +678,7 @@ sync-template flags="":
         echo "   Run: just lint --full"
         exit 1
     fi
-    source ./scripts/hooks/quality_flag.sh
+    source ./scripts/shared/hooks/quality_flag.sh
     lint_tree_after_lint="$(quality_effective_tree working lint)"
     echo "✅ Lint passed. Proceeding to tests..."
 
@@ -746,4 +746,4 @@ e2e-install:
 # Output: ./<project_name>_secrets.zip  (one fixed file per project root)
 # Password is prompted interactively at compression time; required again to extract.
 export-env-encrypted:
-    ./scripts/secrets/export_env_encrypted.sh
+    ./scripts/shared/secrets/export_env_encrypted.sh

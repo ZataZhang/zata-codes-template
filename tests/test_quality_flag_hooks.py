@@ -8,8 +8,12 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-QUALITY_FLAG_SCRIPT_PATH = REPO_ROOT / "scripts" / "hooks" / "quality_flag.sh"
-CHECK_TEST_FLAG_SCRIPT_PATH = REPO_ROOT / "scripts" / "hooks" / "check_test_flag.sh"
+QUALITY_FLAG_SCRIPT_PATH = (
+    REPO_ROOT / "scripts" / "shared" / "hooks" / "quality_flag.sh"
+)
+CHECK_TEST_FLAG_SCRIPT_PATH = (
+    REPO_ROOT / "scripts" / "shared" / "hooks" / "check_test_flag.sh"
+)
 
 
 def run_command(

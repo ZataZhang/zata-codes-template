@@ -36,7 +36,7 @@
 
 - `import` 是 just 1.19+ 原生命名空间合并；私有 `justfile` 使用 `set allow-duplicate-recipes` 允许本地同名 recipe 覆盖共享版本。需要本地化某条共享命令时，直接在 `justfile` 中重写同名 recipe 即可，不要去改 `justfile.shared`。
 - 裸 `just` 默认运行 `default` recipe；根 `justfile` 需要保留本地 `default`，并委托执行 `just --list`。
-- `just sync-template` 的默认跳过名单（`scripts/template/sync_template.sh` 的 `_is_skipped_by_default`）已包含 `justfile`；`justfile.shared` 仍按常规规则进入 NEW/CHANGED 候选清单。
+- `just sync-template` 的默认跳过名单（`scripts/shared/template/sync_template.sh` 的 `_is_skipped_by_default`）已包含 `justfile`；`justfile.shared` 仍按常规规则进入 NEW/CHANGED 候选清单。
 - `just copy <dir>` 通过定位 `justfile` 中的 `# Copy template to a new directory` 段落标记，把 `copy` recipe 及其之后的内容从 destination 的 `justfile` 中 trim 掉；destination 仍保留 `set allow-duplicate-recipes`、`import 'justfile.shared'` 与 `default`/`run`/`down`/`frontend` 起始版本。该 marker 是 contract，调整 `copy` 上方注释时需保持 marker 文本不变。
 - 从单文件旧版升级时，建议手工把本地 `justfile` 重写为最小私有版（`import 'justfile.shared'` + 项目特有 recipe），避免与 import 进来的共享 recipe 重复定义。
 

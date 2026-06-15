@@ -8,7 +8,9 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SYNC_TEMPLATE_SCRIPT_PATH = REPO_ROOT / "scripts" / "template" / "sync_template.sh"
+SYNC_TEMPLATE_SCRIPT_PATH = (
+    REPO_ROOT / "scripts" / "shared" / "template" / "sync_template.sh"
+)
 
 
 def run_command(
@@ -104,7 +106,7 @@ def test_sync_template_skips_configured_project_paths_by_default(
 
     template_files = {
         "README.md": "Template README\n",
-        "scripts/tool.sh": "echo template\n",
+        "scripts/shared/tool.sh": "echo template\n",
         "src/backend/api/api.py": "print('template backend')\n",
         "frontend/src/App.tsx": "export const App = 'template';\n",
         "infra/main.tf": "# template infra\n",
@@ -112,7 +114,7 @@ def test_sync_template_skips_configured_project_paths_by_default(
     }
     project_files = {
         "README.md": "Project README\n",
-        "scripts/tool.sh": "echo project\n",
+        "scripts/shared/tool.sh": "echo project\n",
         "src/backend/api/api.py": "print('project backend')\n",
         "frontend/src/App.tsx": "export const App = 'project';\n",
         "infra/main.tf": "# project infra\n",
@@ -126,7 +128,7 @@ def test_sync_template_skips_configured_project_paths_by_default(
 
     assert completed_process.returncode == 0, completed_process.stderr
     assert "Found 1 changed + 0 new entry/entries." in completed_process.stdout
-    assert "CHANGED\tscripts/tool.sh" in completed_process.stdout
+    assert "CHANGED\tscripts/shared/tool.sh" in completed_process.stdout
     assert "README.md" not in completed_process.stdout
     assert "src/backend/api/api.py" not in completed_process.stdout
     assert "frontend/src/App.tsx" not in completed_process.stdout
@@ -142,7 +144,7 @@ def test_sync_template_all_includes_configured_project_paths(tmp_path: Path) -> 
 
     template_files = {
         "README.md": "Template README\n",
-        "scripts/tool.sh": "echo template\n",
+        "scripts/shared/tool.sh": "echo template\n",
         "src/backend/api/api.py": "print('template backend')\n",
         "frontend/src/App.tsx": "export const App = 'template';\n",
         "infra/main.tf": "# template infra\n",
@@ -150,7 +152,7 @@ def test_sync_template_all_includes_configured_project_paths(tmp_path: Path) -> 
     }
     project_files = {
         "README.md": "Project README\n",
-        "scripts/tool.sh": "echo project\n",
+        "scripts/shared/tool.sh": "echo project\n",
         "src/backend/api/api.py": "print('project backend')\n",
         "frontend/src/App.tsx": "export const App = 'project';\n",
         "infra/main.tf": "# project infra\n",
@@ -169,7 +171,7 @@ def test_sync_template_all_includes_configured_project_paths(tmp_path: Path) -> 
     assert completed_process.returncode == 0, completed_process.stderr
     assert "Found 6 changed + 0 new entry/entries." in completed_process.stdout
     assert "CHANGED\tREADME.md" in completed_process.stdout
-    assert "CHANGED\tscripts/tool.sh" in completed_process.stdout
+    assert "CHANGED\tscripts/shared/tool.sh" in completed_process.stdout
     assert "CHANGED\tsrc/backend/api/api.py" in completed_process.stdout
     assert "CHANGED\tfrontend/src/App.tsx" in completed_process.stdout
     assert "CHANGED\tinfra/main.tf" in completed_process.stdout
@@ -183,13 +185,13 @@ def test_sync_template_uses_project_skip_paths_from_config(tmp_path: Path) -> No
     project_repo_path = tmp_path / "project-repo"
 
     template_files = {
-        "scripts/tool.sh": "echo template\n",
+        "scripts/shared/tool.sh": "echo template\n",
         "src/backend/api/api.py": "print('template backend')\n",
         "frontend/src/App.tsx": "export const App = 'template';\n",
     }
     project_files = {
         "config.toml": '[template_sync]\nproject_skip_paths = ["src/backend/"]\n',
-        "scripts/tool.sh": "echo project\n",
+        "scripts/shared/tool.sh": "echo project\n",
         "src/backend/api/api.py": "print('project backend')\n",
         "frontend/src/App.tsx": "export const App = 'project';\n",
     }
@@ -201,7 +203,7 @@ def test_sync_template_uses_project_skip_paths_from_config(tmp_path: Path) -> No
 
     assert completed_process.returncode == 0, completed_process.stderr
     assert "Found 2 changed + 0 new entry/entries." in completed_process.stdout
-    assert "CHANGED\tscripts/tool.sh" in completed_process.stdout
+    assert "CHANGED\tscripts/shared/tool.sh" in completed_process.stdout
     assert "CHANGED\tfrontend/src/App.tsx" in completed_process.stdout
     assert "src/backend/api/api.py" not in completed_process.stdout
 
@@ -215,7 +217,7 @@ def test_sync_template_project_include_paths_override_project_skips(
     project_repo_path = tmp_path / "project-repo"
 
     template_files = {
-        "scripts/tool.sh": "echo template\n",
+        "scripts/shared/tool.sh": "echo template\n",
         "src/backend/api/api.py": "print('template backend')\n",
         "frontend/src/App.tsx": "export const App = 'template';\n",
     }
@@ -225,7 +227,7 @@ def test_sync_template_project_include_paths_override_project_skips(
             'project_skip_paths = ["src/backend/", "frontend/"]\n'
             'project_include_paths = ["frontend/"]\n'
         ),
-        "scripts/tool.sh": "echo project\n",
+        "scripts/shared/tool.sh": "echo project\n",
         "src/backend/api/api.py": "print('project backend')\n",
         "frontend/src/App.tsx": "export const App = 'project';\n",
     }
@@ -237,7 +239,7 @@ def test_sync_template_project_include_paths_override_project_skips(
 
     assert completed_process.returncode == 0, completed_process.stderr
     assert "Found 2 changed + 0 new entry/entries." in completed_process.stdout
-    assert "CHANGED\tscripts/tool.sh" in completed_process.stdout
+    assert "CHANGED\tscripts/shared/tool.sh" in completed_process.stdout
     assert "CHANGED\tfrontend/src/App.tsx" in completed_process.stdout
     assert "src/backend/api/api.py" not in completed_process.stdout
 
@@ -251,13 +253,13 @@ def test_sync_template_project_skip_paths_can_be_overridden_by_env(
     project_repo_path = tmp_path / "project-repo"
 
     template_files = {
-        "scripts/tool.sh": "echo template\n",
+        "scripts/shared/tool.sh": "echo template\n",
         "src/backend/api/api.py": "print('template backend')\n",
         "frontend/src/App.tsx": "export const App = 'template';\n",
     }
     project_files = {
         "config.toml": '[template_sync]\nproject_skip_paths = ["src/backend/"]\n',
-        "scripts/tool.sh": "echo project\n",
+        "scripts/shared/tool.sh": "echo project\n",
         "src/backend/api/api.py": "print('project backend')\n",
         "frontend/src/App.tsx": "export const App = 'project';\n",
     }
@@ -273,6 +275,66 @@ def test_sync_template_project_skip_paths_can_be_overridden_by_env(
 
     assert completed_process.returncode == 0, completed_process.stderr
     assert "Found 2 changed + 0 new entry/entries." in completed_process.stdout
-    assert "CHANGED\tscripts/tool.sh" in completed_process.stdout
+    assert "CHANGED\tscripts/shared/tool.sh" in completed_process.stdout
     assert "CHANGED\tsrc/backend/api/api.py" in completed_process.stdout
     assert "frontend/src/App.tsx" not in completed_process.stdout
+
+
+def test_sync_template_skips_scripts_root_by_default(
+    tmp_path: Path,
+) -> None:
+    """Default sync listing should skip scripts/ root but include scripts/shared/."""
+
+    template_repo_path = tmp_path / "template-repo"
+    project_repo_path = tmp_path / "project-repo"
+
+    template_files = {
+        "scripts/root_tool.sh": "echo template root\n",
+        "scripts/shared/shared_tool.sh": "echo template shared\n",
+    }
+    project_files = {
+        "scripts/root_tool.sh": "echo project root\n",
+        "scripts/shared/shared_tool.sh": "echo project shared\n",
+    }
+
+    create_repo(template_repo_path, template_files, commit_all=True)
+    create_repo(project_repo_path, project_files, commit_all=False)
+
+    completed_process = run_sync_template(project_repo_path, template_repo_path)
+
+    assert completed_process.returncode == 0, completed_process.stderr
+    assert "Found 1 changed + 0 new entry/entries." in completed_process.stdout
+    assert "CHANGED\tscripts/shared/shared_tool.sh" in completed_process.stdout
+    assert "root_tool.sh" not in completed_process.stdout
+
+
+def test_sync_template_all_includes_scripts_root(
+    tmp_path: Path,
+) -> None:
+    """--all mode should include scripts/ root files."""
+
+    template_repo_path = tmp_path / "template-repo"
+    project_repo_path = tmp_path / "project-repo"
+
+    template_files = {
+        "scripts/root_tool.sh": "echo template root\n",
+        "scripts/shared/shared_tool.sh": "echo template shared\n",
+    }
+    project_files = {
+        "scripts/root_tool.sh": "echo project root\n",
+        "scripts/shared/shared_tool.sh": "echo project shared\n",
+    }
+
+    create_repo(template_repo_path, template_files, commit_all=True)
+    create_repo(project_repo_path, project_files, commit_all=False)
+
+    completed_process = run_sync_template(
+        project_repo_path,
+        template_repo_path,
+        "--all",
+    )
+
+    assert completed_process.returncode == 0, completed_process.stderr
+    assert "Found 2 changed + 0 new entry/entries." in completed_process.stdout
+    assert "CHANGED\tscripts/root_tool.sh" in completed_process.stdout
+    assert "CHANGED\tscripts/shared/shared_tool.sh" in completed_process.stdout

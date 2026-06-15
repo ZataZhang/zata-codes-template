@@ -253,6 +253,12 @@ _is_skipped_by_default() {
     if _is_project_skipped_by_default "$p"; then
         return 0
     fi
+    # Scripts layering: project-private scripts live under scripts/;
+    # only scripts/shared/ is maintained by the upstream template.
+    case "$p" in
+        scripts/shared/*) return 1 ;;
+        scripts/*) return 0 ;;
+    esac
     return 1
 }
 
@@ -760,12 +766,16 @@ fi
 echo ""
 
 if [ "$LIST_ONLY_MODE" = "1" ]; then
-    for entry in "${changed_entries[@]}"; do
-        printf 'CHANGED\t%s\n' "$entry"
-    done
-    for entry in "${new_entries[@]}"; do
-        printf 'NEW\t%s\n' "$entry"
-    done
+    if [ "${#changed_entries[@]}" -gt 0 ]; then
+        for entry in "${changed_entries[@]}"; do
+            printf 'CHANGED\t%s\n' "$entry"
+        done
+    fi
+    if [ "${#new_entries[@]}" -gt 0 ]; then
+        for entry in "${new_entries[@]}"; do
+            printf 'NEW\t%s\n' "$entry"
+        done
+    fi
     exit 0
 fi
 
