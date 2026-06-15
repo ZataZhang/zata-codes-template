@@ -66,6 +66,53 @@ class AuthUseCase:
         session_token: str = self._session_store.create(matched_user_id)
         return session_token, matched_user
 
+    def register(
+        self, user_id: str, display_name: str, email: str, password: str
+    ) -> User:
+        """注册新用户。
+
+        Args:
+            user_id: 用户名。
+            display_name: 显示名称。
+            email: 邮箱地址。
+            password: 密码。
+
+        Returns:
+            新创建的用户对象。
+
+        Raises:
+            ValueError: 用户名/邮箱已存在或密码太弱。
+        """
+        normalized_user_id: str = user_id.strip().lower()
+        normalized_email: str = email.strip().lower()
+        cleaned_display_name: str = display_name.strip()
+        cleaned_password: str = password.strip()
+
+        if not normalized_user_id:
+            raise ValueError("用户名不能为空")
+        if not cleaned_display_name:
+            raise ValueError("显示名称不能为空")
+        if not normalized_email:
+            raise ValueError("邮箱不能为空")
+        if len(cleaned_password) < 6:
+            raise ValueError("密码长度至少 6 位")
+
+        if normalized_user_id in self._user_database:
+            raise ValueError("用户名已存在")
+
+        for user in self._user_database.values():
+            if user.email.lower() == normalized_email:
+                raise ValueError("邮箱已被注册")
+
+        new_user = User(
+            user_id=normalized_user_id,
+            display_name=cleaned_display_name,
+            email=normalized_email,
+        )
+        self._user_database[normalized_user_id] = new_user
+        self._password_database[normalized_user_id] = cleaned_password
+        return new_user
+
     def logout(self, token: str) -> None:
         """销毁指定 Session。"""
         self._session_store.delete(token)

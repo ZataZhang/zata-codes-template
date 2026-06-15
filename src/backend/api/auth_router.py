@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Response, status
 from fastapi.exceptions import HTTPException
 
 from backend.api.dependencies import get_auth_use_case, get_session_token
-from backend.api.schemas import LoginRequest, UserSessionResponse
+from backend.api.schemas import LoginRequest, RegisterRequest, UserSessionResponse
 from backend.core.use_cases.auth import AuthUseCase, User
 
 _AUTH_COOKIE_NAME: str = "session_id"
@@ -49,6 +49,39 @@ async def login_endpoint(
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(exc),
+        ) from exc
+    _set_session_cookie(response, token)
+    return UserSessionResponse(
+        user_id=user.user_id,
+        display_name=user.display_name,
+        email=user.email,
+    )
+
+
+@router.post(
+    "/register", response_model=UserSessionResponse, status_code=status.HTTP_201_CREATED
+)
+async def register_endpoint(
+    request_payload: RegisterRequest,
+    response: Response,
+    auth_use_case: AuthUseCase = Depends(get_auth_use_case),
+) -> UserSessionResponse:
+    """用户注册：创建账号并自动登录。"""
+    try:
+        user = auth_use_case.register(
+            user_id=request_payload.user_id,
+            display_name=request_payload.display_name,
+            email=request_payload.email,
+            password=request_payload.password,
+        )
+        token, _ = auth_use_case.login(
+            identifier=user.user_id,
+            password=request_payload.password,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         ) from exc
     _set_session_cookie(response, token)

@@ -1,30 +1,21 @@
-import type { CSSProperties } from "react";
-import { Toaster as Sonner, type ToasterProps } from "sonner";
+import { Toaster as Sonner, ToasterProps } from 'sonner'
+import { useTheme } from '@/context/theme-provider'
 
-const Toaster = ({ ...props }: ToasterProps) => {
+export function Toaster({ ...props }: ToasterProps) {
+  const { theme = 'system' } = useTheme()
+
   return (
     <Sonner
-      closeButton
-      className="toaster group"
+      theme={theme as ToasterProps['theme']}
+      className='toaster group [&_div[data-content]]:w-full'
       style={
         {
-          "--normal-bg": "rgba(255, 255, 255, 0.96)",
-          "--normal-text": "rgb(15 23 42)",
-          "--normal-border": "rgb(226 232 240)",
-          "--border-radius": "18px",
-        } as CSSProperties
+          '--normal-bg': 'var(--popover)',
+          '--normal-text': 'var(--popover-foreground)',
+          '--normal-border': 'var(--border)',
+        } as React.CSSProperties
       }
-      toastOptions={{
-        duration: 2000,
-        classNames: {
-          toast: "border border-border bg-popover text-accent-foreground shadow-sm",
-          title: "text-sm font-semibold text-popover-foreground",
-          description: "text-sm text-muted-foreground",
-        },
-      }}
       {...props}
     />
-  );
-};
-
-export { Toaster };
+  )
+}

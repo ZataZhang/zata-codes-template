@@ -16,24 +16,29 @@ default: _check-completion
 
 # Run the development entrypoint
 # Usage:
-#   just run                 # start backend + frontend
-#   just run backend         # start backend only
-#   just run frontend        # start frontend only
-#   just run docker          # start with Docker Compose (one-click deploy)
-#   just run backend_port=8010 frontend_port=5178
-#   just run all frontend_dir=web frontend_cmd="pnpm dev"
-run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="": _check-completion
+#   just run                        # start backend + admin frontend + public frontend
+#   just run backend                # start backend only
+#   just run frontend               # start admin frontend only
+#   just run frontend-public        # start public frontend only
+#   just run docker                 # start with Docker Compose (one-click deploy)
+#   just run backend_port=8010 frontend_port=5178 frontend_public_port=3001
+#   just run all frontend_public_cmd="npm run dev"
+run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="" arg7="" arg8="" arg9="": _check-completion
     #!/usr/bin/env bash
     set -euo pipefail
 
     target="all"
     frontend_dir="frontend"
+    frontend_public_dir="frontend-public"
     backend_port=""
     frontend_port=""
+    frontend_public_port=""
     backend_cmd="uv run python -m backend.main"
     frontend_cmd="npm run dev"
+    frontend_public_cmd="pnpm dev"
     backend_pid=""
     frontend_pid=""
+    frontend_public_pid=""
     run_state_file="$(git rev-parse --git-path vanta-run.env)"
     positional_index=0
 
@@ -50,17 +55,26 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="": _check-completion
             frontend_dir=*)
                 frontend_dir="${cli_arg#frontend_dir=}"
                 ;;
+            frontend_public_dir=*)
+                frontend_public_dir="${cli_arg#frontend_public_dir=}"
+                ;;
             backend_port=*)
                 backend_port="${cli_arg#backend_port=}"
                 ;;
             frontend_port=*)
                 frontend_port="${cli_arg#frontend_port=}"
                 ;;
+            frontend_public_port=*)
+                frontend_public_port="${cli_arg#frontend_public_port=}"
+                ;;
             backend_cmd=*)
                 backend_cmd="${cli_arg#backend_cmd=}"
                 ;;
             frontend_cmd=*)
                 frontend_cmd="${cli_arg#frontend_cmd=}"
+                ;;
+            frontend_public_cmd=*)
+                frontend_public_cmd="${cli_arg#frontend_public_cmd=}"
                 ;;
             *)
                 case "$positional_index" in
@@ -78,7 +92,7 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="": _check-completion
                         ;;
                     *)
                         echo "ERROR: Unexpected run argument: $cli_arg"
-                        echo "Usage: just run [backend|frontend|all|docker] [backend_port=<port>] [frontend_port=<port>]"
+                        echo "Usage: just run [backend|frontend|frontend-public|all|docker] [backend_port=<port>] [frontend_port=<port>] [frontend_public_port=<port>]"
                         exit 1
                         ;;
                 esac
@@ -87,7 +101,7 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="": _check-completion
         esac
     }
 
-    for cli_arg in {{quote(arg1)}} {{quote(arg2)}} {{quote(arg3)}} {{quote(arg4)}} {{quote(arg5)}} {{quote(arg6)}}; do
+    for cli_arg in {{quote(arg1)}} {{quote(arg2)}} {{quote(arg3)}} {{quote(arg4)}} {{quote(arg5)}} {{quote(arg6)}} {{quote(arg7)}} {{quote(arg8)}} {{quote(arg9)}}; do
         parse_run_arg "$cli_arg"
     done
 
@@ -99,6 +113,7 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="": _check-completion
 
         backend_port="${backend_port:-${BACKEND_PORT:-8000}}"
         frontend_port="${frontend_port:-${FRONTEND_PORT:-5173}}"
+        frontend_public_port="${frontend_public_port:-${FRONTEND_PUBLIC_PORT:-3000}}"
     }
 
     save_run_ports() {
@@ -106,6 +121,7 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="": _check-completion
         {
             printf 'BACKEND_PORT=%s\n' "$backend_port"
             printf 'FRONTEND_PORT=%s\n' "$frontend_port"
+            printf 'FRONTEND_PUBLIC_PORT=%s\n' "$frontend_public_port"
         } > "$run_state_file"
     }
 
@@ -136,28 +152,50 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="": _check-completion
 
     run_frontend() {
         if [ ! -d "$frontend_dir" ]; then
-            echo "ERROR: Frontend directory not found: $frontend_dir"
+            echo "ERROR: Admin frontend directory not found: $frontend_dir"
             echo "   Override it with: just run frontend frontend_dir=<path>"
             exit 1
         fi
 
         if [ ! -f "$frontend_dir/package.json" ]; then
-            echo "ERROR: package.json not found in frontend directory: $frontend_dir"
+            echo "ERROR: package.json not found in admin frontend directory: $frontend_dir"
             echo "   Override the directory or command, for example:"
             echo "   just run frontend frontend_dir=<path> frontend_cmd='pnpm dev'"
             exit 1
         fi
 
-        check_port "Frontend" "$frontend_port"
-        echo "Starting frontend in $frontend_dir on port $frontend_port: $frontend_cmd"
+        check_port "Admin Frontend" "$frontend_port"
+        echo "Starting admin frontend in $frontend_dir on port $frontend_port: $frontend_cmd"
         (
             cd "$frontend_dir"
             BACKEND_PORT="$backend_port" FRONTEND_PORT="$frontend_port" bash -lc "$frontend_cmd"
         )
     }
 
+    run_frontend_public() {
+        if [ ! -d "$frontend_public_dir" ]; then
+            echo "ERROR: Public frontend directory not found: $frontend_public_dir"
+            echo "   Override it with: just run frontend-public frontend_public_dir=<path>"
+            exit 1
+        fi
+
+        if [ ! -f "$frontend_public_dir/package.json" ]; then
+            echo "ERROR: package.json not found in public frontend directory: $frontend_public_dir"
+            echo "   Override the directory or command, for example:"
+            echo "   just run frontend-public frontend_public_dir=<path> frontend_public_cmd='pnpm dev'"
+            exit 1
+        fi
+
+        check_port "Public Frontend" "$frontend_public_port"
+        echo "Starting public frontend in $frontend_public_dir on port $frontend_public_port: $frontend_public_cmd"
+        (
+            cd "$frontend_public_dir"
+            PORT="$frontend_public_port" BACKEND_PORT="$backend_port" bash -lc "$frontend_public_cmd"
+        )
+    }
+
     cleanup_processes() {
-        for process_pid in "$backend_pid" "$frontend_pid"; do
+        for process_pid in "$backend_pid" "$frontend_pid" "$frontend_public_pid"; do
             if [ -n "$process_pid" ] && kill -0 "$process_pid" 2>/dev/null; then
                 kill "$process_pid" 2>/dev/null || true
             fi
@@ -177,6 +215,11 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="": _check-completion
                 return $?
             fi
 
+            if [ -n "$frontend_public_pid" ] && ! kill -0 "$frontend_public_pid" 2>/dev/null; then
+                wait "$frontend_public_pid"
+                return $?
+            fi
+
             sleep 1
         done
     }
@@ -192,12 +235,17 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="": _check-completion
         frontend)
             run_frontend
             ;;
+        frontend-public)
+            run_frontend_public
+            ;;
         all)
             trap cleanup_processes EXIT INT TERM
             run_backend &
             backend_pid=$!
             run_frontend &
             frontend_pid=$!
+            run_frontend_public &
+            frontend_public_pid=$!
             wait_for_first_exit
             ;;
         docker)
@@ -228,7 +276,7 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="": _check-completion
             ;;
         *)
             echo "ERROR: Unknown run target: $target"
-            echo "Usage: just run [backend|frontend|all|docker]"
+            echo "Usage: just run [backend|frontend|frontend-public|all|docker]"
             exit 1
             ;;
     esac
@@ -238,15 +286,17 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="": _check-completion
 #   just down
 #   just down backend
 #   just down frontend
-#   just down backend_port=8010 frontend_port=5178
+#   just down frontend-public
+#   just down backend_port=8010 frontend_port=5178 frontend_public_port=3001
 #   just down docker
-down arg1="" arg2="" arg3="": _check-completion
+down arg1="" arg2="" arg3="" arg4="" arg5="": _check-completion
     #!/usr/bin/env bash
     set -euo pipefail
 
     target="all"
     backend_port=""
     frontend_port=""
+    frontend_public_port=""
     run_state_file="$(git rev-parse --git-path vanta-run.env)"
     positional_index=0
 
@@ -266,20 +316,23 @@ down arg1="" arg2="" arg3="": _check-completion
             frontend_port=*)
                 frontend_port="${cli_arg#frontend_port=}"
                 ;;
+            frontend_public_port=*)
+                frontend_public_port="${cli_arg#frontend_public_port=}"
+                ;;
             *)
                 if [ "$positional_index" -eq 0 ]; then
                     target="$cli_arg"
                     positional_index=1
                 else
                     echo "ERROR: Unexpected down argument: $cli_arg"
-                    echo "Usage: just down [backend|frontend|all|docker] [backend_port=<port>] [frontend_port=<port>]"
+                    echo "Usage: just down [backend|frontend|frontend-public|all|docker] [backend_port=<port>] [frontend_port=<port>] [frontend_public_port=<port>]"
                     exit 1
                 fi
                 ;;
         esac
     }
 
-    for cli_arg in {{quote(arg1)}} {{quote(arg2)}} {{quote(arg3)}}; do
+    for cli_arg in {{quote(arg1)}} {{quote(arg2)}} {{quote(arg3)}} {{quote(arg4)}} {{quote(arg5)}}; do
         parse_down_arg "$cli_arg"
     done
 
@@ -291,6 +344,7 @@ down arg1="" arg2="" arg3="": _check-completion
 
         backend_port="${backend_port:-${BACKEND_PORT:-8000}}"
         frontend_port="${frontend_port:-${FRONTEND_PORT:-5173}}"
+        frontend_public_port="${frontend_public_port:-${FRONTEND_PUBLIC_PORT:-3000}}"
     }
 
     stop_port() {
@@ -322,18 +376,22 @@ down arg1="" arg2="" arg3="": _check-completion
             stop_port backend "$backend_port"
             ;;
         frontend)
-            stop_port frontend "$frontend_port"
+            stop_port "admin frontend" "$frontend_port"
+            ;;
+        frontend-public)
+            stop_port "public frontend" "$frontend_public_port"
             ;;
         all)
             stop_port backend "$backend_port"
-            stop_port frontend "$frontend_port"
+            stop_port "admin frontend" "$frontend_port"
+            stop_port "public frontend" "$frontend_public_port"
             ;;
         docker)
             docker compose down
             ;;
         *)
             echo "ERROR: Unknown down target: $target"
-            echo "Usage: just down [backend|frontend|all|docker]"
+            echo "Usage: just down [backend|frontend|frontend-public|all|docker]"
             exit 1
             ;;
     esac

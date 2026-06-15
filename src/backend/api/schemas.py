@@ -12,6 +12,15 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class RegisterRequest(BaseModel):
+    """注册请求。"""
+
+    user_id: str
+    display_name: str
+    email: str
+    password: str
+
+
 class UserSessionResponse(BaseModel):
     """用户会话响应。"""
 

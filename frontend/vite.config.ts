@@ -1,64 +1,57 @@
-import path from "node:path";
+/// <reference types="vitest/config" />
+import path from 'path'
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
+import { tanstackRouter } from '@tanstack/router-plugin/vite'
+import { playwright } from '@vitest/browser-playwright'
 
-import tailwindcss from "@tailwindcss/vite";
-import react from "@vitejs/plugin-react";
-import { defineConfig, loadEnv } from "vite";
+const backendPort = Number(process.env.BACKEND_PORT) || 8000
+const frontendPort = Number(process.env.FRONTEND_PORT) || 5173
 
-export default defineConfig(({ mode }) => {
-  const env = {
-    ...loadEnv(mode, process.cwd(), ""),
-    ...process.env,
-  };
-  const resolvedBackendPort = env.BACKEND_PORT?.trim() || "8000";
-  const resolvedFrontendPort = Number(env.FRONTEND_PORT?.trim() || "5173");
-  const backendBaseUrl =
-    env.BACKEND_URL?.trim() || `http://localhost:${resolvedBackendPort}`;
-
-  return {
-    plugins: [react(), tailwindcss()],
-    resolve: {
-      alias: {
-        "@": path.resolve(__dirname, "./src"),
-        "@shared": path.resolve(__dirname, "./shared"),
+// https://vite.dev/config/
+export default defineConfig({
+  plugins: [
+    tanstackRouter({
+      target: 'react',
+      autoCodeSplitting: true,
+    }),
+    react(),
+    tailwindcss(),
+  ],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
+  server: {
+    port: frontendPort,
+    proxy: {
+      '/api': {
+        target: `http://localhost:${backendPort}`,
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
       },
     },
-    server: {
-      port: resolvedFrontendPort,
-      strictPort: true,
-      proxy: {
-        "/api": {
-          target: backendBaseUrl,
-          changeOrigin: true,
-          rewrite: (requestPath) => requestPath.replace(/^\/api/, ""),
-        },
-      },
+  },
+  test: {
+    silent: 'passed-only',
+    unstubEnvs: true,
+    browser: {
+      enabled: true,
+      provider: playwright(),
+      instances: [{ browser: 'chromium' }],
     },
-    build: {
-      rollupOptions: {
-        output: {
-          manualChunks(id) {
-            if (id.includes("node_modules/@refinedev") || id.includes("node_modules/@tanstack/react-query")) {
-              return "refine";
-            }
-            if (
-              id.includes("node_modules/react") ||
-              id.includes("node_modules/react-dom") ||
-              id.includes("node_modules/react-router")
-            ) {
-              return "react-vendor";
-            }
-            if (
-              id.includes("node_modules/@radix-ui") ||
-              id.includes("node_modules/lucide-react") ||
-              id.includes("node_modules/class-variance-authority") ||
-              id.includes("node_modules/clsx") ||
-              id.includes("node_modules/tailwind-merge")
-            ) {
-              return "ui-vendor";
-            }
-          },
-        },
-      },
+    coverage: {
+      // include: ['src/**/*.{js,jsx,ts,tsx}'], // Uncomment to expand the report to all src/**/* so untested modules appear as 0% coverage.
+      exclude: [
+        'src/components/ui/**',
+        'src/assets/**',
+        'src/tanstack-table.d.ts',
+        'src/routeTree.gen.ts',
+        'src/test-utils/**',
+        'src/routes/**',
+      ],
     },
-  };
-});
+  },
+})
