@@ -32,8 +32,12 @@ async function attachScreenshot(
 /**
  * Returns locators whose content changes between runs (timestamps, counters,
  * user-specific text) so they can be masked during visual diffing.
+ *
+ * `page` is reserved for template consumers to build locators from. It is
+ * intentionally unused until the TODOs below are filled in.
  */
 function buildDynamicMaskList(page: Page): Locator[] {
+  void page // reserved for future mask locators; see TODOs below
   return [
     // TODO: add locators for elements that change between runs, e.g.:
     // page.locator('.timestamp'),
