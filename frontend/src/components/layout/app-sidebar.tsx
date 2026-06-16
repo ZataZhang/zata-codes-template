@@ -20,7 +20,6 @@ export function AppSidebar() {
     ? {
         name: auth.user.display_name,
         email: auth.user.email,
-        avatar: '/avatars/shadcn.jpg',
       }
     : sidebarData.user
 

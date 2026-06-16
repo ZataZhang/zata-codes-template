@@ -1,119 +1,67 @@
-# Shadcn Admin Dashboard
+# 管理平台前端
 
-Admin Dashboard UI crafted with Shadcn and Vite. Built with responsiveness and accessibility in mind.
+本目录是 `zata-codes-template` 的管理平台前端（Admin Dashboard），基于
+[satnaing/shadcn-admin](https://github.com/satnaing/shadcn-admin) 二次开发。
 
-![alt text](public/images/shadcn-admin.png)
+## 技术栈
 
-[![Sponsored by Clerk](https://img.shields.io/badge/Sponsored%20by-Clerk-5b6ee1?logo=clerk)](https://go.clerk.com/GttUAaK)
+- **构建工具**：Vite
+- **框架**：React 19
+- **路由**：TanStack Router（文件即路由）
+- **样式**：Tailwind CSS v4
+- **组件库**：shadcn/ui
+- **状态管理**：Zustand
+- **HTTP 客户端**：axios
+- **表单**：React Hook Form + Zod
 
-I've been creating dashboard UIs at work and for my personal projects. I always wanted to make a reusable collection of dashboard UI for future projects; and here it is now. While I've created a few custom components, some of the code is directly adapted from ShadcnUI examples.
-
-> This is not a starter project (template) though. I'll probably make one in the future.
-
-## Features
-
-- Light/dark mode
-- Responsive
-- Accessible
-- With built-in Sidebar component
-- Global search command
-- 10+ pages
-- Extra custom components
-- RTL support
-
-<details>
-<summary>Customized Components (click to expand)</summary>
-
-This project uses Shadcn UI components, but some have been slightly modified for better RTL (Right-to-Left) support and other improvements. These customized components differ from the original Shadcn UI versions.
-
-If you want to update components using the Shadcn CLI (e.g., `npx shadcn@latest add <component>`), it's generally safe for non-customized components. For the listed customized ones, you may need to manually merge changes to preserve the project's modifications and avoid overwriting RTL support or other updates.
-
-> If you don't require RTL support, you can safely update the 'RTL Updated Components' via the Shadcn CLI, as these changes are primarily for RTL compatibility. The 'Modified Components' may have other customizations to consider.
-
-### Modified Components
-
-- scroll-area
-- sonner
-- separator
-
-### RTL Updated Components
-
-- alert-dialog
-- calendar
-- command
-- dialog
-- dropdown-menu
-- select
-- table
-- sheet
-- sidebar
-- switch
-
-**Notes:**
-
-- **Modified Components**: These have general updates, potentially including RTL adjustments.
-- **RTL Updated Components**: These have specific changes for RTL language support (e.g., layout, positioning).
-- For implementation details, check the source files in `src/components/ui/`.
-- All other Shadcn UI components in the project are standard and can be safely updated via the CLI.
-
-</details>
-
-## Tech Stack
-
-**UI:** [ShadcnUI](https://ui.shadcn.com) (TailwindCSS + RadixUI)
-
-**Build Tool:** [Vite](https://vitejs.dev/)
-
-**Routing:** [TanStack Router](https://tanstack.com/router/latest)
-
-**Type Checking:** [TypeScript](https://www.typescriptlang.org/)
-
-**Linting/Formatting:** [ESLint](https://eslint.org/) & [Prettier](https://prettier.io/)
-
-**Icons:** [Lucide Icons](https://lucide.dev/icons/), [Tabler Icons](https://tabler.io/icons) (Brand icons only)
-
-**Auth (partial):** [Clerk](https://go.clerk.com/GttUAaK)
-
-## Run Locally
-
-Clone the project
+## 本地开发
 
 ```bash
-  git clone https://github.com/satnaing/shadcn-admin.git
+# 安装依赖
+pnpm install
+
+# 启动开发服务器（默认端口 5173）
+pnpm dev
 ```
 
-Go to the project directory
+开发服务器启动后访问 `http://localhost:5173`。
+
+## 构建生产产物
 
 ```bash
-  cd shadcn-admin
+pnpm build
 ```
 
-Install dependencies
+产物输出到 `dist/` 目录，由根目录 `frontend/Dockerfile` 中的 Nginx 镜像托管。
+
+## 项目结构
+
+```text
+frontend/
+├── src/
+│   ├── api/          # HTTP 客户端与认证 API
+│   ├── auth/         # 会话 Provider 与路由守卫
+│   ├── components/   # 共享组件与 shadcn/ui
+│   ├── features/     # 按业务领域组织的页面模块
+│   ├── hooks/        # React hooks
+│   ├── lib/          # 工具函数与配置
+│   ├── pages/        # 路由级页面
+│   └── app.tsx       # 应用根组件
+├── index.html
+├── vite.config.ts
+└── Dockerfile
+```
+
+## 与后端的集成
+
+- 开发时，Vite 将 `/api/*` 代理到 `http://localhost:8000`。
+- 生产时，Nginx 将 `/api/*` 代理到后端服务（如 `zata-codes-template-backend:8000`）。
+- 认证使用后端签发的 HTTP-only `session_id` cookie。
+
+## 容器化
 
 ```bash
-  pnpm install
+docker build -t zata-codes-template-admin -f Dockerfile .
 ```
 
-Start the server
-
-```bash
-  pnpm run dev
-```
-
-## Sponsoring this project ❤️
-
-If you find this project helpful or use this in your own work, consider [sponsoring me](https://github.com/sponsors/satnaing) to support development and maintenance. You can [buy me a coffee](https://buymeacoffee.com/satnaing) as well. Don’t worry, every penny helps. Thank you! 🙏
-
-For questions or sponsorship inquiries, feel free to reach out at [satnaingdev@gmail.com](mailto:satnaingdev@gmail.com).
-
-### Current Sponsor
-
-- [Clerk](https://go.clerk.com/GttUAaK) - authentication and user management for the modern web
-
-## Author
-
-Crafted with 🤍 by [@satnaing](https://github.com/satnaing)
-
-## License
-
-Licensed under the [MIT License](https://choosealicense.com/licenses/mit/)
+镜像基于 Nginx 托管静态产物，端口 `80`。

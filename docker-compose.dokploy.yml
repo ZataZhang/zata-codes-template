@@ -57,7 +57,7 @@ services:
           cpus: "0.25"
           memory: 512M
 
-  zata-codes-template-frontend:
+  zata-codes-template-admin:
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -72,15 +72,50 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=dokploy-network"
-      - "traefik.http.middlewares.app-https-redirect.redirectscheme.scheme=https"
-      - "traefik.http.routers.app-web.rule=Host(`${DOMAIN:?Set DOMAIN in Dokploy environment}`)"
-      - "traefik.http.routers.app-web.entrypoints=web"
-      - "traefik.http.routers.app-web.middlewares=app-https-redirect"
-      - "traefik.http.routers.app.rule=Host(`${DOMAIN:?Set DOMAIN in Dokploy environment}`)"
-      - "traefik.http.routers.app.entrypoints=websecure"
-      - "traefik.http.routers.app.tls=true"
-      - "traefik.http.routers.app.tls.certresolver=letsencrypt"
-      - "traefik.http.services.app.loadbalancer.server.port=80"
+      - "traefik.http.middlewares.app-admin-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.routers.app-admin-web.rule=Host(`admin.${DOMAIN:?Set DOMAIN in Dokploy environment}`)"
+      - "traefik.http.routers.app-admin-web.entrypoints=web"
+      - "traefik.http.routers.app-admin-web.middlewares=app-admin-https-redirect"
+      - "traefik.http.routers.app-admin.rule=Host(`admin.${DOMAIN:?Set DOMAIN in Dokploy environment}`)"
+      - "traefik.http.routers.app-admin.entrypoints=websecure"
+      - "traefik.http.routers.app-admin.tls=true"
+      - "traefik.http.routers.app-admin.tls.certresolver=letsencrypt"
+      - "traefik.http.services.app-admin.loadbalancer.server.port=80"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          cpus: "0.125"
+          memory: 64M
+
+  zata-codes-template-public:
+    build:
+      context: ./frontend-public
+      dockerfile: Dockerfile
+    expose:
+      - "3000"
+    environment:
+      - API_BASE_URL=${API_BASE_URL:-http://zata-codes-template-backend:8000}
+    depends_on:
+      zata-codes-template-backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - dokploy-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=dokploy-network"
+      - "traefik.http.middlewares.app-public-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.routers.app-public-web.rule=Host(`${DOMAIN:?Set DOMAIN in Dokploy environment}`)"
+      - "traefik.http.routers.app-public-web.entrypoints=web"
+      - "traefik.http.routers.app-public-web.middlewares=app-public-https-redirect"
+      - "traefik.http.routers.app-public.rule=Host(`${DOMAIN:?Set DOMAIN in Dokploy environment}`)"
+      - "traefik.http.routers.app-public.entrypoints=websecure"
+      - "traefik.http.routers.app-public.tls=true"
+      - "traefik.http.routers.app-public.tls.certresolver=letsencrypt"
+      - "traefik.http.services.app-public.loadbalancer.server.port=3000"
     deploy:
       resources:
         limits:

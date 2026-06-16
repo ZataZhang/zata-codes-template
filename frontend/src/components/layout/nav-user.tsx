@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import {
   BadgeCheck,
@@ -25,18 +26,26 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 import { SignOutDialog } from '@/components/sign-out-dialog'
+import { loadManifest, type WhatsNewPayload } from '@/lib/whats-new'
 
 type NavUserProps = {
   user: {
     name: string
     email: string
-    avatar: string
+    avatar?: string
   }
 }
 
 export function NavUser({ user }: NavUserProps) {
   const { isMobile } = useSidebar()
   const [open, setOpen] = useDialogState()
+  const [build, setBuild] = useState<WhatsNewPayload | null>(null)
+
+  useEffect(() => {
+    void loadManifest().then((manifest) => {
+      if (manifest) setBuild(manifest)
+    })
+  }, [])
 
   return (
     <>
@@ -77,6 +86,25 @@ export function NavUser({ user }: NavUserProps) {
                   </div>
                 </div>
               </DropdownMenuLabel>
+              {build && (
+                <DropdownMenuLabel className='px-2 py-1.5 font-mono text-[11px] text-muted-foreground'>
+                  <div className='flex items-center justify-between gap-2'>
+                    <span>version</span>
+                    <span className='flex items-center gap-1.5'>
+                      <span className='font-semibold'>{build.version}</span>
+                      <span
+                        className={
+                          build.mode === 'production'
+                            ? 'rounded bg-emerald-500/15 px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-300'
+                            : 'rounded bg-amber-500/15 px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300'
+                        }
+                      >
+                        {build.mode}
+                      </span>
+                    </span>
+                  </div>
+                </DropdownMenuLabel>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuGroup>
                 <DropdownMenuItem>

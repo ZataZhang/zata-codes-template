@@ -47,8 +47,8 @@ services:
           cpus: "0.25"
           memory: 512M
 
-  zata-codes-template-frontend:
-    image: ${FRONTEND_IMAGE:?Set FRONTEND_IMAGE in .env}
+  zata-codes-template-admin:
+    image: ${ADMIN_IMAGE:?Set ADMIN_IMAGE in .env}
     pull_policy: always
     expose:
       - "80"
@@ -61,15 +61,51 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=${TRAEFIK_NETWORK:-traefik}"
-      - "traefik.http.middlewares.zata-codes-template-https-redirect.redirectscheme.scheme=https"
-      - "traefik.http.routers.zata-codes-template-web.rule=Host(`${DOMAIN:?Set DOMAIN in .env}`)"
-      - "traefik.http.routers.zata-codes-template-web.entrypoints=web"
-      - "traefik.http.routers.zata-codes-template-web.middlewares=zata-codes-template-https-redirect"
-      - "traefik.http.routers.zata-codes-template.rule=Host(`${DOMAIN:?Set DOMAIN in .env}`)"
-      - "traefik.http.routers.zata-codes-template.entrypoints=websecure"
-      - "traefik.http.routers.zata-codes-template.tls=true"
-      - "traefik.http.routers.zata-codes-template.tls.certresolver=letsencrypt"
-      - "traefik.http.services.zata-codes-template.loadbalancer.server.port=80"
+      - "traefik.http.middlewares.zata-codes-template-admin-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.routers.zata-codes-template-admin-web.rule=Host(`admin.${DOMAIN:?Set DOMAIN in .env}`)"
+      - "traefik.http.routers.zata-codes-template-admin-web.entrypoints=web"
+      - "traefik.http.routers.zata-codes-template-admin-web.middlewares=zata-codes-template-admin-https-redirect"
+      - "traefik.http.routers.zata-codes-template-admin.rule=Host(`admin.${DOMAIN:?Set DOMAIN in .env}`)"
+      - "traefik.http.routers.zata-codes-template-admin.entrypoints=websecure"
+      - "traefik.http.routers.zata-codes-template-admin.tls=true"
+      - "traefik.http.routers.zata-codes-template-admin.tls.certresolver=letsencrypt"
+      - "traefik.http.services.zata-codes-template-admin.loadbalancer.server.port=80"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          cpus: "0.125"
+          memory: 64M
+
+  zata-codes-template-public:
+    image: ${PUBLIC_IMAGE:?Set PUBLIC_IMAGE in .env}
+    pull_policy: always
+    expose:
+      - "3000"
+    env_file:
+      - app.env
+    environment:
+      - API_BASE_URL=${API_BASE_URL:-http://zata-codes-template-backend:8000}
+    depends_on:
+      zata-codes-template-backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=${TRAEFIK_NETWORK:-traefik}"
+      - "traefik.http.middlewares.zata-codes-template-public-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.routers.zata-codes-template-public-web.rule=Host(`${DOMAIN:?Set DOMAIN in .env}`)"
+      - "traefik.http.routers.zata-codes-template-public-web.entrypoints=web"
+      - "traefik.http.routers.zata-codes-template-public-web.middlewares=zata-codes-template-public-https-redirect"
+      - "traefik.http.routers.zata-codes-template-public.rule=Host(`${DOMAIN:?Set DOMAIN in .env}`)"
+      - "traefik.http.routers.zata-codes-template-public.entrypoints=websecure"
+      - "traefik.http.routers.zata-codes-template-public.tls=true"
+      - "traefik.http.routers.zata-codes-template-public.tls.certresolver=letsencrypt"
+      - "traefik.http.services.zata-codes-template-public.loadbalancer.server.port=3000"
     deploy:
       resources:
         limits:

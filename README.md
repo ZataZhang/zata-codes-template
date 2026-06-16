@@ -2,21 +2,31 @@
 
 一套面向 AI Agent 平台演进的 Python 项目模板，遵循 **DDD 边界意识 + Clean Architecture 依赖方向 + 模块化单体** 的设计理念。
 
-它保留了模板的低门槛启动体验，同时把仓库的目标结构明确为四层：
+它保留了模板的低门槛启动体验，同时把仓库的目标结构明确为四层后端 + 双前端：
 
 - `src/backend/api/` 请求接入层
 - `src/backend/core/` 核心编排层
 - `src/backend/engines/` 平台能力层
 - `src/backend/infrastructure/` 基础设施层
+- `frontend/` 管理平台前端（Vite + React + TanStack Router + shadcn-admin）
+- `frontend-public/` 前台官网（Next.js 16 + React 19 + Tailwind CSS v4 + shadcn/ui）
 
-当前仓库的正式结构以 `src/backend/api/`、`src/backend/core/`、`src/backend/engines/`、`src/backend/infrastructure/` 四层目录为准。
+当前仓库的正式结构以 `src/backend/api/`、`src/backend/core/`、`src/backend/engines/`、`src/backend/infrastructure/` 四层目录与 `frontend/`、`frontend-public/` 两个前端目录为准。
 
 ## 快速开始
 
 ```bash
 just sync dev   # 安装全部依赖 + pre-commit hooks
-just run        # 同时启动后端 + 前端
+just run        # 同时启动后端 + 管理平台前端 + 前台官网
 ```
+
+启动后会同时运行三个服务：
+
+- 后端 API：`http://localhost:8000`
+- 管理平台前端：`http://localhost:5173`
+- 前台官网：`http://localhost:3000`
+
+认证使用 HTTP-only `session_id` cookie：在 `/login` 或 `/register` 登录/注册后，同一域名下的 `/dashboard` 等页面会自动携带会话。
 
 ## Task Runner（just）
 
@@ -35,11 +45,13 @@ just run        # 同时启动后端 + 前端
 
 | 命令 | 说明 |
 |------|------|
-| `just run` | 默认同时启动后端和前端；会复用当前 Git worktree 保存的端口 |
-| `just run backend_port=8010 frontend_port=5178` | 指定并保存后端/前端端口 |
-| `just down` | 按保存的端口停止本地后端和前端 |
+| `just run` | 默认同时启动后端、管理平台前端和前台官网；会复用当前 Git worktree 保存的端口 |
+| `just run backend_port=8010 frontend_port=5178 frontend_public_port=3001` | 指定并保存后端/管理平台/前台端口 |
+| `just down` | 按保存的端口停止本地后端和两个前端 |
 | `just run backend` | 只启动后端（默认命令为 `uv run python -m backend.main`） |
-| `just run frontend` | 只启动前端（默认进入 `frontend/` 执行 `npm run dev`） |
+| `just run frontend` | 只启动管理平台前端（默认进入 `frontend/` 执行 `npm run dev`） |
+| `just run frontend-public` | 只启动前台官网（默认进入 `frontend-public/` 执行 `pnpm dev`） |
+| `just frontend-public dev` | 在 `frontend-public/` 运行 `pnpm dev` |
 | `just run all frontend_dir=web frontend_cmd="pnpm dev"` | 覆盖前端目录或启动命令 |
 | `just test` | 运行本地测试（无需 API key） |
 | `just test all` | 运行全部测试 |
@@ -92,6 +104,25 @@ just run        # 同时启动后端 + 前端
 | 命令 | 说明 |
 |------|------|
 | `just export-env-encrypted` | 将所有被 gitignore 的 `.env*` 文件打包为加密 zip（`<项目名>_secrets.zip`），压缩和解压均需输入密码 |
+
+## 项目结构
+
+```text
+.
+├── src/backend/           # Python 后端（四层 Clean Architecture）
+│   ├── api/               # HTTP 接入层
+│   ├── core/              # 业务编排与领域规则
+│   ├── engines/           # 可插拔平台能力
+│   └── infrastructure/    # 配置、日志、数据库、外部客户端
+├── frontend/              # 管理平台（shadcn-admin）
+├── frontend-public/       # 前台官网（Next.js + shadcn/ui）
+├── tests/                 # 单元测试与集成测试
+├── tests/playwright-e2e/  # 端到端测试（独立 Node 包）
+├── docs/                  # 项目文档源目录
+├── alembic/               # 数据库迁移
+├── deploy/vps-traefik/    # 可选 VPS 部署配置
+└── justfile               # 任务入口
+```
 
 ## Hooks
 

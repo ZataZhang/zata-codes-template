@@ -1,4 +1,4 @@
-import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis } from 'recharts'
+import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 
 const data = [
   {
@@ -55,6 +55,7 @@ export function AnalyticsChart() {
           tickLine={false}
           axisLine={false}
         />
+        <Tooltip cursor={false} />
         <Area
           type='monotone'
           dataKey='clicks'

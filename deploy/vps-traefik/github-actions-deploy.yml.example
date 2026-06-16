@@ -30,10 +30,14 @@ jobs:
             image_name: zata-codes-template-backend
             context: .
             dockerfile: src/backend/Dockerfile
-          - service: frontend
-            image_name: zata-codes-template-frontend
+          - service: admin
+            image_name: zata-codes-template-admin
             context: ./frontend
             dockerfile: ./frontend/Dockerfile
+          - service: public
+            image_name: zata-codes-template-public
+            context: ./frontend-public
+            dockerfile: ./frontend-public/Dockerfile
 
     steps:
       - name: Checkout repository
@@ -89,7 +93,8 @@ jobs:
           SERVER_USER: ${{ secrets.SERVER_USER }}
           APP_DIR: ${{ vars.PRODUCTION_APP_DIR }}
           BACKEND_IMAGE: ${{ env.REGISTRY_HOST }}/${{ env.REGISTRY_NAMESPACE }}/zata-codes-template-backend:${{ github.sha }}
-          FRONTEND_IMAGE: ${{ env.REGISTRY_HOST }}/${{ env.REGISTRY_NAMESPACE }}/zata-codes-template-frontend:${{ github.sha }}
+          ADMIN_IMAGE: ${{ env.REGISTRY_HOST }}/${{ env.REGISTRY_NAMESPACE }}/zata-codes-template-admin:${{ github.sha }}
+          PUBLIC_IMAGE: ${{ env.REGISTRY_HOST }}/${{ env.REGISTRY_NAMESPACE }}/zata-codes-template-public:${{ github.sha }}
         run: |
           set -euo pipefail
           SERVER_PORT="${SERVER_PORT:-22}"
@@ -97,7 +102,7 @@ jobs:
 
           ssh -i ~/.ssh/deploy-vps-traefik -p "$SERVER_PORT" \
             "${SERVER_USER}@${SERVER_HOST}" \
-            "APP_DIR='$APP_DIR' BACKEND_IMAGE='$BACKEND_IMAGE' FRONTEND_IMAGE='$FRONTEND_IMAGE' bash -s" <<'REMOTE'
+            "APP_DIR='$APP_DIR' BACKEND_IMAGE='$BACKEND_IMAGE' ADMIN_IMAGE='$ADMIN_IMAGE' PUBLIC_IMAGE='$PUBLIC_IMAGE' bash -s" <<'REMOTE'
           set -euo pipefail
 
           cd "$APP_DIR"
@@ -123,7 +128,8 @@ jobs:
           }
 
           upsert_env_value BACKEND_IMAGE "$BACKEND_IMAGE" .env
-          upsert_env_value FRONTEND_IMAGE "$FRONTEND_IMAGE" .env
+          upsert_env_value ADMIN_IMAGE "$ADMIN_IMAGE" .env
+          upsert_env_value PUBLIC_IMAGE "$PUBLIC_IMAGE" .env
 
           docker compose pull
           docker compose up -d --remove-orphans

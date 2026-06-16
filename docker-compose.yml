@@ -94,12 +94,30 @@ services:
   #       condition: service_healthy
   #   restart: unless-stopped
 
-  zata-codes-template-frontend:
+  zata-codes-template-admin:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "80:80"
+      - "5173:80"
+    depends_on:
+      zata-codes-template-backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  zata-codes-template-public:
+    build:
+      context: ./frontend-public
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    env_file:
+      - path: .env
+        required: false
+      - path: ${COMPOSE_LOCAL_ENV_FILE:-.env.local}
+        required: false
+    environment:
+      - API_BASE_URL=${API_BASE_URL:-http://localhost:8000}
     depends_on:
       zata-codes-template-backend:
         condition: service_healthy

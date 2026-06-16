@@ -16,8 +16,16 @@ from duplication_check_utils import (
 )
 
 SUPPORTED_SUFFIXES: set[str] = {".py", ".js", ".jsx", ".ts", ".tsx"}
-REPO_CODE_ROOTS: list[Path] = [Path("src/backend"), Path("frontend")]
-JSCPD_CORPUS_ROOTS: list[Path] = [Path("src/backend"), Path("frontend")]
+REPO_CODE_ROOTS: list[Path] = [
+    Path("src/backend"),
+    Path("frontend"),
+    Path("frontend-public"),
+]
+JSCPD_CORPUS_ROOTS: list[Path] = [
+    Path("src/backend"),
+    Path("frontend"),
+    Path("frontend-public"),
+]
 JSCPD_FORMATS = "python,javascript,jsx,typescript,tsx"
 JSCPD_MIN_LINES = "5"
 JSCPD_MIN_TOKENS = "50"

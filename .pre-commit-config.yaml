@@ -91,7 +91,7 @@ repos:
         entry: uv run python hooks/run_jscpd_duplication_check.py
         language: node
         additional_dependencies: [jscpd@4.1.1]
-        files: ^(src/[^/]+|frontend)/.*\.(py|js|jsx|ts|tsx)$
+        files: ^(src/[^/]+|frontend|frontend-public)/.*\.(py|js|jsx|ts|tsx)$
         pass_filenames: true
         stages: [manual]
       - id: pylint-duplicate-code

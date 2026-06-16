@@ -10,10 +10,19 @@
 
 ## 架构概览
 
+### 后端四层
+
 - **`src/backend/api/`**: 请求接入层，负责 API、WebSocket、CLI 等入口。
 - **`src/backend/core/`**: 核心编排层，负责用例、Agent 编排和领域契约。
 - **`src/backend/engines/`**: 平台能力层，负责 skills、RAG 和可插拔能力。
 - **`src/backend/infrastructure/`**: 基础设施层，负责模型、存储、HTTP、配置和日志。
+
+### 双前端
+
+- **`frontend/`**: 管理平台前端（Admin Dashboard），Vite + React + TanStack Router + shadcn-admin。
+- **`frontend-public/`**: 前台官网（Marketing + App Shell），Next.js + React + Tailwind CSS v4 + shadcn/ui。
+
+两个前端都通过 `/api/*` HTTP 接口调用后端，使用同一份 HTTP-only `session_id` cookie 会话。
 
 ## 核心特性
 

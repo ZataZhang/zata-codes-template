@@ -73,9 +73,15 @@ just ops-dashboard --mock     # 终端状态看板
 
 这是模板项目的默认生产部署路径。
 
-生产环境模板使用根目录的 `docker-compose.dokploy.yml`。该 compose 文件通过 Traefik 将外部流量路由到 `<slug>-frontend` 服务，前端 Nginx 再把 `/api/*` 代理到内部 `<slug>-backend:8000`。模板不再包含 `<slug>-backup` 服务——备份能力由独立的 `zata-ops` CLI 提供，通过 Dokploy Scheduled Job 调用即可。
+生产环境模板使用根目录的 `docker-compose.dokploy.yml`。该 compose 文件部署三个服务：
 
-> **App-slug 命名空间（共部署约束）**：模板源文件中的服务名、卷名与 nginx 上游主机名统一使用占位前缀 `zata-codes-template-`（如 `zata-codes-template-backend`）。`just copy <slug>` 实例化时会把该前缀替换成项目目录名 `<slug>`，产出 `<slug>-backend` / `<slug>-frontend` 等唯一名。
+- `<slug>-backend`：Python 后端 API，暴露 `/health`、`/auth/*`、`/api/*` 等接口。
+- `<slug>-admin`：管理平台前端（`frontend/`），Nginx 监听 80 端口，通过 `admin.${DOMAIN}` 访问。
+- `<slug>-public`：前台官网（`frontend-public/`），Next.js standalone 监听 3000 端口，通过 `${DOMAIN}` 访问。
+
+两个前端都直接面向最终用户：public 站点负责营销首页和登录/注册，admin 站点负责登录后的管理 Dashboard。public 前端在容器内通过 `API_BASE_URL` 直接调用后端；admin 前端通过 Nginx 的 `/api/*` 代理到内部 `<slug>-backend:8000`。模板不再包含 `<slug>-backup` 服务——备份能力由独立的 `zata-ops` CLI 提供，通过 Dokploy Scheduled Job 调用即可。
+
+> **App-slug 命名空间（共部署约束）**：模板源文件中的服务名、卷名与 nginx 上游主机名统一使用占位前缀 `zata-codes-template-`（如 `zata-codes-template-backend`）。`just copy <slug>` 实例化时会把该前缀替换成项目目录名 `<slug>`，产出 `<slug>-backend` / `<slug>-admin` / `<slug>-public` 等唯一名。
 >
 > 这是为了在同一台服务器上通过 Dokploy 把多个模板派生应用接入同一外部网络 `dokploy-network` 时，避免服务名派生的网络别名相互碰撞。Docker Compose 会为每个服务在其网络上注册一个与服务名同名的别名；若两个应用都叫 `backend`，容器按名解析 `backend` 时 Docker DNS 会在两者间轮询，导致接口 404 或串数据。**同一 `dokploy-network` 上的服务名必须按 slug 唯一**，新项目经 `just copy` 实例化后无需任何手动改名即可满足该约束。
 
@@ -87,10 +93,10 @@ DOMAIN=app.example.com
 
 `DOMAIN` 只填写域名，不要包含 `http://`、`https://` 或路径。本地 `.env.dokploy.example` 只是模板文件；如果 Dokploy 的部署命令没有显式使用 `--env-file`，就需要把变量复制到 Dokploy UI 的 Environment 中。
 
-DNS 需要把 `${DOMAIN}` 解析到 Dokploy 服务器。部署后访问 404 时，优先检查：
+DNS 需要把 `${DOMAIN}` 与 `admin.${DOMAIN}` 都解析到 Dokploy 服务器。部署后访问 404 时，优先检查：
 
-1. `docker compose -f docker-compose.dokploy.yml config | grep 'Host'` 是否生成了正确域名。
-2. `<slug>-frontend` 与 `<slug>-backend` 容器是否都处于运行状态。
+1. `docker compose -f docker-compose.dokploy.yml config | grep 'Host'` 是否生成了 `Host(\`${DOMAIN}\`)` 与 `Host(\`admin.${DOMAIN}\`)` 两条规则。
+2. `<slug>-admin`、`<slug>-public` 与 `<slug>-backend` 容器是否都处于运行状态。
 3. `docker logs <slug>-backend --tail=100` 是否有数据库、迁移或配置错误。
 4. 实际访问的域名是否正好匹配 Traefik 的 Host rule。
 
@@ -175,7 +181,15 @@ Repository secrets：
 | `PRODUCTION_DOMAIN` | GitHub deployment 页面展示的线上 URL。 |
 | `PRODUCTION_APP_DIR` | 服务器应用目录；不填时使用 `/opt/apps/<slug>`。 |
 
-workflow 示例只构建 backend 和 frontend 两个镜像，用 commit SHA 作为不可变 tag，SSH 到服务器更新 `/opt/apps/<slug>/.env` 中的镜像引用，然后执行 `docker compose pull && docker compose up -d --remove-orphans`。备份镜像不再由模板 CD 构建。
+workflow 示例构建 backend、admin（`frontend/`）和 public（`frontend-public/`）三个镜像，用 commit SHA 作为不可变 tag，SSH 到服务器更新 `/opt/apps/<slug>/.env` 中的镜像引用，然后执行 `docker compose pull && docker compose up -d --remove-orphans`。备份镜像不再由模板 CD 构建。
+
+镜像命名：
+
+- `<registry>/<namespace>/<slug>-backend:<sha>`
+- `<registry>/<namespace>/<slug>-admin:<sha>`
+- `<registry>/<namespace>/<slug>-public:<sha>`
+
+并在 `deploy/vps-traefik/docker-compose.yml` 中定义对应服务。
 
 ## 环境变量管理
 
