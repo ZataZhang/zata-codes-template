@@ -28,7 +28,7 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="" arg7="" arg8="" arg9="": _ch
     set -euo pipefail
 
     target="all"
-    frontend_dir="frontend"
+    frontend_dir="frontend-admin"
     frontend_public_dir="frontend-public"
     backend_port=""
     frontend_port=""
@@ -400,7 +400,7 @@ down arg1="" arg2="" arg3="" arg4="" arg5="": _check-completion
 # ── Frontend ──────────────────────────────────────────────────────────────────
 
 # Generate the "what's new" manifest for the admin frontend.
-# Reads git history and writes frontend/public/versions.json.
+# Reads git history and writes frontend-admin/public/versions.json.
 # Usage:
 #   just whats-new-manifest
 #   just whats-new-manifest --output frontend-public/public/versions.json
@@ -420,16 +420,16 @@ frontend action="dev":
     set -euo pipefail
     case "{{action}}" in
         dev)
-            cd "{{justfile_directory()}}/frontend"
+            cd "{{justfile_directory()}}/frontend-admin"
             npm run dev
             ;;
         build)
             just whats-new-manifest
-            cd "{{justfile_directory()}}/frontend"
+            cd "{{justfile_directory()}}/frontend-admin"
             npm run build
             ;;
         install)
-            cd "{{justfile_directory()}}/frontend"
+            cd "{{justfile_directory()}}/frontend-admin"
             npm install
             ;;
         *)
@@ -605,7 +605,7 @@ copy name force='':
     python3 -c 'from pathlib import Path; import sys; justfile_path = Path(sys.argv[1]); justfile_text = justfile_path.read_text(encoding="utf-8"); copy_section_marker = "\n# Copy template to a new directory"; copy_section_index = justfile_text.find(copy_section_marker); trimmed_justfile_text = justfile_text[:copy_section_index].rstrip() + "\n" if copy_section_index != -1 else justfile_text; justfile_path.write_text(trimmed_justfile_text, encoding="utf-8")' "$NEW_JUSTFILE"
 
     echo "Updating project name in config files..."
-    python3 -c 'from pathlib import Path; import sys; old_project_name = sys.argv[1]; new_project_name = sys.argv[2]; target_root = Path(sys.argv[3]); project_file_paths = [target_root / path for path in sys.argv[4:]]; [project_file_path.write_text(project_file_path.read_text(encoding="utf-8").replace(old_project_name, new_project_name), encoding="utf-8") for project_file_path in project_file_paths if project_file_path.exists()]' "$OLD_NAME" "$PROJECT_NAME" "$NEW_DIR" config.toml mkdocs.yml pyproject.toml uv.lock docker-compose.dokploy.yml docker-compose.yml frontend/nginx.conf frontend-public/Dockerfile deploy/vps-traefik/README.md deploy/vps-traefik/docker-compose.yml deploy/vps-traefik/.env.example deploy/vps-traefik/app.env.example deploy/vps-traefik/github-actions-deploy.yml.example
+    python3 -c 'from pathlib import Path; import sys; old_project_name = sys.argv[1]; new_project_name = sys.argv[2]; target_root = Path(sys.argv[3]); project_file_paths = [target_root / path for path in sys.argv[4:]]; [project_file_path.write_text(project_file_path.read_text(encoding="utf-8").replace(old_project_name, new_project_name), encoding="utf-8") for project_file_path in project_file_paths if project_file_path.exists()]' "$OLD_NAME" "$PROJECT_NAME" "$NEW_DIR" config.toml mkdocs.yml pyproject.toml uv.lock docker-compose.dokploy.yml docker-compose.yml frontend-admin/nginx.conf frontend-public/Dockerfile deploy/vps-traefik/README.md deploy/vps-traefik/docker-compose.yml deploy/vps-traefik/.env.example deploy/vps-traefik/app.env.example deploy/vps-traefik/github-actions-deploy.yml.example
 
     echo "Resetting README.md to template..."
     python3 "$TEMPLATE_DIR/scripts/shared/template/generate_readme.py" "$PROJECT_NAME" "$NEW_DIR/README.md"

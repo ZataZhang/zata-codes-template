@@ -8,10 +8,10 @@
 - `src/backend/core/` 核心编排层
 - `src/backend/engines/` 平台能力层
 - `src/backend/infrastructure/` 基础设施层
-- `frontend/` 管理平台前端（Vite + React + TanStack Router + shadcn-admin）
+- `frontend-admin/` 管理平台前端（Vite + React + TanStack Router + shadcn-admin）
 - `frontend-public/` 前台官网（Next.js 16 + React 19 + Tailwind CSS v4 + shadcn/ui）
 
-当前仓库的正式结构以 `src/backend/api/`、`src/backend/core/`、`src/backend/engines/`、`src/backend/infrastructure/` 四层目录与 `frontend/`、`frontend-public/` 两个前端目录为准。
+当前仓库的正式结构以 `src/backend/api/`、`src/backend/core/`、`src/backend/engines/`、`src/backend/infrastructure/` 四层目录与 `frontend-admin/`、`frontend-public/` 两个前端目录为准。
 
 ## 快速开始
 
@@ -49,7 +49,7 @@ just run        # 同时启动后端 + 管理平台前端 + 前台官网
 | `just run backend_port=8010 frontend_port=5178 frontend_public_port=3001` | 指定并保存后端/管理平台/前台端口 |
 | `just down` | 按保存的端口停止本地后端和两个前端 |
 | `just run backend` | 只启动后端（默认命令为 `uv run python -m backend.main`） |
-| `just run frontend` | 只启动管理平台前端（默认进入 `frontend/` 执行 `npm run dev`） |
+| `just run frontend` | 只启动管理平台前端（默认进入 `frontend-admin/` 执行 `npm run dev`） |
 | `just run frontend-public` | 只启动前台官网（默认进入 `frontend-public/` 执行 `pnpm dev`） |
 | `just frontend-public dev` | 在 `frontend-public/` 运行 `pnpm dev` |
 | `just run all frontend_dir=web frontend_cmd="pnpm dev"` | 覆盖前端目录或启动命令 |
@@ -81,23 +81,28 @@ just run        # 同时启动后端 + 管理平台前端 + 前台官网
 
 | 命令 | 说明 |
 |------|------|
-| `just copy <name>` | 将本模版复制为新项目到 `../<name>/`，不包含 `node_modules`、`dist` 等依赖和构建产物 |
+| `just copy <name>` | 将本模版复制为新项目到 `../<name>/`，不包含 `node_modules`、`dist` 等依赖和构建产物；目标目录非空时可用 `--force` 覆盖 |
 | `just sync-template` | 与上游模版对比，交互式选择更新。默认同步模板维护的通用文件；跳过 `tasks/`、环境/缓存产物、`config.toml` 中 `[template_sync].project_skip_paths` 配置的项目路径，以及 README、CLAUDE.md、main.py、justfile、pyproject.toml、config.toml、mkdocs.yml、uv.lock 等项目特定文件。如有模板技能更新，可选择安装到 `~/.cc-switch/skills`，若该目录不存在则提示选择 Codex 或 Claude 的 skills 目录 |
-| `just sync-template --all` | 同上，但额外包含 `project_skip_paths` 中的项目路径（如 `src/backend/`、`frontend/`、`docs/`、`tests/`、`deploy/` 等）；`tasks/` 和顶层身份文件仍跳过 |
+| `just sync-template --all` | 同上，但额外包含 `project_skip_paths` 中的项目路径（如 `src/backend/`、`frontend-admin/`、`docs/`、`tests/`、`deploy/` 等）；`tasks/` 和顶层身份文件仍跳过 |
 | `just release` | 通过 `scripts/shared/release.py` 构建发布包 |
 
 ### Template Sync 规则说明
 
-`just sync-template` 会对比上游模板仓库与本地的文件差异，默认只同步模板维护的通用骨架文件。以下类别默认会被跳过：
+`just sync-template` 默认只同步上游模板维护的通用骨架文件。下面的清单解释**哪些目录/文件不进 diff、不会被覆盖**。
 
-- **永不同步**：`tasks/`（项目任务文件）。
-- **顶层项目身份/配置**：`README.md`、`CLAUDE.md`、`main.py`、`justfile`、`pyproject.toml`、`config.toml`、`mkdocs.yml`、`uv.lock`。
-- **环境/缓存/产物**：`.git/`、`.venv/`、`.uv-cache/`、`__pycache__/`、`.pytest_cache/`、`.ruff_cache/`、`logs/`、`site/`、`.env`、`.env.*`、`.DS_Store`、*.pyc、*.egg-info。
-- **项目特定目录**：`src/backend/`、`frontend/`、`docs/`、`tests/`、`deploy/`、`apps/`、`services/`、`infra/`、`helm/`、`terraform/`、`ansible/`、`data/`、`uploads/`、`artifacts/`、`tmp/`（由 `config.toml` 中 `[template_sync].project_skip_paths` 配置）。
-- **脚本分层**：`scripts/shared/` 由上游模板维护并同步；`scripts/` 根目录下其他文件默认跳过。
+**永久跳过**（`--all` 也不会同步）
+
+- `tasks/`：项目任务文件。
+
+**默认跳过**（`--all` 会把"项目特定目录"那部分一起纳入 diff）
+
+- **顶层项目身份/配置**：`README.md`、`CLAUDE.md`、`main.py`、`justfile`、`pyproject.toml`、`config.toml`、`mkdocs.yml`、`uv.lock`、`findings.md`、`progress.md`、`task_plan.md`、`.dockerignore`、`.gitignore`、`.DS_Store`。
+- **环境/缓存/产物**：`.git/`、`.venv/`、`.uv-cache/`、`__pycache__/`、`.pytest_cache/`、`.ruff_cache/`、`logs/`、`site/`、`.env`、`.env.*`、`*.pyc`、`*.egg-info`。
+- **项目特定目录**（来自 `config.toml` 的 `[template_sync].project_skip_paths`，`--all` 时纳入 diff）：`src/backend/`、`frontend-admin/`、`docs/`、`tests/`、`deploy/`、`apps/`、`services/`、`infra/`、`helm/`、`terraform/`、`ansible/`、`data/`、`uploads/`、`artifacts/`、`tmp/`。
+- **项目私有脚本**：`scripts/` 根目录下非 `shared/` 的文件。`scripts/shared/` 由上游模板维护，**始终同步**，不在跳过清单里。
 - **其他**：`prompt/`、`skills/`、`.claude/`。
 
-使用 `just sync-template --all` 可将 `project_skip_paths` 中的目录也纳入对比，但仍不会同步 `tasks/` 和上述顶层身份文件。完整的过滤逻辑见 `scripts/shared/template/sync_template.sh` 中的 `_is_never_synced()` 与 `_is_skipped_by_default()`。
+完整过滤逻辑见 `scripts/shared/template/sync_template.sh` 中的 `_is_never_synced()` 与 `_is_skipped_by_default()`。
 
 ### Secrets
 
@@ -114,7 +119,7 @@ just run        # 同时启动后端 + 管理平台前端 + 前台官网
 │   ├── core/              # 业务编排与领域规则
 │   ├── engines/           # 可插拔平台能力
 │   └── infrastructure/    # 配置、日志、数据库、外部客户端
-├── frontend/              # 管理平台（shadcn-admin）
+├── frontend-admin/        # 管理平台（shadcn-admin）
 ├── frontend-public/       # 前台官网（Next.js + shadcn/ui）
 ├── tests/                 # 单元测试与集成测试
 ├── tests/playwright-e2e/  # 端到端测试（独立 Node 包）

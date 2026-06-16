@@ -32,12 +32,12 @@ pnpm dev
 pnpm build
 ```
 
-产物输出到 `dist/` 目录，由根目录 `frontend/Dockerfile` 中的 Nginx 镜像托管。
+产物输出到 `dist/` 目录，由根目录 `frontend-admin/Dockerfile` 中的 Nginx 镜像托管。
 
 ## 项目结构
 
 ```text
-frontend/
+frontend-admin/
 ├── src/
 │   ├── api/          # HTTP 客户端与认证 API
 │   ├── auth/         # 会话 Provider 与路由守卫

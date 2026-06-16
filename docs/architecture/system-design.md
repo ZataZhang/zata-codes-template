@@ -54,7 +54,7 @@ flowchart TD
 
     subgraph FE["前端层"]
         direction TB
-        subgraph FE_ADMIN["frontend/ 管理平台"]
+        subgraph FE_ADMIN["frontend-admin/ 管理平台"]
             FE_ADMIN_PAGES["src/pages/\nLoginPage · DashboardPage"]
             FE_ADMIN_LAYOUT["src/components/\nAppSidebar · SiteHeader · shadcn/ui"]
             FE_ADMIN_AUTH["src/auth/\nSessionProvider · RequireSession"]
@@ -126,7 +126,7 @@ flowchart TD
 
 本仓库包含两个独立前端项目，分别服务不同场景：
 
-### 管理平台 `frontend/`
+### 管理平台 `frontend-admin/`
 
 | 层 | 路径 | 职责 |
 |---|---|---|
@@ -146,7 +146,7 @@ flowchart TD
 
 前端与后端之间**仅通过 `/api/*` HTTP 接口通信**：
 
-- `frontend/` 开发时由 Vite 代理转发，生产时由 Nginx `/api/*` 反代到后端。
+- `frontend-admin/` 开发时由 Vite 代理转发，生产时由 Nginx `/api/*` 反代到后端。
 - `frontend-public/` 开发时直接请求 `http://localhost:8000`，生产时通过 `API_BASE_URL` 指向后端。
 
 两侧无任何代码直接依赖。
@@ -163,7 +163,7 @@ src/backend/api/ → src/backend/core/ → src/backend/engines/ → src/backend/
 
 这里的 `src/backend/api/` 指后端请求接入层，不等于浏览器前端。
 
-- `frontend/` 与 `frontend-public/` 都是系统边界外的 Web 客户端。
+- `frontend-admin/` 与 `frontend-public/` 都是系统边界外的 Web 客户端。
 - 它们负责路由、页面渲染、会话状态和接口调用。
 - 它们通过 HTTP 或 WebSocket 调用 `src/backend/api/` 暴露的后端入口。
 - 它们不参与后端内部的依赖传递，因此不应被硬塞进四层中的任意一层。

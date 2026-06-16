@@ -18,12 +18,12 @@ from duplication_check_utils import (
 SUPPORTED_SUFFIXES: set[str] = {".py", ".js", ".jsx", ".ts", ".tsx"}
 REPO_CODE_ROOTS: list[Path] = [
     Path("src/backend"),
-    Path("frontend"),
+    Path("frontend-admin"),
     Path("frontend-public"),
 ]
 JSCPD_CORPUS_ROOTS: list[Path] = [
     Path("src/backend"),
-    Path("frontend"),
+    Path("frontend-admin"),
     Path("frontend-public"),
 ]
 JSCPD_FORMATS = "python,javascript,jsx,typescript,tsx"

@@ -1,4 +1,4 @@
-"""Generate frontend/public/versions.json from Conventional Commits.
+"""Generate frontend-admin/public/versions.json from Conventional Commits.
 
 The manifest is consumed at runtime by the frontend to render a "What's New"
 modal after each version change. Two modes are emitted:
@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Sequence
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_OUTPUT = REPO_ROOT / "frontend" / "public" / "versions.json"
+DEFAULT_OUTPUT = REPO_ROOT / "frontend-admin" / "public" / "versions.json"
 
 CONVENTIONAL_RE = re.compile(
     r"^(?P<type>feat|fix|perf|refactor|docs|build|ci|chore|revert|test|style)"
@@ -61,7 +61,7 @@ class CommitEntry:
 
 @dataclass(frozen=True)
 class Manifest:
-    """Schema written to ``frontend/public/versions.json``."""
+    """Schema written to ``frontend-admin/public/versions.json``."""
 
     version: str
     mode: str

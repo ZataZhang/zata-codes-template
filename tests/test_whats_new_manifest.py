@@ -41,10 +41,12 @@ def test_conventional_regex_matches_scoped_commit() -> None:
     """The regex extracts type, scope, and subject from a scoped commit."""
 
     manifest_module = _load_manifest_module()
-    match = manifest_module.CONVENTIONAL_RE.match("feat(frontend): add whats-new modal")
+    match = manifest_module.CONVENTIONAL_RE.match(
+        "feat(frontend-admin): add whats-new modal"
+    )
     assert match is not None
     assert match.group("type") == "feat"
-    assert match.group("scope") == "(frontend)"
+    assert match.group("scope") == "(frontend-admin)"
     assert match.group("bang") is None
     assert match.group("subject") == "add whats-new modal"
 
@@ -117,7 +119,7 @@ def test_group_entries_buckets_by_type_and_preserves_order() -> None:
     manifest_module = _load_manifest_module()
     entries = [
         manifest_module.CommitEntry(
-            type="feat", scope="(frontend)", subject="new modal", breaking=()
+            type="feat", scope="(frontend-admin)", subject="new modal", breaking=()
         ),
         manifest_module.CommitEntry(
             type="fix", scope="(backend)", subject="fix crash", breaking=()
@@ -127,7 +129,7 @@ def test_group_entries_buckets_by_type_and_preserves_order() -> None:
         ),
     ]
     groups, breaking = manifest_module.group_entries(entries)
-    assert groups["Features"] == ["new modal (frontend)"]
+    assert groups["Features"] == ["new modal (frontend-admin)"]
     assert groups["Bug Fixes"] == ["fix crash (backend)"]
     assert groups["Maintenance"] == ["bump deps"]
     assert breaking == []

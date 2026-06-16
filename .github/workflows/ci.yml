@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: frontend
+        working-directory: frontend-admin
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -34,17 +34,17 @@ jobs:
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
         with:
-          package_json_file: frontend/package.json
+          package_json_file: frontend-admin/package.json
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: "pnpm"
-          cache-dependency-path: frontend/pnpm-lock.yaml
+          cache-dependency-path: frontend-admin/pnpm-lock.yaml
 
       - name: Generate "what's new" manifest
-        run: python3 scripts/build/build_whats_new_manifest.py --output frontend/public/versions.json
+        run: python3 scripts/build/build_whats_new_manifest.py --output frontend-admin/public/versions.json
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

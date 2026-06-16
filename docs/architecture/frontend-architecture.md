@@ -2,14 +2,14 @@
 
 本仓库包含两个独立的前端项目，它们都通过 HTTP 接口调用 `src/backend/api/` 暴露的后端能力，但服务不同场景：
 
-- `frontend/`：管理平台（Admin Dashboard），面向已登录的管理员/用户。
+- `frontend-admin/`：管理平台（Admin Dashboard），面向已登录的管理员/用户。
 - `frontend-public/`：前台官网（Marketing + App Shell），面向访客和已登录的最终用户。
 
 两者都是浏览器端客户端架构，不属于后端四层 Clean Architecture 的内部依赖图。
 
 ## 定位
 
-- `frontend/` 与 `frontend-public/` 是系统边界外的 Web 客户端。
+- `frontend-admin/` 与 `frontend-public/` 是系统边界外的 Web 客户端。
 - 它们通过 HTTP 接口调用 `src/backend/api/` 暴露的后端能力。
 - 它们负责页面渲染、路由跳转、会话恢复和交互反馈，不承载后端用例编排。
 - 两个项目独立构建、独立部署，彼此不共享源码（避免隐式耦合）。
@@ -25,7 +25,7 @@ flowchart LR
         P_DASHBOARD["/dashboard"]
     end
 
-    subgraph Admin["frontend/ 管理平台"]
+    subgraph Admin["frontend-admin/ 管理平台"]
         A_LOGIN["/login"]
         A_DASHBOARD["/dashboard"]
         A_SETTINGS["/settings"]
@@ -36,10 +36,10 @@ flowchart LR
 ```
 
 - `frontend-public/` 是面向访客的默认入口，承载官网、注册、登录和轻量应用壳。
-- `frontend/` 是登录后的管理后台，通过 Nginx `/api/*` 代理或直接请求后端。
+- `frontend-admin/` 是登录后的管理后台，通过 Nginx `/api/*` 代理或直接请求后端。
 - 两个前端共享同一会话机制：后端通过 HTTP-only `session_id` cookie 维持会话，因此在一处登录后，另一处在同域名下也处于登录态。
 
-## `frontend/` 内部架构图
+## `frontend-admin/` 内部架构图
 
 ```mermaid
 flowchart TD
@@ -85,7 +85,7 @@ flowchart TD
     AppRoutes --> Shell["components/shell.tsx"]
 ```
 
-## `frontend/` 模块职责
+## `frontend-admin/` 模块职责
 
 ### 应用入口层
 
@@ -210,7 +210,7 @@ flowchart TD
 ```mermaid
 flowchart LR
     FrontendPublic["frontend-public/ Web Client"] -->|HTTP| Apps["src/backend/api/"]
-    FrontendAdmin["frontend/ Web Client"] -->|HTTP /api/*| Apps
+    FrontendAdmin["frontend-admin/ Web Client"] -->|HTTP /api/*| Apps
     Apps --> Core["src/backend/core/"]
     Core --> Capabilities["src/backend/engines/"]
     Core --> Infrastructure["src/backend/infrastructure/"]
@@ -225,7 +225,7 @@ flowchart LR
 
 ## 部署与代理
 
-- `frontend/` 生产镜像使用 Nginx 托管静态产物，`/api/*` 代理到后端服务。
+- `frontend-admin/` 生产镜像使用 Nginx 托管静态产物，`/api/*` 代理到后端服务。
 - `frontend-public/` 生产镜像使用 Next.js standalone 模式，`API_BASE_URL` 指向后端服务。
 - 本地 `docker compose up` 会同时启动 `zata-codes-template-admin`（端口 5173）和 `zata-codes-template-public`（端口 3000）。
 - Dokploy / VPS 生产环境通过不同 Host rule 路由：

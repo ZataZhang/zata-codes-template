@@ -242,6 +242,7 @@ release:
 
 # Run a diagnostic check.
 # Usage:
+#   just check net   # Verify terminal network environment for Claude access.
 #   just check s3    # Verify S3 connectivity via zata-ops.
 #
 # The S3 check delegates to the standalone `zata-ops` CLI. Install it first:
@@ -250,6 +251,9 @@ check target:
     #!/usr/bin/env bash
     set -euo pipefail
     case "{{target}}" in
+        net)
+            ./scripts/diagnostics/check_claude_code.sh
+            ;;
         s3)
             if ! command -v zata-ops >/dev/null 2>&1; then
                 echo "ERROR: zata-ops is not installed."
@@ -260,7 +264,7 @@ check target:
             ;;
         *)
             echo "ERROR: Unknown check target: {{target}}"
-            echo "Usage: just check s3"
+            echo "Usage: just check [net|s3]"
             exit 1
             ;;
     esac

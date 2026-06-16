@@ -19,7 +19,7 @@
 
 ### 双前端
 
-- **`frontend/`**: 管理平台前端（Admin Dashboard），Vite + React + TanStack Router + shadcn-admin。
+- **`frontend-admin/`**: 管理平台前端（Admin Dashboard），Vite + React + TanStack Router + shadcn-admin。
 - **`frontend-public/`**: 前台官网（Marketing + App Shell），Next.js + React + Tailwind CSS v4 + shadcn/ui。
 
 两个前端都通过 `/api/*` HTTP 接口调用后端，使用同一份 HTTP-only `session_id` cookie 会话。

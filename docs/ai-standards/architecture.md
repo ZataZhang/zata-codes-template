@@ -54,4 +54,4 @@ src/<module>/api/ -> src/<module>/core/ -> src/<module>/engines/ -> src/<module>
 
 ## Frontend Boundary
 
-`frontend/` 不属于后端四层的一部分。它是系统边界外的 Web 客户端，通过 HTTP 或 WebSocket 调用 `src/backend/api/`。
+`frontend-admin/` 不属于后端四层的一部分。它是系统边界外的 Web 客户端，通过 HTTP 或 WebSocket 调用 `src/backend/api/`。

@@ -76,7 +76,7 @@ just ops-dashboard --mock     # 终端状态看板
 生产环境模板使用根目录的 `docker-compose.dokploy.yml`。该 compose 文件部署三个服务：
 
 - `<slug>-backend`：Python 后端 API，暴露 `/health`、`/auth/*`、`/api/*` 等接口。
-- `<slug>-admin`：管理平台前端（`frontend/`），Nginx 监听 80 端口，通过 `admin.${DOMAIN}` 访问。
+- `<slug>-admin`：管理平台前端（`frontend-admin/`），Nginx 监听 80 端口，通过 `admin.${DOMAIN}` 访问。
 - `<slug>-public`：前台官网（`frontend-public/`），Next.js standalone 监听 3000 端口，通过 `${DOMAIN}` 访问。
 
 两个前端都直接面向最终用户：public 站点负责营销首页和登录/注册，admin 站点负责登录后的管理 Dashboard。public 前端在容器内通过 `API_BASE_URL` 直接调用后端；admin 前端通过 Nginx 的 `/api/*` 代理到内部 `<slug>-backend:8000`。模板不再包含 `<slug>-backup` 服务——备份能力由独立的 `zata-ops` CLI 提供，通过 Dokploy Scheduled Job 调用即可。
@@ -181,7 +181,7 @@ Repository secrets：
 | `PRODUCTION_DOMAIN` | GitHub deployment 页面展示的线上 URL。 |
 | `PRODUCTION_APP_DIR` | 服务器应用目录；不填时使用 `/opt/apps/<slug>`。 |
 
-workflow 示例构建 backend、admin（`frontend/`）和 public（`frontend-public/`）三个镜像，用 commit SHA 作为不可变 tag，SSH 到服务器更新 `/opt/apps/<slug>/.env` 中的镜像引用，然后执行 `docker compose pull && docker compose up -d --remove-orphans`。备份镜像不再由模板 CD 构建。
+workflow 示例构建 backend、admin（`frontend-admin/`）和 public（`frontend-public/`）三个镜像，用 commit SHA 作为不可变 tag，SSH 到服务器更新 `/opt/apps/<slug>/.env` 中的镜像引用，然后执行 `docker compose pull && docker compose up -d --remove-orphans`。备份镜像不再由模板 CD 构建。
 
 镜像命名：
 

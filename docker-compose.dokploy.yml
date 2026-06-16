@@ -9,7 +9,7 @@
 #   2. Set DATABASE_URL to your production database.
 #   3. Ensure "dokploy-network" exists (Dokploy creates it).
 #
-# Traefik labels route traffic to the frontend (Nginx). DOMAIN must be set in
+# Traefik labels route traffic to the admin frontend (Nginx). DOMAIN must be set in
 # the Dokploy Compose environment; otherwise Docker Compose fails early instead
 # of generating Host(``) routes that return Traefik 404.
 #
@@ -59,7 +59,7 @@ services:
 
   zata-codes-template-admin:
     build:
-      context: ./frontend
+      context: ./frontend-admin
       dockerfile: Dockerfile
     expose:
       - "80"

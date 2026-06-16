@@ -16,7 +16,7 @@ trap 'rm -rf "$TEMP_DIR"' EXIT
 LIST_ONLY_MODE="${SYNC_TEMPLATE_LIST_ONLY:-0}"
 DEFAULT_PROJECT_SKIP_PATHS=(
     "src/backend/"
-    "frontend/"
+    "frontend-admin/"
     "docs/"
     "tests/"
     "apps/"
@@ -240,7 +240,7 @@ _is_skipped_by_default() {
         README.md|pyproject.toml|config.toml|mkdocs.yml|uv.lock) return 0 ;;
         CLAUDE.md|main.py|justfile) return 0 ;;
         findings.md|progress.md|task_plan.md) return 0 ;;
-        .DS_Store) return 0 ;;
+        .DS_Store|.dockerignore|.gitignore) return 0 ;;
     esac
     case "$p" in
         .git/*|.venv/*|.uv-cache/*|__pycache__/*|logs/*|site/*) return 0 ;;

@@ -31,7 +31,7 @@ just run
 默认会同时启动后端、管理平台前端和前台官网：
 
 - 后端默认执行 `uv run python -m backend.main`，端口 `8000`
-- 管理平台前端默认进入 `frontend/` 目录执行 `npm run dev`，端口 `5173`
+- 管理平台前端默认进入 `frontend-admin/` 目录执行 `npm run dev`，端口 `5173`
 - 前台官网默认进入 `frontend-public/` 目录执行 `pnpm dev`，端口 `3000`
 
 可以通过参数指定端口；端口会保存到 Git 本地状态文件，下次 `just run` 会自动复用：
@@ -121,7 +121,7 @@ just worktree feature-branch --base develop
 - `src/backend/infrastructure/helpers.py`：无状态通用辅助函数。
 - `src/backend/engines/`：平台能力扩展点（项目按需挂载具体能力）。
 - `src/backend/infrastructure/persistence/`：数据库接入与通用持久化工具。
-- `frontend/`：管理平台前端（Vite + React + TanStack Router + shadcn-admin）。
+- `frontend-admin/`：管理平台前端（Vite + React + TanStack Router + shadcn-admin）。
 - `frontend-public/`：前台官网（Next.js + React + Tailwind CSS v4 + shadcn/ui）。
 - `tests/`：单元测试与集成测试。
 - `tests/playwright-e2e/`：端到端测试（独立 Node 包）。

@@ -22,7 +22,7 @@ const basePayload: WhatsNewPayload = {
   previousVersion: 'v1.2.2',
   generatedAt: '2026-06-15T00:00:00.000Z',
   groups: {
-    Features: ['add whats-new modal (frontend)'],
+    Features: ['add whats-new modal (frontend-admin)'],
     'Bug Fixes': ['fix login flash (auth)'],
     Performance: [],
     Refactors: [],

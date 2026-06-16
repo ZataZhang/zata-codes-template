@@ -51,7 +51,7 @@ jobs:
         run: uv run mkdocs build --strict
 
       - name: Generate "what's new" manifest for the admin frontend
-        run: uv run python scripts/build/build_whats_new_manifest.py --output frontend/public/versions.json
+        run: uv run python scripts/build/build_whats_new_manifest.py --output frontend-admin/public/versions.json
 
       - name: Build template release archive
         run: uv run python scripts/shared/release.py

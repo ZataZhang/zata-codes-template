@@ -32,8 +32,8 @@ jobs:
             dockerfile: src/backend/Dockerfile
           - service: admin
             image_name: zata-codes-template-admin
-            context: ./frontend
-            dockerfile: ./frontend/Dockerfile
+            context: ./frontend-admin
+            dockerfile: ./frontend-admin/Dockerfile
           - service: public
             image_name: zata-codes-template-public
             context: ./frontend-public
