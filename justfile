@@ -22,7 +22,7 @@ default: _check-completion
 #   just run frontend-public        # start public frontend only
 #   just run docker                 # start with Docker Compose (one-click deploy)
 #   just run backend_port=8010 frontend_port=5178 frontend_public_port=3001
-#   just run all frontend_public_cmd="npm run dev"
+#   just run all frontend_public_cmd="pnpm dev"
 run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="" arg7="" arg8="" arg9="": _check-completion
     #!/usr/bin/env bash
     set -euo pipefail
@@ -34,7 +34,7 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="" arg7="" arg8="" arg9="": _ch
     frontend_port=""
     frontend_public_port=""
     backend_cmd="uv run python -m backend.main"
-    frontend_cmd="npm run dev"
+    frontend_cmd="pnpm dev"
     frontend_public_cmd="pnpm dev"
     backend_pid=""
     frontend_pid=""
@@ -421,16 +421,16 @@ frontend action="dev":
     case "{{action}}" in
         dev)
             cd "{{justfile_directory()}}/frontend-admin"
-            npm run dev
+            pnpm dev
             ;;
         build)
             just whats-new-manifest
             cd "{{justfile_directory()}}/frontend-admin"
-            npm run build
+            pnpm build
             ;;
         install)
             cd "{{justfile_directory()}}/frontend-admin"
-            npm install
+            pnpm install
             ;;
         *)
             echo "ERROR: Unknown action: {{action}}"

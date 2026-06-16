@@ -57,24 +57,24 @@ just e2e report    # 查看 HTML 报告
 
 ```bash
 # 安装依赖
-npm install
-npx playwright install chromium
+pnpm install
+pnpm exec playwright install chromium
 
 # 运行所有测试 (需要本地 stack 或 docker-compose.yml)
-npm test
+pnpm test
 
 # 只跑截图 / 审查类测试
-npm run test:review    # playwright test --grep @review
+pnpm test:review    # playwright test --grep @review
 
 # 视觉回归测试
-npm run test:visual
-npm run test:update    # 更新基准图
+pnpm test:visual
+pnpm test:update    # 更新基准图
 
 # 无 auth 的测试（指向远端环境）
 PLAYWRIGHT_SKIP_STACK_BOOT=1 \
 PLAYWRIGHT_BASE_URL=https://your-staging.example.com \
 PLAYWRIGHT_HEALTH_URL=https://your-staging.example.com \
-npm run test:no-auth
+pnpm test:no-auth
 
 # 带 auth 的测试（指向远端环境）
 PLAYWRIGHT_SKIP_STACK_BOOT=1 \
@@ -83,10 +83,10 @@ PLAYWRIGHT_API_BASE_URL=https://your-api.example.com \
 PLAYWRIGHT_HEALTH_URL=https://your-api.example.com/healthz \
 PLAYWRIGHT_IDENTIFIER=admin \
 PLAYWRIGHT_PASSWORD=secret \
-npm test
+pnpm test
 
 # 查看 HTML 报告
-npm run report
+pnpm report
 ```
 
 ## 两种 Project 模式

@@ -52,13 +52,13 @@ Do not create a second long-lived copy of the template inside `skills/`. The ski
 
 Run the relevant commands inside the Playwright package:
 
-- `npm install`
-- `npx playwright install chromium`
-- `npm run lint`
-- `npm run typecheck`
-- `npm test`
-- `npm run test:no-auth` when the `no-auth` project is kept
-- `npm run test:visual` or `npm run test:update` only when snapshot tests are part of the requested outcome
+- `pnpm install`
+- `pnpm exec playwright install chromium`
+- `pnpm lint`
+- `pnpm typecheck`
+- `pnpm test`
+- `pnpm test:no-auth` when the `no-auth` project is kept
+- `pnpm test:visual` or `pnpm test:update` only when snapshot tests are part of the requested outcome
 
 If the work stays inside this repository's bundled template, the repo-level wrappers are also valid:
 

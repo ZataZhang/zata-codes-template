@@ -81,8 +81,8 @@ These variables appear in the template and should be mapped deliberately:
 ## Verification Order
 
 1. Install dependencies and browsers.
-2. Run `npm run lint`.
-3. Run `npm run typecheck`.
-4. Run `npm test`.
-5. Run `npm run test:no-auth` only if the `no-auth` project remains.
+2. Run `pnpm lint`.
+3. Run `pnpm typecheck`.
+4. Run `pnpm test`.
+5. Run `pnpm test:no-auth` only if the `no-auth` project remains.
 6. Run visual commands only if snapshot testing was requested.
