@@ -128,11 +128,22 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="" arg7="" arg8="" arg9="": _ch
     check_port() {
         port_label="$1"
         port_value="$2"
-        occupying_pids="$(lsof -nP -iTCP:"$port_value" -sTCP:LISTEN 2>/dev/null | awk 'NR>1 && $1 !~ /^(com\.docker|docker|vpnkit|hyperkit)/ {print $2}' | sort -u || true)"
+        # Use `ps -o comm=` to resolve the full (untruncated) command name;
+        # lsof's COMMAND column is truncated to ~9 chars and would miss names
+        # like `com.docker.proxy`.
+        listening_pids="$(lsof -nP -iTCP:"$port_value" -sTCP:LISTEN -t 2>/dev/null || true)"
+        [ -z "$listening_pids" ] && return 0
 
-        if [ -n "$occupying_pids" ]; then
+        conflict_details=()
+        for port_pid in $listening_pids; do
+            full_command_name="$(ps -p "$port_pid" -o comm= 2>/dev/null || echo "<exited>")"
+            conflict_details+=("  - pid=$port_pid command=$full_command_name")
+        done
+
+        {
             echo ""
-            echo "⚠️  $port_label port $port_value is already in use by process(es): $occupying_pids"
+            echo "⚠️  $port_label port $port_value is already in use:"
+            printf '%s\n' "${conflict_details[@]}"
             echo ""
             echo "   You can switch to a different port:"
             echo "      just run backend_port=8010 frontend_port=5178"
@@ -140,8 +151,10 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="" arg7="" arg8="" arg9="": _ch
             echo "   Or stop the existing process:"
             echo "      just down backend_port=$backend_port frontend_port=$frontend_port"
             echo ""
-            exit 1
-        fi
+            echo "   For Docker containers, use: just down docker"
+            echo ""
+        } >&2
+        exit 1
     }
 
     run_backend() {
@@ -347,14 +360,30 @@ down arg1="" arg2="" arg3="" arg4="" arg5="": _check-completion
         frontend_public_port="${frontend_public_port:-${FRONTEND_PUBLIC_PORT:-3000}}"
     }
 
+    # Filter Docker-related PIDs from a port's listener list. Uses `ps -o comm=`
+    # to resolve the full (untruncated) command name; lsof's COMMAND column is
+    # truncated to ~9 chars and would miss names like `com.docker.proxy`.
+    filter_non_docker_pids() {
+        port_value="$1"
+        filtered_pids=""
+        while read -r port_pid; do
+            [ -n "$port_pid" ] || continue
+            full_command_name="$(ps -p "$port_pid" -o comm= 2>/dev/null || true)"
+            case "$full_command_name" in
+                com.docker*|docker|vpnkit|hyperkit) ;;
+                *) filtered_pids="$filtered_pids $port_pid" ;;
+            esac
+        done < <(lsof -nP -iTCP:"$port_value" -sTCP:LISTEN -t 2>/dev/null || true)
+        echo "$filtered_pids" | tr ' ' '\n' | grep -v '^$' | sort -u
+    }
+
     stop_port() {
         port_label="$1"
         port_value="$2"
-        # Exclude Docker Desktop / dockerd processes so just down does not kill the Docker daemon
-        process_ids="$(lsof -nP -iTCP:"$port_value" -sTCP:LISTEN 2>/dev/null | awk 'NR>1 && $1 !~ /^(com\.docker|docker|vpnkit|hyperkit)/ {print $2}' | sort -u || true)"
+        process_ids="$(filter_non_docker_pids "$port_value")"
 
         if [ -z "$process_ids" ]; then
-            echo "No $port_label process listening on port $port_value"
+            echo "No $port_label process listening on port $port_value (Docker processes skipped; use 'just down docker' for containers)"
             return 0
         fi
 
@@ -362,7 +391,7 @@ down arg1="" arg2="" arg3="" arg4="" arg5="": _check-completion
         kill $process_ids 2>/dev/null || true
         sleep 1
 
-        remaining_process_ids="$(lsof -nP -iTCP:"$port_value" -sTCP:LISTEN 2>/dev/null | awk 'NR>1 && $1 !~ /^(com\.docker|docker|vpnkit|hyperkit)/ {print $2}' | sort -u || true)"
+        remaining_process_ids="$(filter_non_docker_pids "$port_value")"
         if [ -n "$remaining_process_ids" ]; then
             echo "Force stopping $port_label process(es) on port $port_value: $remaining_process_ids"
             kill -9 $remaining_process_ids 2>/dev/null || true
