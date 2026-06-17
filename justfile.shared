@@ -752,7 +752,7 @@ _ai_commit ai_tool="claude" prompt="" :
 
     # Auto-generate default prompt
     if [ -z "$prompt_text" ]; then
-        prompt_text="First, run \`just test\` in the repository root to verify all tests pass. If tests fail, fix the underlying issues and re-run until \`just test\` is green. Once tests pass, review the current git changes (git status, git diff, and git diff --cached) and create a commit. Stage relevant files with git add, then write a clear commit message in English following conventional commit style (e.g. 'feat(scope): ...', 'fix(scope): ...', 'refactor(scope): ...'). Keep the subject line under 72 characters and use the body to explain the 'why' rather than the 'what'. Do NOT push. Do NOT amend existing commits. If pre-commit hooks fail, fix the underlying issues and create a new commit (never amend)."
+        prompt_text="First, run \`just test\` in the repository root to verify all tests pass. If tests fail, fix the underlying issues and re-run until \`just test\` is green. Once tests pass, review the current git changes (git status, git diff, and git diff --cached) and create a commit. Stage relevant files with git add, then write a clear commit message in English following conventional commit style (e.g. 'feat(scope): ...', 'fix(scope): ...', 'refactor(scope): ...'). Keep the subject line under 72 characters and use the body to explain the 'why' rather than the 'what'. Do NOT push. Do NOT amend existing commits. If pre-commit hooks fail, fix the underlying issues and create a new commit (never amend). Proceed autonomously without asking for confirmation at any step — commit directly once \`just test\` is green."
     fi
 
     echo "Tool: $ai_tool"
