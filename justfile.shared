@@ -654,6 +654,79 @@ implement prd_file ai_tool prompt="":
     exec "${SHELL:-bash}" -i
 
 
+# AI-assisted commands.
+# Usage:
+#   just ai fix                             # resolve rebase conflicts with clauded
+#   just ai fix kim "custom prompt"         # resolve conflicts with kim
+#   just ai implement <prd-file> [tool]     # implement a PRD (default: clauded)
+ai subcommand arg1="" arg2="" arg3="" :
+    #!/usr/bin/env bash
+    set -euo pipefail
+    case "{{subcommand}}" in
+        fix)
+            just _ai_fix "{{arg1}}" "{{arg2}}"
+            ;;
+        implement)
+            just implement "{{arg1}}" "{{arg2}}" "{{arg3}}"
+            ;;
+        *)
+            echo "Usage:"
+            echo "  just ai fix          # resolve rebase conflicts"
+            echo "  just ai implement    # implement a PRD"
+            exit 1
+            ;;
+    esac
+
+# Internal: fix git rebase/merge conflicts with an AI tool.
+_ai_fix ai_tool="clauded" prompt="" :
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    ai_tool="{{ai_tool}}"
+    prompt_text="{{prompt}}"
+
+    # Check if a rebase or merge is in progress
+    rebase_dir=""
+    if [ -d "$(git rev-parse --git-dir)/rebase-merge" ]; then
+        rebase_dir="$(git rev-parse --git-dir)/rebase-merge"
+    elif [ -d "$(git rev-parse --git-dir)/rebase-apply" ]; then
+        rebase_dir="$(git rev-parse --git-dir)/rebase-apply"
+    fi
+
+    if [ -z "$rebase_dir" ]; then
+        echo "No rebase or merge in progress."
+        exit 0
+    fi
+
+    # List unmerged files
+    unmerged_files="$(git diff --name-only --diff-filter=U 2>/dev/null || true)"
+    if [ -z "$unmerged_files" ]; then
+        echo "No conflict files found — all clear."
+        exit 0
+    fi
+
+    echo "Conflicts in:"
+    printf '%s\n' "$unmerged_files"
+    echo ""
+
+    # Auto-generate default prompt
+    if [ -z "$prompt_text" ]; then
+        prompt_text="Resolve all git rebase conflicts. For each conflict file, read it, merge correctly preserving the intent of both sides where possible, remove all conflict markers, then git add the resolved file. Do NOT commit — just stage. After all files are done, run git diff --cached to show what you resolved. Finally, run 'just test' and ensure it passes."
+    fi
+
+    echo "Tool: $ai_tool"
+    echo "Prompt: $prompt_text"
+    echo ""
+
+    # Run AI tool via user's interactive shell (needed for alias resolution)
+    if [ "$ai_tool" = "kim" ]; then
+        # kimi uses --prompt flag instead of positional argument
+        "${SHELL:-bash}" -i -c "$(printf '%s --prompt %q' "$ai_tool" "$prompt_text")" || true
+    else
+        # clauded and others accept prompt as positional argument
+        "${SHELL:-bash}" -i -c "$(printf '%s %q' "$ai_tool" "$prompt_text")" || true
+    fi
+
 # Sync files from the upstream template repository.
 # Compares local files against the template and offers to apply updates.
 # Usage:
