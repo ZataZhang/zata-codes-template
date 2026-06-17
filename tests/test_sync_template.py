@@ -136,8 +136,10 @@ def test_sync_template_skips_configured_project_paths_by_default(
     assert "deploy/prod.yml" not in completed_process.stdout
 
 
-def test_sync_template_all_includes_configured_project_paths(tmp_path: Path) -> None:
-    """The --all mode should include configured project-specific paths."""
+def test_sync_template_all_mode_respects_default_project_skip_paths(
+    tmp_path: Path,
+) -> None:
+    """--all mode honours default project_skip_paths (does not bypass them)."""
 
     template_repo_path = tmp_path / "template-repo"
     project_repo_path = tmp_path / "project-repo"
@@ -169,17 +171,22 @@ def test_sync_template_all_includes_configured_project_paths(tmp_path: Path) -> 
     )
 
     assert completed_process.returncode == 0, completed_process.stderr
-    assert "Found 6 changed + 0 new entry/entries." in completed_process.stdout
-    assert "CHANGED\tREADME.md" in completed_process.stdout
+    # --all bypasses the upstream-owned allowlist, but still respects
+    # _is_always_skipped (README.md) and the default project_skip_paths
+    # (src/backend/, frontend-admin/, infra/, deploy/).
+    assert "Found 1 changed + 0 new entry/entries." in completed_process.stdout
     assert "CHANGED\tscripts/shared/tool.sh" in completed_process.stdout
-    assert "CHANGED\tsrc/backend/api/api.py" in completed_process.stdout
-    assert "CHANGED\tfrontend-admin/src/App.tsx" in completed_process.stdout
-    assert "CHANGED\tinfra/main.tf" in completed_process.stdout
-    assert "CHANGED\tdeploy/prod.yml" in completed_process.stdout
+    assert "README.md" not in completed_process.stdout
+    assert "src/backend/api/api.py" not in completed_process.stdout
+    assert "frontend-admin/src/App.tsx" not in completed_process.stdout
+    assert "infra/main.tf" not in completed_process.stdout
+    assert "deploy/prod.yml" not in completed_process.stdout
 
 
-def test_sync_template_uses_project_skip_paths_from_config(tmp_path: Path) -> None:
-    """Project config should control default project path skips."""
+def test_sync_template_all_mode_uses_project_skip_paths_from_config(
+    tmp_path: Path,
+) -> None:
+    """--all mode should honour project_skip_paths configured in config.toml."""
 
     template_repo_path = tmp_path / "template-repo"
     project_repo_path = tmp_path / "project-repo"
@@ -199,7 +206,11 @@ def test_sync_template_uses_project_skip_paths_from_config(tmp_path: Path) -> No
     create_repo(template_repo_path, template_files, commit_all=True)
     create_repo(project_repo_path, project_files, commit_all=False)
 
-    completed_process = run_sync_template(project_repo_path, template_repo_path)
+    completed_process = run_sync_template(
+        project_repo_path,
+        template_repo_path,
+        "--all",
+    )
 
     assert completed_process.returncode == 0, completed_process.stderr
     assert "Found 2 changed + 0 new entry/entries." in completed_process.stdout
@@ -208,10 +219,10 @@ def test_sync_template_uses_project_skip_paths_from_config(tmp_path: Path) -> No
     assert "src/backend/api/api.py" not in completed_process.stdout
 
 
-def test_sync_template_project_include_paths_override_project_skips(
+def test_sync_template_all_mode_include_paths_override_project_skips(
     tmp_path: Path,
 ) -> None:
-    """Configured include paths should keep selected project paths visible."""
+    """--all mode: project_include_paths should override project_skip_paths."""
 
     template_repo_path = tmp_path / "template-repo"
     project_repo_path = tmp_path / "project-repo"
@@ -235,19 +246,25 @@ def test_sync_template_project_include_paths_override_project_skips(
     create_repo(template_repo_path, template_files, commit_all=True)
     create_repo(project_repo_path, project_files, commit_all=False)
 
-    completed_process = run_sync_template(project_repo_path, template_repo_path)
+    completed_process = run_sync_template(
+        project_repo_path,
+        template_repo_path,
+        "--all",
+    )
 
     assert completed_process.returncode == 0, completed_process.stderr
+    # frontend-admin/ is in both project_skip_paths and project_include_paths.
+    # project_include_paths wins, so it should still appear.
     assert "Found 2 changed + 0 new entry/entries." in completed_process.stdout
     assert "CHANGED\tscripts/shared/tool.sh" in completed_process.stdout
     assert "CHANGED\tfrontend-admin/src/App.tsx" in completed_process.stdout
     assert "src/backend/api/api.py" not in completed_process.stdout
 
 
-def test_sync_template_project_skip_paths_can_be_overridden_by_env(
+def test_sync_template_all_mode_project_skip_paths_overridden_by_env(
     tmp_path: Path,
 ) -> None:
-    """Environment overrides should support one-off project skip changes."""
+    """--all mode: env var should override config.toml project_skip_paths."""
 
     template_repo_path = tmp_path / "template-repo"
     project_repo_path = tmp_path / "project-repo"
@@ -270,10 +287,13 @@ def test_sync_template_project_skip_paths_can_be_overridden_by_env(
     completed_process = run_sync_template(
         project_repo_path,
         template_repo_path,
+        "--all",
         extra_env={"SYNC_TEMPLATE_PROJECT_SKIP_PATHS": "frontend-admin/"},
     )
 
     assert completed_process.returncode == 0, completed_process.stderr
+    # Env var replaces the config.toml skip list. src/backend/ is no longer
+    # skipped, but frontend-admin/ now is.
     assert "Found 2 changed + 0 new entry/entries." in completed_process.stdout
     assert "CHANGED\tscripts/shared/tool.sh" in completed_process.stdout
     assert "CHANGED\tsrc/backend/api/api.py" in completed_process.stdout
@@ -308,10 +328,10 @@ def test_sync_template_skips_scripts_root_by_default(
     assert "root_tool.sh" not in completed_process.stdout
 
 
-def test_sync_template_all_includes_scripts_root(
+def test_sync_template_all_mode_skips_project_private_scripts(
     tmp_path: Path,
 ) -> None:
-    """--all mode should include scripts/ root files."""
+    """--all mode still respects _is_always_skipped for project-private scripts/."""
 
     template_repo_path = tmp_path / "template-repo"
     project_repo_path = tmp_path / "project-repo"
@@ -335,6 +355,8 @@ def test_sync_template_all_includes_scripts_root(
     )
 
     assert completed_process.returncode == 0, completed_process.stderr
-    assert "Found 2 changed + 0 new entry/entries." in completed_process.stdout
-    assert "CHANGED\tscripts/root_tool.sh" in completed_process.stdout
+    # _is_always_skipped filters out scripts/* except scripts/shared/* and
+    # scripts/build/*. Project-private scripts/root_tool.sh is never synced.
+    assert "Found 1 changed + 0 new entry/entries." in completed_process.stdout
     assert "CHANGED\tscripts/shared/shared_tool.sh" in completed_process.stdout
+    assert "scripts/root_tool.sh" not in completed_process.stdout

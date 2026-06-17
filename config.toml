@@ -21,11 +21,21 @@ log_level = "INFO"
 # Template Sync Settings
 # =============================================================================
 [template_sync]
-# Project-specific paths skipped by default by `just sync-template`.
-# Use `just sync-template --all` to include these paths for a one-off sync.
+# Project-level paths skipped by `just sync-template --all`.
+#
+# Default mode (`just sync-template` with no flags) only shows upstream-owned
+# files (justfile.shared, scripts/shared/*, scripts/build/*, AI standards,
+# tool entry files, hooks/check_*.py, etc.) — see `_is_upstream_owned` in
+# scripts/shared/template/sync_template.sh for the full allowlist. The list
+# below is irrelevant in default mode.
+#
+# --all mode additionally surfaces these project-level paths so you can decide
+# which to bring into your fork. Add new project-owned directories here so
+# the TUI stays focused on real conflicts.
 project_skip_paths = [
     "src/backend/",
     "frontend-admin/",
+    "frontend-public/",
     "docs/",
     "tests/",
     "apps/",

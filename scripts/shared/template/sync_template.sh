@@ -3,8 +3,11 @@
 # repository and interactively offer to apply updates.
 #
 # Usage:
-#   ./scripts/sync_template.sh
-#   ./scripts/sync_template.sh --all   # also show project-specific files
+#   ./scripts/sync_template.sh            # TUI: upstream-owned entries only
+#   ./scripts/sync_template.sh --all      # TUI: everything except project_skip_paths
+#   ./scripts/sync_template.sh --list     # print upstream-owned entries, no TUI, no apply
+#   ./scripts/sync_template.sh --list-all # print all entries (--list + --all)
+#   ./scripts/sync_template.sh --dry-run  # run TUI but don't write anything
 
 set -euo pipefail
 
@@ -14,6 +17,7 @@ TEMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TEMP_DIR"' EXIT
 
 LIST_ONLY_MODE="${SYNC_TEMPLATE_LIST_ONLY:-0}"
+DRY_RUN_MODE=false
 DEFAULT_PROJECT_SKIP_PATHS=(
     "src/backend/"
     "frontend-admin/"
@@ -45,13 +49,26 @@ while [ $# -gt 0 ]; do
             SHOW_ALL=true
             shift
             ;;
+        --list)
+            LIST_ONLY_MODE=1
+            shift
+            ;;
+        --list-all)
+            LIST_ONLY_MODE=1
+            SHOW_ALL=true
+            shift
+            ;;
+        --dry-run)
+            DRY_RUN_MODE=true
+            shift
+            ;;
         --local-skills)
             LOCAL_SKILLS_MODE=true
             shift
             ;;
         *)
             echo "Unknown option: $1" >&2
-            echo "Usage: $0 [--all] [--local-skills]" >&2
+            echo "Usage: $0 [--all] [--list] [--list-all] [--dry-run] [--local-skills]" >&2
             exit 1
             ;;
     esac
@@ -234,15 +251,21 @@ _is_never_synced() {
     return 1
 }
 
-_is_skipped_by_default() {
+# Files that should NEVER appear in sync output — project config, env, build
+# artifacts, IDE state, and project-private scripts. Applied in both default
+# and --all modes.
+_is_always_skipped() {
     local p="$1"
     case "$p" in
+        # Project-owned root-level files (the project writes these; the
+        # template never overwrites them)
         README.md|pyproject.toml|config.toml|mkdocs.yml|uv.lock) return 0 ;;
         CLAUDE.md|main.py|justfile) return 0 ;;
         findings.md|progress.md|task_plan.md) return 0 ;;
         .DS_Store|.dockerignore|.gitignore) return 0 ;;
     esac
     case "$p" in
+        # Local state, build output, runtime artifacts
         .git/*|.venv/*|.uv-cache/*|__pycache__/*|logs/*|site/*) return 0 ;;
         .pytest_cache/*|.ruff_cache/*|prompt/*|skills/*) return 0 ;;
         .claude/*) return 0 ;;
@@ -250,14 +273,44 @@ _is_skipped_by_default() {
     case "$p" in
         *.pyc|*.egg-info|.env|.env.*) return 0 ;;
     esac
-    if _is_project_skipped_by_default "$p"; then
-        return 0
-    fi
-    # Scripts layering: project-private scripts live under scripts/;
-    # only scripts/shared/ is maintained by the upstream template.
+    # Project-private scripts: anything under scripts/ that is NOT in
+    # scripts/shared/ or scripts/build/ is project-owned. The upstream
+    # template maintains scripts/shared/ and scripts/build/.
     case "$p" in
-        scripts/shared/*) return 1 ;;
+        scripts/shared/*|scripts/build/*) ;;
         scripts/*) return 0 ;;
+    esac
+    return 1
+}
+
+# Files that the upstream template maintains and the project should keep in
+# lockstep. Default mode ONLY shows entries in this list; --all mode shows
+# everything not in project_skip_paths.
+#
+# To onboard a new upstream-owned path, append it to the case block. The list
+# is intentionally narrow: a file should appear here only if the template
+# maintains it as authoritative and the project should never hand-edit it.
+_is_upstream_owned() {
+    local p="$1"
+    case "$p" in
+        # Shared justfile recipes (the project-private justfile imports this)
+        justfile.shared) return 0 ;;
+        # Shared shell / Python / bash utilities shipped with the template
+        scripts/shared/*) return 0 ;;
+        # Cross-cutting build scripts maintained by the template
+        scripts/build/*) return 0 ;;
+        # Tool entry files and the AI standards hub
+        AGENTS.md) return 0 ;;
+        docs/ai-standards/*) return 0 ;;
+        docs/architecture/system-design.md) return 0 ;;
+        .cursor/commands/cursor.md) return 0 ;;
+        .cursor/rules/*) return 0 ;;
+        .github/copilot-instructions.md) return 0 ;;
+        .github/instructions/*.md) return 0 ;;
+        # Template-owned pre-commit / architecture hooks. Project-private
+        # hooks (e.g. check_prd_acceptance_checklist.py) must not match
+        # the check_*.py pattern — name them differently.
+        hooks/check_*.py) return 0 ;;
     esac
     return 1
 }
@@ -687,8 +740,19 @@ if ! $LOCAL_SKILLS_MODE; then
             continue
         fi
 
-        if ! $SHOW_ALL && _is_skipped_by_default "$rel_path"; then
+        if _is_always_skipped "$rel_path"; then
             continue
+        fi
+        if ! $SHOW_ALL; then
+            # Default mode: only upstream-owned entries show up in the TUI.
+            if ! _is_upstream_owned "$rel_path"; then
+                continue
+            fi
+        else
+            # --all mode: skip only if explicitly in project_skip_paths
+            if _is_project_skipped_by_default "$rel_path"; then
+                continue
+            fi
         fi
 
         local_file="$LOCAL_ROOT/$rel_path"
@@ -955,7 +1019,7 @@ else
 fi
 
 # ──────────────────────────────────────────────────────────────
-# Phase 3: Apply selected entries
+# Phase 3: Apply selected entries (or preview only for --dry-run)
 # ──────────────────────────────────────────────────────────────
 echo ""
 count_accepted=0
@@ -967,6 +1031,27 @@ jf_changed_recipes=()
 
 if [ "${#selected_entries[@]}" -eq 0 ]; then
     echo "No template file entries selected."
+elif $DRY_RUN_MODE; then
+    # Dry-run: enumerate what we WOULD apply, but do not write anything.
+    for entry in "${selected_entries[@]}"; do
+        if [[ "$entry" == justfile::* ]]; then
+            recipe="${entry#justfile::}"
+            local_block=$(python3 "$JF_HELPER" block "$LOCAL_ROOT/justfile" "$recipe" 2>/dev/null || true)
+            if [ -z "$local_block" ]; then
+                echo "  ⏭ Would add:    justfile (recipe: $recipe)"
+            else
+                echo "  ⏭ Would update: justfile (recipe: $recipe)"
+            fi
+        else
+            local_file="$LOCAL_ROOT/$entry"
+            if [ ! -f "$local_file" ]; then
+                echo "  ⏭ Would add:    $entry"
+            else
+                echo "  ⏭ Would update: $entry"
+            fi
+        fi
+        ((count_accepted++)) || true
+    done
 else
     for entry in "${selected_entries[@]}"; do
         if [[ "$entry" == justfile::* ]]; then
@@ -1016,9 +1101,19 @@ else
     fi
 fi
 
-_install_template_skills "$TEMPLATE_ROOT"
+if $DRY_RUN_MODE; then
+    if [ "${pending_skill_updates:-0}" -gt 0 ]; then
+        echo "  ⏭ Would install: $pending_skill_updates template skill(s) (skipped in --dry-run)"
+    fi
+else
+    _install_template_skills "$TEMPLATE_ROOT"
+fi
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "Done. $count_accepted template entry/entries applied, $(( total_found - count_accepted )) skipped."
-echo "Template skills installed or updated: $skill_install_count."
+if $DRY_RUN_MODE; then
+    echo "Dry-run: would apply $count_accepted template entry/entries, $(( total_found - count_accepted )) skipped. No files written."
+else
+    echo "Done. $count_accepted template entry/entries applied, $(( total_found - count_accepted )) skipped."
+    echo "Template skills installed or updated: $skill_install_count."
+fi

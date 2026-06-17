@@ -891,18 +891,18 @@ _ai_push ai_tool="claude" prompt="" :
     fi
 
 # Sync files from the upstream template repository.
-# Compares local files against the template and offers to apply updates.
+# Compares local files against the template and lets you pick which to apply
+# via an fzf TUI with per-entry diff preview.
 # Usage:
-#   just sync-template         # skip project-specific paths from config.toml [template_sync]
-#   just sync-template --all   # include project-specific files too
+#   just sync-template            # TUI: upstream-owned entries only
+#   just sync-template --all      # TUI: all entries except config.toml project_skip_paths
+#   just sync-template --list     # print upstream-owned entries, no TUI, no apply
+#   just sync-template --list-all # print all entries, no TUI, no apply
+#   just sync-template --dry-run  # run TUI but don't write anything
 sync-template flags="":
     #!/usr/bin/env bash
     set -euo pipefail
-    if [ -n "{{flags}}" ]; then
-        ./scripts/sync_template.sh {{flags}}
-    else
-        ./scripts/sync_template.sh
-    fi
+    ./scripts/sync_template.sh {{flags}}
 
 # Run tests after `just lint --full` (usage: just test [all|local|real])
 #   just test        - Run local tests (no API keys needed)
