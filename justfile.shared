@@ -735,8 +735,19 @@ _ai_fix ai_tool="claude" prompt="" :
         # kimi uses --prompt flag instead of positional argument
         "${SHELL:-bash}" -i -c "$(printf '%s --prompt %q' "$ai_tool" "$prompt_text")" || true
     elif [ "$ai_tool" = "claude" ]; then
-        # claude: --dangerously-skip-permissions skips confirmations; --print --verbose keeps it one-shot while still showing thinking/tool calls
-        "${SHELL:-bash}" -i -c "$(printf '%s --dangerously-skip-permissions --print --verbose %q' "$ai_tool" "$prompt_text")" || true
+        # claude: --print + --verbose + stream-json lets jq render thinking/tool calls in real time
+        claude --dangerously-skip-permissions --print --verbose --output-format stream-json --include-partial-messages < <(printf '%s' "$prompt_text") 2>&1 | \
+            jq --unbuffered -r '
+                if .type == "stream_event" and .event.type == "content_block_delta" and .event.delta.type == "thinking_delta" then
+                    "💭 \(.event.delta.thinking)\n"
+                elif .type == "stream_event" and .event.type == "content_block_start" and .event.content_block.type == "tool_use" then
+                    "\n🔧 \(.event.content_block.name)(\((.event.content_block.input // {} | tostring) | .[0:120]))\n"
+                elif .type == "result" then
+                    "\n\(.result)\n"
+                else
+                    empty
+                end
+            ' || true
     else
         "${SHELL:-bash}" -i -c "$(printf '%s %q' "$ai_tool" "$prompt_text")" || true
     fi
@@ -772,8 +783,19 @@ _ai_commit ai_tool="claude" prompt="" :
         # kimi uses --prompt flag instead of positional argument
         "${SHELL:-bash}" -i -c "$(printf '%s --prompt %q' "$ai_tool" "$prompt_text")" || true
     elif [ "$ai_tool" = "claude" ]; then
-        # claude: --dangerously-skip-permissions skips confirmations; --print --verbose keeps it one-shot while still showing thinking/tool calls
-        "${SHELL:-bash}" -i -c "$(printf '%s --dangerously-skip-permissions --print --verbose %q' "$ai_tool" "$prompt_text")" || true
+        # claude: --print + --verbose + stream-json lets jq render thinking/tool calls in real time
+        claude --dangerously-skip-permissions --print --verbose --output-format stream-json --include-partial-messages < <(printf '%s' "$prompt_text") 2>&1 | \
+            jq --unbuffered -r '
+                if .type == "stream_event" and .event.type == "content_block_delta" and .event.delta.type == "thinking_delta" then
+                    "💭 \(.event.delta.thinking)\n"
+                elif .type == "stream_event" and .event.type == "content_block_start" and .event.content_block.type == "tool_use" then
+                    "\n🔧 \(.event.content_block.name)(\((.event.content_block.input // {} | tostring) | .[0:120]))\n"
+                elif .type == "result" then
+                    "\n\(.result)\n"
+                else
+                    empty
+                end
+            ' || true
     else
         "${SHELL:-bash}" -i -c "$(printf '%s %q' "$ai_tool" "$prompt_text")" || true
     fi
@@ -809,8 +831,19 @@ _ai_push ai_tool="claude" prompt="" :
         # kimi uses --prompt flag instead of positional argument
         "${SHELL:-bash}" -i -c "$(printf '%s --prompt %q' "$ai_tool" "$prompt_text")" || true
     elif [ "$ai_tool" = "claude" ]; then
-        # claude: --dangerously-skip-permissions skips confirmations; --print --verbose keeps it one-shot while still showing thinking/tool calls
-        "${SHELL:-bash}" -i -c "$(printf '%s --dangerously-skip-permissions --print --verbose %q' "$ai_tool" "$prompt_text")" || true
+        # claude: --print + --verbose + stream-json lets jq render thinking/tool calls in real time
+        claude --dangerously-skip-permissions --print --verbose --output-format stream-json --include-partial-messages < <(printf '%s' "$prompt_text") 2>&1 | \
+            jq --unbuffered -r '
+                if .type == "stream_event" and .event.type == "content_block_delta" and .event.delta.type == "thinking_delta" then
+                    "💭 \(.event.delta.thinking)\n"
+                elif .type == "stream_event" and .event.type == "content_block_start" and .event.content_block.type == "tool_use" then
+                    "\n🔧 \(.event.content_block.name)(\((.event.content_block.input // {} | tostring) | .[0:120]))\n"
+                elif .type == "result" then
+                    "\n\(.result)\n"
+                else
+                    empty
+                end
+            ' || true
     else
         "${SHELL:-bash}" -i -c "$(printf '%s %q' "$ai_tool" "$prompt_text")" || true
     fi
