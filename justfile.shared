@@ -735,8 +735,8 @@ _ai_fix ai_tool="claude" prompt="" :
         # kimi uses --prompt flag instead of positional argument
         "${SHELL:-bash}" -i -c "$(printf '%s --prompt %q' "$ai_tool" "$prompt_text")" || true
     elif [ "$ai_tool" = "claude" ]; then
-        # claude: --dangerously-skip-permissions skips confirmations; --print keeps it one-shot (exit after task, not TUI)
-        "${SHELL:-bash}" -i -c "$(printf '%s --dangerously-skip-permissions --print %q' "$ai_tool" "$prompt_text")" || true
+        # claude: --dangerously-skip-permissions skips confirmations; --print --verbose keeps it one-shot while still showing thinking/tool calls
+        "${SHELL:-bash}" -i -c "$(printf '%s --dangerously-skip-permissions --print --verbose %q' "$ai_tool" "$prompt_text")" || true
     else
         "${SHELL:-bash}" -i -c "$(printf '%s %q' "$ai_tool" "$prompt_text")" || true
     fi
@@ -772,8 +772,8 @@ _ai_commit ai_tool="claude" prompt="" :
         # kimi uses --prompt flag instead of positional argument
         "${SHELL:-bash}" -i -c "$(printf '%s --prompt %q' "$ai_tool" "$prompt_text")" || true
     elif [ "$ai_tool" = "claude" ]; then
-        # claude: --dangerously-skip-permissions skips confirmations; --print keeps it one-shot (exit after task, not TUI)
-        "${SHELL:-bash}" -i -c "$(printf '%s --dangerously-skip-permissions --print %q' "$ai_tool" "$prompt_text")" || true
+        # claude: --dangerously-skip-permissions skips confirmations; --print --verbose keeps it one-shot while still showing thinking/tool calls
+        "${SHELL:-bash}" -i -c "$(printf '%s --dangerously-skip-permissions --print --verbose %q' "$ai_tool" "$prompt_text")" || true
     else
         "${SHELL:-bash}" -i -c "$(printf '%s %q' "$ai_tool" "$prompt_text")" || true
     fi
@@ -809,8 +809,8 @@ _ai_push ai_tool="claude" prompt="" :
         # kimi uses --prompt flag instead of positional argument
         "${SHELL:-bash}" -i -c "$(printf '%s --prompt %q' "$ai_tool" "$prompt_text")" || true
     elif [ "$ai_tool" = "claude" ]; then
-        # claude: --dangerously-skip-permissions skips confirmations; --print keeps it one-shot (exit after task, not TUI)
-        "${SHELL:-bash}" -i -c "$(printf '%s --dangerously-skip-permissions --print %q' "$ai_tool" "$prompt_text")" || true
+        # claude: --dangerously-skip-permissions skips confirmations; --print --verbose keeps it one-shot while still showing thinking/tool calls
+        "${SHELL:-bash}" -i -c "$(printf '%s --dangerously-skip-permissions --print --verbose %q' "$ai_tool" "$prompt_text")" || true
     else
         "${SHELL:-bash}" -i -c "$(printf '%s %q' "$ai_tool" "$prompt_text")" || true
     fi
