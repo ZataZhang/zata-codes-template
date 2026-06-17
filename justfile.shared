@@ -708,6 +708,9 @@ _ai_fix ai_tool="claude" prompt="" :
     set -euo pipefail
 
     ai_tool="{{ai_tool}}"
+    if [ -z "$ai_tool" ]; then
+        ai_tool="claude"
+    fi
     prompt_text="{{prompt}}"
 
     # Check if a rebase or merge is in progress
