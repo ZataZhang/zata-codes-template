@@ -660,6 +660,8 @@ implement prd_file ai_tool prompt="":
 #   just ai fix kimi "custom prompt"         # resolve conflicts with kimi
 #   just ai commit                          # run `just test`, then commit with claude
 #   just ai commit kimi "custom prompt"      # use kimi with a custom prompt
+#   just ai push                            # run `just test`, commit, then push with claude
+#   just ai push kimi "custom prompt"        # use kimi, then push
 #   just ai implement <prd-file> [tool]     # implement a PRD (default: claude)
 ai subcommand arg1="" arg2="" arg3="" :
     #!/usr/bin/env bash
@@ -671,6 +673,9 @@ ai subcommand arg1="" arg2="" arg3="" :
         commit)
             just _ai_commit "{{arg1}}" "{{arg2}}"
             ;;
+        push)
+            just _ai_push "{{arg1}}" "{{arg2}}"
+            ;;
         implement)
             just implement "{{arg1}}" "{{arg2}}" "{{arg3}}"
             ;;
@@ -678,6 +683,7 @@ ai subcommand arg1="" arg2="" arg3="" :
             echo "Usage:"
             echo "  just ai fix          # resolve rebase conflicts"
             echo "  just ai commit       # run just test, then commit"
+            echo "  just ai push         # run just test, then commit and push"
             echo "  just ai implement    # implement a PRD"
             exit 1
             ;;
@@ -770,6 +776,94 @@ _ai_commit ai_tool="claude" prompt="" :
         "${SHELL:-bash}" -i -c "$(printf '%s --dangerously-skip-permissions %q' "$ai_tool" "$prompt_text")" || true
     else
         "${SHELL:-bash}" -i -c "$(printf '%s %q' "$ai_tool" "$prompt_text")" || true
+    fi
+
+# Internal: ask an AI tool to run `just test` and commit, then push the result.
+_ai_push ai_tool="claude" prompt="" :
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    ai_tool="{{ai_tool}}"
+    if [ -z "$ai_tool" ]; then
+        ai_tool="claude"
+    fi
+    prompt_text="{{prompt}}"
+
+    # Fail fast if there is nothing to commit
+    if [ -z "$(git status --porcelain)" ]; then
+        echo "No changes to commit."
+        exit 0
+    fi
+
+    # Auto-generate default prompt
+    if [ -z "$prompt_text" ]; then
+        prompt_text="First, run \`just test\` in the repository root to verify all tests pass. If tests fail, fix the underlying issues and re-run until \`just test\` is green. Once tests pass, review the current git changes (git status, git diff, and git diff --cached) and create a commit. Stage relevant files with git add, then write a clear commit message in English following conventional commit style (e.g. 'feat(scope): ...', 'fix(scope): ...', 'refactor(scope): ...'). Keep the subject line under 72 characters and use the body to explain the 'why' rather than the 'what'. Do NOT amend existing commits. If pre-commit hooks fail, fix the underlying issues and create a new commit (never amend). Proceed autonomously without asking for confirmation at any step — commit directly once \`just test\` is green. After you finish, the script will handle the push, so you do NOT need to push."
+    fi
+
+    echo "Tool: $ai_tool"
+    echo "Prompt: $prompt_text"
+    echo ""
+
+    # Run AI tool via user's interactive shell (needed for alias resolution)
+    if [ "$ai_tool" = "kimi" ]; then
+        # kimi uses --prompt flag instead of positional argument
+        "${SHELL:-bash}" -i -c "$(printf '%s --prompt %q' "$ai_tool" "$prompt_text")" || true
+    elif [ "$ai_tool" = "claude" ]; then
+        # claude: --dangerously-skip-permissions bypasses all permission prompts
+        "${SHELL:-bash}" -i -c "$(printf '%s --dangerously-skip-permissions %q' "$ai_tool" "$prompt_text")" || true
+    else
+        "${SHELL:-bash}" -i -c "$(printf '%s %q' "$ai_tool" "$prompt_text")" || true
+    fi
+
+    # AI finished - now handle push with safety checks and user confirmation.
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "🤖 AI finished. Preparing to push..."
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+
+    current_branch="$(git rev-parse --abbrev-ref HEAD)"
+    upstream="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"
+
+    if [ -z "$upstream" ]; then
+        # No upstream - ask user to set up
+        remote="$(git remote | head -1)"
+        if [ -z "$remote" ]; then
+            echo "ERROR: Branch '$current_branch' has no upstream and no git remote is configured."
+            echo "Add a remote first, e.g.: git remote add origin <url>"
+            exit 1
+        fi
+
+        echo "Branch '$current_branch' has no upstream."
+        read -r -p "Push to '$remote/$current_branch' and set upstream? [Y/n] " confirm
+        case "$confirm" in
+            ""|y|Y|yes|YES)
+                git push -u "$remote" "$current_branch"
+                ;;
+            *)
+                echo "Push cancelled."
+                exit 0
+                ;;
+        esac
+    else
+        # Has upstream - check ahead count
+        ahead_count="$(git rev-list --count '@{u}'..HEAD 2>/dev/null || echo "0")"
+        if [ "$ahead_count" -eq 0 ]; then
+            echo "Nothing to push (branch '$current_branch' is up to date with $upstream)."
+            exit 0
+        fi
+
+        echo "Branch '$current_branch' is $ahead_count commit(s) ahead of $upstream."
+        read -r -p "Push $ahead_count commit(s) to $upstream? [Y/n] " confirm
+        case "$confirm" in
+            ""|y|Y|yes|YES)
+                git push
+                ;;
+            *)
+                echo "Push cancelled."
+                exit 0
+                ;;
+        esac
     fi
 
 # Sync files from the upstream template repository.
