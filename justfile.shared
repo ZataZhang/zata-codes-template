@@ -543,11 +543,11 @@ worktree arg1 arg2="" arg3="" arg4="" arg5="":
 # Automatically derives branch name from the PRD filename.
 # When prompt is omitted, a default prompt is auto-generated from the PRD name.
 # Usage:
-#   just implement <prd-file> <clauded|kim> ["<prompt>"]
+#   just implement <prd-file> <claude|kimi> ["<prompt>"]
 # Examples:
-#   just implement tasks/pending/20260518-feature-x.md clauded "Implement the feature per the PRD"
-#   just implement tasks/pending/feature-x.md kim "Implement this feature"
-#   just implement tasks/pending/feature-x.md clauded  # uses default prompt
+#   just implement tasks/pending/20260518-feature-x.md claude "Implement the feature per the PRD"
+#   just implement tasks/pending/feature-x.md kimi "Implement this feature"
+#   just implement tasks/pending/feature-x.md claude  # uses default prompt
 implement prd_file ai_tool prompt="":
     #!/usr/bin/env bash
     set -euo pipefail
@@ -559,15 +559,15 @@ implement prd_file ai_tool prompt="":
     # Validate PRD file exists
     if [ ! -f "$prd_file" ]; then
         echo "PRD file not found: $prd_file"
-        echo "Usage: just implement <prd-file> <clauded|kim> \"<prompt>\""
+        echo "Usage: just implement <prd-file> <claude|kimi> \"<prompt>\""
         exit 1
     fi
 
     # Validate AI tool
-    if [ "$ai_tool" != "clauded" ] && [ "$ai_tool" != "kim" ]; then
+    if [ "$ai_tool" != "claude" ] && [ "$ai_tool" != "kimi" ]; then
         echo "Unsupported AI tool: $ai_tool"
-        echo "Supported tools: clauded, kim"
-        echo "Usage: just implement <prd-file> <clauded|kim> \"<prompt>\""
+        echo "Supported tools: claude, kimi"
+        echo "Usage: just implement <prd-file> <claude|kimi> \"<prompt>\""
         exit 1
     fi
 
@@ -624,11 +624,11 @@ implement prd_file ai_tool prompt="":
     # Run AI tool in worktree via user's interactive shell (needed for alias resolution)
     echo "Running $ai_tool in worktree..."
     cd "$worktree_path"
-    if [ "$ai_tool" = "kim" ]; then
+    if [ "$ai_tool" = "kimi" ]; then
         # kimi uses --prompt flag instead of positional argument
         "${SHELL:-bash}" -i -c "$(printf '%s --prompt %q' "$ai_tool" "$prompt_text")" || true
     else
-        # clauded and others accept prompt as positional argument
+        # claude and others accept prompt as positional argument
         "${SHELL:-bash}" -i -c "$(printf '%s %q' "$ai_tool" "$prompt_text")" || true
     fi
 
@@ -656,9 +656,11 @@ implement prd_file ai_tool prompt="":
 
 # AI-assisted commands.
 # Usage:
-#   just ai fix                             # resolve rebase conflicts with clauded
-#   just ai fix kim "custom prompt"         # resolve conflicts with kim
-#   just ai implement <prd-file> [tool]     # implement a PRD (default: clauded)
+#   just ai fix                             # resolve rebase conflicts with claude
+#   just ai fix kimi "custom prompt"         # resolve conflicts with kimi
+#   just ai commit                          # run `just test`, then commit with claude
+#   just ai commit kimi "custom prompt"      # use kimi with a custom prompt
+#   just ai implement <prd-file> [tool]     # implement a PRD (default: claude)
 ai subcommand arg1="" arg2="" arg3="" :
     #!/usr/bin/env bash
     set -euo pipefail
@@ -666,19 +668,23 @@ ai subcommand arg1="" arg2="" arg3="" :
         fix)
             just _ai_fix "{{arg1}}" "{{arg2}}"
             ;;
+        commit)
+            just _ai_commit "{{arg1}}" "{{arg2}}"
+            ;;
         implement)
             just implement "{{arg1}}" "{{arg2}}" "{{arg3}}"
             ;;
         *)
             echo "Usage:"
             echo "  just ai fix          # resolve rebase conflicts"
+            echo "  just ai commit       # run just test, then commit"
             echo "  just ai implement    # implement a PRD"
             exit 1
             ;;
     esac
 
 # Internal: fix git rebase/merge conflicts with an AI tool.
-_ai_fix ai_tool="clauded" prompt="" :
+_ai_fix ai_tool="claude" prompt="" :
     #!/usr/bin/env bash
     set -euo pipefail
 
@@ -719,11 +725,46 @@ _ai_fix ai_tool="clauded" prompt="" :
     echo ""
 
     # Run AI tool via user's interactive shell (needed for alias resolution)
-    if [ "$ai_tool" = "kim" ]; then
+    if [ "$ai_tool" = "kimi" ]; then
         # kimi uses --prompt flag instead of positional argument
         "${SHELL:-bash}" -i -c "$(printf '%s --prompt %q' "$ai_tool" "$prompt_text")" || true
     else
-        # clauded and others accept prompt as positional argument
+        # claude and others accept prompt as positional argument
+        "${SHELL:-bash}" -i -c "$(printf '%s %q' "$ai_tool" "$prompt_text")" || true
+    fi
+
+# Internal: ask an AI tool to run `just test`, then commit current changes.
+_ai_commit ai_tool="claude" prompt="" :
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    ai_tool="{{ai_tool}}"
+    if [ -z "$ai_tool" ]; then
+        ai_tool="claude"
+    fi
+    prompt_text="{{prompt}}"
+
+    # Fail fast if there is nothing to commit
+    if [ -z "$(git status --porcelain)" ]; then
+        echo "No changes to commit."
+        exit 0
+    fi
+
+    # Auto-generate default prompt
+    if [ -z "$prompt_text" ]; then
+        prompt_text="First, run \`just test\` in the repository root to verify all tests pass. If tests fail, fix the underlying issues and re-run until \`just test\` is green. Once tests pass, review the current git changes (git status, git diff, and git diff --cached) and create a commit. Stage relevant files with git add, then write a clear commit message in English following conventional commit style (e.g. 'feat(scope): ...', 'fix(scope): ...', 'refactor(scope): ...'). Keep the subject line under 72 characters and use the body to explain the 'why' rather than the 'what'. Do NOT push. Do NOT amend existing commits. If pre-commit hooks fail, fix the underlying issues and create a new commit (never amend)."
+    fi
+
+    echo "Tool: $ai_tool"
+    echo "Prompt: $prompt_text"
+    echo ""
+
+    # Run AI tool via user's interactive shell (needed for alias resolution)
+    if [ "$ai_tool" = "kimi" ]; then
+        # kimi uses --prompt flag instead of positional argument
+        "${SHELL:-bash}" -i -c "$(printf '%s --prompt %q' "$ai_tool" "$prompt_text")" || true
+    else
+        # claude and others accept prompt as positional argument
         "${SHELL:-bash}" -i -c "$(printf '%s %q' "$ai_tool" "$prompt_text")" || true
     fi
 
