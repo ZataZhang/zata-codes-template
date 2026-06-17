@@ -853,17 +853,8 @@ _ai_push ai_tool="claude" prompt="" :
             exit 0
         fi
 
-        echo "Branch '$current_branch' is $ahead_count commit(s) ahead of $upstream."
-        read -r -p "Push $ahead_count commit(s) to $upstream? [Y/n] " confirm
-        case "$confirm" in
-            ""|y|Y|yes|YES)
-                git push
-                ;;
-            *)
-                echo "Push cancelled."
-                exit 0
-                ;;
-        esac
+        echo "Branch '$current_branch' is $ahead_count commit(s) ahead of $upstream. Pushing..."
+        git push
     fi
 
 # Sync files from the upstream template repository.
