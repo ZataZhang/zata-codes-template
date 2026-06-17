@@ -20,6 +20,25 @@
 - 在迁移说明中写明回滚方案。
 - 对大表结构修改做好锁表与耗时评估。
 
+## 文件命名规范
+
+迁移脚本必须使用以下命名格式，便于在协作中口头引用：
+
+```text
+YYYYMMDD-HHMMSS-<slug>.py
+```
+
+示例：`20260617-153045-add_user_email_index.py`
+
+规则：
+
+- 由 `alembic revision -m "<message>"` 自动生成，模板定义在 `alembic.ini` 的 `file_template`。
+- `<message>` 必填，**禁止空消息**（执行 `alembic revision` 时必须带 `-m`）。
+- 文件名中的 `<slug>` 会被 Alembic 自动归一化为 snake_case：取 `<message>` 中的 `re.findall(r"\w+", message)` 后用下划线连接并转小写（`alembic/script/base.py:771`）。例如 `-m "Add user email index"` → `add_user_email_index`，`-m "add-user-email-index"` → `add_user_email_index`（连字符被切掉），`-m "AddUserEmailIndex"` → `adduseremailindex`（驼峰会粘连，不推荐）。
+- 写 `<message>` 时按自然语言短句写即可，**不必**手工替换分隔符；动词优先，如 `Add user email index`、`Create orders table`、`Backfill user display name`、`Drop legacy column foo`。
+- 时间戳精确到秒；**省略 Alembic 默认的 12 位 hash 段**——文件内的 `revision` 变量仍由 Alembic 自动生成以保证唯一性，文件名上的 hash 反而降低可读性。
+- 同一秒内若出现重名，追加 `-2`、`-3` 等后缀手工解决。
+
 ## TODO
 
 - TODO: 集成 Alembic 初始化脚手架。
