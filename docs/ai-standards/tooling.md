@@ -23,6 +23,7 @@
 | `just run frontend-public` | 只启动前台官网（Next.js，默认端口 3000） |
 | `just frontend-public dev` | 在 `frontend-public/` 运行 `pnpm dev` |
 | `just down` | 按当前 Git worktree 保存的端口停止本地开发服务 |
+| `just copy <new-dir>` | 派生新项目；随机分配三个互不重叠的端口（后端 8000-8999、管理平台前端 5180-5999、前台官网 3010-3999）避免多副本端口冲突 |
 | `just test` | 运行本地测试 |
 | `uv run mkdocs build` | 验证文档站点 |
 | `just docs-serve` | 本地预览文档 |
@@ -50,6 +51,7 @@
 - 传入 `backend_port`、`frontend_port` 或 `frontend_public_port` 时，会保存本次端口配置。
 - 后续 `just run` 和 `just down` 会复用保存的端口。
 - 前端 Vite 使用 `strictPort`，端口被占用时直接失败，避免自动漂移后 `just down` 停错端口。
+- `just copy <name>` 派生新项目时，会从三个互不重叠的区间随机分配端口（后端 `8000-8999`、管理平台前端 `5180-5999`、前台官网 `3010-3999`），并写入 destination justfile 的 `run`/`down` 默认值以及 `.git/vanta-run.env`，让首次 `just run` 就走随机端口；所选端口会打印到 stdout。`just sync-template` 不会覆盖已随机化的 justfile，因此派生项目可以长期保留自己的端口。
 
 ## Docker Local Run
 

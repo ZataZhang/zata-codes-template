@@ -633,6 +633,19 @@ copy name force='':
     NEW_JUSTFILE="$NEW_DIR/justfile"
     python3 -c 'from pathlib import Path; import sys; justfile_path = Path(sys.argv[1]); justfile_text = justfile_path.read_text(encoding="utf-8"); copy_section_marker = "\n# Copy template to a new directory"; copy_section_index = justfile_text.find(copy_section_marker); trimmed_justfile_text = justfile_text[:copy_section_index].rstrip() + "\n" if copy_section_index != -1 else justfile_text; justfile_path.write_text(trimmed_justfile_text, encoding="utf-8")' "$NEW_JUSTFILE"
 
+    # Pick random default ports so multiple copies of the template can run
+    # side-by-side without colliding on 8000/5173/3000. Ranges stay close to the
+    # well-known defaults and are mutually disjoint, so a single invocation
+    # cannot collide with itself.
+    backend_random_port=$((8000 + RANDOM % 1000))
+    frontend_random_port=$((5180 + RANDOM % 820))
+    frontend_public_random_port=$((3010 + RANDOM % 990))
+    echo "Picked random ports: backend=$backend_random_port, admin frontend=$frontend_random_port, public frontend=$frontend_public_random_port"
+
+    # `run` and `down` both fall back to the hardcoded defaults, so rewrite all
+    # six occurrences in the destination justfile at once.
+    python3 -c 'from pathlib import Path; import sys; jp = Path(sys.argv[1]); b, f, fp = sys.argv[2:5]; t = jp.read_text(encoding="utf-8"); t = t.replace("${BACKEND_PORT:-8000}", "${BACKEND_PORT:-" + b + "}").replace("${FRONTEND_PORT:-5173}", "${FRONTEND_PORT:-" + f + "}").replace("${FRONTEND_PUBLIC_PORT:-3000}", "${FRONTEND_PUBLIC_PORT:-" + fp + "}"); jp.write_text(t, encoding="utf-8")' "$NEW_JUSTFILE" "$backend_random_port" "$frontend_random_port" "$frontend_public_random_port"
+
     echo "Updating project name in config files..."
     python3 -c 'from pathlib import Path; import sys; old_project_name = sys.argv[1]; new_project_name = sys.argv[2]; target_root = Path(sys.argv[3]); project_file_paths = [target_root / path for path in sys.argv[4:]]; [project_file_path.write_text(project_file_path.read_text(encoding="utf-8").replace(old_project_name, new_project_name), encoding="utf-8") for project_file_path in project_file_paths if project_file_path.exists()]' "$OLD_NAME" "$PROJECT_NAME" "$NEW_DIR" config.toml mkdocs.yml pyproject.toml uv.lock docker-compose.dokploy.yml docker-compose.yml frontend-admin/nginx.conf frontend-public/Dockerfile deploy/vps-traefik/README.md deploy/vps-traefik/docker-compose.yml deploy/vps-traefik/.env.example deploy/vps-traefik/app.env.example deploy/vps-traefik/github-actions-deploy.yml.example
 
@@ -650,6 +663,16 @@ copy name force='':
         git -C "$NEW_DIR" init
     fi
     (cd "$NEW_DIR" && uv run pre-commit install)
+
+    # Seed the destination's run state file so the first `just run` reads the
+    # same random ports instead of falling back to the justfile defaults.
+    run_state_file="$NEW_DIR/$(git -C "$NEW_DIR" rev-parse --git-path vanta-run.env)"
+    mkdir -p "$(dirname "$run_state_file")"
+    {
+        printf 'BACKEND_PORT=%s\n' "$backend_random_port"
+        printf 'FRONTEND_PORT=%s\n' "$frontend_random_port"
+        printf 'FRONTEND_PUBLIC_PORT=%s\n' "$frontend_public_random_port"
+    } > "$run_state_file"
 
     # Check git identity so the initial commit below fails with a clear hint
     # rather than git's default "Author identity unknown" error.
