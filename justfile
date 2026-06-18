@@ -650,3 +650,19 @@ copy name force='':
         git -C "$NEW_DIR" init
     fi
     (cd "$NEW_DIR" && uv run pre-commit install)
+
+    # Check git identity so the initial commit below fails with a clear hint
+    # rather than git's default "Author identity unknown" error.
+    if ! git config --get-all user.name >/dev/null 2>&1; then
+        echo "Error: git user.name and user.email must be configured before 'just copy' can create the initial commit."
+        echo "  Set them globally, for example:"
+        echo "    git config --global user.name \"Your Name\""
+        echo "    git config --global user.email \"you@example.com\""
+        exit 1
+    fi
+
+    echo "Creating initial commit..."
+    git -C "$NEW_DIR" add -A
+    # Skip check-test-flag: a fresh repo has no .last_tested_commit yet.
+    # Other hooks (ruff, yaml, architecture) still run to validate the template.
+    SKIP=check-test-flag git -C "$NEW_DIR" commit -m "chore: initial commit from template"

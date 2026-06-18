@@ -631,15 +631,44 @@ implement prd_file ai_tool prompt="":
         # claude: --print + --verbose + stream-json lets jq render thinking/tool calls in real time
         claude --dangerously-skip-permissions --print --verbose --output-format stream-json --include-partial-messages < <(printf '%s' "$prompt_text") 2>&1 | \
             jq --unbuffered -r '
-                if .type == "stream_event" and .event.type == "content_block_delta" and .event.delta.type == "thinking_delta" then
-                    "💭 \(.event.delta.thinking)\n"
-                elif .type == "stream_event" and .event.type == "content_block_start" and .event.content_block.type == "tool_use" then
-                    "\n🔧 \(.event.content_block.name)(\((.event.content_block.input // {} | tostring) | .[0:120]))\n"
-                elif .type == "result" then
-                    "\n\(.result)\n"
-                else
-                    empty
-                end
+                # Stateful: track per-block type and input byte count across the stream.
+                # content_block_start ships an empty `input: {}`; the real parameters
+                # arrive via `input_json_delta` fragments, then content_block_stop closes
+                # the line — so we open on start, stream on deltas, close on stop.
+                foreach (inputs) as $evt (
+                    {index_types: {}, index_chars: {}};
+
+                    if $evt.type == "stream_event" and $evt.event.type == "content_block_start" then
+                        .index_types[($evt.event.index | tostring)] = $evt.event.content_block.type
+                        | (if $evt.event.content_block.type == "tool_use" then .index_chars[($evt.event.index | tostring)] = 0 else . end)
+                    elif $evt.type == "stream_event" and $evt.event.type == "content_block_delta" and $evt.event.delta.type == "input_json_delta" then
+                        .index_chars[($evt.event.index | tostring)] = (.index_chars[($evt.event.index | tostring)] // 0) + ($evt.event.delta.partial_json | length)
+                    else
+                        .
+                    end;
+
+                    if $evt.type == "stream_event" and $evt.event.type == "content_block_start" and $evt.event.content_block.type == "tool_use" then
+                        "\n🔧 \($evt.event.content_block.name)("
+                    elif $evt.type == "stream_event" and $evt.event.type == "content_block_delta" and $evt.event.delta.type == "thinking_delta" then
+                        "💭 \($evt.event.delta.thinking)\n"
+                    elif $evt.type == "stream_event" and $evt.event.type == "content_block_delta" and $evt.event.delta.type == "input_json_delta" then
+                        if (.index_chars[($evt.event.index | tostring)] // 0) <= 120 then
+                            $evt.event.delta.partial_json
+                        else
+                            empty
+                        end
+                    elif $evt.type == "stream_event" and $evt.event.type == "content_block_stop" and .index_types[($evt.event.index | tostring)] == "tool_use" then
+                        if (.index_chars[($evt.event.index | tostring)] // 0) > 120 then
+                            "…)\n"
+                        else
+                            ")\n"
+                        end
+                    elif $evt.type == "result" then
+                        "\n\($evt.result)\n"
+                    else
+                        empty
+                    end
+                )
             ' || true
     else
         "${SHELL:-bash}" -i -c "$(printf '%s %q' "$ai_tool" "$prompt_text")" || true
@@ -676,6 +705,8 @@ implement prd_file ai_tool prompt="":
 #   just ai push                            # run `just test`, commit, then push with claude
 #   just ai push kimi "custom prompt"        # use kimi, then push
 #   just ai implement <prd-file> [tool]     # implement a PRD (default: claude)
+#   just ai tag <name>                      # write tag message and create annotated tag with claude
+#   just ai tag <name> kimi "custom prompt" # use kimi with a custom prompt
 ai subcommand arg1="" arg2="" arg3="" :
     #!/usr/bin/env bash
     set -euo pipefail
@@ -692,12 +723,16 @@ ai subcommand arg1="" arg2="" arg3="" :
         implement)
             just implement "{{arg1}}" "{{arg2}}" "{{arg3}}"
             ;;
+        tag)
+            just _ai_tag "{{arg1}}" "{{arg2}}" "{{arg3}}"
+            ;;
         *)
             echo "Usage:"
             echo "  just ai fix          # resolve rebase conflicts"
             echo "  just ai commit       # run just test, then commit"
             echo "  just ai push         # run just test, then commit and push"
             echo "  just ai implement    # implement a PRD"
+            echo "  just ai tag <name>   # write tag message and create annotated tag"
             exit 1
             ;;
     esac
@@ -754,15 +789,44 @@ _ai_fix ai_tool="claude" prompt="" :
         # claude: --print + --verbose + stream-json lets jq render thinking/tool calls in real time
         claude --dangerously-skip-permissions --print --verbose --output-format stream-json --include-partial-messages < <(printf '%s' "$prompt_text") 2>&1 | \
             jq --unbuffered -r '
-                if .type == "stream_event" and .event.type == "content_block_delta" and .event.delta.type == "thinking_delta" then
-                    "💭 \(.event.delta.thinking)\n"
-                elif .type == "stream_event" and .event.type == "content_block_start" and .event.content_block.type == "tool_use" then
-                    "\n🔧 \(.event.content_block.name)(\((.event.content_block.input // {} | tostring) | .[0:120]))\n"
-                elif .type == "result" then
-                    "\n\(.result)\n"
-                else
-                    empty
-                end
+                # Stateful: track per-block type and input byte count across the stream.
+                # content_block_start ships an empty `input: {}`; the real parameters
+                # arrive via `input_json_delta` fragments, then content_block_stop closes
+                # the line — so we open on start, stream on deltas, close on stop.
+                foreach (inputs) as $evt (
+                    {index_types: {}, index_chars: {}};
+
+                    if $evt.type == "stream_event" and $evt.event.type == "content_block_start" then
+                        .index_types[($evt.event.index | tostring)] = $evt.event.content_block.type
+                        | (if $evt.event.content_block.type == "tool_use" then .index_chars[($evt.event.index | tostring)] = 0 else . end)
+                    elif $evt.type == "stream_event" and $evt.event.type == "content_block_delta" and $evt.event.delta.type == "input_json_delta" then
+                        .index_chars[($evt.event.index | tostring)] = (.index_chars[($evt.event.index | tostring)] // 0) + ($evt.event.delta.partial_json | length)
+                    else
+                        .
+                    end;
+
+                    if $evt.type == "stream_event" and $evt.event.type == "content_block_start" and $evt.event.content_block.type == "tool_use" then
+                        "\n🔧 \($evt.event.content_block.name)("
+                    elif $evt.type == "stream_event" and $evt.event.type == "content_block_delta" and $evt.event.delta.type == "thinking_delta" then
+                        "💭 \($evt.event.delta.thinking)\n"
+                    elif $evt.type == "stream_event" and $evt.event.type == "content_block_delta" and $evt.event.delta.type == "input_json_delta" then
+                        if (.index_chars[($evt.event.index | tostring)] // 0) <= 120 then
+                            $evt.event.delta.partial_json
+                        else
+                            empty
+                        end
+                    elif $evt.type == "stream_event" and $evt.event.type == "content_block_stop" and .index_types[($evt.event.index | tostring)] == "tool_use" then
+                        if (.index_chars[($evt.event.index | tostring)] // 0) > 120 then
+                            "…)\n"
+                        else
+                            ")\n"
+                        end
+                    elif $evt.type == "result" then
+                        "\n\($evt.result)\n"
+                    else
+                        empty
+                    end
+                )
             ' || true
     else
         "${SHELL:-bash}" -i -c "$(printf '%s %q' "$ai_tool" "$prompt_text")" || true
@@ -802,15 +866,44 @@ _ai_commit ai_tool="claude" prompt="" :
         # claude: --print + --verbose + stream-json lets jq render thinking/tool calls in real time
         claude --dangerously-skip-permissions --print --verbose --output-format stream-json --include-partial-messages < <(printf '%s' "$prompt_text") 2>&1 | \
             jq --unbuffered -r '
-                if .type == "stream_event" and .event.type == "content_block_delta" and .event.delta.type == "thinking_delta" then
-                    "💭 \(.event.delta.thinking)\n"
-                elif .type == "stream_event" and .event.type == "content_block_start" and .event.content_block.type == "tool_use" then
-                    "\n🔧 \(.event.content_block.name)(\((.event.content_block.input // {} | tostring) | .[0:120]))\n"
-                elif .type == "result" then
-                    "\n\(.result)\n"
-                else
-                    empty
-                end
+                # Stateful: track per-block type and input byte count across the stream.
+                # content_block_start ships an empty `input: {}`; the real parameters
+                # arrive via `input_json_delta` fragments, then content_block_stop closes
+                # the line — so we open on start, stream on deltas, close on stop.
+                foreach (inputs) as $evt (
+                    {index_types: {}, index_chars: {}};
+
+                    if $evt.type == "stream_event" and $evt.event.type == "content_block_start" then
+                        .index_types[($evt.event.index | tostring)] = $evt.event.content_block.type
+                        | (if $evt.event.content_block.type == "tool_use" then .index_chars[($evt.event.index | tostring)] = 0 else . end)
+                    elif $evt.type == "stream_event" and $evt.event.type == "content_block_delta" and $evt.event.delta.type == "input_json_delta" then
+                        .index_chars[($evt.event.index | tostring)] = (.index_chars[($evt.event.index | tostring)] // 0) + ($evt.event.delta.partial_json | length)
+                    else
+                        .
+                    end;
+
+                    if $evt.type == "stream_event" and $evt.event.type == "content_block_start" and $evt.event.content_block.type == "tool_use" then
+                        "\n🔧 \($evt.event.content_block.name)("
+                    elif $evt.type == "stream_event" and $evt.event.type == "content_block_delta" and $evt.event.delta.type == "thinking_delta" then
+                        "💭 \($evt.event.delta.thinking)\n"
+                    elif $evt.type == "stream_event" and $evt.event.type == "content_block_delta" and $evt.event.delta.type == "input_json_delta" then
+                        if (.index_chars[($evt.event.index | tostring)] // 0) <= 120 then
+                            $evt.event.delta.partial_json
+                        else
+                            empty
+                        end
+                    elif $evt.type == "stream_event" and $evt.event.type == "content_block_stop" and .index_types[($evt.event.index | tostring)] == "tool_use" then
+                        if (.index_chars[($evt.event.index | tostring)] // 0) > 120 then
+                            "…)\n"
+                        else
+                            ")\n"
+                        end
+                    elif $evt.type == "result" then
+                        "\n\($evt.result)\n"
+                    else
+                        empty
+                    end
+                )
             ' || true
     else
         "${SHELL:-bash}" -i -c "$(printf '%s %q' "$ai_tool" "$prompt_text")" || true
@@ -850,15 +943,44 @@ _ai_push ai_tool="claude" prompt="" :
         # claude: --print + --verbose + stream-json lets jq render thinking/tool calls in real time
         claude --dangerously-skip-permissions --print --verbose --output-format stream-json --include-partial-messages < <(printf '%s' "$prompt_text") 2>&1 | \
             jq --unbuffered -r '
-                if .type == "stream_event" and .event.type == "content_block_delta" and .event.delta.type == "thinking_delta" then
-                    "💭 \(.event.delta.thinking)\n"
-                elif .type == "stream_event" and .event.type == "content_block_start" and .event.content_block.type == "tool_use" then
-                    "\n🔧 \(.event.content_block.name)(\((.event.content_block.input // {} | tostring) | .[0:120]))\n"
-                elif .type == "result" then
-                    "\n\(.result)\n"
-                else
-                    empty
-                end
+                # Stateful: track per-block type and input byte count across the stream.
+                # content_block_start ships an empty `input: {}`; the real parameters
+                # arrive via `input_json_delta` fragments, then content_block_stop closes
+                # the line — so we open on start, stream on deltas, close on stop.
+                foreach (inputs) as $evt (
+                    {index_types: {}, index_chars: {}};
+
+                    if $evt.type == "stream_event" and $evt.event.type == "content_block_start" then
+                        .index_types[($evt.event.index | tostring)] = $evt.event.content_block.type
+                        | (if $evt.event.content_block.type == "tool_use" then .index_chars[($evt.event.index | tostring)] = 0 else . end)
+                    elif $evt.type == "stream_event" and $evt.event.type == "content_block_delta" and $evt.event.delta.type == "input_json_delta" then
+                        .index_chars[($evt.event.index | tostring)] = (.index_chars[($evt.event.index | tostring)] // 0) + ($evt.event.delta.partial_json | length)
+                    else
+                        .
+                    end;
+
+                    if $evt.type == "stream_event" and $evt.event.type == "content_block_start" and $evt.event.content_block.type == "tool_use" then
+                        "\n🔧 \($evt.event.content_block.name)("
+                    elif $evt.type == "stream_event" and $evt.event.type == "content_block_delta" and $evt.event.delta.type == "thinking_delta" then
+                        "💭 \($evt.event.delta.thinking)\n"
+                    elif $evt.type == "stream_event" and $evt.event.type == "content_block_delta" and $evt.event.delta.type == "input_json_delta" then
+                        if (.index_chars[($evt.event.index | tostring)] // 0) <= 120 then
+                            $evt.event.delta.partial_json
+                        else
+                            empty
+                        end
+                    elif $evt.type == "stream_event" and $evt.event.type == "content_block_stop" and .index_types[($evt.event.index | tostring)] == "tool_use" then
+                        if (.index_chars[($evt.event.index | tostring)] // 0) > 120 then
+                            "…)\n"
+                        else
+                            ")\n"
+                        end
+                    elif $evt.type == "result" then
+                        "\n\($evt.result)\n"
+                    else
+                        empty
+                    end
+                )
             ' || true
     else
         "${SHELL:-bash}" -i -c "$(printf '%s %q' "$ai_tool" "$prompt_text")" || true
@@ -904,6 +1026,99 @@ _ai_push ai_tool="claude" prompt="" :
 
         echo "Branch '$current_branch' is $ahead_count commit(s) ahead of $upstream. Pushing..."
         git push
+    fi
+
+# Internal: ask an AI tool to write a release-note message and create an annotated git tag on the current commit.
+_ai_tag tag_name ai_tool="claude" prompt="" :
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    tag_name="{{tag_name}}"
+    ai_tool="{{ai_tool}}"
+    if [ -z "$ai_tool" ]; then
+        ai_tool="claude"
+    fi
+    prompt_text="{{prompt}}"
+
+    if [ -z "$tag_name" ]; then
+        echo "Error: tag name is required."
+        echo "Usage: just ai tag <name> [claude|kimi] [prompt]"
+        exit 1
+    fi
+
+    if [ "$ai_tool" != "claude" ] && [ "$ai_tool" != "kimi" ]; then
+        echo "Unsupported AI tool: $ai_tool"
+        echo "Supported tools: claude, kimi"
+        echo "Usage: just ai tag <name> [claude|kimi] [prompt]"
+        exit 1
+    fi
+
+    if [ -z "$prompt_text" ]; then
+        last_tag="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+        if [ -n "$last_tag" ]; then
+            range_desc="commits since ${last_tag}"
+            log_cmd="git log --oneline ${last_tag}..HEAD"
+        else
+            range_desc="all commits"
+            log_cmd="git log --oneline"
+        fi
+        prompt_text="Summarize the ${range_desc} with \`${log_cmd}\` (and \`git diff --stat <ref>..HEAD\` if needed) and create an annotated git tag named '${tag_name}' on the current HEAD using \`git tag -a '${tag_name}' -m \"<release notes>\"\`. The tag message should be a scannable release note — short subject line, then a few bullet points describing user-visible changes. If the tag already exists locally, do NOT overwrite or delete it — stop and report the conflict. Do NOT push. Do NOT amend existing commits. Proceed autonomously without asking for confirmation — tag directly."
+    fi
+
+    echo "Tag: $tag_name"
+    echo "Tool: $ai_tool"
+    echo "Prompt: $prompt_text"
+    echo ""
+
+    # Run AI tool via user's interactive shell (needed for alias resolution)
+    if [ "$ai_tool" = "kimi" ]; then
+        # kimi uses --prompt flag instead of positional argument
+        "${SHELL:-bash}" -i -c "$(printf '%s --prompt %q' "$ai_tool" "$prompt_text")" || true
+    elif [ "$ai_tool" = "claude" ]; then
+        # claude: --print + --verbose + stream-json lets jq render thinking/tool calls in real time
+        claude --dangerously-skip-permissions --print --verbose --output-format stream-json --include-partial-messages < <(printf '%s' "$prompt_text") 2>&1 | \
+            jq --unbuffered -r '
+                # Stateful: track per-block type and input byte count across the stream.
+                # content_block_start ships an empty `input: {}`; the real parameters
+                # arrive via `input_json_delta` fragments, then content_block_stop closes
+                # the line — so we open on start, stream on deltas, close on stop.
+                foreach (inputs) as $evt (
+                    {index_types: {}, index_chars: {}};
+
+                    if $evt.type == "stream_event" and $evt.event.type == "content_block_start" then
+                        .index_types[($evt.event.index | tostring)] = $evt.event.content_block.type
+                        | (if $evt.event.content_block.type == "tool_use" then .index_chars[($evt.event.index | tostring)] = 0 else . end)
+                    elif $evt.type == "stream_event" and $evt.event.type == "content_block_delta" and $evt.event.delta.type == "input_json_delta" then
+                        .index_chars[($evt.event.index | tostring)] = (.index_chars[($evt.event.index | tostring)] // 0) + ($evt.event.delta.partial_json | length)
+                    else
+                        .
+                    end;
+
+                    if $evt.type == "stream_event" and $evt.event.type == "content_block_start" and $evt.event.content_block.type == "tool_use" then
+                        "\n🔧 \($evt.event.content_block.name)("
+                    elif $evt.type == "stream_event" and $evt.event.type == "content_block_delta" and $evt.event.delta.type == "thinking_delta" then
+                        "💭 \($evt.event.delta.thinking)\n"
+                    elif $evt.type == "stream_event" and $evt.event.type == "content_block_delta" and $evt.event.delta.type == "input_json_delta" then
+                        if (.index_chars[($evt.event.index | tostring)] // 0) <= 120 then
+                            $evt.event.delta.partial_json
+                        else
+                            empty
+                        end
+                    elif $evt.type == "stream_event" and $evt.event.type == "content_block_stop" and .index_types[($evt.event.index | tostring)] == "tool_use" then
+                        if (.index_chars[($evt.event.index | tostring)] // 0) > 120 then
+                            "…)\n"
+                        else
+                            ")\n"
+                        end
+                    elif $evt.type == "result" then
+                        "\n\($evt.result)\n"
+                    else
+                        empty
+                    end
+                )
+            ' || true
+    else
+        "${SHELL:-bash}" -i -c "$(printf '%s %q' "$ai_tool" "$prompt_text")" || true
     fi
 
 # Sync files from the upstream template repository.
