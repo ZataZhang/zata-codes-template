@@ -44,6 +44,7 @@ jobs:
           cache-dependency-path: frontend-admin/pnpm-lock.yaml
 
       - name: Generate "what's new" manifest
+        working-directory: ${{ github.workspace }}
         run: python3 scripts/build/build_whats_new_manifest.py --output frontend-admin/public/versions.json
 
       - name: Install dependencies
