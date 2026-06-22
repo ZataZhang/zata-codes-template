@@ -120,10 +120,10 @@ uv run pre-commit run --show-diff-on-failure
 `just lint --full` 和 `just test` 会把通过状态写入 Git 目录下的本地标记文件：
 
 - `.last_linted_commit`：绑定当前分支、HEAD 和 lint 有效 tree；未变更时，后续 `just lint --full` 走快速路径。
-- `.last_tested_commit`：绑定当前分支、HEAD 和 test 有效 tree；提交前由 `check-test-flag` 校验。
+- `.last_tested_commit`：绑定当前分支、HEAD 和 test 有效 tree；提交前由 `check-test-flag` 校验，并在 `just test` 入口用于判断是否需要重新跑测试。
 - 对于刚 `git init`、尚无首个 commit 的仓库，flag 会绑定当前分支、`no-commit` 和对应有效 tree，因此模板仓库复制后可在首次提交前正常运行 `just test` / `just lint --full` / `git commit` 流程。
 
-`just test` 在运行测试前会先执行 `SKIP=check-test-flag just lint --full`。因此测试成功后会同时刷新 test 标记和 full lint 标记，避免刚跑完 `just test` 后再次执行完整 full lint。
+`just test` 在入口处会先检查 `.last_tested_commit`：若分支、HEAD 和 test 有效 tree 均未变化，则直接打印提示并退出，避免重复 lint 与 pytest。只有在 flag 无效或不存在时，才会执行 `SKIP=check-test-flag just lint --full` 并运行测试。测试成功后会同时刷新 test 标记和 full lint 标记，避免刚跑完 `just test` 后再次执行完整 full lint。
 
 `just lint --full` 的快速路径仍会执行轻量的 `check-test-flag`，除非调用方显式设置 `SKIP=check-test-flag`。如果 `SKIP` 跳过了除 `check-test-flag` 以外的 hook，本次 full lint 不会写入 `.last_linted_commit`。
 
