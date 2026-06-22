@@ -1,0 +1,34 @@
+# -----------------------------------------------------------------------------
+# Prometheus configuration for the per-project observability stack.
+#
+# Scrapes the local backend service. In central mode, add a remote_write
+# section pointing at the zata-ops central Prometheus/Mimir endpoint.
+# -----------------------------------------------------------------------------
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "zata-codes-template-backend"
+    static_configs:
+      - targets:
+          - "zata-codes-template-backend:8000"
+    metrics_path: /metrics
+    # The backend service name is stable because docker-compose.monitoring.yml
+    # sets container_name explicitly; this makes the scrape target predictable
+    # across project copies.
+
+  - job_name: "prometheus-self"
+    static_configs:
+      - targets:
+          - "localhost:9090"
+
+# Example central mode configuration (uncomment and configure when connecting
+# to the zata-ops central observability hub):
+#
+# remote_write:
+#   - url: "http://zata-ops-mimir:9090/api/v1/push"
+#     basic_auth:
+#       username: "tenant"
+#       password: "${REMOTE_WRITE_PASSWORD}"

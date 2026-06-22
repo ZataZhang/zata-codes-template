@@ -14,8 +14,11 @@ dependencies = [
     "langchain-core>=0.2.0",
     "langchain-openai>=0.1.0",
     "pre-commit>=4.5.1",
+    "prometheus-client>=0.20.0",
+    "psycopg2-binary>=2.9.9",
     "pydantic-settings>=2.0.0",
     "python-dotenv>=1.1.0",
+    "python-json-logger>=2.0.7",
     "uvicorn[standard]>=0.30.0",
 ]
 

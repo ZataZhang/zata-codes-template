@@ -1,0 +1,60 @@
+# -----------------------------------------------------------------------------
+# Minimal Loki configuration for local development.
+#
+# Uses the TSDB single-store index with filesystem object storage. This is
+# intentionally simple: it keeps the per-project observability stack easy to
+# run on a developer laptop. For production or multi-project central mode,
+# switch to the zata-ops central Loki cluster with object storage (S3/etc).
+# -----------------------------------------------------------------------------
+
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+query_range:
+  results_cache:
+    cache:
+      embedded_cache:
+        enabled: true
+        max_size_mb: 100
+
+schema_config:
+  configs:
+    - from: 2020-10-24
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+ruler:
+  alertmanager_url: http://localhost:9093
+
+# Default retention for local development; central zata-ops stack will
+# configure a longer retention based on operational requirements.
+table_manager:
+  retention_deletes_enabled: true
+  retention_period: 168h
+
+compactor:
+  working_directory: /loki/compactor
+  compaction_interval: 10m
+  retention_enabled: true
+  retention_delete_delay: 2h
+  retention_delete_worker_count: 150
+  delete_request_store: filesystem

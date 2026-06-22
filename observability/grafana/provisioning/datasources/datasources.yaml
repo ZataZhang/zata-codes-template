@@ -1,0 +1,22 @@
+# -----------------------------------------------------------------------------
+# Grafana datasource provisioning.
+#
+# Automatically registers Prometheus and Loki so the project-local Grafana
+# works out of the box after `docker compose up`.
+# -----------------------------------------------------------------------------
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://observability-prometheus:9090
+    isDefault: true
+    editable: false
+
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://observability-loki:3100
+    editable: false

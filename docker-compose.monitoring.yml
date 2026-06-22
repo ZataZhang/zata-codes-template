@@ -1,0 +1,122 @@
+# -----------------------------------------------------------------------------
+# Self-contained local observability stack.
+#
+# This overlay adds a per-project monitoring agent (Vector) plus local
+# Loki + Prometheus + Grafana so that every project generated from this
+# template can observe itself without depending on zata-ops.
+#
+# zata-ops can still act as a central observability hub: point the Vector
+# and/or Prometheus remote_write endpoints at the zata-ops central stack
+# using environment variables (see .env.monitoring.example).
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d --build
+#
+# After startup:
+#   Grafana:       http://localhost:3000  (admin/admin unless changed)
+#   Prometheus:    http://localhost:9090
+#   Loki:          http://localhost:3100
+#   Backend API:   http://localhost:8000
+# -----------------------------------------------------------------------------
+
+name: zata-codes-template
+
+services:
+  zata-codes-template-backend:
+    # Make the service name stable so Prometheus scrape config resolves it.
+    container_name: zata-codes-template-backend
+    networks:
+      - default
+      - monitoring
+    environment:
+      # JSON logs are required for the Vector -> Loki pipeline.
+      - OBSERVABILITY_LOG_FORMAT=json
+      # Optional overrides for central mode.
+      - OBSERVABILITY_SERVICE_NAME=${OBSERVABILITY_SERVICE_NAME:-zata-codes-template-backend}
+      - OBSERVABILITY_SERVICE_VERSION=${OBSERVABILITY_SERVICE_VERSION:-0.1.0}
+      - OBSERVABILITY_DEPLOYMENT_ENVIRONMENT=${OBSERVABILITY_DEPLOYMENT_ENVIRONMENT:-development}
+
+  observability-vector:
+    image: timberio/vector:0.45.0-distroless-libc
+    container_name: zata-codes-template-vector
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./observability/vector/vector.yaml:/etc/vector/vector.yaml:ro
+      # Read the backend log file as a fallback when Docker Desktop does not
+      # expose container logs through the local socket.
+      - zata-codes-template-backend-logs:/app/logs:ro
+    environment:
+      - VECTOR_CONFIG=/etc/vector/vector.yaml
+      - VECTOR_LOG=info
+      - COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-zata-codes-template}
+      - LOKI_ENDPOINT=${LOKI_ENDPOINT:-http://observability-loki:3100}
+    networks:
+      - monitoring
+    depends_on:
+      observability-loki:
+        condition: service_started
+    restart: unless-stopped
+
+  observability-loki:
+    image: grafana/loki:3.0.0
+    container_name: zata-codes-template-loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./observability/loki/local-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki-data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - monitoring
+    restart: unless-stopped
+
+  observability-prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: zata-codes-template-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+      - --web.console.libraries=/usr/share/prometheus/console_libraries
+      - --web.console.templates=/usr/share/prometheus/consoles
+    networks:
+      - monitoring
+    restart: unless-stopped
+
+  observability-grafana:
+    image: grafana/grafana:11.0.0
+    container_name: zata-codes-template-grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-http://localhost:3000}
+    networks:
+      - monitoring
+    depends_on:
+      observability-loki:
+        condition: service_started
+      observability-prometheus:
+        condition: service_started
+    restart: unless-stopped
+
+networks:
+  monitoring:
+    name: zata-codes-template-monitoring
+    driver: bridge
+
+volumes:
+  loki-data:
+  prometheus-data:
+  grafana-data:

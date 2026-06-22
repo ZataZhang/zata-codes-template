@@ -26,6 +26,13 @@ services:
     environment:
       - HOST=0.0.0.0
       - PORT=8000
+      - OBSERVABILITY_ENABLED=${OBSERVABILITY_ENABLED:-true}
+      - OBSERVABILITY_METRICS_ENABLED=${OBSERVABILITY_METRICS_ENABLED:-true}
+      - OBSERVABILITY_REQUEST_ID_ENABLED=${OBSERVABILITY_REQUEST_ID_ENABLED:-true}
+      - OBSERVABILITY_LOG_FORMAT=${OBSERVABILITY_LOG_FORMAT:-text}
+      - OBSERVABILITY_SERVICE_NAME=${OBSERVABILITY_SERVICE_NAME:-zata-codes-template-backend}
+      - OBSERVABILITY_SERVICE_VERSION=${OBSERVABILITY_SERVICE_VERSION:-0.1.0}
+      - OBSERVABILITY_DEPLOYMENT_ENVIRONMENT=${OBSERVABILITY_DEPLOYMENT_ENVIRONMENT:-production}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -38,6 +45,9 @@ services:
       - zata-codes-template-backend-data:/app/backend/data
     networks:
       - traefik
+    labels:
+      - "com.docker.compose.project=zata-codes-template"
+      - "com.docker.compose.service=backend"
     deploy:
       resources:
         limits:

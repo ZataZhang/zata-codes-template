@@ -38,6 +38,11 @@ RUN groupadd -r appgroup && useradd -r -g appgroup appuser
 COPY alembic.ini ./
 COPY alembic ./alembic
 
+# Ensure the log directory exists so Docker named volumes inherit the
+# correct ownership when mounted at runtime. The application writes to
+# /app/logs/app.log (see infrastructure/config/settings.py).
+RUN mkdir -p /app/logs
+
 # Set ownership
 RUN chown -R appuser:appgroup /app
 

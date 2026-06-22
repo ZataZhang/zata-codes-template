@@ -1,0 +1,123 @@
+# -----------------------------------------------------------------------------
+# Vector configuration for the per-project observability agent.
+#
+# This agent runs inside the project's own compose stack and forwards
+# container logs to the local Loki instance. In central mode, point the
+# loki sink endpoint at the zata-ops central Loki using the LOKI_ENDPOINT
+# environment variable.
+#
+# Two log sources are configured:
+#   1. docker_logs  - primary source for container runtimes (Linux/Docker).
+#   2. backend_file - fallback reading the backend log file directly; useful
+#                     when Docker Desktop on macOS does not expose container
+#                     logs through the local socket.
+# -----------------------------------------------------------------------------
+
+api:
+  enabled: true
+  address: 0.0.0.0:8686
+
+sources:
+  docker_logs:
+    type: docker_logs
+    docker_host: unix:///var/run/docker.sock
+    include_images:
+      - "*"
+
+  backend_file:
+    type: file
+    include:
+      - /app/logs/app.log
+    read_from: beginning
+    ignore_checkpoints: true
+
+transforms:
+  filter_project:
+    type: filter
+    inputs:
+      - docker_logs
+    condition: |
+      .label."com.docker.compose.project" == "${COMPOSE_PROJECT_NAME}"
+
+  normalize_docker_logs:
+    type: remap
+    inputs:
+      - filter_project
+    source: |
+      # Try to parse the message as JSON. If it fails, leave it as raw text.
+      parsed, err = parse_json(.message)
+      if err == null {
+          . = merge!(., parsed)
+      }
+
+      # Extract Docker Compose labels when available.
+      compose_project = "unknown"
+      compose_service = "unknown"
+      if exists(.label."com.docker.compose.project") {
+          compose_project = .label."com.docker.compose.project"
+      }
+      if exists(.label."com.docker.compose.service") {
+          compose_service = .label."com.docker.compose.service"
+      }
+      .compose_project = compose_project
+      .compose_service = compose_service
+
+      # Prefer the service_name emitted by the application; fall back to the
+      # Compose service name so logs always carry a usable identifier.
+      service_name = compose_service
+      if exists(.service_name) {
+          service_name = .service_name
+      }
+      .service_name = service_name
+
+      # Normalize level if present.
+      if !exists(.level) {
+          .level = "info"
+      }
+
+  normalize_file_logs:
+    type: remap
+    inputs:
+      - backend_file
+    source: |
+      # The backend log file already contains JSON records emitted by the
+      # application logger. Parse them and attach static compose metadata.
+      parsed, err = parse_json(.message)
+      if err == null {
+          . = merge!(., parsed)
+      }
+
+      .compose_project = "${COMPOSE_PROJECT_NAME}"
+      .compose_service = "zata-codes-template-backend"
+
+      if !exists(.service_name) {
+          .service_name = .compose_service
+      }
+      if !exists(.level) {
+          .level = "info"
+      }
+
+  merge_log_sources:
+    type: remap
+    inputs:
+      - normalize_docker_logs
+      - normalize_file_logs
+    source: |
+      # No-op merge point; both upstream transforms already produce a
+      # normalized event shape.
+      .
+
+sinks:
+  loki:
+    type: loki
+    inputs:
+      - merge_log_sources
+    endpoint: "${LOKI_ENDPOINT}"
+    encoding:
+      codec: json
+    labels:
+      compose_project: "{{ compose_project }}"
+      compose_service: "{{ compose_service }}"
+      service_name: "{{ service_name }}"
+      level: "{{ level }}"
+    out_of_order_action: accept

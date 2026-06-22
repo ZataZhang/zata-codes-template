@@ -106,6 +106,41 @@ class DatabaseSettings(BaseSettings):
         )
 
 
+class ObservabilitySettings(BaseSettings):
+    """可观测性配置 - 支持独立开关和平台无关的服务标识。"""
+
+    model_config = SettingsConfigDict(
+        env_prefix="OBSERVABILITY_",
+        extra="ignore",
+    )
+
+    enabled: bool = Field(default=True)
+    metrics_enabled: bool = Field(default=True)
+    request_id_enabled: bool = Field(default=True)
+    log_format: str = Field(default="text")
+    service_name: str = Field(default="zata-codes-template-backend")
+    service_version: str = Field(default="0.1.0")
+    deployment_environment: str = Field(default="development")
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,  # noqa: ARG003
+        file_secret_settings: PydanticBaseSettingsSource,  # noqa: ARG003
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        toml_source: _TomlSectionSource = _TomlSectionSource(
+            settings_cls, "observability"
+        )
+        return (
+            env_settings,
+            toml_source,
+            init_settings,
+        )
+
+
 class AppSettings(BaseSettings):
     """应用主配置 - 聚合所有子配置。"""
 
@@ -124,6 +159,7 @@ class AppSettings(BaseSettings):
     db_migration_mode: str = Field(default="auto")
 
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
+    observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
 
     base_dir: Path = _PROJECT_ROOT_PATH
     log_dir: Path = Field(default_factory=lambda: _PROJECT_ROOT_PATH / "logs")
@@ -441,6 +477,7 @@ __all__ = [
     "AppSettings",
     "DatabaseSettings",
     "ModelConfigError",
+    "ObservabilitySettings",
     "ProviderEndpoint",
     "config",
     "create_chat_model",

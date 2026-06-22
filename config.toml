@@ -102,3 +102,22 @@ description = "DeepSeek — OpenAI-compatible"
 base_url = "https://openrouter.ai/api/v1"
 api_key_env = "OPENROUTER_API_KEY"
 description = "OpenRouter multi-provider aggregator"
+
+# =============================================================================
+# Observability Settings
+# =============================================================================
+# Controls whether and how the backend emits telemetry signals.
+# All values can be overridden by environment variables with the prefix
+# OBSERVABILITY_ (e.g. OBSERVABILITY_ENABLED=false).
+#
+# These settings are intentionally platform-agnostic: JSON logs and Prometheus
+# metrics can be consumed by Vector/Loki, Fluentd/Elasticsearch, Datadog,
+# New Relic, SigNoz, or any other observability backend.
+[observability]
+enabled = true
+metrics_enabled = true
+request_id_enabled = true
+log_format = "text"
+service_name = "zata-codes-template-backend"
+service_version = "0.1.0"
+deployment_environment = "development"

@@ -8,8 +8,14 @@ import uvicorn
 from fastapi import FastAPI
 
 from backend.api.auth_router import router as auth_router
+from backend.api.health_router import health_router
+from backend.api.metrics_router import metrics_router
+from backend.api.middleware.prometheus_metrics import PrometheusMetricsMiddleware
+from backend.api.middleware.request_context import RequestContextMiddleware
 from backend.core.use_cases.auth import AuthUseCase
 from backend.infrastructure.auth.memory_session_store import InMemorySessionStore
+from backend.infrastructure.config.settings import config
+from backend.infrastructure.logger import logger
 
 
 def create_app() -> FastAPI:
@@ -21,6 +27,16 @@ def create_app() -> FastAPI:
     app.state.auth_use_case = auth_use_case
 
     app.include_router(auth_router)
+    app.include_router(health_router)
+
+    observability = config.observability
+    if observability.enabled:
+        if observability.request_id_enabled:
+            app.add_middleware(RequestContextMiddleware, logger=logger.get_logger())
+        if observability.metrics_enabled:
+            app.add_middleware(PrometheusMetricsMiddleware)
+            app.include_router(metrics_router)
+
     return app
 
 

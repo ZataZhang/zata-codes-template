@@ -24,9 +24,10 @@ _LOCAL_COMPOSE_PATH = _PROJECT_ROOT_PATH / "docker-compose.yml"
 _DOKPLOY_COMPOSE_PATH = _PROJECT_ROOT_PATH / "docker-compose.dokploy.yml"
 
 # Services that intentionally exist only in `docker-compose.yml` because they
-# are local-development-only (e.g. a bundled Postgres container that production
-# replaces with a managed database).
-_LOCAL_ONLY_SERVICES: frozenset[str] = frozenset({"db"})
+# are local-development-only (e.g. a bundled cache/queue container that
+# production replaces with a managed service). Empty because the local stack
+# no longer bundles PostgreSQL.
+_LOCAL_ONLY_SERVICES: frozenset[str] = frozenset()
 
 # Container-name prefixes that signal a copy-paste from the template that the
 # derived project failed to specialize. Add project-specific exceptions here

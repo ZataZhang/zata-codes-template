@@ -1,9 +1,9 @@
 # -----------------------------------------------------------------------------
 # Docker Compose — Local Development
 # -----------------------------------------------------------------------------
-# 数据库模式：
-#   - 本地模式（默认）：启动本地 PostgreSQL 容器
-#   - 远程模式：.env 中配置 DATABASE_URL 时，backend 直接连接远程数据库
+# 本地开发不再内置 PostgreSQL 容器。请在 .env / .env.local 中配置 DATABASE_URL
+# 指向已运行的数据库（例如本地 Postgres、远程 RDS 或宿主机
+# host.docker.internal:5432）。
 #
 # 备份/S3 诊断/VPS 初始化能力已迁出到独立 CLI `zata-ops`。安装方式：
 #   cd /path/to/zata-ops && uv tool install --force .
@@ -14,21 +14,6 @@
 # -----------------------------------------------------------------------------
 
 services:
-  db:
-    image: postgres:17-alpine
-    environment:
-      POSTGRES_USER: app
-      POSTGRES_PASSWORD: app
-      POSTGRES_DB: app
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U app -d app"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
   zata-codes-template-backend:
     build:
       context: .
@@ -43,7 +28,7 @@ services:
     environment:
       - HOST=0.0.0.0
       - PORT=8000
-      - DATABASE_URL=${DATABASE_URL:-postgresql+psycopg2://app:app@db:5432/app}
+      - DATABASE_URL=${DATABASE_URL}
       - API_SECRET_KEY=${API_SECRET_KEY}
       - ADMIN_IDENTIFIER=${ADMIN_IDENTIFIER:-admin}
       - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH}
@@ -52,11 +37,8 @@ services:
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
     volumes:
-      - zata-codes-template-backend-logs:/app/backend/logs
+      - zata-codes-template-backend-logs:/app/logs
       - zata-codes-template-backend-data:/app/backend/data
-    depends_on:
-      db:
-        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -64,6 +46,9 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+    labels:
+      - "com.docker.compose.project=zata-codes-template"
+      - "com.docker.compose.service=backend"
 
   # ---------------------------------------------------------------------------
   # Worker (uncomment if the project has async background tasks).
@@ -83,7 +68,7 @@ services:
   #     - path: ${COMPOSE_LOCAL_ENV_FILE:-.env.local}
   #       required: false
   #   environment:
-  #     - DATABASE_URL=${DATABASE_URL:-postgresql+psycopg2://app:app@db:5432/app}
+  #     - DATABASE_URL=${DATABASE_URL}
   #     - DB_MIGRATION_MODE=skip
   #     # Mirror any other env keys the backend service receives.
   #   volumes:
@@ -124,6 +109,5 @@ services:
     restart: unless-stopped
 
 volumes:
-  postgres-data:
   zata-codes-template-backend-logs:
   zata-codes-template-backend-data:
