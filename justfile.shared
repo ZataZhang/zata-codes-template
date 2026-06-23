@@ -608,9 +608,10 @@ implement prd_file ai_tool prompt="":
     ./scripts/shared/worktree/create.sh "$branch_name" --subdir tasks
     echo ""
 
-    # Determine worktree path
+    # Determine worktree path (must match scripts/shared/worktree/create.sh)
     repo_root="$(git rev-parse --show-toplevel)"
-    worktree_path="$(dirname "$repo_root")/tasks/$branch_name"
+    repo_name="$(basename "$repo_root")"
+    worktree_path="$(dirname "$repo_root")/${repo_name}-worktrees/tasks/$branch_name"
 
     # Copy PRD file into worktree preserving relative path
     prd_abs="$(cd "$(dirname "$prd_file")" && pwd)/$(basename "$prd_file")"
