@@ -231,13 +231,14 @@ Before handing off the PRD, verify the whole document has:
 - Section 1 includes a concise `### Proposed Solution Summary` that names the recommended mechanism before the measurable objectives
 - Section 1 includes a `### Realistic Validation` checklist immediately after the goals/objectives
 - Section 1 includes a tool-neutral `### Delivery Dependencies` block before Section 2, using `none` values when the task has no sequencing dependency
-- Section 3 includes an explicit note about matching or related pending PRDs, even when the result is "none found"
-- Section 5 starts with the required living implementation guide statement
+- Section 4 includes an explicit note about matching or related pending PRDs, even when the result is "none found"
+- Section 6 starts with the required living implementation guide statement
 - a Change Impact Tree
 - at least one Mermaid flow or architecture diagram
 - a Realistic Validation Plan that contains at least one row with a real entry point (not only pytest/helper functions), unless the PRD explicitly documents why the change is pure internal refactoring with no executable surface
 - an explicit frontend-impact statement: the affected frontend app(s) and their changes (components, routes, API wiring) for user-visible features, or `No frontend impact` with a one-line reason
 - for user-visible changes, at least one Realistic Validation row using a real frontend entry point (the repo's e2e/UI test command or a manual app run)
+- for user-visible or executable-behavior changes, a `Usage And Impact After Implementation` section (Section 2) with a per-role usage walkthrough, entry commands/API examples, and backward-compatibility impact; for purely internal changes, a one-line `No user-facing usage change` note
 - an Acceptance Checklist with grouped headings and concrete checkbox items
 - Functional Requirements using `FR-1`, `FR-2`, ... identifiers
 - Non-Goals
@@ -264,7 +265,7 @@ This structure is the output contract for generated and updated PRDs.
 Brief problem statement, proposed solution summary, and measurable objectives.
 
 Must include a concise `### Proposed Solution Summary` before the measurable objectives.
-This summary should give reviewers the implementation direction before they reach Section 4 or Section 5:
+This summary should give reviewers the implementation direction before they reach Section 5 or Section 6:
 
 - name the core mechanism or architecture path being recommended
 - state who supplies any required declaration, configuration, or input, and whether the system infers it or only consumes explicit data
@@ -291,7 +292,7 @@ Rules:
 - Use concrete real entry points such as CLI commands, HTTP endpoints, app startup, Playwright flows, worker jobs, migrations, or publish/deploy procedures.
 - Include dry-run, local file output, sandbox mode, or mocked external boundary details when live services are not required.
 - The checkbox items are actionable real-entry verifications. Capture "为什么单元测试不够" (why unit tests are insufficient) as a one-line rationale beneath the checklist, not as a checkbox, since it states reasoning rather than a task to complete.
-- This checklist does not replace the detailed `Realistic Validation Plan` table in Section 5.
+- This checklist does not replace the detailed `Realistic Validation Plan` table in Section 6.
 
 Must include a `### Delivery Dependencies` block after the first-section `### Realistic Validation` checklist and before Section 2.
 This block is tool-neutral sequencing metadata, not a tool-specific queue syntax.
@@ -320,14 +321,22 @@ Rules:
 - `soft` documents sequencing context but must not be treated as a blocking gate unless a repository-specific PRD explicitly defines that behavior.
 - Do not place tool-specific hidden markers, labels, or queue syntax in this block. Repository-specific publish tooling may translate the block into its own markers or labels.
 
-### 2. Requirement Shape
+### 2. Usage And Impact After Implementation
+
+Place this immediately after the goals so reviewers and the requester see the concrete delivered outcome before the requirement, architecture, and implementation detail. Write it at PRD time as a target end state — a usage script to build toward and verify against — not a post-hoc log.
+
+Required when the change is user-visible or has executable behavior (API/CLI/UI/job/startup/migration). For a purely internal change with no user-facing or executable surface, keep the section and state `No user-facing usage change; internal-only change.`
+
+See the `Usage And Impact After Implementation` content rule for the per-role walkthrough, entry commands/API examples, backward-compatibility impact, and anti-duplication rules.
+
+### 3. Requirement Shape
 
 - actor
 - trigger
 - expected behavior
 - explicit scope boundary
 
-### 3. Repository Context And Architecture Fit
+### 4. Repository Context And Architecture Fit
 
 Must include:
 - current relevant modules/files
@@ -347,7 +356,7 @@ If related PRDs are found, identify whether this PRD:
 
 Reflect dependency decisions in the first-section `Delivery Dependencies` block.
 
-### 4. Recommendation
+### 5. Recommendation
 
 Must include:
 - **Recommended Approach**
@@ -355,7 +364,7 @@ Must include:
 - rationale for rejecting redundant abstractions
 - **Alternatives Considered** only when a plausible non-trivial alternative exists
 
-### 5. Implementation Guide
+### 6. Implementation Guide
 
 This section must start with this sentence or a close equivalent:
 
@@ -372,7 +381,7 @@ Must include:
 - **Interactive Prototype Change Log** when prototype files changed
 - **External Validation** when web research was used
 
-### 6. Definition Of Done
+### 7. Definition Of Done
 
 Include:
 - implementation validation
@@ -382,7 +391,7 @@ Include:
 - architecture-fit checks
 - overall delivery/readiness gates only; do not use this section as a substitute for the Acceptance Checklist
 
-### 7. Acceptance Checklist
+### 8. Acceptance Checklist
 
 Include:
 - a dedicated section named `Acceptance Checklist`
@@ -392,30 +401,30 @@ Include:
 - at least one `Validation Acceptance` item that exercises the changed behavior through the highest feasible real entry point; if no real entry-point validation is included, the PRD must explicitly document that the change is pure internal refactoring with no executable surface, and this justification must be reviewed in the Decision Log
 - no checklist item may be replaced by a `Definition Of Done` bullet or by local requirement acceptance notes
 
-### 8. Functional Requirements
+### 9. Functional Requirements
 
 Use numbered requirements such as `FR-1`, `FR-2`.
 
-### 9. Non-Goals
+### 10. Non-Goals
 
 List explicit out-of-scope items.
 
-### 10. Risks And Follow-Ups
+### 11. Risks And Follow-Ups
 
 List only unavoidable migration risk, rollout risk, or explicitly approved non-blocking follow-up.
 Do not use this section to park work that is actually required for the recommended target state.
 
-### 11. Decision Log
+### 12. Decision Log
 
 Record every key decision made during this PRD as a permanent reference that survives archival.
 
 Rules:
 - Each row answers one decision question (e.g. "which architecture pattern", "which storage backend").
-- **Chosen** must match the recommendation in Section 4.
-- **Rejected** must name the concrete alternative from Section 4 when one is documented, not a vague "other approaches".
+- **Chosen** must match the recommendation in Section 5.
+- **Rejected** must name the concrete alternative from Section 5 when one is documented, not a vague "other approaches".
 - **Rationale** must be one concrete sentence — not "fits the architecture" but why specifically.
 - Assign sequential IDs: D-01, D-02, …
-- Minimum one row per PRD. Add rows for major trade-offs or alternatives explicitly resolved in Section 4.
+- Minimum one row per PRD. Add rows for major trade-offs or alternatives explicitly resolved in Section 5.
 
 ---
 
@@ -535,7 +544,24 @@ Use this structure:
 If no web research was needed, state:
 - `No external validation required; repository evidence was sufficient.`
 
-### H. Acceptance Checklist
+### H. Usage And Impact After Implementation
+
+Describe the post-implementation world from the consumer's point of view, written at PRD time as a concrete target end state — not a post-hoc log filled in after delivery. It gives reviewers and the implementer a usage script to build toward and to verify against later.
+
+Include this section when the change is user-visible or has executable behavior (API/CLI/UI/job/startup/migration). When the change is purely internal with no user-facing or executable surface, state instead:
+- `No user-facing usage change; internal-only change.`
+
+When included, cover only what the abstract sections cannot:
+- **Per-role usage walkthrough:** for each affected role that actually applies (end user, admin, developer, operator), the concrete steps to use the delivered capability — which page/route, which entry point, which fields, and the resulting identifier or output format. Anchor to real paths and entry points, not line numbers.
+- **Entry commands / API examples:** copy-paste `curl`, CLI, or client snippets that exercise the new or changed entry points. This is usually the only place these concrete examples live.
+- **Impact on existing behavior:** backward-compatibility and migration effects only — what stays the same for existing users/data/config, plus any new optional config/env and its default-off behavior.
+
+Rules:
+- This subsection is the concrete walkthrough; keep `Goals`, `Functional Requirements`, and `Requirement Shape` abstract and do not restate them verbatim here.
+- Do not introduce a capability that has no matching `FR-n`; if writing this subsection surfaces one, add the `FR` first.
+- The impact list covers backward-compatibility/migration, not the "won't build" scope — keep negative scope in `Non-Goals` and do not duplicate it here.
+
+### I. Acceptance Checklist
 
 This section is required even when Functional Requirements already include acceptance criteria.
 Do not merge it into `Definition Of Done`.
@@ -567,7 +593,7 @@ The checklist must validate the final target state, not merely the completion of
 * [ ] Searched existing `tasks/pending/` PRDs for duplicate, prerequisite, blocking, or downstream work before creating/updating this PRD
 * [ ] Checked relevant `tasks/archive/` PRDs when prior decisions or completed related work could affect the plan
 * [ ] Identified the closest existing code path
-* [ ] Documented the Existing PRD Relationship in Section 3 and reflected sequencing decisions in Delivery Dependencies
+* [ ] Documented the Existing PRD Relationship in Section 4 and reflected sequencing decisions in Delivery Dependencies
 * [ ] Handled critical unresolved questions correctly: asked the user only when repository evidence was insufficient and the answer would materially affect the PRD
 * [ ] Compared a minimal-change option against a heavier option
 * [ ] Justified every new abstraction, dependency, or file path
@@ -577,6 +603,7 @@ The checklist must validate the final target state, not merely the completion of
 * [ ] Included a Change Impact Tree with architecture-fit reasoning
 * [ ] **BLOCKER:** Stated frontend impact explicitly — for user-visible features named the affected frontend app(s) and their changes (components, routes, API wiring) in the Change Impact Tree; for backend-only work recorded `No frontend impact` with a reason; never omitted the frontend silently
 * [ ] For user-visible changes, the Realistic Validation Plan includes a real frontend entry point (the repo's e2e/UI test command or a manual app run), not only component unit tests
+* [ ] For user-visible or executable-behavior changes, included a `Usage And Impact After Implementation` section with a per-role usage walkthrough and entry commands/API examples; for purely internal changes recorded `No user-facing usage change`
 * [ ] **BLOCKER:** Did not include line-number-dependent edit instructions; all fragile edits use semantic anchors and/or `rg` search commands
 * [ ] Included at least one flow or architecture diagram
 * [ ] Implementation Guide includes the required living implementation guide statement
@@ -594,5 +621,5 @@ The checklist must validate the final target state, not merely the completion of
 * [ ] **BLOCKER:** All validation/search commands are copy-paste executable; repository searches prefer `rg`, and any `grep` alternation uses an explicit compatible mode
 * [ ] **BLOCKER:** Validation Acceptance includes the highest feasible real entry-point validation or explicitly documents why the change is pure internal refactoring with no executable surface
 * [ ] Recommended a full target state rather than leaving required work in `Phase 2`, `follow-up`, or temporary compatibility layers unless a hard constraint was explicitly documented
-* [ ] Decision Log has at least one row for each major trade-off or documented alternative resolved in Section 4
+* [ ] Decision Log has at least one row for each major trade-off or documented alternative resolved in Section 5
 * [ ] Each Decision Log row names a concrete rejected alternative (not a vague "other approaches")
