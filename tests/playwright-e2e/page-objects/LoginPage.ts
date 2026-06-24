@@ -11,15 +11,14 @@ export class LoginPage {
 
   /** Waits for the login form to be interactive. */
   async waitForReady(): Promise<void> {
-    // TODO: replace with a selector that uniquely identifies your login form
     await expect(this.page.locator('form')).toBeVisible()
+    await expect(this.page.getByTestId('login-submit-button')).toBeVisible()
   }
 
   /** Fills credentials and submits the login form. */
   async login(credentials: Credentials): Promise<void> {
-    // TODO: replace with your login form's field selectors
-    await this.page.getByLabel('Username').fill(credentials.identifier)
-    await this.page.getByLabel('Password').fill(credentials.password)
-    await this.page.getByRole('button', { name: /sign in|log in/i }).click()
+    await this.page.getByTestId('login-identifier-input').fill(credentials.identifier)
+    await this.page.getByTestId('login-password-input').fill(credentials.password)
+    await this.page.getByTestId('login-submit-button').click()
   }
 }

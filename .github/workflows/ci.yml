@@ -106,3 +106,78 @@ jobs:
           name: template-release-${{ github.sha }}
           path: ${{ steps.release_archive.outputs.release_archive_path }}
           if-no-files-found: error
+
+  e2e:
+    name: Playwright E2E (no-auth)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend-public/package.json
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+          cache-dependency-path: |
+            frontend-public/pnpm-lock.yaml
+            tests/playwright-e2e/pnpm-lock.yaml
+
+      - name: Install frontend-public dependencies
+        working-directory: frontend-public
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright dependencies and browsers
+        working-directory: tests/playwright-e2e
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install chromium
+
+      - name: Start frontend-public dev server
+        working-directory: frontend-public
+        run: |
+          pnpm run dev --hostname 127.0.0.1 --port 3000 > frontend.log 2>&1 &
+          echo "FRONTEND_PID=$!" >> "$GITHUB_ENV"
+
+      - name: Wait for frontend dev server
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:3000/login >/dev/null 2>&1; then
+              echo "Frontend dev server is ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Frontend dev server failed to start"
+          cat frontend-public/frontend.log
+          exit 1
+
+      - name: Run Playwright no-auth tests
+        working-directory: tests/playwright-e2e
+        env:
+          PLAYWRIGHT_SKIP_STACK_BOOT: "1"
+          PLAYWRIGHT_BASE_URL: "http://127.0.0.1:3000"
+          PLAYWRIGHT_HEALTH_URL: "http://127.0.0.1:3000/login"
+        run: pnpm exec playwright test --project=no-auth
+
+      - name: Stop frontend dev server
+        if: always()
+        run: |
+          kill "$FRONTEND_PID" 2>/dev/null || true
+          wait 2>/dev/null || true
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.run_id }}
+          path: |
+            tests/playwright-e2e/playwright-report/
+            tests/playwright-e2e/test-results/
+            frontend-public/frontend.log
+          if-no-files-found: ignore

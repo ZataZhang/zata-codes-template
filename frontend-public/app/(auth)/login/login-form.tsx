@@ -63,7 +63,11 @@ export function LoginForm() {
             <FormItem>
               <FormLabel>用户名 / 邮箱</FormLabel>
               <FormControl>
-                <Input placeholder="admin@example.com" {...field} />
+                <Input
+                  data-testid="login-identifier-input"
+                  placeholder="admin@example.com"
+                  {...field}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -85,13 +89,18 @@ export function LoginForm() {
                 </button>
               </div>
               <FormControl>
-                <Input type="password" placeholder="********" {...field} />
+                <Input
+                  data-testid="login-password-input"
+                  type="password"
+                  placeholder="********"
+                  {...field}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-        <Button type="submit" disabled={isLoading}>
+        <Button data-testid="login-submit-button" type="submit" disabled={isLoading}>
           {isLoading ? (
             <Loader2 className="mr-2 size-4 animate-spin" />
           ) : (
