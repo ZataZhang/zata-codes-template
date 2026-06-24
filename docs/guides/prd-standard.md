@@ -40,10 +40,9 @@
 4. **Change Impact Tree**
 5. **Mermaid 流程图或架构图**
 6. **真实验证计划（Realistic Validation Plan）**
-7. **Definition Of Done**
-8. **Acceptance Checklist（独立验收清单）**
-9. **Non-Goals**
-10. **Decision Log**（见下方规则）
+7. **Acceptance Checklist（独立验收清单）**
+8. **Non-Goals**
+9. **Decision Log**（见下方规则）
 
 以下内容是条件必填：
 
@@ -228,11 +227,10 @@ flowchart TD
 
 ## 验收清单规则
 
-`Definition Of Done` 和 `Acceptance Checklist` 不是一回事：
+`Acceptance Checklist` 是唯一的完成态闸门，已并入原 `Definition Of Done` 的"整体交付就绪"职责，不再单设 Definition Of Done 章节：
 
-- `Definition Of Done` 用来描述整体交付闸门与完成态。
 - `Acceptance Checklist` 必须作为独立章节存在，用来列出可逐项验证的验收条件。
-- 不得用 `Definition Of Done` 代替验收清单。
+- 整体交付就绪项（推荐方案已全部落地、无回归或上线阻塞）放进 `Delivery Readiness` 分组，而不是单独的 Definition Of Done。
 - 不得只依赖功能需求中的局部验收描述，然后省略独立验收清单。
 - 验收清单默认必须验证最终目标态，而不是只验证 `Phase 1` 是否完成。
 
@@ -243,6 +241,7 @@ flowchart TD
 - `Behavior Acceptance`
 - `Documentation Acceptance`
 - `Validation Acceptance`
+- `Delivery Readiness`（原 Definition Of Done 的整体交付就绪闸门）
 
 每条验收项都应当是可验证的具体结果，优先写：
 
@@ -374,7 +373,7 @@ Web 搜索不是默认步骤，只在这些场景启用：
 3. 先比较最小改动方案与更重方案，再决定推荐项。
 4. 确认最高可行保真度的真实验证入口，并写出 mock 边界、数据/环境需求和命令。
 5. 确认是否真的需要原型、ER 图、或 Web 搜索。
-6. 写 Planned Change Impact Tree、流程图、Realistic Validation Plan、Definition Of Done、Acceptance Checklist、FR 和 Non-Goals。
+6. 写 Planned Change Impact Tree、流程图、Realistic Validation Plan、Acceptance Checklist、FR 和 Non-Goals。
 7. **填写 Decision Log**：将第 3 步的每个 Option A/B 取舍转换为一行记录。
 
 ## 参考

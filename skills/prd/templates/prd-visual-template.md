@@ -217,17 +217,7 @@ If no external validation was needed:
 
 ---
 
-## 7. Definition Of Done
-
-- [ ] Recommended approach is fully implemented without introducing unapproved parallel abstractions
-- [ ] All Acceptance Checklist items are satisfied
-- [ ] Relevant tests and validation commands pass
-- [ ] Documentation and operational notes are updated where needed
-- [ ] No open regression or rollout blocker remains
-
----
-
-## 8. Acceptance Checklist
+## 7. Acceptance Checklist
 
 Use task-relevant groups. For architecture-heavy or refactor work, start with the groups below and rename or replace groups only when another grouping is more precise.
 This checklist must validate the final target state, not only an interim first phase.
@@ -266,9 +256,14 @@ This checklist must validate the final target state, not only an interim first p
 - [ ] `[rg search command]` confirms no legacy entry point, duplicate path, or compatibility shim remains
 - [ ] `[rg search command]` confirms expected target references exist in the owning files
 
+### Delivery Readiness
+
+- [ ] Recommended approach fully implemented; no unapproved parallel abstraction introduced
+- [ ] No open regression or rollout blocker remains
+
 ---
 
-## 9. Functional Requirements
+## 8. Functional Requirements
 
 - FR-1: [Requirement statement]
 - FR-2: [Requirement statement]
@@ -276,20 +271,20 @@ This checklist must validate the final target state, not only an interim first p
 
 ---
 
-## 10. Non-Goals
+## 9. Non-Goals
 
 - [Out-of-scope item 1]
 - [Out-of-scope item 2]
 
 ---
 
-## 11. Risks And Follow-Ups
+## 10. Risks And Follow-Ups
 
 - [Unavoidable risk or explicitly approved non-blocking follow-up]
 
 ---
 
-## 12. Decision Log
+## 11. Decision Log
 
 每条记录对应本 PRD 中做出的一个关键决策，归档后作为永久参考。
 
