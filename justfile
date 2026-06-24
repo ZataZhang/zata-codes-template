@@ -163,6 +163,26 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="" arg7="" arg8="" arg9="": _ch
         PORT="$backend_port" bash -lc "$backend_cmd"
     }
 
+    ensure_frontend_deps() {
+        target_dir="$1"
+        if [ -d "$target_dir/node_modules" ]; then
+            return 0
+        fi
+
+        if ! command -v pnpm >/dev/null 2>&1; then
+            echo "ERROR: pnpm is required to install frontend dependencies but was not found."
+            echo "   Install it first, for example: npm install -g pnpm"
+            echo "   Or install the frontend dependencies manually before running 'just run'."
+            exit 1
+        fi
+
+        echo "Dependencies missing in $target_dir, running pnpm install..."
+        (
+            cd "$target_dir"
+            pnpm install
+        )
+    }
+
     run_frontend() {
         if [ ! -d "$frontend_dir" ]; then
             echo "ERROR: Admin frontend directory not found: $frontend_dir"
@@ -177,6 +197,7 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="" arg7="" arg8="" arg9="": _ch
             exit 1
         fi
 
+        ensure_frontend_deps "$frontend_dir"
         check_port "Admin Frontend" "$frontend_port"
         echo "Starting admin frontend in $frontend_dir on port $frontend_port: $frontend_cmd"
         (
@@ -199,6 +220,7 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="" arg7="" arg8="" arg9="": _ch
             exit 1
         fi
 
+        ensure_frontend_deps "$frontend_public_dir"
         check_port "Public Frontend" "$frontend_public_port"
         echo "Starting public frontend in $frontend_public_dir on port $frontend_public_port: $frontend_public_cmd"
         (
@@ -374,6 +396,9 @@ down arg1="" arg2="" arg3="" arg4="" arg5="": _check-completion
                 *) filtered_pids="$filtered_pids $port_pid" ;;
             esac
         done < <(lsof -nP -iTCP:"$port_value" -sTCP:LISTEN -t 2>/dev/null || true)
+        if [ -z "$filtered_pids" ]; then
+            return 0
+        fi
         echo "$filtered_pids" | tr ' ' '\n' | grep -v '^$' | sort -u
     }
 
