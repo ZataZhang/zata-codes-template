@@ -382,17 +382,17 @@ down arg1="" arg2="" arg3="" arg4="" arg5="": _check-completion
         frontend_public_port="${frontend_public_port:-${FRONTEND_PUBLIC_PORT:-3000}}"
     }
 
-    # Filter Docker-related PIDs from a port's listener list. Uses `ps -o comm=`
-    # to resolve the full (untruncated) command name; lsof's COMMAND column is
-    # truncated to ~9 chars and would miss names like `com.docker.proxy`.
+    # Filter Docker-related PIDs from a port's listener list. Uses both the
+    # command name and the full argument string so app-bundled binaries like
+    # `/Applications/Docker.app/.../com.docker.backend` are reliably detected.
     filter_non_docker_pids() {
         port_value="$1"
         filtered_pids=""
         while read -r port_pid; do
             [ -n "$port_pid" ] || continue
-            full_command_name="$(ps -p "$port_pid" -o comm= 2>/dev/null || true)"
-            case "$full_command_name" in
-                com.docker*|docker|vpnkit|hyperkit) ;;
+            process_info="$(ps -p "$port_pid" -o comm=,args= 2>/dev/null || true)"
+            case "$process_info" in
+                *com.docker*|*Docker.app*|*docker*vpnkit*|*docker*hyperkit*) ;;
                 *) filtered_pids="$filtered_pids $port_pid" ;;
             esac
         done < <(lsof -nP -iTCP:"$port_value" -sTCP:LISTEN -t 2>/dev/null || true)
@@ -402,13 +402,35 @@ down arg1="" arg2="" arg3="" arg4="" arg5="": _check-completion
         echo "$filtered_pids" | tr ' ' '\n' | grep -v '^$' | sort -u
     }
 
+    list_docker_pids() {
+        port_value="$1"
+        while read -r port_pid; do
+            [ -n "$port_pid" ] || continue
+            process_info="$(ps -p "$port_pid" -o comm=,args= 2>/dev/null || true)"
+            case "$process_info" in
+                *com.docker*|*Docker.app*|*docker*vpnkit*|*docker*hyperkit*)
+                    echo "  - pid=$port_pid command=$process_info"
+                    ;;
+            esac
+        done < <(lsof -nP -iTCP:"$port_value" -sTCP:LISTEN -t 2>/dev/null || true)
+    }
+
     stop_port() {
         port_label="$1"
         port_value="$2"
         process_ids="$(filter_non_docker_pids "$port_value")"
+        docker_pids_info="$(list_docker_pids "$port_value")"
+
+        if [ -n "$docker_pids_info" ]; then
+            echo "Skipping Docker-related process(es) on $port_label port $port_value;"
+            echo "terminate them manually if you really want this port free:"
+            printf '%s\n' "$docker_pids_info"
+        fi
 
         if [ -z "$process_ids" ]; then
-            echo "No $port_label process listening on port $port_value (Docker processes skipped; use 'just down docker' for containers)"
+            if [ -z "$docker_pids_info" ]; then
+                echo "No $port_label process listening on port $port_value"
+            fi
             return 0
         fi
 

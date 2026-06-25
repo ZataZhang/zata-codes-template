@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, func
+from sqlalchemy import DateTime, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 
@@ -23,14 +23,14 @@ class TimestampMixin:
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        server_default=func.now(),
+        server_default=text("CURRENT_TIMESTAMP"),
         nullable=False,
         comment="记录创建时间，UTC，数据库端默认值。",
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
+        server_default=text("CURRENT_TIMESTAMP"),
+        onupdate=text("CURRENT_TIMESTAMP"),
         nullable=False,
         comment="记录最近一次更新时间，UTC，数据库端自动维护。",
     )

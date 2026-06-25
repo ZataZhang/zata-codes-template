@@ -53,4 +53,7 @@ coverage/
 .DS_Store
 Thumbs.db
 
+# Local SQLite databases
+*.db
+
 # Claude planning session archives (local state, not for VCS)

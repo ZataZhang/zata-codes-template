@@ -45,7 +45,7 @@ LEGACY_MODULES: set[str] = set()
 """迁移期兼容模块，不参与架构检查（见 system-design.md 迁移策略）。"""
 
 WHITELISTED_SUBMODULES: dict[str, list[str]] = {
-    "infrastructure": ["core.shared.interfaces"],
+    "infrastructure": ["core.shared.interfaces", "core.shared.models"],
 }
 """白名单：允许指定层导入其他层的特定子模块路径。
 

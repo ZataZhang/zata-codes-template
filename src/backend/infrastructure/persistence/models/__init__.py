@@ -20,10 +20,21 @@
    ``created_at`` / ``updated_at`` 等通用列，避免重复定义。
 """
 
+from .agent import AgentModel
 from .base import TimestampMixin
+from .session import ChatMessageModel, ChatSessionModel
+from .tool import ToolModel
 from .user_profile import UserProfile
+from .workflow import WorkflowEdgeModel, WorkflowModel, WorkflowNodeModel
 
 __all__ = [
+    "AgentModel",
+    "ChatMessageModel",
+    "ChatSessionModel",
     "TimestampMixin",
+    "ToolModel",
     "UserProfile",
+    "WorkflowEdgeModel",
+    "WorkflowModel",
+    "WorkflowNodeModel",
 ]

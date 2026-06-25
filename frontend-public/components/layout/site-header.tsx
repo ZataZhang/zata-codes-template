@@ -8,9 +8,12 @@ export function SiteHeader() {
         <div className="flex items-center gap-6">
           <Link href="/" className="flex items-center gap-2 font-semibold">
             <span className="size-6 rounded-md bg-primary" />
-            Zata
+            Zata Agent Platform
           </Link>
           <nav className="hidden gap-4 text-sm text-muted-foreground md:flex">
+            <Link href="/marketplace" className="hover:text-foreground">
+              Agent 广场
+            </Link>
             <Link href="/features" className="hover:text-foreground">
               功能
             </Link>
