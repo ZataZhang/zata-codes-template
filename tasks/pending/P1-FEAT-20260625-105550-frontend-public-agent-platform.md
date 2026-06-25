@@ -121,7 +121,7 @@
 - `docs/ai-standards/naming.md`：命名必须有来源、类型或状态语义，避免 `data`、`item`、`res`。
 - `docs/ai-standards/testing.md`：改动 API/前端流程/持久化时必须写真实入口验证。
 - `hooks/check_architecture.py`：会检查后端模块间 import 方向。
-- `hooks/check_sqlalchemy_model_comments.py`：所有 ORM 列必须带 `comment=`。
+- `hooks/check_schema_conventions.py`：所有 ORM 列必须带 `comment=`。
 - pre-commit 会检查文件行数（单文件非空行不超过 1000 行）。
 
 ### Matching or related PRDs

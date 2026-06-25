@@ -74,12 +74,12 @@ repos:
         language: system
         files: ^(src/[^/]+/(api|core|engines|infrastructure))/.*\.py$
         pass_filenames: false
-      - id: check-sqlalchemy-model-comments
-        name: Check SQLAlchemy model table/column comments
-        entry: uv run python hooks/check_sqlalchemy_model_comments.py
+      - id: check-schema-conventions
+        name: Check database schema conventions
+        entry: uv run python hooks/check_schema_conventions.py
         language: system
-        files: ^src/backend/infrastructure/persistence/models/.*.py$
-        pass_filenames: false
+        files: ^(src/backend/infrastructure/persistence/models/.*\.py|alembic/versions/.*\.py)$
+        pass_filenames: true
       - id: check-max-file-lines
         name: Check max file lines (non-empty)
         entry: uv run python hooks/check_max_file_lines.py --max-lines 1000 --warn-only

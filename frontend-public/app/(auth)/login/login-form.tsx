@@ -18,6 +18,7 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
+import { PasswordInput } from "@/components/ui/password-input"
 import { login } from "@/lib/api/auth"
 
 const formSchema = z.object({
@@ -44,7 +45,7 @@ export function LoginForm() {
       await login(data)
       toast.success("登录成功")
       const redirect = searchParams.get("redirect")
-      router.replace(redirect || "/dashboard")
+      router.replace(redirect || "/app/dashboard")
     } catch (error) {
       const message = error instanceof Error ? error.message : "登录失败"
       toast.error(message)
@@ -53,9 +54,14 @@ export function LoginForm() {
     }
   }
 
+  const handleFormSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    void form.handleSubmit(onSubmit)(event)
+  }
+
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4">
+      <form onSubmit={handleFormSubmit} className="grid gap-4">
         <FormField
           control={form.control}
           name="identifier"
@@ -89,9 +95,8 @@ export function LoginForm() {
                 </button>
               </div>
               <FormControl>
-                <Input
+                <PasswordInput
                   data-testid="login-password-input"
-                  type="password"
                   placeholder="********"
                   {...field}
                 />

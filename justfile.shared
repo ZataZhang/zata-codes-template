@@ -291,6 +291,22 @@ codex-notify action="install" shortcut_name="codex通知":
             ;;
     esac
 
+# Create a new Alembic migration script under alembic/versions/.
+# The script enforces the YYYYMMDD_HHMMSS_<slug>.py naming convention defined
+# in docs/ai-standards/alembic.md and refuses to run unless alembic has exactly
+# one head. The caller still edits upgrade() / downgrade() by hand.
+# Usage:
+#   just new-migration <slug>           # ./alembic/versions/<timestamp>_<slug>.py
+#   just new-migration <slug> <dir>     # custom alembic/versions directory
+new-migration slug versions_dir="./alembic/versions":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ -z "{{slug}}" ]; then
+        echo "ERROR: missing <slug>. Usage: just new-migration <slug> [versions_dir]"
+        exit 2
+    fi
+    ./scripts/shared/alembic/new_migration.sh "{{slug}}" "{{versions_dir}}"
+
 staged_changes:
     git diff --cached > staged_changes.diff
 

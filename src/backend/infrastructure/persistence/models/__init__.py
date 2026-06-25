@@ -4,7 +4,7 @@
 ``src/backend/infrastructure/persistence/database.py`` 中的 ``Base`` 统一注册
 到 ``Base.metadata``，并由 Alembic 在 ``alembic/env.py`` 中自动发现。
 
-约束（由 ``hooks/check_sqlalchemy_model_comments.py`` 在 pre-commit 阶段强制）：
+约束（由 ``hooks/check_schema_conventions.py`` 在 pre-commit 阶段强制）：
 
 - 每个具体表类（即含 ``__tablename__`` 的类）
   必须通过 ``__table_args__`` 提供 ``comment`` 字段，作为数据库表备注。

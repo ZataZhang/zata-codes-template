@@ -10,6 +10,13 @@ import { WorkflowCanvas } from "@/components/workflow/workflow-canvas"
 import { createWorkflow } from "@/lib/api/workflows"
 import { Loader2, Save } from "lucide-react"
 import { toast } from "sonner"
+import type { Edge, Node } from "@xyflow/react"
+import type { CustomNodeData } from "@/components/workflow/workflow-node"
+
+const noop = () => {}
+const EMPTY_NODES: Node<CustomNodeData>[] = []
+const EMPTY_EDGES: Edge[] = []
+
 export default function NewWorkflowPage() {
   const router = useRouter()
   const [name, setName] = useState("")
@@ -65,7 +72,11 @@ export default function NewWorkflowPage() {
         </div>
       </div>
 
-      <WorkflowCanvas onChange={() => {}} />
+      <WorkflowCanvas
+        initialNodes={EMPTY_NODES}
+        initialEdges={EMPTY_EDGES}
+        onChange={noop}
+      />
     </div>
   )
 }

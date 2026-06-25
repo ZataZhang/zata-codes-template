@@ -3,7 +3,7 @@
 仅作为 ``persistence/models`` 目录的最小合规样例，用于：
 
 1. 演示 SQLAlchemy 2.x 声明式风格与 ``__table_args__`` 表备注写法；
-2. 让 ``hooks/check_sqlalchemy_model_comments.py`` 有可执行的验证目标。
+2. 让 ``hooks/check_schema_conventions.py`` 有可执行的验证目标。
 
 真正接入业务前，请删除或替换为本项目实际需要的模型。
 """

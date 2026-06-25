@@ -49,6 +49,27 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="" arg7="" arg8="" arg9="": _ch
         fi
 
         case "$cli_arg" in
+            -h|--help)
+                echo "Usage: just run [backend|frontend|frontend-public|all|docker] [OPTIONS]"
+                echo ""
+                echo "Targets:"
+                echo "  backend              Start backend only"
+                echo "  frontend             Start admin frontend only"
+                echo "  frontend-public      Start public frontend only"
+                echo "  all                  Start backend + admin frontend + public frontend (default)"
+                echo "  docker               Start with Docker Compose"
+                echo ""
+                echo "Options:"
+                echo "  backend_port=<port>          Default: 8000"
+                echo "  frontend_port=<port>         Default: 5173"
+                echo "  frontend_public_port=<port>  Default: 3000"
+                echo "  backend_cmd=<cmd>            Default: uv run python -m backend.main"
+                echo "  frontend_cmd=<cmd>           Default: pnpm dev"
+                echo "  frontend_public_cmd=<cmd>    Default: pnpm dev"
+                echo "  frontend_dir=<path>          Default: frontend-admin"
+                echo "  frontend_public_dir=<path>   Default: frontend-public"
+                exit 0
+                ;;
             target=*)
                 target="${cli_arg#target=}"
                 ;;
@@ -225,7 +246,7 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="" arg7="" arg8="" arg9="": _ch
         echo "Starting public frontend in $frontend_public_dir on port $frontend_public_port: $frontend_public_cmd"
         (
             cd "$frontend_public_dir"
-            PORT="$frontend_public_port" BACKEND_PORT="$backend_port" bash -lc "$frontend_public_cmd"
+            PORT="$frontend_public_port" BACKEND_PORT="$backend_port" BACKEND_URL="http://localhost:$backend_port" bash -lc "$frontend_public_cmd"
         )
     }
 
@@ -342,6 +363,22 @@ down arg1="" arg2="" arg3="" arg4="" arg5="": _check-completion
         fi
 
         case "$cli_arg" in
+            -h|--help)
+                echo "Usage: just down [backend|frontend|frontend-public|all|docker] [OPTIONS]"
+                echo ""
+                echo "Targets:"
+                echo "  backend              Stop backend only"
+                echo "  frontend             Stop admin frontend only"
+                echo "  frontend-public      Stop public frontend only"
+                echo "  all                  Stop all local services (default)"
+                echo "  docker               Stop Docker Compose services"
+                echo ""
+                echo "Options:"
+                echo "  backend_port=<port>          Default: 8000"
+                echo "  frontend_port=<port>         Default: 5173"
+                echo "  frontend_public_port=<port>  Default: 3000"
+                exit 0
+                ;;
             target=*)
                 target="${cli_arg#target=}"
                 ;;

@@ -25,6 +25,7 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
+import { PasswordInput } from "@/components/ui/password-input"
 import { register } from "@/lib/api/auth"
 
 const formSchema = z
@@ -62,13 +63,18 @@ export default function RegisterPage() {
         password: data.password,
       })
       toast.success("注册成功")
-      router.replace("/dashboard")
+      router.replace("/app/dashboard")
     } catch (error) {
       const message = error instanceof Error ? error.message : "注册失败"
       toast.error(message)
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const handleFormSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    void form.handleSubmit(onSubmit)(event)
   }
 
   return (
@@ -80,7 +86,7 @@ export default function RegisterPage() {
       <CardContent>
         <Form {...form}>
           <form
-            onSubmit={form.handleSubmit(onSubmit)}
+            onSubmit={handleFormSubmit}
             className="grid gap-4"
           >
             <FormField
@@ -116,8 +122,7 @@ export default function RegisterPage() {
                 <FormItem>
                   <FormLabel>密码</FormLabel>
                   <FormControl>
-                    <Input
-                      type="password"
+                    <PasswordInput
                       placeholder="********"
                       {...field}
                     />
@@ -133,8 +138,7 @@ export default function RegisterPage() {
                 <FormItem>
                   <FormLabel>确认密码</FormLabel>
                   <FormControl>
-                    <Input
-                      type="password"
+                    <PasswordInput
                       placeholder="********"
                       {...field}
                     />

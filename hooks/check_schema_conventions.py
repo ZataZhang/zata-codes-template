@@ -1,20 +1,23 @@
 #!/usr/bin/env python3
-"""SQLAlchemy 模型表/列备注完整性检查。
+"""数据库 schema 约定检查。
 
-扫描 ``src/backend/infrastructure/persistence/models/`` 下所有 ``.py`` 文件，校验：
+覆盖两类文件：
 
-- 含 ``__tablename__`` 属性的类（即数据表类）必须通过 ``__table_args__``
-  提供非空 ``comment`` 字符串（表备注）。
-- 每个 ``Column(...)`` 或 ``mapped_column(...)`` 调用都必须显式带
-  ``comment="..."`` 关键字参数（字段备注）。
+1. SQLAlchemy 模型（``src/backend/infrastructure/persistence/models/`` 下 ``.py``）：
+   - 含 ``__tablename__`` 属性的类必须通过 ``__table_args__`` 提供非空 ``comment`` 字符串（表备注）。
+   - 每个 ``Column(...)`` / ``mapped_column(...)`` 调用必须显式带 ``comment="..."`` 关键字参数（字段备注）。
 
-通过 pre-commit 在本地提交前强制执行，避免缺备注的模型被合入。
+2. Alembic 迁移脚本（``alembic/versions/`` 下 ``.py``）：
+   - ``revision`` 变量长度不得超过 Alembic 默认 ``alembic_version.version_num`` 列宽（32 字符）。
+
+通过 pre-commit 在本地提交前强制执行。
 """
 
 from __future__ import annotations
 
 import argparse
 import ast
+import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -23,6 +26,15 @@ from typing import Optional
 
 MODELS_DIR_RELPATH: Path = Path("src/backend/infrastructure/persistence/models")
 """被检查的模型目录相对项目根路径。"""
+
+ALEMBIC_VERSIONS_DIR_RELPATH: Path = Path("alembic/versions")
+"""被检查的 Alembic 迁移脚本目录相对项目根路径。"""
+
+ALEMBIC_REVISION_PATTERN = re.compile(
+    r'^\s*revision\s*(?::\s*\w+\s*)?=\s*["\']([^"\']+)["\']',
+    re.MULTILINE,
+)
+"""匹配迁移文件中 ``revision = "..."`` / ``revision: str = "..."`` 的正则。"""
 
 
 # ==========================================
@@ -152,9 +164,9 @@ def _extract_table_args_dict(class_node: ast.ClassDef) -> Optional[ast.Dict]:
         if isinstance(rhs_node, ast.Dict):
             return rhs_node
         if isinstance(rhs_node, (ast.Tuple, ast.List)) and rhs_node.elts:
-            first_element = rhs_node.elts[0]
-            if isinstance(first_element, ast.Dict):
-                return first_element
+            for element in rhs_node.elts:
+                if isinstance(element, ast.Dict):
+                    return element
     return None
 
 
@@ -282,43 +294,116 @@ def run_models_comment_check(models_dir: Path) -> CheckResult:
     return aggregated_result
 
 
+def extract_revision_ids(file_path: Path) -> list[str]:
+    """从单个 Alembic 迁移文件中提取所有 revision ID。
+
+    Args:
+        file_path: 迁移文件路径。
+
+    Returns:
+        提取到的 revision ID 列表。
+    """
+    content = file_path.read_text(encoding="utf-8")
+    return ALEMBIC_REVISION_PATTERN.findall(content)
+
+
+def check_alembic_migration_file(
+    migration_file: Path,
+    max_length: int = 32,
+) -> list[ModelViolation]:
+    """检查单个 Alembic 迁移文件的 revision ID 长度。
+
+    Args:
+        migration_file: 迁移文件路径。
+        max_length: revision ID 最大允许长度（默认 32）。
+
+    Returns:
+        违规记录列表。
+    """
+    file_violations: list[ModelViolation] = []
+    for revision_id in extract_revision_ids(migration_file):
+        if len(revision_id) > max_length:
+            file_violations.append(
+                ModelViolation(
+                    file_path=migration_file,
+                    line_number=0,
+                    kind="alembic_revision",
+                    target=revision_id,
+                    reason=(
+                        f"revision ID 长度为 {len(revision_id)}，"
+                        f"超过 alembic_version.version_num 默认上限 {max_length}。"
+                    ),
+                )
+            )
+    return file_violations
+
+
+def run_alembic_revision_check(
+    versions_dir: Path,
+    max_length: int = 32,
+) -> CheckResult:
+    """对整个 Alembic versions 目录执行 revision ID 长度检查。
+
+    Args:
+        versions_dir: Alembic versions 目录路径。
+        max_length: revision ID 最大允许长度（默认 32）。
+
+    Returns:
+        检查汇总结果。
+    """
+    aggregated_result = CheckResult()
+    if not versions_dir.exists():
+        return aggregated_result
+
+    for migration_file in sorted(versions_dir.glob("*.py")):
+        aggregated_result.checked_files_count += 1
+        file_violations = check_alembic_migration_file(migration_file, max_length)
+        aggregated_result.violations.extend(file_violations)
+
+    return aggregated_result
+
+
 # ==========================================
 # 4. 输出与入口
 # ==========================================
 
 
-def _format_report(check_result: CheckResult, models_dir: Path) -> str:
+def _format_report(
+    check_result: CheckResult,
+    scope_name: str,
+) -> str:
     """将检查结果格式化为可读报告。
 
     Args:
         check_result: 检查汇总结果。
-        models_dir: 被扫描的模型目录。
+        scope_name: 检查范围名称，用于报告标题。
 
     Returns:
         格式化后的报告字符串。
     """
     report_lines: list[str] = [
-        f"\nSQLAlchemy 模型备注检查 — 共扫描 "
-        f"{check_result.checked_files_count} 个文件 (目录: {models_dir})\n"
+        f"\n{scope_name} — 共扫描 {check_result.checked_files_count} 个文件\n"
     ]
 
     if check_result.passed:
-        report_lines.append("✅ 所有模型均带有表备注与列备注，无违规。")
+        report_lines.append("✅ 无违规。")
         return "\n".join(report_lines)
 
     report_lines.append(f"❌ 发现 {len(check_result.violations)} 处违规：\n")
     for violation in check_result.violations:
-        relative_path: str = violation.file_path.name
+        location = (
+            f"{violation.file_path.name}:{violation.line_number}"
+            if violation.line_number
+            else violation.file_path.name
+        )
         report_lines.append(
-            f"  [{violation.kind}] {relative_path}:{violation.line_number} "
-            f"({violation.target})\n"
+            f"  [{violation.kind}] {location} ({violation.target})\n"
             f"    {violation.reason}\n"
         )
-    report_lines.append("参考规范：docs/ai-standards/architecture.md (持久化层)")
     return "\n".join(report_lines)
 
 
-def _resolve_models_dir(arg_value: Path) -> Path:
+def _resolve_dir(arg_value: Path) -> Path:
     """将命令行传入的目录解析为绝对路径。
 
     兼容 ``pre-commit`` 默认从仓库根目录运行以及直接在工作子树目录运行的两种场景。
@@ -341,10 +426,40 @@ def _resolve_models_dir(arg_value: Path) -> Path:
     return candidate_paths[0]
 
 
+def _classify_file(file_path: Path, models_dir: Path, versions_dir: Path) -> str | None:
+    """根据路径判断文件属于哪类检查对象。
+
+    Args:
+        file_path: 待分类文件路径。
+        models_dir: 模型目录绝对路径。
+        versions_dir: Alembic versions 目录绝对路径。
+
+    Returns:
+        ``"model"``、``"alembic"`` 或 ``None``（不属于任何检查范围）。
+    """
+    resolved_file = file_path.resolve()
+    resolved_models_dir = models_dir.resolve()
+    resolved_versions_dir = versions_dir.resolve()
+
+    try:
+        resolved_file.relative_to(resolved_models_dir)
+        return "model"
+    except ValueError:
+        pass
+
+    try:
+        resolved_file.relative_to(resolved_versions_dir)
+        return "alembic"
+    except ValueError:
+        pass
+
+    return None
+
+
 def main(argv: Optional[list[str]] = None) -> int:
-    """主入口：扫描 models 目录，返回退出码。"""
+    """主入口：扫描目录或检查指定文件，返回退出码。"""
     parser = argparse.ArgumentParser(
-        description="检查 SQLAlchemy 模型是否带表备注与列备注。",
+        description="检查数据库 schema 约定。",
     )
     parser.add_argument(
         "--models-dir",
@@ -352,14 +467,61 @@ def main(argv: Optional[list[str]] = None) -> int:
         default=MODELS_DIR_RELPATH,
         help="模型目录路径（默认：src/backend/infrastructure/persistence/models）。",
     )
+    parser.add_argument(
+        "--alembic-versions-dir",
+        type=Path,
+        default=ALEMBIC_VERSIONS_DIR_RELPATH,
+        help="Alembic versions 目录路径（默认：alembic/versions）。",
+    )
+    parser.add_argument(
+        "--max-revision-length",
+        type=int,
+        default=32,
+        help="revision ID 最大长度（默认：32）。",
+    )
+    parser.add_argument(
+        "files",
+        nargs="*",
+        help="待检查的模型或迁移文件路径；为空时扫描整个目录。",
+    )
     args = parser.parse_args(argv)
 
-    models_dir = _resolve_models_dir(args.models_dir)
-    final_result = run_models_comment_check(models_dir)
-    report_text = _format_report(final_result, models_dir)
-    print(report_text)
+    models_dir = _resolve_dir(args.models_dir)
+    versions_dir = _resolve_dir(args.alembic_versions_dir)
 
-    return 0 if final_result.passed else 1
+    all_violations: list[ModelViolation] = []
+    checked_files_count = 0
+
+    if args.files:
+        for file_str in args.files:
+            file_path = Path(file_str).resolve()
+            if not file_path.is_file():
+                continue
+            checked_files_count += 1
+            kind = _classify_file(file_path, models_dir, versions_dir)
+            if kind == "model":
+                all_violations.extend(check_python_file(file_path))
+            elif kind == "alembic":
+                all_violations.extend(
+                    check_alembic_migration_file(file_path, args.max_revision_length)
+                )
+    else:
+        models_result = run_models_comment_check(models_dir)
+        alembic_result = run_alembic_revision_check(
+            versions_dir, args.max_revision_length
+        )
+        all_violations.extend(models_result.violations)
+        all_violations.extend(alembic_result.violations)
+        checked_files_count = (
+            models_result.checked_files_count + alembic_result.checked_files_count
+        )
+
+    result = CheckResult(
+        violations=all_violations, checked_files_count=checked_files_count
+    )
+    print(_format_report(result, "数据库 schema 约定检查"))
+
+    return 0 if result.passed else 1
 
 
 if __name__ == "__main__":

@@ -23,20 +23,18 @@ export interface CustomNodeData extends Record<string, unknown> {
   nodeType: string
   label: string
   config?: Record<string, unknown>
-  onDelete?: (nodeId: string) => void
-  selected?: boolean
 }
 
 export type CustomNode = Node<CustomNodeData>
 
-export function WorkflowNodeCard({ data }: NodeProps<CustomNode>) {
+export function WorkflowNodeCard({ data, selected }: NodeProps<CustomNode>) {
   const Icon = NODE_ICONS[data.nodeType] || Bot
   const colorClass = NODE_COLORS[data.nodeType] || NODE_COLORS.agent
 
   return (
     <div
       className={`min-w-[140px] rounded-xl border-2 bg-card p-3 shadow-sm ${
-        data.selected ? "border-primary" : colorClass.split(" ")[2]
+        selected ? "border-primary" : colorClass.split(" ")[2]
       } ${colorClass}`}
     >
       <Handle type="target" position={Position.Top} className="!bg-muted-foreground" />
