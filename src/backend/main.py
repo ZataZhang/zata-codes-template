@@ -6,6 +6,8 @@ import os
 import uuid
 
 import uvicorn
+from alembic import command
+from alembic.config import Config
 from fastapi import FastAPI
 
 from backend.api.admin import admin_auth_router, admin_user_router
@@ -49,6 +51,16 @@ from backend.infrastructure.persistence.repos.workflow_repo import (
 
 _PUBLIC_SESSION_PREFIX: str = "public:session:"
 _ADMIN_SESSION_PREFIX: str = "admin:session:"
+
+
+def _run_migrations() -> None:
+    """启动时自动执行 Alembic 迁移到最新版本。"""
+    alembic_ini_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+        "alembic.ini",
+    )
+    alembic_cfg = Config(alembic_ini_path)
+    command.upgrade(alembic_cfg, "head")
 
 
 def _seed_tools() -> None:
@@ -132,6 +144,8 @@ def _seed_admin_user(
 
 def create_app() -> FastAPI:
     """创建并配置 FastAPI 应用。"""
+    _run_migrations()
+
     app = FastAPI(title="Zata Agent Platform API", version="0.2.0")
 
     # 业务与认证复用同一数据库会话（与既有装配一致）

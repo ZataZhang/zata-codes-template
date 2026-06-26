@@ -21,6 +21,10 @@ def _reset_logger_singleton() -> None:
     # loggers by name across Logger singleton resets.
     underlying_logger = logging.getLogger(config.app_name)
     underlying_logger.handlers.clear()
+    # alembic's env.py calls fileConfig(disable_existing_loggers=True), which
+    # leaves previously-created loggers in a disabled state. Re-enable so the
+    # JSON log capture test can still emit through the singleton.
+    underlying_logger.disabled = False
 
 
 @pytest.fixture(autouse=True)
