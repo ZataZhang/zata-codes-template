@@ -181,7 +181,7 @@ class GuidelinesChecker:
 
 def main() -> None:
     """运行入口。"""
-    project_root = Path(__file__).parent.parent
+    project_root = Path(__file__).parent.parent.parent
     checker = GuidelinesChecker(project_root)
     success = checker.run_all_checks()
     sys.exit(0 if success else 1)

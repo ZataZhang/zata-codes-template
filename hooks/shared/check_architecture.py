@@ -324,7 +324,7 @@ def _format_report(check_result: CheckResult) -> str:
 
 def main() -> None:
     """主入口：执行架构检查并以退出码报告结果。"""
-    project_root_path: Path = Path(__file__).parent.parent
+    project_root_path: Path = Path(__file__).parent.parent.parent
 
     print("🔍 正在检查架构依赖方向...")
     final_check_result: CheckResult = run_architecture_check(project_root_path)

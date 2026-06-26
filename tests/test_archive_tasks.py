@@ -9,7 +9,7 @@ from types import ModuleType
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-ARCHIVE_TASKS_SCRIPT_PATH = REPO_ROOT / "hooks" / "archive_tasks.py"
+ARCHIVE_TASKS_SCRIPT_PATH = REPO_ROOT / "hooks" / "shared" / "archive_tasks.py"
 
 
 def load_archive_tasks_module() -> ModuleType:

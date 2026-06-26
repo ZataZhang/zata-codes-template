@@ -11,7 +11,7 @@ tasks/inbox/        →   tasks/pending/   →   tasks/archive/
 ## 为什么放在 tasks/inbox/
 
 - `tasks/*` 在模板同步里"永不同步"（`scripts/shared/template/sync_template.sh` 的 `_is_never_synced`），所以每个项目的想法天然私有，不会串到其他派生项目。
-- PRD 验收 hook 只校验 `tasks/` 根目录和 `tasks/archive/` 下的 PRD 文件（`hooks/check_prd_acceptance_checklist.py`），**不会扫描 `tasks/inbox/`**，因此这里可以自由记录、无需验收清单。
+- PRD 验收 hook 只校验 `tasks/` 根目录和 `tasks/archive/` 下的 PRD 文件（`hooks/shared/check_prd_acceptance_checklist.py`），**不会扫描 `tasks/inbox/`**，因此这里可以自由记录、无需验收清单。
 - 想法成熟后用 PRD 流程升级成 `tasks/pending/` 下的正式 PRD，形成闭环。
 
 ## 两层结构

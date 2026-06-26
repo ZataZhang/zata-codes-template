@@ -31,10 +31,10 @@ Goals:
 
 除单元测试和集成测试外，本 PRD 要求通过**真实项目入口点**验证关键行为，确保真实使用路径生效，而非仅在隔离 fixture 中通过。
 
-- [ ] **Pre-commit hook 真实验证**：通过 `uv run pre-commit run --all-files` 验证所有本地 hook 仍能从 `hooks/shared/` 正常执行，无路径解析错误。
-- [ ] **Sync-template 真实验证**：通过 `SYNC_TEMPLATE_LIST_ONLY=1 ./scripts/sync_template.sh` 验证迁移后 sync-template 的候选清单符合预期（`hooks/shared/` 下文件进入 NEW/CHANGED 候选，`hooks/` 根目录下新增私有 hook 不被同步）。
-- [ ] **CI workflow 真实验证**：通过 `.github/workflows/ci.yml` 中的 `check_max_file_lines` job 路径检查或本地等效命令验证 `uv run python hooks/shared/check_max_file_lines.py --help` 可被正确调用。
-- [ ] **Just recipe 解析真实验证**：通过 `just --summary` 验证所有 recipe 仍能正常加载，无路径解析错误。
+- [x] **Pre-commit hook 真实验证**：通过 `uv run pre-commit run --all-files` 验证所有本地 hook 仍能从 `hooks/shared/` 正常执行，无路径解析错误。
+- [x] **Sync-template 真实验证**：通过 `SYNC_TEMPLATE_LIST_ONLY=1 ./scripts/sync_template.sh` 验证迁移后 sync-template 的候选清单符合预期（`hooks/shared/` 下文件进入 NEW/CHANGED 候选，`hooks/` 根目录下新增私有 hook 不被同步）。
+- [x] **CI workflow 真实验证**：通过 `.github/workflows/ci.yml` 中的 `check_max_file_lines` job 路径检查或本地等效命令验证 `uv run python hooks/shared/check_max_file_lines.py --help` 可被正确调用。
+- [x] **Just recipe 解析真实验证**：通过 `just --summary` 验证所有 recipe 仍能正常加载，无路径解析错误。
 
 **为什么单元测试不够**：路径迁移影响的是 `pre-commit`、shell 脚本、CI workflow 在真实文件系统上的解析与调用行为；纯单元测试无法覆盖 pre-commit 的 entry 路径、sync-template 的 allowlist 行为、GitHub Actions 的 working-directory 解析等真实入口行为。
 
@@ -314,54 +314,54 @@ No interactive prototype file changes in this PRD.
 
 ## 6. Definition Of Done
 
-- [ ] 所有模板共享 Python hook 脚本已迁入 `hooks/shared/`。
-- [ ] `scripts/shared/template/sync_template.sh` 的跳过规则和上游拥有规则已更新。
-- [ ] `.pre-commit-config.yaml` 中所有相关 hook entry 已指向 `hooks/shared/`。
-- [ ] CI workflow、Copilot 指令、文档、源码注释中的路径引用已更新。
-- [ ] `tests/test_sync_template.py` 已新增 `hooks/` 目录隔离的回归测试，且全部通过。
-- [ ] `uv run pre-commit run --all-files` 在仓库根目录成功执行。
-- [ ] `SYNC_TEMPLATE_LIST_ONLY=1 ./scripts/sync_template.sh` 输出符合预期（`hooks/shared/` 可见，`hooks/` 根目录不可见）。
-- [ ] `just --summary` 无错误。
-- [ ] 无回归：现有 `just test`、`uv run pytest` 全部通过。
-- [ ] 文档与 `mkdocs.yml` 同步更新（如新增文档页或导航变更）。
+- [x] 所有模板共享 Python hook 脚本已迁入 `hooks/shared/`。
+- [x] `scripts/shared/template/sync_template.sh` 的跳过规则和上游拥有规则已更新。
+- [x] `.pre-commit-config.yaml` 中所有相关 hook entry 已指向 `hooks/shared/`。
+- [x] CI workflow、Copilot 指令、文档、源码注释中的路径引用已更新。
+- [x] `tests/test_sync_template.py` 已新增 `hooks/` 目录隔离的回归测试，且全部通过。
+- [x] `uv run pre-commit run --all-files` 在仓库根目录成功执行。
+- [x] `SYNC_TEMPLATE_LIST_ONLY=1 ./scripts/sync_template.sh` 输出符合预期（`hooks/shared/` 可见，`hooks/` 根目录不可见）。
+- [x] `just --summary` 无错误。
+- [x] 无回归：现有 `just test`、`uv run pytest` 全部通过。
+- [x] 文档与 `mkdocs.yml` 同步更新（如新增文档页或导航变更）。
 
 ## 7. Acceptance Checklist
 
 ### Architecture Acceptance
 
-- [ ] `hooks/shared/` 存在且包含所有已迁移的模板共享 Python hook 脚本。
-- [ ] `hooks/` 根目录下不再存在模板共享的 `.py` 脚本（`__pycache__` 除外）。
-- [ ] `scripts/shared/template/sync_template.sh` 的 `_is_always_skipped` 中，`hooks/*` 被跳过但 `hooks/shared/*` 为例外。
-- [ ] `scripts/shared/template/sync_template.sh` 的 `_is_upstream_owned` 中，`hooks/shared/*` 被标记为上游拥有。
-- [ ] `scripts/shared/hooks/`（shell hook）保持不动，与 `hooks/shared/`（Python hook）职责分离。
+- [x] `hooks/shared/` 存在且包含所有已迁移的模板共享 Python hook 脚本。
+- [x] `hooks/` 根目录下不再存在模板共享的 `.py` 脚本（`__pycache__` 除外）。
+- [x] `scripts/shared/template/sync_template.sh` 的 `_is_always_skipped` 中，`hooks/*` 被跳过但 `hooks/shared/*` 为例外。
+- [x] `scripts/shared/template/sync_template.sh` 的 `_is_upstream_owned` 中，`hooks/shared/*` 被标记为上游拥有。
+- [x] `scripts/shared/hooks/`（shell hook）保持不动，与 `hooks/shared/`（Python hook）职责分离。
 
 ### Dependency Acceptance
 
-- [ ] 本次迁移不新增外部依赖。
-- [ ] 本次迁移不修改 hook 脚本的业务逻辑，仅修改路径和调用点。
+- [x] 本次迁移不新增外部依赖。
+- [x] 本次迁移不修改 hook 脚本的业务逻辑，仅修改路径和调用点。
 
 ### Behavior Acceptance
 
-- [ ] `.pre-commit-config.yaml` 中 8 个本地 Python hook 的 `entry` 全部指向 `hooks/shared/` 下的对应文件。
-- [ ] `.github/workflows/ci.yml` 的 `check_max_file_lines` 步骤调用 `hooks/shared/check_max_file_lines.py`。
-- [ ] `.github/workflows/cd.yml` 的 `check_max_file_lines` 步骤调用 `hooks/shared/check_max_file_lines.py`。
-- [ ] `.github/instructions/python-tests.instructions.md` 的 `applyTo` 与示例命令中的路径更新为 `hooks/shared/`。
-- [ ] `config.toml` 的 `[template_sync]` 注释中不再出现 `hooks/check_*.py`，改为 `hooks/shared/*.py`。
-- [ ] `docs/ai-standards/testing.md`、`docs/ai-standards/code-reuse.md`、`docs/ai-standards/architecture.md`、`docs/ai-standards/tooling.md`、`docs/guides/idea-inbox.md` 中相关 hook 路径已更新。
-- [ ] `src/backend/infrastructure/persistence/models/base.py` 和 `__init__.py` 中引用的 `check_schema_conventions.py` 路径已更新为 `hooks/shared/check_schema_conventions.py`。
+- [x] `.pre-commit-config.yaml` 中 8 个本地 Python hook 的 `entry` 全部指向 `hooks/shared/` 下的对应文件。
+- [x] `.github/workflows/ci.yml` 的 `check_max_file_lines` 步骤调用 `hooks/shared/check_max_file_lines.py`。
+- [x] `.github/workflows/cd.yml` 的 `check_max_file_lines` 步骤调用 `hooks/shared/check_max_file_lines.py`。
+- [x] `.github/instructions/python-tests.instructions.md` 的 `applyTo` 与示例命令中的路径更新为 `hooks/shared/`。
+- [x] `config.toml` 的 `[template_sync]` 注释中不再出现 `hooks/check_*.py`，改为 `hooks/shared/*.py`。
+- [x] `docs/ai-standards/testing.md`、`docs/ai-standards/code-reuse.md`、`docs/ai-standards/architecture.md`、`docs/ai-standards/tooling.md`、`docs/guides/idea-inbox.md` 中相关 hook 路径已更新。
+- [x] `src/backend/infrastructure/persistence/models/base.py` 和 `__init__.py` 中引用的 `check_schema_conventions.py` 路径已更新为 `hooks/shared/check_schema_conventions.py`。
 
 ### Documentation Acceptance
 
-- [ ] 相关文档中的路径引用与目标状态一致。
-- [ ] 若新增或修改了文档页，`mkdocs.yml` 导航同步更新（本次迁移预计无需新增页面）。
+- [x] 相关文档中的路径引用与目标状态一致。
+- [x] 若新增或修改了文档页，`mkdocs.yml` 导航同步更新（本次迁移预计无需新增页面）。
 
 ### Validation Acceptance
 
-- [ ] `uv run pre-commit run --all-files` 成功执行，所有 hook 从 `hooks/shared/` 正常调用。
-- [ ] `SYNC_TEMPLATE_LIST_ONLY=1 ./scripts/sync_template.sh` 输出中，`hooks/shared/` 下文件进入候选，`hooks/` 根目录下文件不进入候选。
-- [ ] `uv run python hooks/shared/check_max_file_lines.py --help` 成功加载。
-- [ ] `just --summary` 无路径解析错误。
-- [ ] `uv run pytest tests/test_sync_template.py -v` 全部通过，包括新增的 `hooks/` 隔离测试。
+- [x] `uv run pre-commit run --all-files` 成功执行，所有 hook 从 `hooks/shared/` 正常调用。
+- [x] `SYNC_TEMPLATE_LIST_ONLY=1 ./scripts/sync_template.sh` 输出中，`hooks/shared/` 下文件进入候选，`hooks/` 根目录下文件不进入候选。
+- [x] `uv run python hooks/shared/check_max_file_lines.py --help` 成功加载。
+- [x] `just --summary` 无路径解析错误。
+- [x] `uv run pytest tests/test_sync_template.py -v` 全部通过，包括新增的 `hooks/` 隔离测试。
 
 ## 8. Functional Requirements
 

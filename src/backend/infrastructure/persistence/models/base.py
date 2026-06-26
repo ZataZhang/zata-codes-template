@@ -2,7 +2,7 @@
 
 把模型里反复出现的列（例如审计时间字段）抽到 mixin，避免在每个模型中
 重复定义。所有 mixin 中的列都必须显式带 ``comment=`` 关键字参数，
-由 ``hooks/check_schema_conventions.py`` 在 pre-commit 阶段强制校验。
+由 ``hooks/shared/check_schema_conventions.py`` 在 pre-commit 阶段强制校验。
 """
 
 from __future__ import annotations

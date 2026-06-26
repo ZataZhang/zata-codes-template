@@ -36,7 +36,7 @@ src/<module>/api/ -> src/<module>/core/ -> src/<module>/engines/ -> src/<module>
 - `src/<module>/api/` 不得直接导入 `src/<module>/infrastructure/` 或 `src/<module>/engines/`
 - 跨层依赖必须通过 `src/<module>/core/shared/interfaces/` 中的抽象接口
 
-新增模块若采用相同的四层结构，同样受 `hooks/check_architecture.py` 约束。
+新增模块若采用相同的四层结构，同样受 `hooks/shared/check_architecture.py` 约束。
 
 ## Placement Checklist
 

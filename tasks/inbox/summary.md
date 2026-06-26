@@ -13,4 +13,4 @@ _最后更新：2026-06-26 14:15_
 
 ## 已升级
 - 为 `scripts/` 抽取模板/同步脚本子目录 → `tasks/archive/P2-REFACTOR-20260615-110433-isolate-template-scripts.md`（来源：2026-06-15 10:49）
-- 为 `hooks/` 抽取 `shared/` 子文件夹 → `tasks/pending/P2-REFACTOR-20260626-141117-isolate-template-hooks.md`（来源：2026-06-25 18:39）
+- 为 `hooks/` 抽取 `shared/` 子文件夹 → `tasks/archive/P2-REFACTOR-20260626-141117-isolate-template-hooks.md`（来源：2026-06-25 18:39）

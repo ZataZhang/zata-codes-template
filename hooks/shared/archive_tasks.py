@@ -17,7 +17,7 @@ from typing import Iterable, Sequence
 def _repo_root() -> Path:
     """Return the repository root inferred from this file's location."""
 
-    return Path(__file__).resolve().parents[1]
+    return Path(__file__).resolve().parents[2]
 
 
 def _is_archivable_task_markdown(

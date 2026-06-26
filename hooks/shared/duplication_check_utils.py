@@ -19,7 +19,7 @@ def repo_root_from_hook(script_file: Path) -> Path:
         Repository root directory path.
     """
 
-    return script_file.resolve().parents[1]
+    return script_file.resolve().parents[2]
 
 
 def path_is_within_any_root(relative_path: Path, root_paths: Sequence[Path]) -> bool:

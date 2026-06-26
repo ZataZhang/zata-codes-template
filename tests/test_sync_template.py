@@ -360,3 +360,65 @@ def test_sync_template_all_mode_skips_project_private_scripts(
     assert "Found 1 changed + 0 new entry/entries." in completed_process.stdout
     assert "CHANGED\tscripts/shared/shared_tool.sh" in completed_process.stdout
     assert "scripts/root_tool.sh" not in completed_process.stdout
+
+
+def test_sync_template_skips_hooks_root_by_default(
+    tmp_path: Path,
+) -> None:
+    """Default sync listing should skip hooks/ root but include hooks/shared/."""
+
+    template_repo_path = tmp_path / "template-repo"
+    project_repo_path = tmp_path / "project-repo"
+
+    template_files = {
+        "hooks/root_hook.py": "print('template root')\n",
+        "hooks/shared/shared_hook.py": "print('template shared')\n",
+    }
+    project_files = {
+        "hooks/root_hook.py": "print('project root')\n",
+        "hooks/shared/shared_hook.py": "print('project shared')\n",
+    }
+
+    create_repo(template_repo_path, template_files, commit_all=True)
+    create_repo(project_repo_path, project_files, commit_all=False)
+
+    completed_process = run_sync_template(project_repo_path, template_repo_path)
+
+    assert completed_process.returncode == 0, completed_process.stderr
+    assert "Found 1 changed + 0 new entry/entries." in completed_process.stdout
+    assert "CHANGED\thooks/shared/shared_hook.py" in completed_process.stdout
+    assert "root_hook.py" not in completed_process.stdout
+
+
+def test_sync_template_all_mode_skips_project_private_hooks(
+    tmp_path: Path,
+) -> None:
+    """--all mode still respects _is_always_skipped for project-private hooks/."""
+
+    template_repo_path = tmp_path / "template-repo"
+    project_repo_path = tmp_path / "project-repo"
+
+    template_files = {
+        "hooks/root_hook.py": "print('template root')\n",
+        "hooks/shared/shared_hook.py": "print('template shared')\n",
+    }
+    project_files = {
+        "hooks/root_hook.py": "print('project root')\n",
+        "hooks/shared/shared_hook.py": "print('project shared')\n",
+    }
+
+    create_repo(template_repo_path, template_files, commit_all=True)
+    create_repo(project_repo_path, project_files, commit_all=False)
+
+    completed_process = run_sync_template(
+        project_repo_path,
+        template_repo_path,
+        "--all",
+    )
+
+    assert completed_process.returncode == 0, completed_process.stderr
+    # _is_always_skipped filters out hooks/* except hooks/shared/*. Project-private
+    # hooks/root_hook.py is never synced.
+    assert "Found 1 changed + 0 new entry/entries." in completed_process.stdout
+    assert "CHANGED\thooks/shared/shared_hook.py" in completed_process.stdout
+    assert "hooks/root_hook.py" not in completed_process.stdout

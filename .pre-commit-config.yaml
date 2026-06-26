@@ -52,43 +52,43 @@ repos:
     hooks:
       - id: check-prd-acceptance-checklist
         name: Check PRD acceptance checklist
-        entry: uv run python hooks/check_prd_acceptance_checklist.py
+        entry: uv run python hooks/shared/check_prd_acceptance_checklist.py
         language: system
         files: ^tasks/(?:archive/)?(?:[^/]+-prd-[^/]+|P[0-3]-[A-Z]+-\d{8}-\d{6}-[^/]+)\.md$
       - id: check-guidelines-consistency
         name: Check guidelines consistency
-        entry: uv run python hooks/check_guidelines_consistency.py
+        entry: uv run python hooks/shared/check_guidelines_consistency.py
         language: system
         files: ^(AGENTS\.md|CLAUDE\.md|\.cursor/commands/cursor\.md)$
         pass_filenames: false
       - id: archive-tasks
         name: Archive task markdown files
-        entry: uv run python hooks/archive_tasks.py
+        entry: uv run python hooks/shared/archive_tasks.py
         language: system
         pass_filenames: false
         stages: [pre-commit]
         always_run: true
       - id: check-architecture
         name: Check architecture layer dependencies
-        entry: uv run python hooks/check_architecture.py
+        entry: uv run python hooks/shared/check_architecture.py
         language: system
         files: ^(src/[^/]+/(api|core|engines|infrastructure))/.*\.py$
         pass_filenames: false
       - id: check-schema-conventions
         name: Check database schema conventions
-        entry: uv run python hooks/check_schema_conventions.py
+        entry: uv run python hooks/shared/check_schema_conventions.py
         language: system
         files: ^(src/backend/infrastructure/persistence/models/.*\.py|alembic/versions/.*\.py)$
         pass_filenames: true
       - id: check-max-file-lines
         name: Check max file lines (non-empty)
-        entry: uv run python hooks/check_max_file_lines.py --max-lines 1000 --warn-only
+        entry: uv run python hooks/shared/check_max_file_lines.py --max-lines 1000 --warn-only
         language: system
         files: \.py$
         pass_filenames: true
       - id: jscpd
         name: Check copy-paste duplication
-        entry: uv run python hooks/run_jscpd_duplication_check.py
+        entry: uv run python hooks/shared/run_jscpd_duplication_check.py
         language: node
         additional_dependencies: [jscpd@4.1.1]
         files: ^(src/[^/]+|frontend-admin|frontend-public)/.*\.(py|js|jsx|ts|tsx)$
@@ -96,7 +96,7 @@ repos:
         stages: [manual]
       - id: pylint-duplicate-code
         name: Check Python duplicate code
-        entry: uv run python hooks/run_pylint_duplication_check.py
+        entry: uv run python hooks/shared/run_pylint_duplication_check.py
         language: system
         files: ^src/[^/]+/.*\.py$
         pass_filenames: true

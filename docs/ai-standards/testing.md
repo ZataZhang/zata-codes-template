@@ -40,8 +40,8 @@
 
 验证架构和规范时，也常用：
 
-- `uv run python hooks/check_architecture.py`
-- `uv run python hooks/check_guidelines_consistency.py`
+- `uv run python hooks/shared/check_architecture.py`
+- `uv run python hooks/shared/check_guidelines_consistency.py`
 - `uv run mkdocs build`
 
 ## Playwright Boundary

@@ -27,7 +27,7 @@ CODE_FENCE_RE = re.compile(r"^\s*(?:```|~~~)")
 def _repo_root() -> Path:
     """Return the repository root inferred from this file location."""
 
-    return Path(__file__).resolve().parents[1]
+    return Path(__file__).resolve().parents[2]
 
 
 def _relative_path(path: Path, repo_root: Path) -> Path | None:

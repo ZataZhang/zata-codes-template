@@ -68,7 +68,7 @@
 
 ## PRD Workflow Hooks
 
-本仓库通过 `pre-commit` 调用项目本地 `hooks/check_prd_acceptance_checklist.py` 维护 PRD 交付状态；PRD skill 另带 `scripts/check_prd_acceptance_checklist.py`，供 agent 按 skill 相对路径运行，或由其他仓库自行接入：
+本仓库通过 `pre-commit` 调用项目本地 `hooks/shared/check_prd_acceptance_checklist.py` 维护 PRD 交付状态；PRD skill 另带 `scripts/check_prd_acceptance_checklist.py`，供 agent 按 skill 相对路径运行，或由其他仓库自行接入：
 
 - `tasks/pending/` 下的 PRD 可以保留未完成验收项
 - `tasks/` 根目录下的旧 active PRD 必须完成 `Acceptance Checklist`
@@ -160,7 +160,7 @@ uv run pre-commit run --show-diff-on-failure
 
 ## PRD Workflow Hooks
 
-本仓库通过 `pre-commit` 调用项目本地 `hooks/check_prd_acceptance_checklist.py` 维护 PRD 交付状态；PRD skill 另带 `scripts/check_prd_acceptance_checklist.py`，供 agent 按 skill 相对路径运行，或由其他仓库自行接入：
+本仓库通过 `pre-commit` 调用项目本地 `hooks/shared/check_prd_acceptance_checklist.py` 维护 PRD 交付状态；PRD skill 另带 `scripts/check_prd_acceptance_checklist.py`，供 agent 按 skill 相对路径运行，或由其他仓库自行接入：
 
 - `tasks/pending/` 下的 PRD 可以保留未完成验收项
 - `tasks/` 根目录下的旧 active PRD 必须完成 `Acceptance Checklist`

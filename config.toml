@@ -25,7 +25,7 @@ log_level = "INFO"
 #
 # Default mode (`just sync-template` with no flags) only shows upstream-owned
 # files (justfile.shared, scripts/shared/*, scripts/build/*, AI standards,
-# tool entry files, hooks/check_*.py, etc.) — see `_is_upstream_owned` in
+# tool entry files, hooks/shared/*.py, etc.) — see `_is_upstream_owned` in
 # scripts/shared/template/sync_template.sh for the full allowlist. The list
 # below is irrelevant in default mode.
 #
