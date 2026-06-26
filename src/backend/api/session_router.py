@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, status
 from fastapi.exceptions import HTTPException
 
-from backend.api.dependencies import get_session_use_case, get_current_user
+from backend.api.dependencies import get_current_public_user, get_session_use_case
 from backend.api.schemas import (
     ChatMessageCreateRequest,
     ChatMessageResponse,
@@ -13,8 +13,8 @@ from backend.api.schemas import (
     ChatSessionResponse,
     ToolCallDto,
 )
+from backend.core.auth.models import AuthenticatedPrincipal
 from backend.core.session.use_cases import SessionUseCase
-from backend.core.use_cases.auth import User
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -59,7 +59,7 @@ def _to_session_response(session: object) -> ChatSessionResponse:
 
 @router.get("", response_model=list[ChatSessionResponse])
 async def list_sessions(
-    current_user: User = Depends(get_current_user),
+    current_user: AuthenticatedPrincipal = Depends(get_current_public_user),
     use_case: SessionUseCase = Depends(get_session_use_case),
 ) -> list[ChatSessionResponse]:
     """列出当前用户的所有会话。"""
@@ -72,7 +72,7 @@ async def list_sessions(
 )
 async def create_session(
     request_payload: ChatSessionCreateRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: AuthenticatedPrincipal = Depends(get_current_public_user),
     use_case: SessionUseCase = Depends(get_session_use_case),
 ) -> ChatSessionResponse:
     """创建会话。"""
@@ -98,7 +98,7 @@ async def create_session(
 @router.get("/{session_id}", response_model=ChatSessionResponse)
 async def get_session(
     session_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: AuthenticatedPrincipal = Depends(get_current_public_user),
     use_case: SessionUseCase = Depends(get_session_use_case),
 ) -> ChatSessionResponse:
     """读取指定会话。"""
@@ -120,7 +120,7 @@ async def get_session(
 @router.delete("/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_session(
     session_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: AuthenticatedPrincipal = Depends(get_current_public_user),
     use_case: SessionUseCase = Depends(get_session_use_case),
 ) -> None:
     """删除指定会话。"""
@@ -141,7 +141,7 @@ async def delete_session(
 @router.get("/{session_id}/messages", response_model=list[ChatMessageResponse])
 async def list_messages(
     session_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: AuthenticatedPrincipal = Depends(get_current_public_user),
     use_case: SessionUseCase = Depends(get_session_use_case),
 ) -> list[ChatMessageResponse]:
     """读取指定会话的所有消息。"""
@@ -168,7 +168,7 @@ async def list_messages(
 async def send_message(
     session_id: str,
     request_payload: ChatMessageCreateRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: AuthenticatedPrincipal = Depends(get_current_public_user),
     use_case: SessionUseCase = Depends(get_session_use_case),
 ) -> ChatMessageResponse:
     """发送消息并生成 assistant 回复。"""

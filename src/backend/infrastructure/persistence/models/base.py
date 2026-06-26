@@ -17,7 +17,7 @@ class TimestampMixin:
     """为模型注入 ``created_at`` 与 ``updated_at`` 审计时间字段。
 
     子类声明时把本 mixin 放在 ``Base`` 之后，例如
-    ``class UserProfile(Base, TimestampMixin):``。混入的列会自动落到表结构
+    ``class PublicUserModel(Base, TimestampMixin):``。混入的列会自动落到表结构
     后段，便于人眼区分业务列与审计列。
     """
 

@@ -13,27 +13,29 @@
 
 新增模型时，请：
 
-1. 在本目录新建模块文件，例如 ``user_profile.py``。
-2. 在本 ``__init__`` 末尾追加 ``from .user_profile import UserProfile``
+1. 在本目录新建模块文件，例如 ``public_user.py``。
+2. 在本 ``__init__`` 顶部追加 ``from .public_user import PublicUserModel``
    以保证模型被 ``Base`` 注册（Alembic autogenerate 才能识别）。
 3. 复用 ``base.py`` 中的共享 mixin（如 ``TimestampMixin``）来注入
    ``created_at`` / ``updated_at`` 等通用列，避免重复定义。
 """
 
+from .admin_user import AdminUserModel
 from .agent import AgentModel
 from .base import TimestampMixin
+from .public_user import PublicUserModel
 from .session import ChatMessageModel, ChatSessionModel
 from .tool import ToolModel
-from .user_profile import UserProfile
 from .workflow import WorkflowEdgeModel, WorkflowModel, WorkflowNodeModel
 
 __all__ = [
+    "AdminUserModel",
     "AgentModel",
     "ChatMessageModel",
     "ChatSessionModel",
+    "PublicUserModel",
     "TimestampMixin",
     "ToolModel",
-    "UserProfile",
     "WorkflowEdgeModel",
     "WorkflowModel",
     "WorkflowNodeModel",

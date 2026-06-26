@@ -19,7 +19,7 @@ export function AppSidebar() {
   const user = auth.user
     ? {
         name: auth.user.display_name,
-        email: auth.user.email,
+        email: auth.user.username,
       }
     : sidebarData.user
 

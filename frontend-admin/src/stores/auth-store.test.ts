@@ -9,7 +9,7 @@ async function importAuthStore() {
 const sampleUser = {
   user_id: 'usr-1',
   display_name: 'Alice',
-  email: 'user@example.com',
+  username: 'alice',
 }
 
 describe('useAuthStore', () => {

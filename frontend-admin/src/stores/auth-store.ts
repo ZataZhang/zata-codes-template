@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { getCookie, setCookie, removeCookie } from '@/lib/cookies'
 import type { UserSession } from '@/api/auth'
 
-const AUTH_USER_KEY = 'auth_user'
+const AUTH_USER_KEY = 'admin_auth_user'
 
 interface AuthState {
   auth: {

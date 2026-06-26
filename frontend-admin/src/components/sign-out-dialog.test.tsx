@@ -14,6 +14,10 @@ vi.mock('@/stores/auth-store', () => ({
   }),
 }))
 
+vi.mock('@/api/auth', () => ({
+  logout: vi.fn(),
+}))
+
 vi.mock('@tanstack/react-router', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@tanstack/react-router')>()
   return {
@@ -33,9 +37,9 @@ describe('SignOutDialog', () => {
       <SignOutDialog open onOpenChange={vi.fn()} />
     )
 
-    await userEvent.click(getByRole('button', { name: /^Sign out$/i }))
+    await userEvent.click(getByRole('button', { name: /^退出$/ }))
 
-    expect(reset).toHaveBeenCalledOnce()
+    await vi.waitFor(() => expect(reset).toHaveBeenCalledOnce())
     expect(navigate).toHaveBeenCalledWith({
       to: '/sign-in',
       search: { redirect: MOCK_HREF },
