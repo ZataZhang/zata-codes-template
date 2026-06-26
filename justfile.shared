@@ -1072,7 +1072,7 @@ e2e-install:
     cd "{{justfile_directory()}}/tests/playwright-e2e" && npm install && npx playwright install chromium
 
 # Pack all gitignored .env* files into a password-protected encrypted zip.
-# Output: ./<project_name>_secrets.zip  (one fixed file per project root)
+# Output: ./<project_name>.zip  (one fixed file per project root)
 # Password is prompted interactively at compression time; required again to extract.
 export-env-encrypted:
     ./scripts/shared/secrets/export_env_encrypted.sh

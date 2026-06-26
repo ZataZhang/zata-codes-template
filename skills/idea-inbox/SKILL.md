@@ -87,7 +87,7 @@ Append one new entry to the END of `ideas.md`. Never touch existing entries.
 
 ## Mode: Promote to PRD
 
-1. Use the `prd` skill to create a PRD under `tasks/pending/` (naming and structure per `docs/guides/prd-standard.md`).
+1. Use the `prd` skill to create a PRD under `tasks/pending/` (naming and structure per `skills/prd/SKILL.md`).
 2. Record the idea under "已升级" in `summary.md` with the PRD path.
 3. Leave the original entry in `ideas.md` untouched — it remains the requirement trace.
 

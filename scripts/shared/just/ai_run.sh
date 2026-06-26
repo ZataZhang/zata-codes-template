@@ -58,12 +58,18 @@ if [ "$mode" = "interactive" ]; then
             # the AI read/edit files without per-action prompts.
             claude --dangerously-skip-permissions "$prompt_text" || true
             ;;
-        kimi|*)
-            # kimi and unknown tools: pass the prompt as a positional
-            # argument through the user's interactive shell so aliases
-            # resolve. `|| true` keeps the wrapper from failing when
-            # the user types /exit or Ctrl+C.
-            "${SHELL:-bash}" -i -c "$(printf '%s %q' "$ai_tool" "$prompt_text")" || true
+        kimi)
+            # kimi requires the --prompt flag. Pass the prompt through an
+            # environment variable so multi-line text survives the
+            # bash -c quoting round-trip unchanged.
+            KIMI_PROMPT="$prompt_text" "${SHELL:-bash}" -i -c 'kimi --prompt "$KIMI_PROMPT"' || true
+            ;;
+        *)
+            # Unknown tools: pass the prompt as a positional argument
+            # through the user's interactive shell so aliases resolve.
+            # The tool name is expanded literally for alias expansion;
+            # the prompt travels in an env var to preserve newlines.
+            AI_PROMPT="$prompt_text" "${SHELL:-bash}" -i -c "$ai_tool"' "$AI_PROMPT"' || true
             ;;
     esac
 else
@@ -118,13 +124,14 @@ else
                 ' || true
             ;;
         kimi)
-            # kimi uses --prompt flag instead of positional argument
-            "${SHELL:-bash}" -i -c "$(printf '%s --prompt %q' "$ai_tool" "$prompt_text")" || true
+            # kimi uses --prompt flag instead of positional argument.
+            # Use an env var so multi-line prompts survive bash -c quoting.
+            KIMI_PROMPT="$prompt_text" "${SHELL:-bash}" -i -c 'kimi --prompt "$KIMI_PROMPT"' || true
             ;;
         *)
             # Passthrough: any other tool name gets the prompt as a
             # positional argument through the user's interactive shell.
-            "${SHELL:-bash}" -i -c "$(printf '%s %q' "$ai_tool" "$prompt_text")" || true
+            AI_PROMPT="$prompt_text" "${SHELL:-bash}" -i -c "$ai_tool"' "$AI_PROMPT"' || true
             ;;
     esac
 fi

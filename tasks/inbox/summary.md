@@ -1,19 +1,17 @@
 # Idea Inbox — 总结（AI 派生，可重写；事实以 ideas.md 为准）
 
-_最后更新：2026-06-15 11:04_
+_最后更新：2026-06-25 18:41_
 
 ## 主题聚类
-
-- **模板工具链分层** — 将 `scripts/` 目录也按"模板共享 / 项目私有"分层，与已有的 `justfile` / `justfile.shared` 拆分保持一致（来源：2026-06-15 10:49）。
+- **目录结构拆分：提取可复用/可同步的子文件夹** — 用户关注到顶层目录中的 `scripts/` 和 `hooks/` 都应有更细粒度的子目录，用于隔离“会同步到其他项目/复用的部分”与项目特化的部分（来源：2026-06-15 10:49, 2026-06-25 18:39）
 
 ## 可执行候选
-
-- 把会随 `just sync-template` 同步的脚本集中到 `scripts/shared/`，保留 `scripts/sync_template.sh` 作为项目私有包装器 → 建议 PRD：P2-REFACTOR，理由：范围清晰、与现有 justfile 分层对称、不影响 `hooks/` 和 pre-commit。（来源：2026-06-15 10:49）
+- 为 `hooks/` 抽取 `shared/` 子文件夹 → 建议 PRD：`P2-ARCH`，理由：需界定“共享 hook 逻辑”的范围，避免与项目特化 hook 混放；可与 `scripts` 的拆分统一设计（来源：2026-06-25 18:39）
 
 ## 待澄清问题
-
-- 无。
+- `hooks/shared/` 与 `scripts/shared/` 是同一隔离维度吗？（来源：2026-06-25 18:39）
+- 是否所有顶层目录（如 `skills/`、`tests/`、`frontend-*`）都应遵循同一拆分规则，还是只针对 `scripts/` 和 `hooks/`？（来源：2026-06-25 18:39）
+- `hooks/shared/` 里的内容是否也会通过 `sync_template.sh` 同步到其他项目？（来源：2026-06-25 18:39）
 
 ## 已升级
-
-- `Scripts 我觉得要不也抽一个模板scripts 文件夹,把会同步的都放在模板script文件夹里面` → `tasks/archive/P2-REFACTOR-20260615-110433-isolate-template-scripts.md`（来源：2026-06-15 10:49）
+- 为 `scripts/` 抽取模板/同步脚本子目录 → `tasks/archive/P2-REFACTOR-20260615-110433-isolate-template-scripts.md`（来源：2026-06-15 10:49）

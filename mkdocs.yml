@@ -62,7 +62,6 @@ nav:
       - 可观测性: guides/observability.md
       - 备份与恢复: guides/backup.md
       - 想法 Inbox: guides/idea-inbox.md
-      - PRD 编写规范: guides/prd-standard.md
       - Review Workflow: guides/review-workflow.md
       - Skill Lifecycle: guides/skill-lifecycle.md
       - Codex macOS 通知: guides/codex-notifications.md

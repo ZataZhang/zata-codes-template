@@ -182,7 +182,7 @@ Before final delivery, reconcile the implementation against a PRD.
 - prefer an existing non-archived PRD if it clearly belongs to the current task
 - if a PRD exists, update it with actual deliverables, verification evidence, deviations, lessons learned, and follow-up items
 - if no matching PRD exists, create `tasks/pending/<PRIORITY>-<TYPE>-<YYYYMMDD-HHMMSS>-<task-slug>.md`
-- use the repository PRD conventions from `skills/prd/SKILL.md` and `docs/guides/prd-standard.md` when creating a new PRD
+- use the repository PRD conventions from `skills/prd/SKILL.md` when creating a new PRD
 - record the final PRD path and whether it was `updated` or `created` in `.claude/planning/current/task_plan.md` and `.claude/planning/current/progress.md`
 
 ## Completion Summary Rules

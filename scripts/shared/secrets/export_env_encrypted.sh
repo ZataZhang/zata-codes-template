@@ -2,7 +2,7 @@
 # export_env_encrypted.sh — Pack all gitignored .env* files into a password-protected zip.
 #
 # - Only includes files that are both matching .env* AND gitignored.
-# - Output: ../mysecrets/<project_name>_secrets.zip  (one fixed file per project)
+# - Output: ../mysecrets/<project_name>.zip  (one fixed file per project)
 # - Password is prompted interactively; required again to extract.
 # - Uses AES-256 if the local zip binary supports it, otherwise ZipCrypto.
 #
@@ -47,7 +47,7 @@ fi
 
 PROJECT_ROOT="$(git rev-parse --show-toplevel)"
 PROJECT_NAME="$(basename "$PROJECT_ROOT")"
-OUTPUT_ZIP="$PROJECT_ROOT/${PROJECT_NAME}_secrets.zip"
+OUTPUT_ZIP="$PROJECT_ROOT/${PROJECT_NAME}.zip"
 
 cd "$PROJECT_ROOT"
 
