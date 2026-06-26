@@ -177,3 +177,37 @@ src/backend/api/ → src/backend/core/ → src/backend/engines/ → src/backend/
 3. `src/backend/engines/` 只能实现 `src/backend/core/` 定义的契约。
 4. `src/backend/infrastructure/` 负责具体集成，不包含业务编排。
 5. 配置、日志、数据库和通用辅助函数位于 `src/backend/infrastructure/` 下的正式模块。
+
+## 认证与会话域
+
+系统采用**两套物理隔离的认证域**，互不穿透：
+
+| 维度 | public 域（C 端用户） | admin 域（内部管理员） |
+|---|---|---|
+| 用户表 | `public_user`（开放自助注册，UUID 主键） | `admin_user`（仅种子创建，不开放注册） |
+| 登录端点 | `/auth/*`（login/register/logout/me） | `/admin/auth/*`（login/logout/me，无 register） |
+| 会话 Cookie | `session_id` | `admin_session_id` |
+| 会话存储 | Redis，key 前缀 `public:session:` | Redis，key 前缀 `admin:session:` |
+| 鉴权依赖 | `get_current_public_user` | `get_current_admin_user` |
+| 主要 API | 业务 `agents/workflows/sessions/tools`（`owner_id = public_user.id`） | `/admin/users` 管理 public 用户 |
+| 前端 | `frontend-public` | `frontend-admin` |
+
+### 隔离保证
+
+- 两域各自独立的用户表、Cookie 与 Redis 命名空间；一个域的会话 token 在另一域命名空间中查不到，因此 public 会话无法通过 admin 守卫（反之亦然），均返回 401。
+- admin 专属路由集中在 `src/backend/api/admin/`，统一经 `get_current_admin_user` 守卫。
+- 业务资源归属 public 用户；admin 域仅用于管理，不拥有业务资源。
+- 被禁用（`is_active=false`）的用户既有会话在下次请求解析时立即失效。
+
+### 共享编排（避免重复）
+
+登录 / 登出 / 会话解析 / 注册的编排集中在单一的 `core/auth/AuthService`；两域通过注入不同的用户仓库、会话存储（不同前缀）与 `allow_registration` 标志复用同一实现，从而在保持物理隔离的同时不复制近似认证代码。`UserAccount` 领域模型位于 `core/shared/models/`，作为跨层契约被基础设施层仓库实现引用。
+
+### 关键实现位置
+
+- 领域编排：`core/auth/`（`service.py` / `directory.py` / `models.py`）、`core/shared/models/user_account.py`
+- 抽象端口：`core/shared/interfaces/`（`user_account_repository.py` / `password_hasher.py` / `session_store.py`）
+- 基础设施实现：`infrastructure/auth/`（`redis_session_store.py` / `bcrypt_password_hasher.py` / `redis_client.py`）、`infrastructure/persistence/repos/user_account_repo.py`、`infrastructure/persistence/models/{public_user,admin_user}.py`
+- 接入层：`api/auth_router.py`、`api/admin/`、`api/dependencies.py`
+- 初始管理员：`main.py` 启动时按 `AUTH_ADMIN_BOOTSTRAP_*` 幂等种子创建
+- 运行依赖：Redis（`REDIS_URL`）；密码以 bcrypt 哈希持久化

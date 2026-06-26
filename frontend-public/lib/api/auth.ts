@@ -31,7 +31,6 @@ export async function getCurrentSession(): Promise<UserSession> {
 
 export async function register(payload: RegisterPayload): Promise<UserSession> {
   return apiPost<UserSession>("/auth/register", {
-    user_id: payload.email.split("@")[0],
     display_name: payload.displayName,
     email: payload.email,
     password: payload.password,

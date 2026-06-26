@@ -141,6 +141,69 @@ class ObservabilitySettings(BaseSettings):
         )
 
 
+class RedisSettings(BaseSettings):
+    """Redis 连接配置（用于会话存储）。"""
+
+    model_config = SettingsConfigDict(
+        env_prefix="REDIS_",
+        env_file=(_PROJECT_ROOT_PATH / ".env", _PROJECT_ROOT_PATH / ".env.local"),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    url: str = "redis://localhost:6379/0"
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,  # noqa: ARG003
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        toml_source: _TomlSectionSource = _TomlSectionSource(settings_cls, "redis")
+        return (
+            env_settings,
+            dotenv_settings,
+            toml_source,
+            init_settings,
+        )
+
+
+class AuthSettings(BaseSettings):
+    """认证与会话配置：会话窗口与初始管理员种子（Cookie 名为接入层常量）。"""
+
+    model_config = SettingsConfigDict(
+        env_prefix="AUTH_",
+        env_file=(_PROJECT_ROOT_PATH / ".env", _PROJECT_ROOT_PATH / ".env.local"),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    admin_bootstrap_username: str = ""
+    admin_bootstrap_password: SecretStr = SecretStr("")
+    session_sliding_days: int = 15
+    session_absolute_days: int = 60
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,  # noqa: ARG003
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        toml_source: _TomlSectionSource = _TomlSectionSource(settings_cls, "auth")
+        return (
+            env_settings,
+            dotenv_settings,
+            toml_source,
+            init_settings,
+        )
+
+
 class AppSettings(BaseSettings):
     """应用主配置 - 聚合所有子配置。"""
 
@@ -160,6 +223,8 @@ class AppSettings(BaseSettings):
 
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
+    redis: RedisSettings = Field(default_factory=RedisSettings)
+    auth: AuthSettings = Field(default_factory=AuthSettings)
 
     base_dir: Path = _PROJECT_ROOT_PATH
     log_dir: Path = Field(default_factory=lambda: _PROJECT_ROOT_PATH / "logs")
@@ -475,9 +540,11 @@ _ensure_no_proxy_for_local_services()
 
 __all__ = [
     "AppSettings",
+    "AuthSettings",
     "DatabaseSettings",
     "ModelConfigError",
     "ObservabilitySettings",
+    "RedisSettings",
     "ProviderEndpoint",
     "config",
     "create_chat_model",

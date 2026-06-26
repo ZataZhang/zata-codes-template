@@ -124,3 +124,45 @@ export function getAuthStorageStatePath(): string {
   ensureAuthDirectory()
   return authStorageStatePath
 }
+
+// ── Admin domain (separate auth domain) ─────────────────────────────────────────
+
+/**
+ * Admin frontend base URL (used as baseURL for the admin Playwright project).
+ *
+ * Override: PLAYWRIGHT_ADMIN_BASE_URL
+ * Dev default: http://127.0.0.1:5173
+ */
+export function getAdminBaseUrl(): string {
+  const stackMode = getStackMode()
+  const fallback = stackMode === 'docker' ? 'http://127.0.0.1:8081' : 'http://127.0.0.1:5173'
+  return trimTrailingSlash(process.env.PLAYWRIGHT_ADMIN_BASE_URL ?? fallback)
+}
+
+/**
+ * Admin login credentials used by the admin auth setup step.
+ *
+ * Reads from: PLAYWRIGHT_ADMIN_IDENTIFIER / PLAYWRIGHT_ADMIN_PASSWORD
+ *   or the AUTH_ADMIN_BOOTSTRAP_* equivalents.
+ */
+export function getAdminCredentials(): Credentials {
+  const identifier =
+    readFirstDefinedEnv(['PLAYWRIGHT_ADMIN_IDENTIFIER', 'AUTH_ADMIN_BOOTSTRAP_USERNAME']) ?? ''
+  const password =
+    readFirstDefinedEnv(['PLAYWRIGHT_ADMIN_PASSWORD', 'AUTH_ADMIN_BOOTSTRAP_PASSWORD']) ?? ''
+
+  if (!identifier || !password) {
+    throw new Error(
+      'Missing Playwright admin credentials. Set PLAYWRIGHT_ADMIN_IDENTIFIER and ' +
+        'PLAYWRIGHT_ADMIN_PASSWORD (or the AUTH_ADMIN_BOOTSTRAP_* equivalents) before running admin e2e.',
+    )
+  }
+
+  return { identifier, password }
+}
+
+/** Path to the persisted Playwright storage state used by the admin project. */
+export function getAdminAuthStorageStatePath(): string {
+  ensureAuthDirectory()
+  return resolve(authDirectoryPath, 'admin-session.json')
+}

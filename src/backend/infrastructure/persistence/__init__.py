@@ -9,13 +9,14 @@ from .database import (
     get_db,
     init_database,
 )
-from .models import TimestampMixin, UserProfile
+from .models import AdminUserModel, PublicUserModel, TimestampMixin
 
 __all__ = [
+    "AdminUserModel",
     "Base",
+    "PublicUserModel",
     "SessionLocal",
     "TimestampMixin",
-    "UserProfile",
     "create_database_engine",
     "create_tables",
     "engine",

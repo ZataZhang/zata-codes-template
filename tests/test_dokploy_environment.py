@@ -74,20 +74,6 @@ def _parse_all_env_keys(env_file_path: Path) -> set[str]:
     return all_env_keys
 
 
-def _read_env_assignment_value(env_file_path: Path, target_env_key: str) -> str | None:
-    """Return an env assignment value without parsing dotenv interpolation."""
-    for raw_env_line in env_file_path.read_text(encoding="utf-8").splitlines():
-        stripped_env_line: str = raw_env_line.strip().lstrip("#").strip()
-        if not stripped_env_line or "=" not in stripped_env_line:
-            continue
-
-        env_key, _, env_value = stripped_env_line.partition("=")
-        if env_key.strip() == target_env_key:
-            return env_value.strip()
-
-    return None
-
-
 def _parse_all_service_env_keys(compose_file_path: Path) -> dict[str, set[str]]:
     """Return {service_name: env_keys} for every service with an environment block.
 
@@ -214,18 +200,3 @@ def test_env_templates_do_not_list_stale_keys() -> None:
     assert not stale_template_env_keys, (
         "Remove stale environment keys from templates: " f"{stale_template_env_keys}"
     )
-
-
-def test_admin_password_hash_template_values_escape_dollars() -> None:
-    """Bcrypt hash placeholders should avoid Docker Compose interpolation."""
-    template_hash_value: str | None = _read_env_assignment_value(
-        ROOT_ENV_TEMPLATE_PATH, "ADMIN_PASSWORD_HASH"
-    )
-    dokploy_template_hash_value: str | None = _read_env_assignment_value(
-        DOKPLOY_ENV_TEMPLATE_PATH, "ADMIN_PASSWORD_HASH"
-    )
-
-    assert template_hash_value is not None
-    assert dokploy_template_hash_value is not None
-    assert template_hash_value.startswith("$$2")
-    assert dokploy_template_hash_value.startswith("$$2")

@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, status
 from fastapi.exceptions import HTTPException
 
-from backend.api.dependencies import get_current_user, get_workflow_use_case
+from backend.api.dependencies import get_current_public_user, get_workflow_use_case
 from backend.api.schemas import (
     WorkflowCreateRequest,
     WorkflowEdgeDto,
@@ -13,7 +13,7 @@ from backend.api.schemas import (
     WorkflowResponse,
     WorkflowUpdateRequest,
 )
-from backend.core.use_cases.auth import User
+from backend.core.auth.models import AuthenticatedPrincipal
 from backend.core.workflow.use_cases import WorkflowUseCase
 
 router = APIRouter(prefix="/workflows", tags=["workflows"])
@@ -58,7 +58,7 @@ def _to_workflow_response(workflow: object) -> WorkflowResponse:
 
 @router.get("", response_model=list[WorkflowResponse])
 async def list_workflows(
-    current_user: User = Depends(get_current_user),
+    current_user: AuthenticatedPrincipal = Depends(get_current_public_user),
     use_case: WorkflowUseCase = Depends(get_workflow_use_case),
 ) -> list[WorkflowResponse]:
     """列出当前用户的所有工作流。"""
@@ -69,7 +69,7 @@ async def list_workflows(
 @router.post("", response_model=WorkflowResponse, status_code=status.HTTP_201_CREATED)
 async def create_workflow(
     request_payload: WorkflowCreateRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: AuthenticatedPrincipal = Depends(get_current_public_user),
     use_case: WorkflowUseCase = Depends(get_workflow_use_case),
 ) -> WorkflowResponse:
     """创建工作流。"""
@@ -90,7 +90,7 @@ async def create_workflow(
 @router.get("/{workflow_id}", response_model=WorkflowResponse)
 async def get_workflow(
     workflow_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: AuthenticatedPrincipal = Depends(get_current_public_user),
     use_case: WorkflowUseCase = Depends(get_workflow_use_case),
 ) -> WorkflowResponse:
     """读取指定工作流。"""
@@ -113,7 +113,7 @@ async def get_workflow(
 async def update_workflow(
     workflow_id: str,
     request_payload: WorkflowUpdateRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: AuthenticatedPrincipal = Depends(get_current_public_user),
     use_case: WorkflowUseCase = Depends(get_workflow_use_case),
 ) -> WorkflowResponse:
     """更新指定工作流。"""
@@ -143,7 +143,7 @@ async def update_workflow(
 @router.delete("/{workflow_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_workflow(
     workflow_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: AuthenticatedPrincipal = Depends(get_current_public_user),
     use_case: WorkflowUseCase = Depends(get_workflow_use_case),
 ) -> None:
     """删除指定工作流。"""
@@ -164,7 +164,7 @@ async def delete_workflow(
 @router.post("/{workflow_id}/run", response_model=dict)
 async def run_workflow(
     workflow_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: AuthenticatedPrincipal = Depends(get_current_public_user),
     use_case: WorkflowUseCase = Depends(get_workflow_use_case),
 ) -> dict:
     """运行指定工作流。"""

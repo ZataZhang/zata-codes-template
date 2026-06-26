@@ -5,10 +5,10 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, status
 from fastapi.exceptions import HTTPException
 
-from backend.api.dependencies import get_agent_use_case, get_current_user
+from backend.api.dependencies import get_agent_use_case, get_current_public_user
 from backend.api.schemas import AgentCreateRequest, AgentResponse, AgentUpdateRequest
 from backend.core.agent.use_cases import AgentUseCase
-from backend.core.use_cases.auth import User
+from backend.core.auth.models import AuthenticatedPrincipal
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 
@@ -36,7 +36,7 @@ def _to_agent_response(agent: object) -> AgentResponse:
 
 @router.get("", response_model=list[AgentResponse])
 async def list_agents(
-    current_user: User = Depends(get_current_user),
+    current_user: AuthenticatedPrincipal = Depends(get_current_public_user),
     use_case: AgentUseCase = Depends(get_agent_use_case),
 ) -> list[AgentResponse]:
     """列出当前用户的所有 Agent。"""
@@ -47,7 +47,7 @@ async def list_agents(
 @router.post("", response_model=AgentResponse, status_code=status.HTTP_201_CREATED)
 async def create_agent(
     request_payload: AgentCreateRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: AuthenticatedPrincipal = Depends(get_current_public_user),
     use_case: AgentUseCase = Depends(get_agent_use_case),
 ) -> AgentResponse:
     """创建 Agent。"""
@@ -71,7 +71,7 @@ async def create_agent(
 @router.get("/{agent_id}", response_model=AgentResponse)
 async def get_agent(
     agent_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: AuthenticatedPrincipal = Depends(get_current_public_user),
     use_case: AgentUseCase = Depends(get_agent_use_case),
 ) -> AgentResponse:
     """读取指定 Agent。"""
@@ -94,7 +94,7 @@ async def get_agent(
 async def update_agent(
     agent_id: str,
     request_payload: AgentUpdateRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: AuthenticatedPrincipal = Depends(get_current_public_user),
     use_case: AgentUseCase = Depends(get_agent_use_case),
 ) -> AgentResponse:
     """更新指定 Agent。"""
@@ -125,7 +125,7 @@ async def update_agent(
 @router.delete("/{agent_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_agent(
     agent_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: AuthenticatedPrincipal = Depends(get_current_public_user),
     use_case: AgentUseCase = Depends(get_agent_use_case),
 ) -> None:
     """删除指定 Agent。"""

@@ -2,36 +2,23 @@
 
 from __future__ import annotations
 
-import pytest
+import uuid
+
 from fastapi.testclient import TestClient
-
-from backend.infrastructure.persistence.database import (
-    Base,
-    engine,
-)
-
-
-@pytest.fixture(scope="module", autouse=True)
-def setup_database() -> None:
-    """创建测试数据库表。"""
-    Base.metadata.create_all(bind=engine)
-    yield
-    Base.metadata.drop_all(bind=engine)
 
 
 def test_agent_crud_lifecycle() -> None:
     """测试 Agent 创建、读取、列表和删除生命周期。"""
     from backend.main import create_app
 
-    app = create_app()
-    client = TestClient(app)
+    client = TestClient(create_app())
+    email: str = f"agenttest-{uuid.uuid4().hex[:12]}@example.com"
 
     register_response = client.post(
         "/auth/register",
         json={
-            "user_id": "agenttest",
             "display_name": "Agent Test",
-            "email": "agenttest@example.com",
+            "email": email,
             "password": "testpass123",
         },
     )

@@ -1,11 +1,17 @@
 import { defineConfig, devices } from '@playwright/test'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { getBaseUrl } from './support/env'
+import { getAdminBaseUrl, getBaseUrl } from './support/env'
 
 const baseURL = getBaseUrl()
+const adminBaseURL = getAdminBaseUrl()
 const currentDirectoryPath = dirname(fileURLToPath(import.meta.url))
 const authStorageStatePath = resolve(currentDirectoryPath, '.auth', 'session.json')
+const adminAuthStorageStatePath = resolve(
+  currentDirectoryPath,
+  '.auth',
+  'admin-session.json'
+)
 const testResultOutputDirectory = process.env.PLAYWRIGHT_TEST_RESULTS_DIR ?? './test-results'
 const htmlReportOutputDirectory = process.env.PLAYWRIGHT_HTML_OUTPUT_DIR ?? 'playwright-report'
 const junitOutputFilePath =
@@ -42,23 +48,22 @@ export default defineConfig({
   globalSetup: './scripts/global-setup.mjs',
   globalTeardown: './scripts/global-teardown.mjs',
   projects: [
-    // ── Project 1: auth setup ──────────────────────────────────────────────
-    // Runs auth.setup.ts once, persists session cookies to .auth/session.json.
+    // ── Project 1: public auth setup ───────────────────────────────────────
+    // Logs into the public frontend once, persists cookies to .auth/session.json.
     {
       name: 'setup',
-      testMatch: /.*\.setup\.ts/,
+      testMatch: /\/auth\.setup\.ts$/,
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 1440, height: 1200 },
       },
     },
 
-    // ── Project 2: authenticated tests ────────────────────────────────────
-    // All tests that need a logged-in session. Depends on 'setup'.
+    // ── Project 2: authenticated public tests ──────────────────────────────
     {
       name: 'chromium',
       dependencies: ['setup'],
-      testIgnore: [/.*\.setup\.ts/, /.*\.no-auth\.spec\.ts/],
+      testIgnore: [/.*\.setup\.ts/, /.*\.no-auth\.spec\.ts/, /.*\.admin\.spec\.ts/],
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 1440, height: 1200 },
@@ -67,15 +72,38 @@ export default defineConfig({
     },
 
     // ── Project 3: no-auth tests ───────────────────────────────────────────
-    // Tests that target public/unauthenticated surfaces (e.g. a public UI,
-    // a backend proxy that has no login gate).
-    // Run with: playwright test --project=no-auth
     {
       name: 'no-auth',
       testMatch: /.*\.no-auth\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 1440, height: 1200 },
+      },
+    },
+
+    // ── Project 4: admin auth setup ────────────────────────────────────────
+    // Logs into the admin frontend (separate auth domain) once, persists
+    // cookies to .auth/admin-session.json.
+    {
+      name: 'admin-setup',
+      testMatch: /admin-auth\.setup\.ts$/,
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1440, height: 1200 },
+        baseURL: adminBaseURL,
+      },
+    },
+
+    // ── Project 5: authenticated admin tests ───────────────────────────────
+    {
+      name: 'admin',
+      dependencies: ['admin-setup'],
+      testMatch: /.*\.admin\.spec\.ts/,
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1440, height: 1200 },
+        baseURL: adminBaseURL,
+        storageState: adminAuthStorageStatePath,
       },
     },
   ],
