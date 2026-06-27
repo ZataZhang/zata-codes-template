@@ -1,0 +1,4 @@
+interface:
+  display_name: "Migration (Behavior-Preserving)"
+  short_description: "Migrate frameworks/versions/libraries while keeping behavior identical"
+  default_prompt: "Use $migration to plan and execute this migration: lock a high-level behavior baseline first, slice the work into small revertable increments, and verify each slice against the baseline before the next."

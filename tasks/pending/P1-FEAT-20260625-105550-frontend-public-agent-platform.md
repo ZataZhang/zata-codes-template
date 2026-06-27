@@ -1,20 +1,24 @@
 # PRD: 将 frontend-public 改造为 Zata Agent 平台
 
+> 本 PRD 分两个 altitude：**Part A · 人审层**（决定该不该做、做得对不对，含介入与风险地图）;**Part B · 执行器层**（实现细节，人只在风险地图点名处下钻）。
+
+---
+
+# Part A · 人审层 (Review Layer)
+
 ## 1. Introduction & Goals
 
 ### Problem Statement
 
 当前 `frontend-public/` 是一个通用 SaaS 前台官网（项目/任务协作方向），营销页、应用区路由和组件都围绕「团队协作」设计。随着产品定位转向 **AI Agent Platform**，现有页面、文案、路由和应用内工作区已无法承载「Agent 广场、Agent 配置、多轮会话、工具调用、工作流编排」等核心能力。同时，后端目前仅提供认证 API，缺少 Agent、会话、工作流的真实数据接口，无法支撑前端直接对接真实 API 的目标。
 
-### Proposed Solution Summary
+### Interpretation (解读回显)
 
-推荐采用**前后端同步开发**的一站式改造：
+我把需求读成：**把 frontend-public 从"团队协作官网"改造成"Agent 平台"，且前端直接对接后端真实 API（非 mock）**——因此后端要同步新建 Agent/会话/工作流/工具的真实接口。假设范围限 `frontend-public/` + `src/backend/` 内新增模块，不动 `frontend-admin/`、不引独立服务/端口;LLM 真实调用为可选（结构必须真、执行可 mock 开关）。如果你其实只想前端换皮、后端留到下一阶段，这条解读就是错的——请在此纠正（第一次人类触点）。
 
-- **前端**：在保留 `(public)` 营销壳和 `(auth)` 认证壳的基础上，将 `(app)` 内部区改造成 Agent 工作区；新增 Agent 广场、Agent 详情/编辑、会话聊天、可视化工作流编辑器、工具管理等页面；同步更新全局设计 Token、营销文案和导航结构，使其传达「面向开发者团队的 Agent 平台」定位。
-- **后端**：按现有四层架构（`api/ → core/ → engines/ → infrastructure/`）新增 Agent、Chat Session、Message、Workflow、Tool Registry 等模块；使用 SQLAlchemy + Alembic 做持久化；通过 FastAPI 路由暴露 `/api/agents`、`/api/sessions`、`/api/workflows`、`/api/tools` 等接口，供 frontend-public 直接调用。
-- **可视化工作流**：前端引入 `@xyflow/react`（React Flow）实现可拖拽节点画布；后端工作流模型支持节点（Agent、Tool、Condition、Start/End）和边的持久化。
+### What The User Gets
 
-核心机制是：前端通过已有的 axios 客户端（`lib/api/client.ts`）调用后端新增 REST API；后端用例层编排 Agent/会话/工作流业务规则；基础设施层提供数据库仓库和 LLM 客户端；engines 层提供工具注册表，供 core 层调用。
+访问者在营销页 5 秒内理解「Zata Agent Platform」定位;登录开发者进入 Agent 工作区，完成「创建 Agent → 配置模型/工具 → 发起会话 → 观察工具调用过程 → 可视化编排并运行工作流」的完整闭环，数据全部通过真实后端 API 持久化（非 mock）。
 
 ### Measurable Objectives
 
@@ -24,30 +28,57 @@
 - 后端 API 覆盖 Agent CRUD、Session CRUD、Message CRUD、Workflow CRUD、Tool 列表，且通过真实 HTTP 入口可验证。
 - `pnpm build`（前端）和 `pytest tests/`（后端）均通过，无新增架构违规（`hooks/check_architecture.py`）。
 
-### Realistic Validation
+---
 
-除单元测试和集成测试外，本 PRD 要求通过**真实项目入口点**验证关键行为，确保真实使用路径生效，而非仅在隔离 fixture 中通过。
+## 2. Human Review Map (介入与风险地图)
 
-- [ ] **营销首页真实验证**：通过 `pnpm dev` 启动 frontend-public，访问 `http://localhost:3000/`，验证首页 Hero 文案为 Agent 平台、导航包含「Agent 广场」。
-- [ ] **认证 + 应用区真实验证**：通过 `http://localhost:3000/register` 注册账号，登录后自动进入 `/app/dashboard`，验证侧边栏导航为 Agent 工作区菜单。
-- [ ] **Agent 全生命周期真实验证**：通过前端页面创建 Agent、编辑 Agent、在 Agent 详情页发起会话并发送消息，验证数据通过 `/api/agents` 和 `/api/sessions` 真实写入后端。
-- [ ] **工作流编辑器真实验证**：通过 `/app/workflows` 创建新工作流，拖拽添加 Agent 节点与 Tool 节点，连接边后保存，刷新页面后工作流结构可还原。
-- [ ] **后端四层架构真实验证**：通过 `python -m backend.main` 启动后端，使用 `curl` 调用 `/api/agents`、`/api/sessions`、`/api/workflows` 接口，验证接口返回真实数据。
-- [ ] **为什么单元测试不够**：本任务涉及前后端真实 HTTP 通信、浏览器渲染、数据库持久化、LLM/工具调用链路，单元测试无法覆盖端到端用户路径和跨进程状态一致性。
+默认按架构层定介入档（`api`/`infrastructure` 偏自动，`core` 偏人工），再用风险因子（不可逆性 / 影响面 / 安全·资金 / 正确性关键度）调整。本特性是全栈新平台，高风险面密集。
 
-### Delivery Dependencies
+判定菜单：固定区域 ① Core 逻辑/编排 ② schema/迁移 ③ 安全/鉴权/信任边界 ④ 对外 API 契约;横切触发器 ⑤ 资金/计费 ⑥ 不可逆/破坏性数据操作 ⑦ 并发/幂等。
 
-- Group: frontend-public-agent-platform
-- Depends on groups:
-  - none
-- Depends on tasks/issues:
-  - none（`tasks/pending/P2-FEAT-20260610-000000-prd-skill-multi-mode-optimization.md` 与本任务无关，无依赖）
-- Gate type: none
-- Notes: 本 PRD 同时涉及 frontend-public 前端改造和 src/backend 后端新增模块，但无外部服务依赖。LLM 调用为可选能力，工作流运行可先用 mock tool 返回验证流程。
+**命中的人审项**（逐条进下表，需人工确认）：①②③④⑦。
+
+**未命中**（默认执行器 + 自动门禁）：⑤（无计费/额度逻辑，LLM 成本未计量）、⑥（仅新建表不删既有数据;删旧前端页面属代码删除非数据操作）。
+
+- 最坏自检：⑤ 一旦将来加配额/计费即升人审;⑥ 删 tasks/projects **前**确认无生产数据依赖（最坏=误删用户数据）——本次仅删前端代码与文案、无数据迁移，故仍属未命中。
+
+| 改动点 | 架构层 | 风险 | 介入方式 | 证据 / Oracle（可执行、能证伪本项；进 §9 证据包） |
+|---|---|---|---|---|
+| ① Agent/Session/Workflow 编排用例（建 Agent 规则、消息→工具/LLM 调用链、workflow runner 拓扑执行） | core | 高 | 人工确认 | characterization 测试：固定输入断言编排步骤序列与最终消息;runner 对样例图断言拓扑顺序与终止 |
+| ② 7 张新表 schema + Alembic 迁移（Agent/Session/Message/Workflow/Node/Edge/Tool） | infrastructure (schema) | 高 | 人工确认 | `alembic upgrade head && alembic downgrade base` 往返通过 + 每表 round-trip 插入/读出;断言 owner_id 外键与级联（ER 见 §7.6） |
+| ③ 鉴权/信任边界：所有 /api/* 写 + 敏感读校验 session cookie、按 owner 隔离（FR-15） | api/core | 高 | 人工确认 | 越权测试：无 cookie→401/403;A 用户读写 B 的资源→拒绝（每个新 router 各一条） |
+| ④ 对外 API 契约：/api/agents·sessions·workflows·tools 的请求/响应 DTO（前端强耦合） | api | 中 | 人工确认 | 响应 snapshot/contract 测试 + 前端 `lib/api` 类型与同一 schema 校验一致 |
+| ⑦ 消息发送 / 工作流运行的幂等性 | core | 中 | 人工确认 | 双提交测试：同一请求发两次→只产生一条消息 / 一次 LLM 调用 |
+| 营销页/应用区 UI、路由、文案（(public)/(app) 改造） | frontend | 低 | 执行器+门禁 | `pnpm build` + Playwright 首页/导航断言 |
+| React Flow 画布交互（拖拽/连边/保存） | frontend | 中 | 执行器+门禁 | e2e：拖拽加节点→连边→保存→刷新，断言结构还原 |
+| 前端 API 客户端 `lib/api/*` + 类型同步 | frontend | 低 | 执行器+门禁 | `pnpm build`（tsc 类型）+ e2e 命中真实端点 |
+| 后端四层依赖方向 | backend | 低 | 执行器+门禁 | `python hooks/check_architecture.py` |
+| ORM 列/表注释 | infrastructure | 低 | 执行器+门禁 | 列注释 hook（check_schema_conventions / check_sqlalchemy_model_comments） |
+
+**如何证明它生效（真实入口，白话）**：前后端同时跑，真人走「注册 → 建 Agent → 发消息看到工具调用 → 存工作流刷新还原」闭环;后端 `curl /api/*` 看真实数据。命令级见 §7.7。
+
+**数据库结构评审（schema 变化，必审）**：本次新增 7 张表（Agent / ChatSession / ChatMessage / Workflow / WorkflowNode / WorkflowEdge / Tool），均以 `owner_id` 关联 `user_profile` 做按用户隔离。人审重点：owner 外键与级联、`ChatMessage.tool_calls` JSON 结构、Workflow 节点/边的引用完整性、可空性与索引。完整 ER 图见 §7.6。
 
 ---
 
-## 2. Requirement Shape
+## 3. Usage And Impact After Implementation
+
+### 终端用户（开发者）
+- 营销页 `/` 了解平台 → `/register` 注册 → 登录进入 `/app/dashboard`。
+- `/app/agents` 新建/编辑 Agent（系统提示词、模型、工具）→ Agent 详情「开始会话」→ `/app/chat/[sessionId]` 多轮对话并看到 tool call 卡片。
+- `/app/workflows/new` 拖拽节点编排工作流，保存后在详情页运行。
+
+### 开发者（扩展）
+- 后端按四层扩展;新增能力经 `core/shared/interfaces/` 抽象接口接入，前端统一走 `lib/api/*`。入口命令示例见 §7.7 验证表。
+
+### 对既有行为的影响
+- 删除原 tasks/projects 页面与文案;`user_profile` 表不变，新增 7 表向后兼容。
+- 认证沿用现有 session cookie;LLM 调用可经 mock 开关在无 key 时验证流程。
+- 不改 `frontend-admin/`。
+
+---
+
+## 4. Requirement Shape
 
 - **Actor**: 访问 Zata 官网的潜在用户、已注册并登录的开发者用户。
 - **Trigger**:
@@ -67,7 +98,11 @@
 
 ---
 
-## 3. Repository Context And Architecture Fit
+# Part B · 执行器层 (Build Layer)
+
+> 以下供实现者使用;人只在 Part A 风险地图点名处下钻。
+
+## 5. Repository Context And Architecture Fit
 
 ### Current relevant modules/files
 
@@ -132,7 +167,15 @@
 
 ---
 
-## 4. Recommendation
+## 6. Recommendation
+
+### Proposed Solution Summary (实现机制)
+
+前后端同步的一站式改造：
+- **前端**：保留 `(public)` 营销壳与 `(auth)` 认证壳，把 `(app)` 改造成 Agent 工作区;新增 Agent 广场/详情/编辑、会话聊天、可视化工作流编辑器、工具管理;更新设计 Token、文案、导航。
+- **后端**：按四层（`api/ → core/ → engines/ → infrastructure/`）新增 Agent / ChatSession / Message / Workflow / ToolRegistry 模块;SQLAlchemy + Alembic 持久化;FastAPI 暴露 `/api/agents·sessions·workflows·tools`。
+- **可视化工作流**：前端 `@xyflow/react` 可拖拽画布;后端持久化节点（Agent/Tool/Condition/Start/End）与边。
+- **核心机制**：前端经 `lib/api/client.ts` 调后端 REST;core 编排业务规则;infrastructure 提供仓库与 LLM 客户端;engines 提供工具注册表供 core 调用。
 
 ### Recommended Approach
 
@@ -180,11 +223,11 @@
 
 ---
 
-## 5. Implementation Guide
+## 7. Implementation Guide
 
 > This section is a living implementation guide based on current repository analysis. If implementation discovers additional affected files, hidden dependencies, edge cases, or a better path, update this PRD before proceeding.
 
-### 5.1 Core Logic
+### 7.1 Core Logic
 
 #### 前端数据流
 
@@ -205,7 +248,7 @@
 5. `infrastructure/persistence/repos/` 实现数据持久化。
 6. `infrastructure/config/settings.py` 的 `create_chat_model` 提供 LLM 客户端实例。
 
-### 5.2 Change Impact Tree
+### 7.2 Change Impact Tree
 
 ```text
 .
@@ -610,8 +653,9 @@
         └── frontend-architecture.md
             [新增或更新]
             【总结】补充 frontend-public 应用区架构说明
+```
 
-### 5.3 Executor Drift Guard
+### 7.3 Executor Drift Guard
 
 The file list above is the expected implementation surface from current repository analysis. During implementation, treat it as a starting point and use these repository searches to catch hidden references or drift before marking the PRD complete.
 
@@ -624,7 +668,7 @@ The file list above is the expected implementation surface from current reposito
 | 架构违规 | `python hooks/check_architecture.py` | 通过 | 检查是否有 api/ 直接导入 infrastructure/ 等反向依赖 |
 | 前端 API 代理 | `rg -n "rewrites" frontend-public/next.config.ts` | 命中 `/api/:path*` 规则 | 开发时前端请求无法到达后端 |
 
-### 5.4 Flow / Architecture Diagram
+### 7.4 Flow / Architecture Diagram
 
 ```mermaid
 flowchart TD
@@ -693,7 +737,7 @@ flowchart TD
     API_CLIENT -->|"/api/*"| API
 ```
 
-### 5.5 Low-Fidelity Prototype
+### 7.5 Low-Fidelity Prototype
 
 #### 应用区布局
 
@@ -743,7 +787,7 @@ flowchart TD
 +--------------------------------------------------+
 ```
 
-### 5.6 ER Diagram
+### 7.6 ER Diagram
 
 ```mermaid
 erDiagram
@@ -831,7 +875,7 @@ erDiagram
     }
 ```
 
-### 5.7 Realistic Validation Plan
+### 7.7 Realistic Validation Plan
 
 | Behavior | Real Entry Point | Test Layer | Mock Boundary | Data/Env Needed | Command Or Procedure | Required For Acceptance |
 |---|---|---|---|---|---|---|
@@ -849,17 +893,49 @@ Failure triage:
 - 如果架构检查失败，检查新模块 import 方向是否违反四层规则。
 - 如果 LLM 调用失败（非必须阻塞项），确认 `config.toml` 中 `[providers]` 配置和对应环境变量存在；可先用 mock 工具返回验证流程。
 
-### 5.8 Interactive Prototype Change Log
+### 7.8 Interactive Prototype Change Log
 
 No interactive prototype file changes in this PRD.
 
-### 5.9 External Validation
+### 7.9 External Validation
 
 No external validation required; repository evidence was sufficient.
 
 ---
 
-## 6. Definition Of Done
+## 8. Delivery Dependencies
+
+- Group: frontend-public-agent-platform
+- Depends on groups:
+  - none
+- Depends on tasks/issues:
+  - none（`tasks/pending/P2-FEAT-20260610-000000-prd-skill-multi-mode-optimization.md` 与本任务无关，无依赖）
+- Gate type: none
+- Notes: 本 PRD 同时涉及 frontend-public 前端改造和 src/backend 后端新增模块，但无外部服务依赖。LLM 调用为可选能力，工作流运行可先用 mock tool 返回验证流程。
+
+---
+
+## 9. Acceptance Checklist
+
+这是「人只看一次」的终点交付物：按 §2 风险地图排序的验收证据包，每项带证据（命令输出 / 观察 / 工件），不是裸勾。
+
+### Acceptance Evidence Package（证据包 · 按风险地图排序）
+
+1. **高风险 oracle 结果（置顶）**：① 编排 characterization、② `alembic up/down` 往返、③ 越权 401/403、④ 契约 snapshot、⑦ 双提交幂等 —— 全绿输出。
+2. **风险地图对账 Predicted → Reconciled**：实现中是否冒出未预测的高风险面（如新加计费、删了数据），如何处理。
+3. **对抗自检**：⑤⑥ 两个未命中项的最坏情况复核结论。
+4. **对锁定契约的 diff**：/api/* DTO 与前端 `lib/api` 类型 vs 前置约定;schema vs ER。
+5. **低风险门禁（折叠）**：`pnpm build`、`pytest`、`check_architecture`、Playwright e2e。
+
+### Human-Confirmed（来自 §2 风险地图）
+
+- [ ] ① core 编排用例（Agent/Session/Workflow）业务规则经人工确认（发消息鉴权+owner 校验、编排器调用顺序、workflow runner 终止/错误处理）。
+- [ ] ② 7 张新表 schema + Alembic 迁移经人工确认（关系/外键/可空性/索引、owner 隔离、revision 不冲突;ER 见 §2 与 §7.6）。
+- [ ] ③ 鉴权/信任边界经人工确认（所有 /api/* 写 + 敏感读校验 session cookie、防 owner 越权;FR-15）。
+- [ ] ④ 对外 API 契约（/api/agents·sessions·workflows·tools 的 DTO）经人工确认并与前端类型同步。
+- [ ] ⑦ 消息发送/工作流运行的幂等性经人工确认（重复提交不产生重复消息/重复 LLM 花费）。
+
+### Delivery Readiness（原 Definition Of Done）
 
 - [ ] 前端营销页和应用区所有目标页面实现并可通过 `pnpm build`。
 - [ ] 后端新增 Agent/Session/Workflow/Tool 模块实现并通过 `pytest tests/backend/`。
@@ -868,10 +944,6 @@ No external validation required; repository evidence was sufficient.
 - [ ] `hooks/check_architecture.py` 无新增架构违规。
 - [ ] 相关文档（如 `frontend-public/README.md`、`docs/architecture/frontend-architecture.md`）已更新。
 - [ ] 所有 Acceptance Checklist 条目完成。
-
----
-
-## 7. Acceptance Checklist
 
 ### Architecture Acceptance
 
@@ -914,7 +986,7 @@ No external validation required; repository evidence was sufficient.
 
 ---
 
-## 8. Functional Requirements
+## 10. Functional Requirements
 
 - **FR-1**: 营销首页须明确传达「Zata Agent Platform」定位，Hero 区包含 Agent 平台主标语、核心能力 CTA、动态光晕或渐变视觉。
 - **FR-2**: `SiteHeader` 须包含「Agent 广场、功能、定价、文档、关于」导航，未登录用户可见登录/注册入口。
@@ -934,7 +1006,7 @@ No external validation required; repository evidence was sufficient.
 
 ---
 
-## 9. Non-Goals
+## 11. Non-Goals
 
 - 不改造 `frontend-admin/`。
 - 不引入第三方认证（OAuth、SSO），继续使用现有 session cookie 认证。
@@ -946,7 +1018,7 @@ No external validation required; repository evidence was sufficient.
 
 ---
 
-## 10. Risks And Follow-Ups
+## 12. Risks And Follow-Ups
 
 - **Risk**: 工作流可视化编辑器引入 `@xyflow/react` 后可能与 Next.js 16 / React 19 存在兼容性问题。
   - Mitigation: 优先使用最新稳定版 `@xyflow/react`，在 SSR 场景使用 `"use client"` 包裹画布组件，必要时动态导入。
@@ -962,7 +1034,7 @@ No external validation required; repository evidence was sufficient.
 
 ---
 
-## 11. Decision Log
+## 13. Decision Log
 
 | # | 决策问题 | 选择 | 放弃的方案 | 理由 |
 |---|---|---|---|---|
