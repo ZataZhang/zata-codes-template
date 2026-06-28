@@ -1,6 +1,6 @@
 ---
 name: prd
-description: "[Updated 2026-06-27] Generate an architecture-aware technical PRD split into two altitudes — a human review layer (Part A) and an executor build layer (Part B) — with a risk-tiered human review map, a front-loaded interpretation lock, and a risk-map-ordered acceptance evidence package for a single end-of-flow human review. Triggers on: create a prd, write prd for, plan this feature. Prioritizes reuse, minimal-change plans, required output compliance, realistic validation, and conditional web research."
+description: "[Updated 2026-06-28] Generate an architecture-aware technical PRD split into two altitudes — a human review layer (Part A) and an executor build layer (Part B) — with a risk-tiered human review map, a front-loaded interpretation lock, and a risk-map-ordered acceptance evidence package for a single end-of-flow human review. Triggers on: create a prd, write prd for, plan this feature. Prioritizes reuse, minimal-change plans, required output compliance, realistic validation, and conditional web research."
 ---
 
 # PRD Generator (Architecture-First)
@@ -240,7 +240,7 @@ The heart of the review layer: it decides how a human allocates attention. Must 
 - A **numbered reference menu** of fixed zones (① core business logic/orchestration `core/`; ② database structure/schema/migration even under `infrastructure/`; ③ security/auth/trust boundaries; ④ external API contracts/breaking changes) and cross-cutting triggers (⑤ money/billing/quota; ⑥ irreversible or destructive data operations; ⑦ concurrency/transaction/idempotency).
 - A **命中的人审项 (hits)** list naming only the menu items this change actually triggers (or `本次无人工确认项` when none); each hit becomes a 人工确认 row in the table.
 - A **未命中 (misses)** one-liner summarizing the remaining menu numbers as executor + automated gate — do not enumerate each miss as its own `不涉及` line.
-- A **classification table** with columns: `改动点 | 架构层 | 风险 | 介入方式（人工确认=高证据负担 / 执行器+门禁=兜底） | 证据 / Oracle`. Every row must name **executable evidence** in the last column that would fail if the change were wrong — an oracle for human-confirm rows (characterization / contract-snapshot / auth-denial / migration up·down), or a failure-discriminating gate for executor rows (a generic `build`/`lint` that passes even when the change is wrong is not valid). A row with no nameable evidence is a red flag, not a pass.
+- A **classification table** with columns: `改动点 | 架构层 | 风险 | 介入方式（人工确认=高证据负担 / 执行器+门禁=兜底） | 证据 / Oracle`. The last column **references the `rv-id`(s) in the Section 7.6 oracle block** (e.g. `rv-1, rv-3`), keeping Section 2 scannable; the oracle detail lives once in Section 7.6. Every human-confirm row must point to at least one `rv-id`; a low-risk executor row may name a failure-discriminating gate instead. A row with no nameable evidence is a red flag, not a pass.
 - For each **未命中** item, add a one-line worst-case-if-wrong; if the worst case is severe or irreversible, it cannot be left as a miss.
 - A **"如何证明它生效（真实入口，白话）"** note — the plain-language mirror of the Section 7.6 Realistic Validation Plan, without command-level detail.
 - A **数据库结构评审** note: when schema changes, surface the ER diagram here for human review; otherwise state `本次无数据库结构变化。`
@@ -305,7 +305,7 @@ Must include:
 - **Executor Drift Guard** when hidden references or repository drift could affect implementation
 - **Flow or Architecture Diagram**
 - **ER Diagram** when the data model changes (this is the detail figure linked from the Section 2 schema-review note)
-- **Realistic Validation Plan**
+- **Realistic Validation Plan** (a structured YAML oracle block — see content rule F)
 - **Low-Fidelity Prototype** when required
 - **Interactive Prototype Change Log** when prototype files changed
 - **External Validation** when web research was used
@@ -455,30 +455,35 @@ Include only when prototype files were actually changed.
 If no prototype files changed, state:
 - `No interactive prototype file changes in this PRD.`
 
-### F. Realistic Validation Plan
+### F. Realistic Validation Plan (Oracle block)
 
-Every PRD must include this section.
+Every PRD with executable behavior must include this as a **structured YAML block** — the single machine-and-human-readable oracle source. Section 2's evidence column, the Section 9 evidence package, and any deterministic extractor reference/parse the `id`s here. Do not restate oracles as prose tables elsewhere.
 
-Use this structure:
+Each entry:
 
-| Behavior | Real Entry Point | Test Layer | Mock Boundary | Data/Env Needed | Command Or Procedure | Required For Acceptance |
-|---|---|---|---|---|---|---|
-| [changed behavior] | [API/CLI/UI/job/startup/migration/etc.] | [unit/integration/e2e/smoke/sandbox/manual] | [what is mocked vs real] | [fixtures/env/services] | `[exact command]` | Yes/No |
+```yaml
+- id: rv-1
+  behavior: <user-visible behavior this proves, plain language>
+  real_entry: "<exact command / URL / entry point the real user runs>"   # not a unit test or helper
+  expected: "<observable that proves it works>"
+  mock_boundary: "<what may be mocked vs must be real>"   # the under-test boundary must NOT be mocked
+  negative_control: "<command or seeded break that makes this entry go RED>"   # proves the test can fail
+  expected_fail: "<what red looks like>"
+  test_layer: unit|integration|e2e|smoke|sandbox|manual
+  required_for_acceptance: true
+```
+
+Rules:
+- One entry per real observable behavior; every Section 2 human-confirm row points to ≥1 `id`.
+- `real_entry` is the highest-fidelity real entry point (not pytest/helpers); for user-visible changes at least one entry's `real_entry` is the repo's e2e/UI command or a manual app run.
+- `negative_control` + `expected_fail` are **mandatory for human-confirm / high-risk entries** — a test that cannot be shown to fail proves nothing. A purely mechanical low-risk entry may instead name a discriminating gate.
+- `real_entry` / `negative_control` commands must be copy-paste executable from the documented working directory; prefer `rg`; any `grep` alternation uses `grep -E 'a|b'`.
+- Treat production / vendor / credential-dependent entries as `opt-in` / `post-merge`; document the no-credential fallback that still runs.
+- Add a short failure-triage note beneath the block (first config/path/boundary to inspect).
+- Deterministic tooling parses this block; if a PRD declares executable behavior but the block is missing or unparseable, that is a loud failure — never infer it.
 
 If the change has no executable behavior, state:
 - `No executable behavior changes; realistic validation is limited to documentation/build checks.`
-
-If live or sandbox validation needs credentials or external services that may be unavailable, state:
-- the opt-in environment variables or service prerequisites
-- the fallback automated validation that must still run without those credentials
-- whether skipped live validation blocks acceptance
-
-Command rules:
-- commands must be copy-paste executable from the documented working directory
-- prefer `rg` over `grep` for repository searches
-- if `grep` is used with alternation, use an explicit compatible form such as `grep -E 'a|b'`
-- do not make production deploys or live vendor calls blocking acceptance unless the behavior cannot be proven through local, CI, dry-run, sandbox, or staged validation
-- add a short failure-triage note for high-friction validation, naming the first paths, config keys, or boundaries to inspect
 
 ### G. External Validation
 
@@ -551,7 +556,7 @@ The checklist must validate the final target state, not merely the completion of
 * [ ] **BLOCKER:** Structured as Part A (Review Layer, Sections 1-4) and Part B (Build Layer, Sections 5-13); Part A contains no implementation mechanism, file paths, commands, or scheduling metadata
 * [ ] Section 1 stays review-altitude: Problem Statement, an `Interpretation (解读回显)` of how the request was read (the up-front approval target), What The User Gets, and Measurable Objectives only — no proposed solution summary, validation commands, or delivery-dependency metadata
 * [ ] **BLOCKER:** Section 2 Human Review Map present: a numbered zone/trigger menu, a 命中的人审项 list (only hit items, or `本次无人工确认项`), a 未命中 one-liner for the rest, a per-change-point classification table (layer + risk tier + intervention + 证据/Oracle column), a plain-language "如何证明它生效" note, and an ER-diagram surfacing or `本次无数据库结构变化` note
-* [ ] Every Section 2 Review Map row names executable evidence in the 证据/Oracle column (an oracle for human-confirm rows; a failure-discriminating gate for executor rows); rows with no nameable evidence are flagged, not passed
+* [ ] Every Section 2 Review Map row points its 证据/Oracle column to ≥1 `rv-id` in the Section 7.6 oracle block (or a failure-discriminating gate name for low-risk executor rows); rows with no nameable evidence are flagged, not passed
 * [ ] Each Section 2 未命中 item carries a one-line worst-case-if-wrong; severe or irreversible worst cases are not left as misses
 * [ ] Human-confirm set is short and principled (fixed zones + triggers only); ordinary low-risk changes are routed to executor + automated gate, not flagged for human review
 * [ ] Section 6 Recommendation includes the `Proposed Solution Summary (实现机制)` carrying the mechanism that moved out of Section 1
@@ -566,7 +571,7 @@ The checklist must validate the final target state, not merely the completion of
 * [ ] Included at least one flow or architecture diagram
 * [ ] Implementation Guide includes the required living implementation guide statement
 * [ ] Included an Executor Drift Guard when hidden references, moved paths, config rewires, or repository-wide updates are likely
-* [ ] **BLOCKER:** Included a Realistic Validation Plan that names real entry points, mock boundaries, data/env needs, and commands or procedures
+* [ ] **BLOCKER:** Included a Realistic Validation Plan as a structured YAML oracle block (`id` / `real_entry` / `expected` / `mock_boundary` / `negative_control` / `expected_fail`) parseable by deterministic tooling; human-confirm / high-risk entries carry a `negative_control` + `expected_fail`
 * [ ] Added low-fidelity prototype only when actually needed
 * [ ] Added ER diagram only when data model changes are present
 * [ ] Used web research only when external facts were required

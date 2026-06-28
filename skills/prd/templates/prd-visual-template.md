@@ -53,10 +53,10 @@
 
 > **清单要保持短**——只把真正命中的列为人审；若什么都标成人审，本节就失去意义。拿不准时用风险因子裁，而不是把清单越加越长。
 
-| 改动点 | 架构层 | 风险 | 介入方式 | 证据 / Oracle（可执行、能证伪本项；进 §9 证据包） |
+| 改动点 | 架构层 | 风险 | 介入方式 | 证据 / Oracle（指向 §7.6 oracle 块的 rv-id） |
 |---|---|---|---|---|
-| [命中的高风险改动点] | api / core / engines / infrastructure / frontend | 高 / 中 | 人工确认（高证据负担） | [可执行 oracle：characterization / 契约 snapshot / 越权被拒 / 迁移 up·down] |
-| [常规改动点] | ... | 低 | 执行器+门禁 | [能抓住这次改动失败的具体门禁；通用 build / lint 不算] |
+| [命中的高风险改动点] | api / core / engines / infrastructure / frontend | 高 / 中 | 人工确认（高证据负担） | rv-1, rv-2（详见 §7.6） |
+| [常规改动点] | ... | 低 | 执行器+门禁 | rv-3（或能抓住本次失败的具体门禁名；通用 build / lint 不算） |
 
 **如何证明它生效（真实入口，白话）**：
 
@@ -202,17 +202,27 @@ erDiagram
 If not required:
 - `No data model changes in this PRD.`
 
-### 7.6 Realistic Validation Plan
+### 7.6 Realistic Validation Plan (Oracle 块)
 
-| Behavior | Real Entry Point | Test Layer | Mock Boundary | Data/Env Needed | Command Or Procedure | Required For Acceptance |
-|---|---|---|---|---|---|---|
-| [changed behavior] | [API/CLI/UI/job/startup/migration/etc.] | [unit/integration/e2e/smoke/sandbox/manual] | [what is mocked vs real] | [fixtures/env/services] | `[exact command]` | Yes/No |
+机读 + 人读的**单一 oracle 源**：§2 的证据列、§9 证据包、以及任何确定性抽取器都引用 / 解析这里的 `id`。不要在别处再用散文表格重述 oracle。每个真实可观测行为一条;§2 每个人审项至少对应一条。
+
+```yaml
+- id: rv-1
+  behavior: 这条证明的用户可见行为(白话)
+  real_entry: "用户真正会敲的命令 / URL / 入口"      # 真实入口,不是单测/helper
+  expected: "看到什么算它真的成立(可观测)"
+  mock_boundary: "什么可 mock、什么必须真"           # under-test 的那层不准 mock
+  negative_control: "什么命令 / 种个 bug 能让它变红"  # 判别力:证明这测试会失败
+  expected_fail: "红的时候长什么样"
+  test_layer: unit|integration|e2e|smoke|sandbox|manual
+  required_for_acceptance: true
+```
 
 Failure triage:
-- If `[high-friction command]` fails, inspect `[first config/path/boundary]` before changing implementation strategy.
-- Treat production, vendor, or credential-dependent validation as `[opt-in/post-merge/blocking only if truly required]`.
+- `real_entry` 跑挂,先查 `[第一处 config / 路径 / 边界]`,别急着改实现策略。
+- 生产 / 供应商 / 需凭据的项标 `opt-in / post-merge`;无凭据时必须有仍可跑的 fallback。
 
-If the change has no executable behavior:
+无可执行行为时,本块写：
 - `No executable behavior changes; realistic validation is limited to documentation/build checks.`
 
 ### 7.7 Low-Fidelity Prototype (Only When Required)
