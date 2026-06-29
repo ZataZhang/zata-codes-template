@@ -268,13 +268,20 @@ PRD 文件 → 创建 worktree → 拷贝 PRD → 启动 executor AI
 │   └── 可选：新增 implement 参数或环境变量控制是否强制证据流程（默认强制）
 │
 ├── scripts/shared/just/
-│   └── ai_run.sh
-│       [修改]
-│       【总结】保持工具调度逻辑不变，仅确保多行 prompt 能完整传入。
-│
-│       └── 无需结构性改动，但需验证追加后的长 prompt 通过环境变量传递时不受截断
-│
-├── scripts/shared/just/
+│   ├── ai_run.sh
+│   │   [修改]
+│   │   【总结】保持工具调度逻辑不变；实际验证中通过它启动 executor 和 verifier。
+│   │
+│   │   └── 无需结构性改动，但需验证长 prompt 通过环境变量传递时不受截断
+│   │
+│   ├── executor_prompt.txt
+│   │   [新增]
+│   │   【总结】executor Agent 的默认 prompt 模板，要求生成 verification plan、收集证据、不提前勾选 checkbox。
+│   │
+│   │   ├── 定义证据目录、verification plan、evidence report 的生成要求
+│   │   ├── 要求前端改动必须跑 Playwright e2e 并保留截图/录屏
+│   │   └── 明确在 verifier 审查前不得标记 PRD checkbox
+│   │
 │   ├── verifier_prompt.txt
 │   │   [新增]
 │   │   【总结】verifier Agent 的只读 prompt 模板，要求审查 PRD 验收项与证据的匹配度。
