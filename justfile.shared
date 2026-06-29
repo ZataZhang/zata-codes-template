@@ -816,7 +816,7 @@ _ai_fix ai_tool="claude" prompt="" :
     if [ "$rebase_in_progress" = "true" ]; then
         echo ""
         echo "✅ All conflicts resolved. Continuing rebase..."
-        git rebase --continue
+        GIT_EDITOR=true git rebase --continue
     elif [ "$merge_in_progress" = "true" ]; then
         echo ""
         echo "✅ All conflicts resolved. Continuing merge..."

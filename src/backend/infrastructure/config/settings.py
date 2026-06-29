@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Mapping, MutableMapping
 from urllib.parse import quote_plus
 
+from dotenv import dotenv_values
 from pydantic import Field, SecretStr
 
 if TYPE_CHECKING:
@@ -33,6 +34,17 @@ _BACKEND_DIR_PATH: Path = _INFRASTRUCTURE_DIR_PATH.parent
 _SOURCE_DIR_PATH: Path = _BACKEND_DIR_PATH.parent
 _PROJECT_ROOT_PATH: Path = _SOURCE_DIR_PATH.parent
 _TOML_CONFIG_FILE_PATH: Path = _PROJECT_ROOT_PATH / "config.toml"
+
+# Pydantic loads .env/.env.local into settings fields, but provider
+# resolution later reads arbitrary api_key_env variables via os.getenv.
+# Ensure the same env files also populate os.environ so those keys are
+# visible. Shell variables keep highest priority.
+_dotenv_loaded_values: dict[str, str | None] = {}
+_dotenv_loaded_values.update(dotenv_values(_PROJECT_ROOT_PATH / ".env"))
+_dotenv_loaded_values.update(dotenv_values(_PROJECT_ROOT_PATH / ".env.local"))
+for _dotenv_key, _dotenv_value in _dotenv_loaded_values.items():
+    if _dotenv_value is not None and not os.environ.get(_dotenv_key):
+        os.environ[_dotenv_key] = _dotenv_value
 
 
 def _load_toml_section_data(section_name: str) -> dict[str, Any]:
