@@ -8,8 +8,8 @@ from httpx import ASGITransport, AsyncClient
 from starlette.requests import Request
 
 from backend.api.middleware.request_context import (
-    RequestContextMiddleware,
     _REQUEST_ID_HEADER,
+    RequestContextMiddleware,
     get_request_id,
 )
 

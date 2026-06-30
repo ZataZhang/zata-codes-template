@@ -5,14 +5,15 @@ from __future__ import annotations
 from typing import Sequence
 from uuid import uuid4
 
-from backend.core.shared.models.agent import Agent
 from backend.core.shared.interfaces.agent_repository import AgentRepository
+from backend.core.shared.models.agent import Agent
 
 
 class AgentUseCase:
     """Agent 业务用例。"""
 
     def __init__(self, repository: AgentRepository) -> None:
+        """Initialize use case with agent repository."""
         self._repository = repository
 
     def create_agent(

@@ -1,5 +1,6 @@
 import globals from 'globals'
 import js from '@eslint/js'
+import jsdoc from 'eslint-plugin-jsdoc'
 import pluginQuery from '@tanstack/eslint-plugin-query'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
@@ -22,6 +23,7 @@ export default defineConfig(
     plugins: {
       'react-hooks': reactHooks,
       'react-refresh': reactRefresh,
+      jsdoc,
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
@@ -54,6 +56,20 @@ export default defineConfig(
       ],
       // Prevent duplicate imports from the same module
       'no-duplicate-imports': 'error',
+      // JSDoc/TSDoc: warn-only while the codebase catches up
+      'jsdoc/require-jsdoc': [
+        'warn',
+        {
+          require: {
+            FunctionDeclaration: true,
+            MethodDefinition: true,
+            ClassDeclaration: true,
+            ArrowFunctionExpression: false,
+            FunctionExpression: false,
+          },
+        },
+      ],
+      'jsdoc/require-description': 'warn',
     },
   }
 )

@@ -66,13 +66,9 @@ def _resolve_principal(
     session_token: str | None = request.cookies.get(cookie_name)
     if session_token is None:
         raise HTTPException(status_code=HTTP_401_UNAUTHORIZED, detail="未登录")
-    principal: AuthenticatedPrincipal | None = auth_service.resolve_session(
-        session_token
-    )
+    principal: AuthenticatedPrincipal | None = auth_service.resolve_session(session_token)
     if principal is None:
-        raise HTTPException(
-            status_code=HTTP_401_UNAUTHORIZED, detail="会话无效或已过期"
-        )
+        raise HTTPException(status_code=HTTP_401_UNAUTHORIZED, detail="会话无效或已过期")
     return principal
 
 

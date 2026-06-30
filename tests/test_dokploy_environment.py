@@ -85,9 +85,7 @@ def _parse_all_service_env_keys(compose_file_path: Path) -> dict[str, set[str]]:
     is_environment_block = False
 
     for raw_compose_line in compose_file_path.read_text(encoding="utf-8").splitlines():
-        if raw_compose_line.startswith("  ") and not raw_compose_line.startswith(
-            "    "
-        ):
+        if raw_compose_line.startswith("  ") and not raw_compose_line.startswith("    "):
             current_service = raw_compose_line.strip().removesuffix(":")
             is_environment_block = False
             continue
@@ -129,36 +127,28 @@ def _parse_compose_var_refs(compose_file_path: Path) -> set[str]:
 def test_active_dokploy_template_keys_are_used_in_compose() -> None:
     """Every active .env.dokploy variable must appear in at least one compose service."""
     template_active: set[str] = _parse_active_env_keys(DOKPLOY_ENV_TEMPLATE_PATH)
-    service_envs: dict[str, set[str]] = _parse_all_service_env_keys(
-        DOKPLOY_COMPOSE_PATH
-    )
+    service_envs: dict[str, set[str]] = _parse_all_service_env_keys(DOKPLOY_COMPOSE_PATH)
     all_compose_env_keys: set[str] = set().union(*service_envs.values())
     all_compose_var_refs: set[str] = _parse_compose_var_refs(DOKPLOY_COMPOSE_PATH)
     all_compose_keys: set[str] = all_compose_env_keys | all_compose_var_refs
 
     unused_keys: list[str] = sorted(template_active - all_compose_keys)
 
-    assert not unused_keys, (
-        "Active .env.dokploy variables must be used by at least one compose service: "
-        f"{unused_keys}"
-    )
+    assert (
+        not unused_keys
+    ), f"Active .env.dokploy variables must be used by at least one compose service: {unused_keys}"
 
 
 def test_compose_service_env_keys_are_documented_in_dokploy_template() -> None:
     """Every compose service env key must be active in .env.dokploy (or hardcoded)."""
     template_active: set[str] = _parse_active_env_keys(DOKPLOY_ENV_TEMPLATE_PATH)
-    service_envs: dict[str, set[str]] = _parse_all_service_env_keys(
-        DOKPLOY_COMPOSE_PATH
-    )
+    service_envs: dict[str, set[str]] = _parse_all_service_env_keys(DOKPLOY_COMPOSE_PATH)
 
     for service_name, env_keys in service_envs.items():
-        undocumented: list[str] = sorted(
-            env_keys - template_active - HARDCODED_ENV_KEYS
-        )
-        assert not undocumented, (
-            f"Service '{service_name}' env keys must be active in .env.dokploy: "
-            f"{undocumented}"
-        )
+        undocumented: list[str] = sorted(env_keys - template_active - HARDCODED_ENV_KEYS)
+        assert (
+            not undocumented
+        ), f"Service '{service_name}' env keys must be active in .env.dokploy: {undocumented}"
 
 
 def test_active_env_example_keys_are_used_in_local_compose() -> None:
@@ -169,9 +159,9 @@ def test_active_env_example_keys_are_used_in_local_compose() -> None:
 
     unused_keys: list[str] = sorted(template_active - all_compose_env_keys)
 
-    assert not unused_keys, (
-        "Active .env.example variables must be used by local compose: " f"{unused_keys}"
-    )
+    assert (
+        not unused_keys
+    ), f"Active .env.example variables must be used by local compose: {unused_keys}"
 
 
 def test_local_compose_service_env_keys_are_documented_in_example() -> None:
@@ -180,9 +170,7 @@ def test_local_compose_service_env_keys_are_documented_in_example() -> None:
     service_envs: dict[str, set[str]] = _parse_all_service_env_keys(LOCAL_COMPOSE_PATH)
 
     for service_name, env_keys in service_envs.items():
-        undocumented: list[str] = sorted(
-            env_keys - template_active - HARDCODED_ENV_KEYS
-        )
+        undocumented: list[str] = sorted(env_keys - template_active - HARDCODED_ENV_KEYS)
         assert not undocumented, (
             f"Local service '{service_name}' env keys must be active in .env.example: "
             f"{undocumented}"
@@ -197,6 +185,6 @@ def test_env_templates_do_not_list_stale_keys() -> None:
         (template_env_keys | dokploy_template_env_keys) & STALE_ENV_TEMPLATE_KEYS
     )
 
-    assert not stale_template_env_keys, (
-        "Remove stale environment keys from templates: " f"{stale_template_env_keys}"
-    )
+    assert (
+        not stale_template_env_keys
+    ), f"Remove stale environment keys from templates: {stale_template_env_keys}"

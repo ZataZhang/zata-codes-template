@@ -85,9 +85,7 @@ def parse_task_plan(plan_path: Path) -> dict:
                 "status": status,
                 "total_items": total_items,
                 "completed_items": completed_items,
-                "progress_pct": (completed_items / total_items * 100)
-                if total_items > 0
-                else 0,
+                "progress_pct": (completed_items / total_items * 100) if total_items > 0 else 0,
             }
         )
 
@@ -117,9 +115,7 @@ def update_phase_status(plan_path: Path, phase_name: str, new_status: str) -> bo
 
     # Build regex pattern to match the phase and its status
     # Match both "Phase 1" and "Phase 1: Title" formats
-    phase_pattern = (
-        rf"(### {re.escape(phase_name)}[^\n]*\n.*?)(\*\*Status:\*\*\s*)(\w+)"
-    )
+    phase_pattern = rf"(### {re.escape(phase_name)}[^\n]*\n.*?)(\*\*Status:\*\*\s*)(\w+)"
 
     match = re.search(phase_pattern, content, re.DOTALL)
     if not match:
@@ -199,15 +195,11 @@ def update_phase_status(plan_path: Path, phase_name: str, new_status: str) -> bo
             started_val = ""
             completed_val = ""
 
-        updated_block = replace_started_completed(
-            block_full, started_val, completed_val
-        )
+        updated_block = replace_started_completed(block_full, started_val, completed_val)
 
         # Replace the old block with updated block in the content
         new_content = (
-            new_content[: block_match.start(1)]
-            + updated_block
-            + new_content[block_match.end(1) :]
+            new_content[: block_match.start(1)] + updated_block + new_content[block_match.end(1) :]
         )
 
     # Update the file
@@ -313,14 +305,13 @@ def generate_status_report(plan_path: Path) -> str:
         progress_bar = ""
         if phase["total_items"] > 0:
             filled = int(phase["progress_pct"] / 10)
-            progress_bar = f" [{'█' * filled}{'░' * (10 - filled)}] {phase['completed_items']}/{phase['total_items']}"
+            progress_bar = (
+                f" [{'█' * filled}{'░' * (10 - filled)}] "
+                f"{phase['completed_items']}/{phase['total_items']}"
+            )
 
-        current_marker = (
-            " ← CURRENT" if parsed["current_phase"] in phase["title"] else ""
-        )
-        lines.append(
-            f"║ {status_icon} {phase['title'][:40]:<40}{progress_bar}{current_marker}"
-        )
+        current_marker = " ← CURRENT" if parsed["current_phase"] in phase["title"] else ""
+        lines.append(f"║ {status_icon} {phase['title'][:40]:<40}{progress_bar}{current_marker}")
 
     lines.extend(
         [
@@ -353,6 +344,7 @@ def log_progress(plan_path: Path, message: str) -> None:
 
 
 def main():
+    """Update task_plan.md phase status and render progress."""
     parser = argparse.ArgumentParser(
         description="Update task_plan.md phase status",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -396,9 +388,7 @@ def main():
         "--status-report", "-r", action="store_true", help="Show current status report"
     )
 
-    parser.add_argument(
-        "--log", "-l", type=str, help="Log a progress message to progress.md"
-    )
+    parser.add_argument("--log", "-l", type=str, help="Log a progress message to progress.md")
 
     args = parser.parse_args()
     resolved_plan_path = resolve_plan_path(args.plan_file)

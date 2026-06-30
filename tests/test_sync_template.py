@@ -6,11 +6,8 @@ import os
 import subprocess
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SYNC_TEMPLATE_SCRIPT_PATH = (
-    REPO_ROOT / "scripts" / "shared" / "template" / "sync_template.sh"
-)
+SYNC_TEMPLATE_SCRIPT_PATH = REPO_ROOT / "scripts" / "shared" / "template" / "sync_template.sh"
 
 
 def run_command(

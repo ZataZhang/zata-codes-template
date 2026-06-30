@@ -19,10 +19,7 @@ def _load_manifest_module() -> ModuleType:
     """
 
     manifest_script_path = (
-        Path(__file__).resolve().parents[1]
-        / "scripts"
-        / "build"
-        / "build_whats_new_manifest.py"
+        Path(__file__).resolve().parents[1] / "scripts" / "build" / "build_whats_new_manifest.py"
     )
     manifest_module_spec = importlib.util.spec_from_file_location(
         _MODULE_LOAD_NAME,
@@ -41,9 +38,7 @@ def test_conventional_regex_matches_scoped_commit() -> None:
     """The regex extracts type, scope, and subject from a scoped commit."""
 
     manifest_module = _load_manifest_module()
-    match = manifest_module.CONVENTIONAL_RE.match(
-        "feat(frontend-admin): add whats-new modal"
-    )
+    match = manifest_module.CONVENTIONAL_RE.match("feat(frontend-admin): add whats-new modal")
     assert match is not None
     assert match.group("type") == "feat"
     assert match.group("scope") == "(frontend-admin)"
@@ -124,9 +119,7 @@ def test_group_entries_buckets_by_type_and_preserves_order() -> None:
         manifest_module.CommitEntry(
             type="fix", scope="(backend)", subject="fix crash", breaking=()
         ),
-        manifest_module.CommitEntry(
-            type="chore", scope="", subject="bump deps", breaking=()
-        ),
+        manifest_module.CommitEntry(type="chore", scope="", subject="bump deps", breaking=()),
     ]
     groups, breaking = manifest_module.group_entries(entries)
     assert groups["Features"] == ["new modal (frontend-admin)"]
@@ -167,12 +160,8 @@ def test_group_entries_rolls_unknown_types_into_maintenance() -> None:
 
     manifest_module = _load_manifest_module()
     entries = [
-        manifest_module.CommitEntry(
-            type="ci", scope="", subject="bump gh actions", breaking=()
-        ),
-        manifest_module.CommitEntry(
-            type="style", scope="", subject="reformat", breaking=()
-        ),
+        manifest_module.CommitEntry(type="ci", scope="", subject="bump gh actions", breaking=()),
+        manifest_module.CommitEntry(type="style", scope="", subject="reformat", breaking=()),
     ]
     groups, _ = manifest_module.group_entries(entries)
     assert groups["Maintenance"] == ["bump gh actions", "reformat"]
@@ -187,11 +176,7 @@ def test_resolve_range_production_with_previous_tag() -> None:
 
     def fake_run_git_safe(*args: str) -> str:
         monkey_call_log.append(args)
-        if (
-            args[:2] == ("describe", "--tags")
-            and args[2] == "--abbrev=0"
-            and args[3] == "--match"
-        ):
+        if args[:2] == ("describe", "--tags") and args[2] == "--abbrev=0" and args[3] == "--match":
             return "v1.2.2\n"
         return ""
 

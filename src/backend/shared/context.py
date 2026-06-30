@@ -13,12 +13,8 @@ import contextvars
 request_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "request_id", default=None
 )
-trace_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar(
-    "trace_id", default=None
-)
-span_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar(
-    "span_id", default=None
-)
+trace_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar("trace_id", default=None)
+span_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar("span_id", default=None)
 
 __all__ = [
     "request_id_var",

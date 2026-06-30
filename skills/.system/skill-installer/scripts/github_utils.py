@@ -8,6 +8,7 @@ import urllib.request
 
 
 def github_request(url: str, user_agent: str) -> bytes:
+    """Send an authenticated GitHub HTTP request and return the response body."""
     headers = {"User-Agent": user_agent}
     token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
     if token:
@@ -18,4 +19,5 @@ def github_request(url: str, user_agent: str) -> bytes:
 
 
 def github_api_contents_url(repo: str, path: str, ref: str) -> str:
+    """Build the GitHub API contents URL for a repository path."""
     return f"https://api.github.com/repos/{repo}/contents/{path}?ref={ref}"

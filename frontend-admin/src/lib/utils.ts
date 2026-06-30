@@ -1,10 +1,12 @@
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 
+/** Merge Tailwind classes with conditional class names. */
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/** Wait for the given number of milliseconds. */
 export function sleep(ms: number = 1000) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }

@@ -57,9 +57,8 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         self._logger: logging.Logger = logger or logging.getLogger(__name__)
 
     async def dispatch(self, request: "Request", call_next) -> "Response":
-        request_id: str = (
-            request.headers.get(_REQUEST_ID_HEADER) or _generate_request_id()
-        )
+        """Attach or propagate a request ID through the request lifecycle."""
+        request_id: str = request.headers.get(_REQUEST_ID_HEADER) or _generate_request_id()
         request.state.request_id = request_id
 
         with _request_context(request_id):

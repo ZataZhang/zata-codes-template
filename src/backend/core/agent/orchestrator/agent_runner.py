@@ -5,10 +5,10 @@ from __future__ import annotations
 from typing import Sequence
 from uuid import uuid4
 
-from backend.core.shared.models.agent import Agent
-from backend.core.shared.models.session import ChatMessage, ToolCall
 from backend.core.shared.interfaces.llm_client import LLMClient, LLMMessage
 from backend.core.shared.interfaces.tool_registry import ToolRegistry
+from backend.core.shared.models.agent import Agent
+from backend.core.shared.models.session import ChatMessage, ToolCall
 
 
 class AgentRunner:
@@ -20,15 +20,14 @@ class AgentRunner:
         tool_registry: ToolRegistry,
         llm_client: LLMClient,
     ) -> None:
+        """Initialize runner with agent config and dependencies."""
         self._agent = agent
         self._tool_registry = tool_registry
         self._llm_client = llm_client
 
     def run(self, history: Sequence[ChatMessage], user_message: str) -> ChatMessage:
         """执行一轮对话，返回 assistant 消息。"""
-        llm_messages = [
-            LLMMessage(role=msg.role, content=msg.content) for msg in history
-        ]
+        llm_messages = [LLMMessage(role=msg.role, content=msg.content) for msg in history]
         llm_messages.append(LLMMessage(role="user", content=user_message))
 
         response = self._llm_client.chat(
@@ -50,9 +49,7 @@ class AgentRunner:
                     status="running",
                 )
                 try:
-                    result = self._tool_registry.execute(
-                        simulated_tool_name, tool_call.arguments
-                    )
+                    result = self._tool_registry.execute(simulated_tool_name, tool_call.arguments)
                     tool_call.result = result
                     tool_call.status = "success"
                 except Exception as exc:  # noqa: BLE001

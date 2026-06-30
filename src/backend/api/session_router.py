@@ -67,9 +67,7 @@ async def list_sessions(
     return [_to_session_response(session) for session in sessions]
 
 
-@router.post(
-    "", response_model=ChatSessionResponse, status_code=status.HTTP_201_CREATED
-)
+@router.post("", response_model=ChatSessionResponse, status_code=status.HTTP_201_CREATED)
 async def create_session(
     request_payload: ChatSessionCreateRequest,
     current_user: AuthenticatedPrincipal = Depends(get_current_public_user),

@@ -6,10 +6,10 @@ import os
 import uuid
 
 import uvicorn
-from alembic import command
-from alembic.config import Config
 from fastapi import FastAPI
 
+from alembic import command
+from alembic.config import Config
 from backend.api.admin import admin_auth_router, admin_user_router
 from backend.api.agent_router import router as agent_router
 from backend.api.auth_router import router as auth_router
@@ -79,9 +79,7 @@ def _seed_tools() -> None:
                 handler_path="backend.engines.skills.tools.web_search",
                 schema={
                     "type": "object",
-                    "properties": {
-                        "query": {"type": "string", "description": "搜索关键词"}
-                    },
+                    "properties": {"query": {"type": "string", "description": "搜索关键词"}},
                     "required": ["query"],
                 },
             ),
@@ -191,18 +189,14 @@ def create_app() -> FastAPI:
         password_hasher=password_hasher,
         allow_registration=False,
     )
-    app.state.public_user_directory = PublicUserDirectory(
-        public_repository=public_user_repository
-    )
+    app.state.public_user_directory = PublicUserDirectory(public_repository=public_user_repository)
 
     # --- 业务仓库与能力（复用同一会话）---
     app.state.agent_repository = SqlAlchemyAgentRepository(db_session)
     app.state.session_repository = SqlAlchemySessionRepository(db_session)
     app.state.workflow_repository = SqlAlchemyWorkflowRepository(db_session)
     app.state.tool_metadata_repository = SqlAlchemyToolRepository(db_session)
-    app.state.tool_registry = ToolRegistryImpl(
-        tool_repository=SqlAlchemyToolRepository(db_session)
-    )
+    app.state.tool_registry = ToolRegistryImpl(tool_repository=SqlAlchemyToolRepository(db_session))
     app.state.llm_client = LangChainLLMClient()
 
     _seed_tools()

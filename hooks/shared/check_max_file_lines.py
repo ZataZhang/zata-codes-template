@@ -55,10 +55,7 @@ def main(argv: list[str] | None = None) -> int:
 
     level = "WARNING" if args.warn_only else "ERROR"
     for file_path, line_count in violations:
-        print(
-            f"[{level}] {file_path}: {line_count} 非空行，"
-            f"超过上限 {args.max_lines} 行。"
-        )
+        print(f"[{level}] {file_path}: {line_count} 非空行，超过上限 {args.max_lines} 行。")
     return 0 if args.warn_only else 1
 
 

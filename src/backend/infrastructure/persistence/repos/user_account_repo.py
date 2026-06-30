@@ -53,9 +53,7 @@ class SqlAlchemyUserAccountRepository(UserAccountRepository):
         """按登录标识查账户。"""
         identifier_column = getattr(self._model_class, self._identifier_attr)
         model: Any | None = (
-            self._session.query(self._model_class)
-            .filter(identifier_column == identifier)
-            .first()
+            self._session.query(self._model_class).filter(identifier_column == identifier).first()
         )
         return self._to_account(model) if model is not None else None
 
@@ -117,10 +115,7 @@ class SqlAlchemyUserAccountRepository(UserAccountRepository):
             )
         total: int = query.count()
         models: list[Any] = (
-            query.order_by(self._model_class.created_at.desc())
-            .offset(offset)
-            .limit(limit)
-            .all()
+            query.order_by(self._model_class.created_at.desc()).offset(offset).limit(limit).all()
         )
         return [self._to_account(model) for model in models], total
 

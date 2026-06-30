@@ -64,6 +64,7 @@ class PrometheusMetricsMiddleware(BaseHTTPMiddleware):
     """FastAPI/Starlette middleware that records RED Prometheus metrics."""
 
     async def dispatch(self, request: "Request", call_next) -> "Response":
+        """Record Prometheus metrics for the request."""
         if not _should_record(request):
             return await call_next(request)
 

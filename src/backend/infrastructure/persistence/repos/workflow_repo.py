@@ -57,6 +57,7 @@ class SqlAlchemyWorkflowRepository(WorkflowRepository):
     """基于 SQLAlchemy 的 Workflow Repository 实现。"""
 
     def __init__(self, db_session: Session) -> None:
+        """Initialize repository with database session."""
         self._session = db_session
 
     def create(self, workflow: Workflow) -> Workflow:

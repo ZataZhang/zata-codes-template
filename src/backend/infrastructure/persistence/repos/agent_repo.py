@@ -8,8 +8,8 @@ from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
-from backend.core.shared.models.agent import Agent
 from backend.core.shared.interfaces.agent_repository import AgentRepository
+from backend.core.shared.models.agent import Agent
 from backend.infrastructure.persistence.models.agent import AgentModel
 
 
@@ -33,6 +33,7 @@ class SqlAlchemyAgentRepository(AgentRepository):
     """基于 SQLAlchemy 的 Agent Repository 实现。"""
 
     def __init__(self, db_session: Session) -> None:
+        """Initialize repository with database session."""
         self._session = db_session
 
     def create(self, agent: Agent) -> Agent:

@@ -5,13 +5,13 @@ from __future__ import annotations
 from typing import Sequence
 from uuid import uuid4
 
-from backend.core.shared.models.agent import Agent
 from backend.core.agent.orchestrator.agent_runner import AgentRunner
-from backend.core.shared.models.session import ChatMessage, ChatSession
 from backend.core.shared.interfaces.agent_repository import AgentRepository
 from backend.core.shared.interfaces.llm_client import LLMClient
 from backend.core.shared.interfaces.session_repository import SessionRepository
 from backend.core.shared.interfaces.tool_registry import ToolRegistry
+from backend.core.shared.models.agent import Agent
+from backend.core.shared.models.session import ChatMessage, ChatSession
 
 
 class SessionUseCase:
@@ -24,14 +24,13 @@ class SessionUseCase:
         tool_registry: ToolRegistry,
         llm_client: LLMClient,
     ) -> None:
+        """Initialize use case with repositories and clients."""
         self._session_repository = session_repository
         self._agent_repository = agent_repository
         self._tool_registry = tool_registry
         self._llm_client = llm_client
 
-    def create_session(
-        self, owner_id: str, agent_id: str, title: str | None = None
-    ) -> ChatSession:
+    def create_session(self, owner_id: str, agent_id: str, title: str | None = None) -> ChatSession:
         """创建会话。"""
         agent = self._get_agent(agent_id, owner_id)
         session = ChatSession(
@@ -88,9 +87,7 @@ class SessionUseCase:
         assistant_message.session_id = session_id
         return self._session_repository.create_message(assistant_message)
 
-    def list_messages(
-        self, session_id: str, requester_id: str
-    ) -> Sequence[ChatMessage]:
+    def list_messages(self, session_id: str, requester_id: str) -> Sequence[ChatMessage]:
         """读取会话消息列表。"""
         self.get_session(session_id, requester_id)
         return self._session_repository.list_messages_by_session(session_id)

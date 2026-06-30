@@ -11,9 +11,9 @@ Create Date: 2026-06-25 18:23:22.000000
 
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "b2f1a4c9d3e7"
@@ -76,9 +76,7 @@ def upgrade() -> None:
         sa.UniqueConstraint("email"),
         comment="Public 域用户表，存储 C 端自助注册用户的认证与展示信息。",
     )
-    op.create_index(
-        op.f("ix_public_user_email"), "public_user", ["email"], unique=False
-    )
+    op.create_index(op.f("ix_public_user_email"), "public_user", ["email"], unique=False)
 
     op.create_table(
         "admin_user",
@@ -130,9 +128,7 @@ def upgrade() -> None:
         sa.UniqueConstraint("username"),
         comment="Admin 域用户表，存储内部管理员的认证与展示信息。",
     )
-    op.create_index(
-        op.f("ix_admin_user_username"), "admin_user", ["username"], unique=False
-    )
+    op.create_index(op.f("ix_admin_user_username"), "admin_user", ["username"], unique=False)
 
 
 def downgrade() -> None:
@@ -163,9 +159,7 @@ def downgrade() -> None:
             nullable=True,
             comment="用户展示名，允许为空。",
         ),
-        sa.Column(
-            "birth_date", sa.Date(), nullable=True, comment="用户出生日期，可为空。"
-        ),
+        sa.Column("birth_date", sa.Date(), nullable=True, comment="用户出生日期，可为空。"),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),

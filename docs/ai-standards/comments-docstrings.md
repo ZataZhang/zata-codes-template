@@ -26,6 +26,21 @@ def function_name(param1: str, param2: int) -> bool:
     """
 ```
 
+## Automated Checks
+
+注释/docstring 规范由 lint 工具强制执行：
+
+- **Python 后端**：启用 Ruff `pydocstyle` 规则（`D100`–`D107`、`D419`）。
+  - `D100`–`D104`：模块、公共类、公共函数、包 `__init__` 必须有 docstring。
+  - `D105`–`D107`：magic method、嵌套类、`__init__` 必须有 docstring。
+  - `D419`：禁止空 docstring。
+  - 配置位于 `pyproject.toml` 的 `[tool.ruff.lint]`。
+  - 运行 `uv run ruff check src/backend tests hooks` 或 `just lint --full` 进行检查。
+- **前端**：`frontend-admin` 与 `frontend-public` 均启用 `eslint-plugin-jsdoc`。
+  - 公共函数、类、方法需要 JSDoc/TSDoc 说明。
+  - 当前为 `warn` 级别，后续随代码补齐可升级为 `error`。
+  - 运行 `cd frontend-admin && pnpm lint` / `cd frontend-public && pnpm lint`。
+
 ## Inline Comments
 
 只在以下情况写注释：

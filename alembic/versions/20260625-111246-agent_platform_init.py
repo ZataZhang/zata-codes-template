@@ -8,9 +8,9 @@ Create Date: 2026-06-25 11:12:46.651974
 
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "da21c8e2e67c"
@@ -36,12 +36,8 @@ def upgrade() -> None:
             nullable=False,
             comment="Agent 所属用户 ID。",
         ),
-        sa.Column(
-            "name", sa.String(length=128), nullable=False, comment="Agent 展示名称。"
-        ),
-        sa.Column(
-            "description", sa.String(length=512), nullable=False, comment="Agent 描述。"
-        ),
+        sa.Column("name", sa.String(length=128), nullable=False, comment="Agent 展示名称。"),
+        sa.Column("description", sa.String(length=512), nullable=False, comment="Agent 描述。"),
         sa.Column(
             "system_prompt",
             sa.String(length=4096),
@@ -54,9 +50,7 @@ def upgrade() -> None:
             nullable=False,
             comment="Agent 使用的模型标识，例如 openai/gpt-4o。",
         ),
-        sa.Column(
-            "tool_ids", sa.JSON(), nullable=False, comment="Agent 启用的工具 ID 列表。"
-        ),
+        sa.Column("tool_ids", sa.JSON(), nullable=False, comment="Agent 启用的工具 ID 列表。"),
         sa.Column(
             "status",
             sa.String(length=32),
@@ -89,9 +83,7 @@ def upgrade() -> None:
             nullable=False,
             comment="工具主键 ID，全局唯一标识。",
         ),
-        sa.Column(
-            "name", sa.String(length=128), nullable=False, comment="工具展示名称。"
-        ),
+        sa.Column("name", sa.String(length=128), nullable=False, comment="工具展示名称。"),
         sa.Column("description", sa.Text(), nullable=False, comment="工具描述。"),
         sa.Column(
             "handler_path",
@@ -99,9 +91,7 @@ def upgrade() -> None:
             nullable=False,
             comment="工具处理器导入路径，例如 engines.skills.tools.web_search。",
         ),
-        sa.Column(
-            "schema", sa.JSON(), nullable=False, comment="工具参数 JSON Schema。"
-        ),
+        sa.Column("schema", sa.JSON(), nullable=False, comment="工具参数 JSON Schema。"),
         sa.PrimaryKeyConstraint("id"),
         comment="工具表，存储平台预置工具的元数据。",
     )
@@ -126,9 +116,7 @@ def upgrade() -> None:
             nullable=True,
             comment="用户展示名，允许为空。",
         ),
-        sa.Column(
-            "birth_date", sa.Date(), nullable=True, comment="用户出生日期，可为空。"
-        ),
+        sa.Column("birth_date", sa.Date(), nullable=True, comment="用户出生日期，可为空。"),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -161,9 +149,7 @@ def upgrade() -> None:
             nullable=False,
             comment="工作流所属用户 ID。",
         ),
-        sa.Column(
-            "name", sa.String(length=256), nullable=False, comment="工作流名称。"
-        ),
+        sa.Column("name", sa.String(length=256), nullable=False, comment="工作流名称。"),
         sa.Column("description", sa.Text(), nullable=False, comment="工作流描述。"),
         sa.Column(
             "status",
@@ -188,9 +174,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         comment="工作流表，存储用户编排的工作流元数据。",
     )
-    op.create_index(
-        op.f("ix_workflow_owner_id"), "workflow", ["owner_id"], unique=False
-    )
+    op.create_index(op.f("ix_workflow_owner_id"), "workflow", ["owner_id"], unique=False)
     op.create_table(
         "chat_session",
         sa.Column(
@@ -233,9 +217,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         comment="聊天会话表，存储用户与 Agent 的会话元数据。",
     )
-    op.create_index(
-        op.f("ix_chat_session_owner_id"), "chat_session", ["owner_id"], unique=False
-    )
+    op.create_index(op.f("ix_chat_session_owner_id"), "chat_session", ["owner_id"], unique=False)
     op.create_table(
         "workflow_edge",
         sa.Column(
@@ -295,21 +277,15 @@ def upgrade() -> None:
             nullable=False,
             comment="节点类型：start、end、agent、tool、condition。",
         ),
-        sa.Column(
-            "label", sa.String(length=256), nullable=False, comment="节点展示标签。"
-        ),
+        sa.Column("label", sa.String(length=256), nullable=False, comment="节点展示标签。"),
         sa.Column(
             "config",
             sa.JSON(),
             nullable=False,
             comment="节点配置，例如 agent_id、tool_id、条件表达式。",
         ),
-        sa.Column(
-            "position_x", sa.Float(), nullable=False, comment="节点在画布上的 X 坐标。"
-        ),
-        sa.Column(
-            "position_y", sa.Float(), nullable=False, comment="节点在画布上的 Y 坐标。"
-        ),
+        sa.Column("position_x", sa.Float(), nullable=False, comment="节点在画布上的 X 坐标。"),
+        sa.Column("position_y", sa.Float(), nullable=False, comment="节点在画布上的 Y 坐标。"),
         sa.ForeignKeyConstraint(
             ["workflow_id"],
             ["workflow.id"],
@@ -344,9 +320,7 @@ def upgrade() -> None:
             comment="消息角色：user、assistant、system。",
         ),
         sa.Column("content", sa.Text(), nullable=False, comment="消息文本内容。"),
-        sa.Column(
-            "tool_calls", sa.JSON(), nullable=False, comment="消息附带的工具调用记录。"
-        ),
+        sa.Column("tool_calls", sa.JSON(), nullable=False, comment="消息附带的工具调用记录。"),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),

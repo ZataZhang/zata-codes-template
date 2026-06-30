@@ -27,9 +27,7 @@ class BcryptPasswordHasher(PasswordHasher):
         Returns:
             str: bcrypt 哈希串（含算法参数与盐）。
         """
-        hashed_bytes: bytes = bcrypt.hashpw(
-            _encode_truncated(plain_password), bcrypt.gensalt()
-        )
+        hashed_bytes: bytes = bcrypt.hashpw(_encode_truncated(plain_password), bcrypt.gensalt())
         return hashed_bytes.decode("utf-8")
 
     def verify(self, plain_password: str, hashed_password: str) -> bool:

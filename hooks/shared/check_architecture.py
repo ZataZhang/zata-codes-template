@@ -25,7 +25,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-
 # ==========================================
 # 1. 架构规则定义
 # ==========================================
@@ -123,9 +122,7 @@ def _discover_layered_modules(project_root: Path) -> list[tuple[str, Path]]:
     return discovered_modules
 
 
-def _resolve_module_and_layer(
-    file_path: Path, project_root: Path
-) -> Optional[tuple[str, str]]:
+def _resolve_module_and_layer(file_path: Path, project_root: Path) -> Optional[tuple[str, str]]:
     """从文件路径推断所属的模块名和架构层名称。
 
     Args:
@@ -172,8 +169,7 @@ def _extract_imported_modules(source_code: str) -> list[tuple[int, str]]:
                 imported_module_parts: list[str] = alias.name.split(".")
                 imported_layer_name: str = (
                     imported_module_parts[1]
-                    if len(imported_module_parts) > 1
-                    and imported_module_parts[1] in LAYER_ORDER
+                    if len(imported_module_parts) > 1 and imported_module_parts[1] in LAYER_ORDER
                     else imported_module_parts[0]
                 )
                 imported_module_entries.append((ast_node.lineno, imported_layer_name))
@@ -183,8 +179,7 @@ def _extract_imported_modules(source_code: str) -> list[tuple[int, str]]:
                 imported_module_parts = ast_node.module.split(".")
                 imported_layer_name = (
                     imported_module_parts[1]
-                    if len(imported_module_parts) > 1
-                    and imported_module_parts[1] in LAYER_ORDER
+                    if len(imported_module_parts) > 1 and imported_module_parts[1] in LAYER_ORDER
                     else imported_module_parts[0]
                 )
                 imported_module_entries.append((ast_node.lineno, imported_layer_name))
@@ -219,9 +214,7 @@ def _check_single_file(
         return file_violations
 
     raw_source_code: str = python_file.read_text(encoding="utf-8")
-    imported_module_entries: list[tuple[int, str]] = _extract_imported_modules(
-        raw_source_code
-    )
+    imported_module_entries: list[tuple[int, str]] = _extract_imported_modules(raw_source_code)
 
     whitelisted_submodules: list[str] = WHITELISTED_SUBMODULES.get(source_layer, [])
 
@@ -308,9 +301,7 @@ def _format_report(check_result: CheckResult) -> str:
     report_lines.append(f"❌ 发现 {len(check_result.violations)} 处违规：\n")
 
     for violation in check_result.violations:
-        relative_file_path: str = str(violation.file_path).split("zata_code_template/")[
-            -1
-        ]
+        relative_file_path: str = str(violation.file_path).split("zata_code_template/")[-1]
         report_lines.append(
             f"  [{violation.module_name}/{violation.source_layer}]"
             f" → [{violation.forbidden_layer}]  "

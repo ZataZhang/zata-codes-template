@@ -13,7 +13,6 @@ from fastapi.testclient import TestClient
 
 from backend.main import create_app
 
-
 # Paths that every consumer of the template API can rely on.
 REQUIRED_PATHS = {
     "/health",

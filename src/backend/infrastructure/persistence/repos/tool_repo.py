@@ -25,6 +25,7 @@ class SqlAlchemyToolRepository(ToolRepository):
     """基于 SQLAlchemy 的工具元数据 Repository 实现。"""
 
     def __init__(self, db_session: Session) -> None:
+        """Initialize repository with database session."""
         self._session = db_session
 
     def list_tools(self) -> Sequence[ToolDefinition]:

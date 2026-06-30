@@ -10,6 +10,7 @@
 
 const KEY_PREFIX = 'v1:'
 
+/** Check whether `localStorage` can be used in the current environment. */
 function isAvailable(): boolean {
   try {
     return typeof window !== 'undefined' && !!window.localStorage

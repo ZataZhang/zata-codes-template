@@ -1,6 +1,12 @@
 import { AxiosError } from 'axios'
 import { toast } from 'sonner'
 
+/**
+ * Display a user-friendly toast for a server/HTTP error.
+ *
+ * In development the raw error is logged. Empty 204 responses and Axios
+ * `title` payloads are handled explicitly.
+ */
 export function handleServerError(error: unknown) {
   if (import.meta.env.DEV) {
     // eslint-disable-next-line no-console

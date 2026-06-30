@@ -14,7 +14,6 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-
 PLANNING_FILE_NAMES: tuple[str, str, str] = (
     "task_plan.md",
     "findings.md",
@@ -32,9 +31,7 @@ def build_parser() -> argparse.ArgumentParser:
     Returns:
         argparse.ArgumentParser: Configured parser for this helper.
     """
-    parser = argparse.ArgumentParser(
-        description="Render or evaluate planning workspace files."
-    )
+    parser = argparse.ArgumentParser(description="Render or evaluate planning workspace files.")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     init_parser = subparsers.add_parser(
@@ -142,9 +139,7 @@ def load_template_text(template_dir_path: Path, file_name: str) -> str:
     return template_file_path.read_text(encoding="utf-8")
 
 
-def apply_replacements(
-    template_text: str, replacement_items: list[tuple[str, str]]
-) -> str:
+def apply_replacements(template_text: str, replacement_items: list[tuple[str, str]]) -> str:
     """Apply literal string replacements in order.
 
     Args:
@@ -218,11 +213,7 @@ def render_task_plan_text(
     )
     initialized_phase_one_text = contextualized_task_plan_text.replace(
         "- **Status:** pending\n- **Started:**\n- **Completed:**",
-        (
-            "- **Status:** in_progress\n"
-            f"- **Started:** {current_timestamp}\n"
-            "- **Completed:**"
-        ),
+        ("- **Status:** in_progress\n" f"- **Started:** {current_timestamp}\n" "- **Completed:**"),
         1,
     )
     return initialized_phase_one_text
@@ -318,8 +309,7 @@ def normalize_planning_text(planning_markdown_text: str) -> str:
         normalized_timestamp_text,
     )
     stripped_line_list = [
-        stripped_line.rstrip()
-        for stripped_line in normalized_date_text.strip().splitlines()
+        stripped_line.rstrip() for stripped_line in normalized_date_text.strip().splitlines()
     ]
     return "\n".join(stripped_line_list) + "\n"
 
@@ -341,9 +331,7 @@ def read_workspace_contents(workspace_dir_path: Path) -> dict[str, str]:
         planning_file_path = workspace_dir_path / planning_file_name
         if not planning_file_path.exists():
             raise FileNotFoundError(f"Missing planning file: {planning_file_path}")
-        workspace_content_map[planning_file_name] = planning_file_path.read_text(
-            encoding="utf-8"
-        )
+        workspace_content_map[planning_file_name] = planning_file_path.read_text(encoding="utf-8")
     return workspace_content_map
 
 
@@ -381,15 +369,11 @@ def normalize_workspace_contents(
     """
     normalized_content_map: dict[str, str] = {}
     for planning_file_name, planning_file_text in workspace_content_map.items():
-        normalized_content_map[planning_file_name] = normalize_planning_text(
-            planning_file_text
-        )
+        normalized_content_map[planning_file_name] = normalize_planning_text(planning_file_text)
     return normalized_content_map
 
 
-def write_workspace_contents(
-    output_dir_path: Path, rendered_workspace_map: dict[str, str]
-) -> None:
+def write_workspace_contents(output_dir_path: Path, rendered_workspace_map: dict[str, str]) -> None:
     """Write the rendered planning workspace to disk.
 
     Args:
@@ -482,7 +466,8 @@ def should_archive_workspace(
     if normalized_current_map == normalized_latest_archive_map:
         return (
             False,
-            f"[planning] Skip archive: current workspace matches latest snapshot {latest_archive_dir_path.name}.",
+            "[planning] Skip archive: current workspace matches latest snapshot "
+            f"{latest_archive_dir_path.name}.",
         )
 
     return (

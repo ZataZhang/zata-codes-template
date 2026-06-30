@@ -106,10 +106,7 @@ def test_json_log_contains_required_fields(
     assert log_record["level"] == "INFO"
     assert log_record["service_name"] == config.observability.service_name
     assert log_record["service_version"] == config.observability.service_version
-    assert (
-        log_record["deployment_environment"]
-        == config.observability.deployment_environment
-    )
+    assert log_record["deployment_environment"] == config.observability.deployment_environment
     assert "timestamp" in log_record
     assert "source_file" in log_record
     assert "source_line" in log_record

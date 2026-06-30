@@ -17,10 +17,12 @@ DEFAULT_REF = "main"
 
 
 class ListError(Exception):
-    pass
+    """Raised when listing curated skills fails."""
 
 
 class Args(argparse.Namespace):
+    """CLI arguments for the list command."""
+
     repo: str
     path: str
     ref: str
@@ -54,8 +56,7 @@ def _list_curated(repo: str, path: str, ref: str) -> list[str]:
     except urllib.error.HTTPError as exc:
         if exc.code == 404:
             raise ListError(
-                "Curated skills path not found: "
-                f"https://github.com/{repo}/tree/{ref}/{path}"
+                "Curated skills path not found: " f"https://github.com/{repo}/tree/{ref}/{path}"
             ) from exc
         raise ListError(f"Failed to fetch curated skills: HTTP {exc.code}") from exc
     data = json.loads(payload.decode("utf-8"))
@@ -80,14 +81,13 @@ def _parse_args(argv: list[str]) -> Args:
 
 
 def main(argv: list[str]) -> int:
+    """List curated skills and their installation status."""
     args = _parse_args(argv)
     try:
         skills = _list_curated(args.repo, args.path, args.ref)
         installed = _installed_skills()
         if args.format == "json":
-            payload = [
-                {"name": name, "installed": name in installed} for name in skills
-            ]
+            payload = [{"name": name, "installed": name in installed} for name in skills]
             print(json.dumps(payload))
         else:
             for idx, name in enumerate(skills, start=1):

@@ -25,7 +25,10 @@ class LangChainLLMClient(LLMClient):
         """调用 LLM 生成回复。"""
         if os.getenv("MOCK_LLM_RESPONSE", "false").lower() == "true":
             return LLMResponse(
-                content="（Mock 回复）我已收到你的消息。当前处于 MOCK_LLM_RESPONSE 模式，真实 LLM 未调用。"
+                content=(
+                    "（Mock 回复）我已收到你的消息。"
+                    "当前处于 MOCK_LLM_RESPONSE 模式，真实 LLM 未调用。"
+                )
             )
 
         chat_model = create_chat_model(model_name=model, temperature=0.7)

@@ -47,9 +47,7 @@ class AuthService:
         self._password_hasher = password_hasher
         self._allow_registration = allow_registration
 
-    def authenticate(
-        self, identifier: str, password: str
-    ) -> tuple[str, AuthenticatedPrincipal]:
+    def authenticate(self, identifier: str, password: str) -> tuple[str, AuthenticatedPrincipal]:
         """校验凭据并创建会话。
 
         Args:

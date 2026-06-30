@@ -2,12 +2,12 @@
 
 from typing import Any, Generator
 
-from alembic import command
-from alembic.config import Config as AlembicConfig
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from alembic import command
+from alembic.config import Config as AlembicConfig
 from backend.infrastructure.config.settings import config
 from backend.infrastructure.logger import logger
 

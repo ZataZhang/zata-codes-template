@@ -336,9 +336,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     manifest = build_manifest()
     write_manifest(manifest, args.output)
-    print(
-        f"Wrote {manifest.mode} manifest for version {manifest.version} to {args.output}"
-    )
+    print(f"Wrote {manifest.mode} manifest for version {manifest.version} to {args.output}")
     return 0
 
 

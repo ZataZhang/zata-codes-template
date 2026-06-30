@@ -13,11 +13,11 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from alembic import command
-from alembic.config import Config as AlembicConfig
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.engine import Engine
 
+from alembic import command
+from alembic.config import Config as AlembicConfig
 from backend.infrastructure.persistence.database import Base
 
 _PROJECT_ROOT_PATH = Path(__file__).resolve().parents[2]
@@ -87,17 +87,13 @@ def test_migrated_schema_matches_models(migration_engine: Engine) -> None:
 
     for table_name, table in Base.metadata.tables.items():
         actual_columns = {
-            column_metadata["name"]
-            for column_metadata in inspector.get_columns(table_name)
+            column_metadata["name"] for column_metadata in inspector.get_columns(table_name)
         }
         expected_columns = set(table.columns.keys())
         missing_columns = expected_columns - actual_columns
         if missing_columns:
-            mismatches.append(
-                f"{table_name}: missing columns {sorted(missing_columns)}"
-            )
+            mismatches.append(f"{table_name}: missing columns {sorted(missing_columns)}")
 
     assert not mismatches, (
-        "Migrated database schema is missing columns defined in models:\n"
-        + "\n".join(mismatches)
+        "Migrated database schema is missing columns defined in models:\n" + "\n".join(mismatches)
     )

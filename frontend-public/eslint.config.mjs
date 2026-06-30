@@ -1,4 +1,5 @@
 import { defineConfig, globalIgnores } from "eslint/config";
+import jsdoc from "eslint-plugin-jsdoc";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
@@ -13,6 +14,26 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
+  {
+    files: ["**/*.{ts,tsx}"],
+    plugins: { jsdoc },
+    rules: {
+      // JSDoc/TSDoc: warn-only while the codebase catches up
+      "jsdoc/require-jsdoc": [
+        "warn",
+        {
+          require: {
+            FunctionDeclaration: true,
+            MethodDefinition: true,
+            ClassDeclaration: true,
+            ArrowFunctionExpression: false,
+            FunctionExpression: false,
+          },
+        },
+      ],
+      "jsdoc/require-description": "warn",
+    },
+  },
 ]);
 
 export default eslintConfig;

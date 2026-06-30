@@ -8,8 +8,8 @@ from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
-from backend.core.shared.models.session import ChatMessage, ChatSession, ToolCall
 from backend.core.shared.interfaces.session_repository import SessionRepository
+from backend.core.shared.models.session import ChatMessage, ChatSession, ToolCall
 from backend.infrastructure.persistence.models.session import (
     ChatMessageModel,
     ChatSessionModel,
@@ -55,6 +55,7 @@ class SqlAlchemySessionRepository(SessionRepository):
     """基于 SQLAlchemy 的 Session Repository 实现。"""
 
     def __init__(self, db_session: Session) -> None:
+        """Initialize repository with database session."""
         self._session = db_session
 
     def create_session(self, session: ChatSession) -> ChatSession:

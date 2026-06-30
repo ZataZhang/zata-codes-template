@@ -5,16 +5,15 @@ from logging.config import fileConfig
 
 from sqlalchemy import create_engine, pool
 
+# Register all models so they are visible in Base.metadata for autogenerate.
+# Importing the models package executes its __init__.py, which in turn
+# imports every concrete model class so they are bound to ``Base.metadata``.
+import backend.infrastructure.persistence.models  # noqa: F401  pylint: disable=unused-import
 from alembic import context
 
 # Import project Base and app config
 from backend.infrastructure.config.settings import config as app_config
 from backend.infrastructure.persistence.database import Base
-
-# Register all models so they are visible in Base.metadata for autogenerate.
-# Importing the models package executes its __init__.py, which in turn
-# imports every concrete model class so they are bound to ``Base.metadata``.
-import backend.infrastructure.persistence.models  # noqa: F401  pylint: disable=unused-import
 
 # this is the Alembic Config object
 alembic_config = context.config

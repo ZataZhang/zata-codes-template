@@ -27,9 +27,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ALEMBIC_INI_PATH = REPO_ROOT / "alembic.ini"
-EXPECTED_FILE_TEMPLATE = (
-    "%(year)d%(month).2d%(day).2d-" "%(hour).2d%(minute).2d%(second).2d-%(slug)s"
-)
+EXPECTED_FILE_TEMPLATE = "%(year)d%(month).2d%(day).2d-%(hour).2d%(minute).2d%(second).2d-%(slug)s"
 
 
 def _read_alembic_file_template() -> str:

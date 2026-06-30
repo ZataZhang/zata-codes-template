@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
 import os
 import shutil
 import subprocess
@@ -13,6 +12,7 @@ import tempfile
 import urllib.error
 import urllib.parse
 import zipfile
+from dataclasses import dataclass
 
 from github_utils import github_request
 
@@ -21,6 +21,8 @@ DEFAULT_REF = "main"
 
 @dataclass
 class Args:
+    """CLI arguments for the install command."""
+
     url: str | None = None
     repo: str | None = None
     path: list[str] | None = None
@@ -32,6 +34,8 @@ class Args:
 
 @dataclass
 class Source:
+    """GitHub repository source to install from."""
+
     owner: str
     repo: str
     ref: str
@@ -40,7 +44,7 @@ class Source:
 
 
 class InstallError(Exception):
-    pass
+    """Raised when a skill installation fails."""
 
 
 def _codex_home() -> str:
@@ -98,9 +102,7 @@ def _download_repo_zip(owner: str, repo: str, ref: str, dest_dir: str) -> str:
 
 
 def _run_git(args: list[str]) -> None:
-    result = subprocess.run(
-        args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-    )
+    result = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     if result.returncode != 0:
         raise InstallError(result.stderr.strip() or "Git command failed.")
 
@@ -128,9 +130,7 @@ def _validate_skill_name(name: str) -> None:
         raise InstallError("Invalid skill name.")
 
 
-def _git_sparse_checkout(
-    repo_url: str, ref: str, paths: list[str], dest_dir: str
-) -> str:
+def _git_sparse_checkout(repo_url: str, ref: str, paths: list[str], dest_dir: str) -> str:
     repo_dir = os.path.join(dest_dir, "repo")
     clone_cmd = [
         "git",
@@ -227,9 +227,7 @@ def _resolve_source(args: Args) -> Source:
     if not args.repo:
         raise InstallError("Provide --repo or --url.")
     if "://" in args.repo:
-        return _resolve_source(
-            Args(url=args.repo, repo=None, path=args.path, ref=args.ref)
-        )
+        return _resolve_source(Args(url=args.repo, repo=None, path=args.path, ref=args.ref))
 
     repo_parts = [p for p in args.repo.split("/") if p]
     if len(repo_parts) != 2:
@@ -260,9 +258,7 @@ def _parse_args(argv: list[str]) -> Args:
     )
     parser.add_argument("--ref", default=DEFAULT_REF)
     parser.add_argument("--dest", help="Destination skills directory")
-    parser.add_argument(
-        "--name", help="Destination skill name (defaults to basename of path)"
-    )
+    parser.add_argument("--name", help="Destination skill name (defaults to basename of path)")
     parser.add_argument(
         "--method",
         choices=["auto", "download", "git"],
@@ -272,6 +268,7 @@ def _parse_args(argv: list[str]) -> Args:
 
 
 def main(argv: list[str]) -> int:
+    """Install a skill from a GitHub repository."""
     args = _parse_args(argv)
     try:
         source = _resolve_source(args)

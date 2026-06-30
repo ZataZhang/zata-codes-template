@@ -101,9 +101,7 @@ class TestLoadProvidersConfig:
     ) -> None:
         """默认 config.toml 缺失时应返回空 dict，而不是抛错。"""
 
-        monkeypatch.setattr(
-            settings_module, "_TOML_CONFIG_FILE_PATH", tmp_path / "missing.toml"
-        )
+        monkeypatch.setattr(settings_module, "_TOML_CONFIG_FILE_PATH", tmp_path / "missing.toml")
 
         assert load_providers_config() == {}
 
@@ -124,9 +122,7 @@ class TestListProviders:
         listed_custom_providers: list[dict[str, Any]] = list_providers(
             config_path=custom_config_toml
         )
-        listed_provider_names: list[str] = [
-            entry["name"] for entry in listed_custom_providers
-        ]
+        listed_provider_names: list[str] = [entry["name"] for entry in listed_custom_providers]
 
         assert listed_provider_names == ["test-provider", "no-extra-provider"]
 
@@ -201,9 +197,7 @@ class TestCreateChatModel:
 
         assert chat_model_instance.max_retries == 5
 
-    def test_create_chat_model_unknown_provider_raises(
-        self, custom_config_toml: Path
-    ) -> None:
+    def test_create_chat_model_unknown_provider_raises(self, custom_config_toml: Path) -> None:
         """未声明的 provider 应抛出 ModelConfigError。"""
 
         with pytest.raises(ModelConfigError, match="not declared"):
@@ -212,17 +206,13 @@ class TestCreateChatModel:
                 config_path=custom_config_toml,
             )
 
-    def test_create_chat_model_missing_slash_raises(
-        self, custom_config_toml: Path
-    ) -> None:
+    def test_create_chat_model_missing_slash_raises(self, custom_config_toml: Path) -> None:
         """缺少 ``/`` 分隔符的 model_name 应抛出 ModelConfigError。"""
 
         with pytest.raises(ModelConfigError, match="provider/model_id"):
             create_chat_model("gpt-4o", config_path=custom_config_toml)
 
-    def test_create_chat_model_empty_segments_raises(
-        self, custom_config_toml: Path
-    ) -> None:
+    def test_create_chat_model_empty_segments_raises(self, custom_config_toml: Path) -> None:
         """空 provider 或空 model_id 应抛出 ModelConfigError。"""
 
         with pytest.raises(ModelConfigError, match="provider/model_id"):

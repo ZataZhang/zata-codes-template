@@ -34,10 +34,7 @@ class _TextFormatter(logging.Formatter):
 
     def __init__(self) -> None:
         super().__init__(
-            fmt=(
-                "%(asctime)s - %(name)s - %(levelname)s - "
-                "%(filename)s:%(lineno)d - %(message)s"
-            ),
+            fmt=("%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s"),
             datefmt="%Y-%m-%d %H:%M:%S",
         )
 
@@ -95,11 +92,13 @@ class Logger:
     _logger: logging.Logger | None = None
 
     def __new__(cls) -> "Logger":
+        """Create or return the singleton logger manager instance."""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
 
     def __init__(self) -> None:
+        """Initialize the singleton logger on first use."""
         if self._logger is None:
             self._setup_logger()
 
@@ -157,6 +156,7 @@ class Logger:
         return self._logger
 
     def __getattr__(self, name: str) -> Any:
+        """Delegate attribute access to the underlying logger."""
         if self._logger is None:
             self._setup_logger()
         return getattr(self._logger, name)

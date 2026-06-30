@@ -59,16 +59,12 @@ async def login_endpoint(
             request_payload.identifier, request_payload.password
         )
     except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
     _set_session_cookie(response, token)
     return _to_session_response(principal)
 
 
-@router.post(
-    "/register", response_model=UserSessionResponse, status_code=status.HTTP_201_CREATED
-)
+@router.post("/register", response_model=UserSessionResponse, status_code=status.HTTP_201_CREATED)
 async def register_endpoint(
     request_payload: RegisterRequest,
     response: Response,
@@ -82,9 +78,7 @@ async def register_endpoint(
             password=request_payload.password,
         )
     except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     _set_session_cookie(response, token)
     return _to_session_response(principal)
 
@@ -111,11 +105,7 @@ async def get_current_session_endpoint(
     session_token: str | None = request.cookies.get(PUBLIC_SESSION_COOKIE_NAME)
     if session_token is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="未登录")
-    principal: AuthenticatedPrincipal | None = auth_service.resolve_session(
-        session_token
-    )
+    principal: AuthenticatedPrincipal | None = auth_service.resolve_session(session_token)
     if principal is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="会话无效或已过期"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="会话无效或已过期")
     return _to_session_response(principal)

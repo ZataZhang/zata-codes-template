@@ -90,9 +90,7 @@ def _duplicate_touches_candidate(
     return False
 
 
-def _format_duplicate_message(
-    duplicate_entry: dict[str, object], repo_root: Path
-) -> str:
+def _format_duplicate_message(duplicate_entry: dict[str, object], repo_root: Path) -> str:
     """Format one duplicate entry for human-readable output."""
 
     first_file_entry = duplicate_entry.get("firstFile")

@@ -12,6 +12,7 @@ class WorkflowRunner:
     """按拓扑顺序执行工作流节点。"""
 
     def __init__(self, workflow: Workflow) -> None:
+        """Initialize runner with workflow definition."""
         self._workflow = workflow
 
     def run(self) -> dict[str, Any]:
@@ -35,9 +36,7 @@ class WorkflowRunner:
             current_id = queue.popleft()
             node = node_map[current_id]
             result = self._execute_node(node)
-            results.append(
-                {"node_id": current_id, "node_type": node.node_type, "result": result}
-            )
+            results.append({"node_id": current_id, "node_type": node.node_type, "result": result})
 
             for next_id in adjacency.get(current_id, []):
                 in_degree[next_id] -= 1

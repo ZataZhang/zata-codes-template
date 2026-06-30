@@ -83,18 +83,14 @@ class RedisSessionStore(ISessionStore):
             return None
 
         now: datetime = _now_utc()
-        absolute_deadline: datetime = record.created_at + timedelta(
-            days=self._absolute_max_days
-        )
+        absolute_deadline: datetime = record.created_at + timedelta(days=self._absolute_max_days)
         if now >= record.expires_at or now >= absolute_deadline:
             self._redis.delete(self._build_key(token))
             return None
 
         potential_expires: datetime = now + timedelta(days=self._sliding_window_days)
         new_expires: datetime = (
-            potential_expires
-            if potential_expires < absolute_deadline
-            else absolute_deadline
+            potential_expires if potential_expires < absolute_deadline else absolute_deadline
         )
         updated_record = SessionRecord(
             token=record.token,

@@ -1,8 +1,8 @@
 """FastAPI middleware for cross-cutting HTTP concerns."""
 
 from backend.api.middleware.request_context import (
-    RequestContextMiddleware,
     _REQUEST_ID_HEADER,
+    RequestContextMiddleware,
     get_request_id,
 )
 

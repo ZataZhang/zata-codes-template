@@ -6,19 +6,12 @@ import shlex
 import subprocess
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
-QUALITY_FLAG_SCRIPT_PATH = (
-    REPO_ROOT / "scripts" / "shared" / "hooks" / "quality_flag.sh"
-)
-CHECK_TEST_FLAG_SCRIPT_PATH = (
-    REPO_ROOT / "scripts" / "shared" / "hooks" / "check_test_flag.sh"
-)
+QUALITY_FLAG_SCRIPT_PATH = REPO_ROOT / "scripts" / "shared" / "hooks" / "quality_flag.sh"
+CHECK_TEST_FLAG_SCRIPT_PATH = REPO_ROOT / "scripts" / "shared" / "hooks" / "check_test_flag.sh"
 
 
-def run_command(
-    command_parts: list[str], cwd_path: Path
-) -> subprocess.CompletedProcess[str]:
+def run_command(command_parts: list[str], cwd_path: Path) -> subprocess.CompletedProcess[str]:
     """Run a subprocess command with captured UTF-8 output."""
 
     return subprocess.run(
@@ -84,9 +77,7 @@ def test_quality_effective_tree_ignores_docs_before_first_commit(
     write_text_file(tmp_path, "src/backend/api/app.py", "print('v1')\n")
     write_text_file(tmp_path, "README.md", "# first\n")
 
-    initial_tree_process = run_quality_flag_snippet(
-        tmp_path, "quality_effective_tree working test"
-    )
+    initial_tree_process = run_quality_flag_snippet(tmp_path, "quality_effective_tree working test")
     assert initial_tree_process.returncode == 0, initial_tree_process.stderr
     initial_tree_hash = initial_tree_process.stdout.strip()
 

@@ -14,6 +14,7 @@ class WorkflowUseCase:
     """工作流业务用例。"""
 
     def __init__(self, repository: WorkflowRepository) -> None:
+        """Initialize use case with workflow repository."""
         self._repository = repository
 
     def create_workflow(

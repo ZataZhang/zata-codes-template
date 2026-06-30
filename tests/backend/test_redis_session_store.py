@@ -48,12 +48,8 @@ def test_unknown_token_returns_none() -> None:
 def test_prefix_isolation_between_domains() -> None:
     """同一 Redis 实例下，不同前缀命名空间互不可见。"""
     shared_client = fakeredis.FakeRedis(decode_responses=True)
-    public_store = RedisSessionStore(
-        redis_client=shared_client, key_prefix="public:session:"
-    )
-    admin_store = RedisSessionStore(
-        redis_client=shared_client, key_prefix="admin:session:"
-    )
+    public_store = RedisSessionStore(redis_client=shared_client, key_prefix="public:session:")
+    admin_store = RedisSessionStore(redis_client=shared_client, key_prefix="admin:session:")
     public_token = public_store.create("public-user")
     assert public_store.get(public_token) is not None
     # admin 命名空间查不到 public token —— 物理隔离

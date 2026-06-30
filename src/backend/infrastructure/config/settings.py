@@ -110,6 +110,7 @@ class DatabaseSettings(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,  # noqa: ARG003
         file_secret_settings: PydanticBaseSettingsSource,  # noqa: ARG003
     ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """Customize pydantic settings sources for database settings."""
         toml_source: _TomlSectionSource = _TomlSectionSource(settings_cls, "database")
         return (
             env_settings,
@@ -143,9 +144,8 @@ class ObservabilitySettings(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,  # noqa: ARG003
         file_secret_settings: PydanticBaseSettingsSource,  # noqa: ARG003
     ) -> tuple[PydanticBaseSettingsSource, ...]:
-        toml_source: _TomlSectionSource = _TomlSectionSource(
-            settings_cls, "observability"
-        )
+        """Customize pydantic settings sources for observability settings."""
+        toml_source: _TomlSectionSource = _TomlSectionSource(settings_cls, "observability")
         return (
             env_settings,
             toml_source,
@@ -174,6 +174,7 @@ class RedisSettings(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,  # noqa: ARG003
     ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """Customize pydantic settings sources for Redis settings."""
         toml_source: _TomlSectionSource = _TomlSectionSource(settings_cls, "redis")
         return (
             env_settings,
@@ -207,6 +208,7 @@ class AuthSettings(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,  # noqa: ARG003
     ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """Customize pydantic settings sources for auth settings."""
         toml_source: _TomlSectionSource = _TomlSectionSource(settings_cls, "auth")
         return (
             env_settings,
@@ -240,9 +242,7 @@ class AppSettings(BaseSettings):
 
     base_dir: Path = _PROJECT_ROOT_PATH
     log_dir: Path = Field(default_factory=lambda: _PROJECT_ROOT_PATH / "logs")
-    log_file: Path = Field(
-        default_factory=lambda: _PROJECT_ROOT_PATH / "logs" / "app.log"
-    )
+    log_file: Path = Field(default_factory=lambda: _PROJECT_ROOT_PATH / "logs" / "app.log")
 
     @property
     def resolved_database_url(self) -> str:
@@ -259,13 +259,11 @@ class AppSettings(BaseSettings):
         if encoded_user or encoded_password:
             credentials_part = f"{encoded_user}:{encoded_password}"
 
-        netloc: str = (
-            f"{credentials_part}@{db_config.host}"
-            if credentials_part
-            else db_config.host
-        )
+        netloc: str = f"{credentials_part}@{db_config.host}" if credentials_part else db_config.host
 
-        resolved_url: str = f"{db_config.backend}+{db_config.driver}://{netloc}:{db_config.port}/{db_config.name}"
+        resolved_url: str = (
+            f"{db_config.backend}+{db_config.driver}://{netloc}:{db_config.port}/{db_config.name}"
+        )
         return resolved_url
 
     def ensure_log_directory(self) -> None:
@@ -281,6 +279,7 @@ class AppSettings(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,  # noqa: ARG003
     ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """Customize pydantic settings sources for app settings."""
         toml_source: _TomlSectionSource = _TomlSectionSource(settings_cls, "app")
         return (
             env_settings,
@@ -334,14 +333,10 @@ def load_providers_config(config_path: str | Path | None = None) -> dict[str, An
         FileNotFoundError: 当显式传入的 ``config_path`` 不存在时抛出。
     """
 
-    resolved_toml_path: Path = (
-        Path(config_path) if config_path else _TOML_CONFIG_FILE_PATH
-    )
+    resolved_toml_path: Path = Path(config_path) if config_path else _TOML_CONFIG_FILE_PATH
     if not resolved_toml_path.is_file():
         if config_path is not None:
-            raise FileNotFoundError(
-                f"Providers config file not found: {resolved_toml_path}"
-            )
+            raise FileNotFoundError(f"Providers config file not found: {resolved_toml_path}")
         return {}
 
     with open(resolved_toml_path, "rb") as toml_file_handle:
@@ -372,14 +367,11 @@ def _lookup_provider(
 
     normalized_provider_name: str = provider_name.strip().lower()
     for declared_provider_name, provider_entry in providers_config.items():
-        if (
-            declared_provider_name.strip().lower() == normalized_provider_name
-            and isinstance(provider_entry, Mapping)
+        if declared_provider_name.strip().lower() == normalized_provider_name and isinstance(
+            provider_entry, Mapping
         ):
             return provider_entry
-    raise ModelConfigError(
-        f"Provider '{provider_name}' is not declared in providers config."
-    )
+    raise ModelConfigError(f"Provider '{provider_name}' is not declared in providers config.")
 
 
 def list_providers(
@@ -432,9 +424,7 @@ def resolve_provider_endpoint(
     """
 
     providers_config: dict[str, Any] = load_providers_config(config_path)
-    provider_entry: Mapping[str, Any] = _lookup_provider(
-        provider_name, providers_config
-    )
+    provider_entry: Mapping[str, Any] = _lookup_provider(provider_name, providers_config)
 
     base_url_value: Any = provider_entry.get("base_url")
     if not isinstance(base_url_value, str) or not base_url_value:
@@ -450,7 +440,8 @@ def resolve_provider_endpoint(
     env_api_key_value: str | None = os.getenv(api_key_env_name)
     if not env_api_key_value:
         raise ModelConfigError(
-            f"Environment variable '{api_key_env_name}' for provider '{provider_name}' is empty or unset."
+            f"Environment variable '{api_key_env_name}' for provider "
+            f"'{provider_name}' is empty or unset."
         )
 
     extra_value: Any = provider_entry.get("extra", {})
@@ -501,15 +492,11 @@ def create_chat_model(
     """
 
     if not isinstance(model_name, str) or "/" not in model_name:
-        raise ModelConfigError(
-            f"Model name '{model_name}' must be in 'provider/model_id' form."
-        )
+        raise ModelConfigError(f"Model name '{model_name}' must be in 'provider/model_id' form.")
 
     provider_name, model_id = model_name.split("/", 1)
     if not provider_name.strip() or not model_id.strip():
-        raise ModelConfigError(
-            f"Model name '{model_name}' must be in 'provider/model_id' form."
-        )
+        raise ModelConfigError(f"Model name '{model_name}' must be in 'provider/model_id' form.")
 
     resolved_endpoint: ProviderEndpoint = resolve_provider_endpoint(
         provider_name,

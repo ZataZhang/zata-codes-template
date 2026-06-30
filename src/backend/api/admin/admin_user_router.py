@@ -25,9 +25,7 @@ def _to_public_user_response(account: UserAccount) -> PublicUserResponse:
         email=account.identifier,
         display_name=account.display_name,
         status="active" if account.is_active else "disabled",
-        created_at=account.created_at.isoformat()
-        if account.created_at is not None
-        else None,
+        created_at=account.created_at.isoformat() if account.created_at is not None else None,
     )
 
 

@@ -40,10 +40,7 @@ async def test_middleware_records_red_metrics() -> None:
 
     assert response.status_code == 200
     content = response.text
-    assert (
-        'http_requests_total{method="GET",path="/items/{item_id}",status="200"}'
-        in content
-    )
+    assert 'http_requests_total{method="GET",path="/items/{item_id}",status="200"}' in content
     assert (
         'http_request_duration_seconds_count{method="GET",path="/items/{item_id}",status="200"}'
         in content

@@ -1,5 +1,6 @@
 import axios from "axios"
 
+/** Axios instance for the public frontend API with credentials and 401 handling. */
 export const apiClient = axios.create({
   baseURL: "/api",
   headers: {
@@ -20,6 +21,7 @@ apiClient.interceptors.response.use(
   }
 )
 
+/** Error thrown for API requests with an optional HTTP status code. */
 export class ApiRequestError extends Error {
   constructor(
     message: string,
@@ -30,6 +32,7 @@ export class ApiRequestError extends Error {
   }
 }
 
+/** Send a GET request and return the typed response data. */
 export async function apiGet<T>(url: string): Promise<T> {
   try {
     const response = await apiClient.get<T>(url)
@@ -46,6 +49,7 @@ export async function apiGet<T>(url: string): Promise<T> {
   }
 }
 
+/** Send a POST request with a JSON body and return the typed response data. */
 export async function apiPost<T>(url: string, data: unknown): Promise<T> {
   try {
     const response = await apiClient.post<T>(url, data)
@@ -62,6 +66,7 @@ export async function apiPost<T>(url: string, data: unknown): Promise<T> {
   }
 }
 
+/** Send a PUT request with a JSON body and return the typed response data. */
 export async function apiPut<T>(url: string, data: unknown): Promise<T> {
   try {
     const response = await apiClient.put<T>(url, data)
@@ -78,6 +83,7 @@ export async function apiPut<T>(url: string, data: unknown): Promise<T> {
   }
 }
 
+/** Send a DELETE request and throw on failure. */
 export async function apiDelete(url: string): Promise<void> {
   try {
     await apiClient.delete(url)

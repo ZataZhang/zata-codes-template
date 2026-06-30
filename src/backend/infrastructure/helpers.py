@@ -1,8 +1,8 @@
 """Reusable infrastructure-level helper functions."""
 
+import json
 from collections.abc import Callable
 from datetime import datetime
-import json
 from typing import Any, Optional
 
 
@@ -40,9 +40,7 @@ def safe_json_loads(json_str: str, default: Any = None) -> Any:
         return default
 
 
-def safe_get_nested(
-    source_dict: dict[str, Any], keys: list[str], default: Any = None
-) -> Any:
+def safe_get_nested(source_dict: dict[str, Any], keys: list[str], default: Any = None) -> Any:
     """Safely read a nested dictionary path.
 
     Args:
