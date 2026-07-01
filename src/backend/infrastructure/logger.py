@@ -1,9 +1,8 @@
-"""Application logging configuration.
+"""应用日志配置。
 
-Supports both plain text and structured JSON output. JSON mode is intended
-for container runtimes where Docker's logging driver forwards stdout to a
-log aggregator (e.g. Vector -> Loki). Text mode remains the default for local
-development.
+支持纯文本与结构化 JSON 两种输出。JSON 模式面向容器运行时，由 Docker
+日志驱动将标准输出转发到日志聚合器（如 Vector -> Loki）；本地开发默认使用
+文本模式。
 """
 
 from __future__ import annotations
@@ -20,7 +19,7 @@ from backend.shared.context import request_id_var, span_id_var, trace_id_var
 
 
 class _ContextFilter(logging.Filter):
-    """Inject contextual IDs from ``contextvars`` into every log record."""
+    """将 ``contextvars`` 中的上下文 ID 注入每条日志记录。"""
 
     def filter(self, record: logging.LogRecord) -> bool:
         record.request_id = request_id_var.get() or ""  # type: ignore[attr-defined]
@@ -30,7 +29,7 @@ class _ContextFilter(logging.Filter):
 
 
 class _TextFormatter(logging.Formatter):
-    """Human-readable text formatter used for local development."""
+    """本地开发使用的人类可读文本格式化器。"""
 
     def __init__(self) -> None:
         super().__init__(
@@ -40,11 +39,10 @@ class _TextFormatter(logging.Formatter):
 
 
 class _JsonFormatter(jsonlogger.JsonFormatter):
-    """JSON formatter intended for log aggregation pipelines.
+    """面向日志聚合管道的 JSON 格式化器。
 
-    The field list is intentionally platform-agnostic: any backend that can
-    consume JSON logs (Vector/Loki, Fluentd/Elasticsearch, Datadog, Splunk)
-    will be able to parse these fields.
+    字段列表故意保持平台无关，任何能消费 JSON 日志的后端（Vector/Loki、
+    Fluentd/Elasticsearch、Datadog、Splunk）都能解析这些字段。
     """
 
     def __init__(self) -> None:
@@ -76,7 +74,7 @@ class _JsonFormatter(jsonlogger.JsonFormatter):
         log_record["trace_id"] = getattr(record, "trace_id", "")
         log_record["span_id"] = getattr(record, "span_id", "")
 
-        # Remove empty contextual fields to keep log records compact.
+        # 移除空的上下文字段，保持日志记录紧凑。
         for key in ("request_id", "trace_id", "span_id"):
             if not log_record.get(key):
                 log_record.pop(key, None)
@@ -86,19 +84,19 @@ class _JsonFormatter(jsonlogger.JsonFormatter):
 
 
 class Logger:
-    """Singleton logger manager."""
+    """单例日志管理器。"""
 
     _instance: "Logger | None" = None
     _logger: logging.Logger | None = None
 
     def __new__(cls) -> "Logger":
-        """Create or return the singleton logger manager instance."""
+        """创建或返回单例日志管理器实例。"""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
 
     def __init__(self) -> None:
-        """Initialize the singleton logger on first use."""
+        """首次使用时初始化单例日志记录器。"""
         if self._logger is None:
             self._setup_logger()
 
@@ -146,17 +144,17 @@ class Logger:
             print(f"Warning: 无法创建日志文件处理器: {error}")
 
     def get_logger(self) -> logging.Logger:
-        """Return the underlying ``logging.Logger`` instance.
+        """返回底层的 ``logging.Logger`` 实例。
 
         Returns:
-            logging.Logger: The configured logger instance.
+            logging.Logger: 已配置的日志记录器实例。
         """
         if self._logger is None:
             self._setup_logger()
         return self._logger
 
     def __getattr__(self, name: str) -> Any:
-        """Delegate attribute access to the underlying logger."""
+        """将属性访问委托给底层日志记录器。"""
         if self._logger is None:
             self._setup_logger()
         return getattr(self._logger, name)

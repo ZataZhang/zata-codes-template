@@ -13,7 +13,7 @@ class AgentUseCase:
     """Agent 业务用例。"""
 
     def __init__(self, repository: AgentRepository) -> None:
-        """Initialize use case with agent repository."""
+        """使用 Agent 仓库初始化用例。"""
         self._repository = repository
 
     def create_agent(

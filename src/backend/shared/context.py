@@ -1,9 +1,7 @@
-"""Cross-cutting context variables.
+"""横切上下文变量。
 
-This module sits outside the strict layered architecture so that both HTTP
-middleware (``api/``) and infrastructure utilities (``infrastructure/``) can
-share request-scoped identifiers without creating a circular or reverse
-dependency between layers.
+本模块位于严格分层架构之外，使 HTTP 中间件（``api/``）和基础设施工具
+（``infrastructure/``）都能共享请求级标识，同时避免层间产生循环或反向依赖。
 """
 
 from __future__ import annotations

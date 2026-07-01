@@ -1,4 +1,4 @@
-"""Prometheus metrics endpoint."""
+"""Prometheus 指标端点。"""
 
 from __future__ import annotations
 
@@ -12,10 +12,10 @@ metrics_router: APIRouter = APIRouter(tags=["observability"])
 
 @metrics_router.get("/metrics")
 async def metrics(_request: Request) -> Response:
-    """Return application metrics in Prometheus exposition format.
+    """返回 Prometheus  exposition 格式的应用指标。
 
     Returns:
-        Response: Prometheus text format with ``Content-Type`` header.
+        Response: Prometheus 文本格式，附带 ``Content-Type`` 头。
     """
     return Response(
         content=generate_latest(),

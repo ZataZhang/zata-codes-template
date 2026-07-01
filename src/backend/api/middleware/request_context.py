@@ -1,8 +1,7 @@
-"""Request context middleware.
+"""请求上下文中间件。
 
-Provides a unique ``request_id`` for every incoming HTTP request and injects it
-into the logging context so that all log records emitted during the request
-share the same identifier.
+为每个入站 HTTP 请求分配唯一的 ``request_id``，并将其注入日志上下文，
+使请求期间输出的所有日志共享同一标识。
 """
 
 from __future__ import annotations
@@ -24,13 +23,13 @@ _REQUEST_ID_HEADER: str = "X-Request-ID"
 
 
 def _generate_request_id() -> str:
-    """Generate a short, unique request identifier."""
+    """生成一个简短的唯一请求标识符。"""
     return uuid.uuid4().hex[:16]
 
 
 @contextmanager
 def _request_context(request_id: str):
-    """Bind ``request_id`` to the current async context."""
+    """将 ``request_id`` 绑定到当前异步上下文。"""
     token = request_id_var.set(request_id)
     try:
         yield
@@ -39,25 +38,25 @@ def _request_context(request_id: str):
 
 
 class RequestContextMiddleware(BaseHTTPMiddleware):
-    """FastAPI/Starlette middleware that assigns a ``request_id`` per request."""
+    """为每个请求分配 ``request_id`` 的 FastAPI/Starlette 中间件。"""
 
     def __init__(
         self,
         app,
         logger: logging.Logger | None = None,
     ) -> None:
-        """Initialize the middleware with an optional logger.
+        """使用可选日志记录器初始化中间件。
 
         Args:
-            app: The ASGI application to wrap.
-            logger: Logger used to emit the per-request access log. Defaults to
-                a standard library logger named after this module.
+            app: 待包装的 ASGI 应用。
+            logger: 用于输出每次请求访问日志的记录器。默认使用以本模块命名的
+                标准库记录器。
         """
         super().__init__(app)
         self._logger: logging.Logger = logger or logging.getLogger(__name__)
 
     async def dispatch(self, request: "Request", call_next) -> "Response":
-        """Attach or propagate a request ID through the request lifecycle."""
+        """附加或透传请求 ID 到整个请求生命周期。"""
         request_id: str = request.headers.get(_REQUEST_ID_HEADER) or _generate_request_id()
         request.state.request_id = request_id
 
@@ -76,13 +75,13 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
 
 
 def get_request_id(request: "Request") -> str | None:
-    """Return the ``request_id`` bound to the request, if any.
+    """返回当前请求绑定的 ``request_id``，若未设置则返回 ``None``。
 
     Args:
-        request: The current HTTP request.
+        request: 当前 HTTP 请求。
 
     Returns:
-        str | None: The request identifier or ``None`` if not set.
+        str | None: 请求标识符；未设置时为 ``None``。
     """
     return getattr(request.state, "request_id", None)
 

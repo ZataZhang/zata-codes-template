@@ -39,7 +39,7 @@ class ToolRegistryImpl(ToolRegistry):
         tool_repository: ToolRepository,
         execution_registry: dict[str, ToolHandler] | None = None,
     ) -> None:
-        """Initialize registry with tool metadata and execution handlers."""
+        """使用工具元数据与执行处理器初始化注册表。"""
         self._tool_repository = tool_repository
         self._execution_registry = execution_registry or EXECUTION_REGISTRY
 

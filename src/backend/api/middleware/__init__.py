@@ -1,4 +1,4 @@
-"""FastAPI middleware for cross-cutting HTTP concerns."""
+"""FastAPI 横切 HTTP 关注点中间件。"""
 
 from backend.api.middleware.request_context import (
     _REQUEST_ID_HEADER,

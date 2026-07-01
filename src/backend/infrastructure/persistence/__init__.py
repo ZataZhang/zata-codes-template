@@ -1,4 +1,4 @@
-"""Infrastructure persistence exports."""
+"""基础设施持久层导出。"""
 
 from .database import (
     Base,

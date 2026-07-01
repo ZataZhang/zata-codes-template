@@ -1,4 +1,4 @@
-"""Health, readiness, and liveness endpoints."""
+"""健康、就绪和存活探针端点。"""
 
 from __future__ import annotations
 
@@ -10,33 +10,32 @@ health_router: APIRouter = APIRouter(tags=["observability"])
 
 @health_router.get("/health")
 async def health(_request: Request) -> dict[str, str]:
-    """Liveness probe: the process is running and can respond to requests.
+    """存活探针：进程正在运行并可响应请求。
 
     Returns:
-        dict[str, str]: Simple status payload.
+        dict[str, str]: 简单状态负载。
     """
     return {"status": "ok"}
 
 
 @health_router.get("/ready")
 async def ready(_request: Request) -> dict[str, str]:
-    """Readiness probe: the process is ready to serve traffic.
+    """就绪探针：进程已准备好对外提供服务。
 
-    This basic implementation returns OK immediately. Future iterations can
-    check database connectivity or other critical dependencies here.
+    当前基础实现直接返回 OK。后续可在此检查数据库连接等关键依赖。
 
     Returns:
-        dict[str, str]: Simple status payload.
+        dict[str, str]: 简单状态负载。
     """
     return {"status": "ok"}
 
 
 @health_router.get("/live")
 async def live(_request: Request) -> dict[str, str]:
-    """Alternative liveness probe, identical to ``/health``.
+    """替代存活探针，与 ``/health`` 行为一致。
 
     Returns:
-        dict[str, str]: Simple status payload.
+        dict[str, str]: 简单状态负载。
     """
     return {"status": "ok"}
 

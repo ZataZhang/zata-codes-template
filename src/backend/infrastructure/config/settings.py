@@ -35,10 +35,9 @@ _SOURCE_DIR_PATH: Path = _BACKEND_DIR_PATH.parent
 _PROJECT_ROOT_PATH: Path = _SOURCE_DIR_PATH.parent
 _TOML_CONFIG_FILE_PATH: Path = _PROJECT_ROOT_PATH / "config.toml"
 
-# Pydantic loads .env/.env.local into settings fields, but provider
-# resolution later reads arbitrary api_key_env variables via os.getenv.
-# Ensure the same env files also populate os.environ so those keys are
-# visible. Shell variables keep highest priority.
+# Pydantic 会把 .env/.env.local 加载到设置字段，但 provider 解析阶段会通过
+# os.getenv 读取任意的 api_key_env 变量。因此需要先把同一份环境文件写入
+# os.environ，使这些密钥可见；Shell 环境变量仍保持最高优先级。
 _dotenv_loaded_values: dict[str, str | None] = {}
 _dotenv_loaded_values.update(dotenv_values(_PROJECT_ROOT_PATH / ".env"))
 _dotenv_loaded_values.update(dotenv_values(_PROJECT_ROOT_PATH / ".env.local"))
@@ -110,7 +109,7 @@ class DatabaseSettings(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,  # noqa: ARG003
         file_secret_settings: PydanticBaseSettingsSource,  # noqa: ARG003
     ) -> tuple[PydanticBaseSettingsSource, ...]:
-        """Customize pydantic settings sources for database settings."""
+        """自定义 database 设置的 pydantic 配置源优先级。"""
         toml_source: _TomlSectionSource = _TomlSectionSource(settings_cls, "database")
         return (
             env_settings,
@@ -144,7 +143,7 @@ class ObservabilitySettings(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,  # noqa: ARG003
         file_secret_settings: PydanticBaseSettingsSource,  # noqa: ARG003
     ) -> tuple[PydanticBaseSettingsSource, ...]:
-        """Customize pydantic settings sources for observability settings."""
+        """自定义 observability 设置的 pydantic 配置源优先级。"""
         toml_source: _TomlSectionSource = _TomlSectionSource(settings_cls, "observability")
         return (
             env_settings,
@@ -174,7 +173,7 @@ class RedisSettings(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,  # noqa: ARG003
     ) -> tuple[PydanticBaseSettingsSource, ...]:
-        """Customize pydantic settings sources for Redis settings."""
+        """自定义 Redis 设置的 pydantic 配置源优先级。"""
         toml_source: _TomlSectionSource = _TomlSectionSource(settings_cls, "redis")
         return (
             env_settings,
@@ -208,7 +207,7 @@ class AuthSettings(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,  # noqa: ARG003
     ) -> tuple[PydanticBaseSettingsSource, ...]:
-        """Customize pydantic settings sources for auth settings."""
+        """自定义 auth 设置的 pydantic 配置源优先级。"""
         toml_source: _TomlSectionSource = _TomlSectionSource(settings_cls, "auth")
         return (
             env_settings,
@@ -279,7 +278,7 @@ class AppSettings(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,  # noqa: ARG003
     ) -> tuple[PydanticBaseSettingsSource, ...]:
-        """Customize pydantic settings sources for app settings."""
+        """自定义 app 设置的 pydantic 配置源优先级。"""
         toml_source: _TomlSectionSource = _TomlSectionSource(settings_cls, "app")
         return (
             env_settings,

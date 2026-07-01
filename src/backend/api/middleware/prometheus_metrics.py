@@ -1,7 +1,7 @@
-"""Prometheus metrics middleware.
+"""Prometheus 指标中间件。
 
-Records RED (Rate, Errors, Duration) metrics for every HTTP request using
-route templates as the ``path`` label to avoid cardinality explosion.
+使用路由模板作为 ``path`` 标签，为每个 HTTP 请求记录 RED
+（Rate、Errors、Duration）指标，避免标签基数爆炸。
 """
 
 from __future__ import annotations
@@ -16,8 +16,7 @@ if TYPE_CHECKING:
     from starlette.requests import Request
     from starlette.responses import Response
 
-# Metrics are intentionally defined at module import time so that the same
-# registry is used across reloads and the /metrics endpoint sees them.
+# 指标故意在模块导入时定义，以便重载后使用同一注册表，/metrics 端点可见。
 _HTTP_REQUESTS_TOTAL: Counter = Counter(
     "http_requests_total",
     "Total number of HTTP requests",
@@ -29,7 +28,7 @@ _HTTP_REQUEST_DURATION_SECONDS: Histogram = Histogram(
     ["method", "status", "path"],
 )
 
-# Paths that should not be recorded as business traffic.
+# 不应被记录为业务流量的路径。
 _EXCLUDED_PATHS: frozenset[str] = frozenset(
     {
         "/metrics",
@@ -44,10 +43,9 @@ _EXCLUDED_PATHS: frozenset[str] = frozenset(
 
 
 def _get_route_path(request: "Request") -> str:
-    """Return the route template (e.g. ``/auth/login``) when available.
+    """返回路由模板（如 ``/auth/login``），存在时优先使用。
 
-    Falls back to the raw path only for unregistered routes, which keeps
-    cardinality low for normal traffic.
+    仅对未注册路由回退到原始路径，以保持正常流量的标签基数较低。
     """
     route = request.scope.get("route")
     if route is not None:
@@ -56,15 +54,15 @@ def _get_route_path(request: "Request") -> str:
 
 
 def _should_record(request: "Request") -> bool:
-    """Return whether the request path should contribute to RED metrics."""
+    """判断该请求路径是否应计入 RED 指标。"""
     return _get_route_path(request) not in _EXCLUDED_PATHS
 
 
 class PrometheusMetricsMiddleware(BaseHTTPMiddleware):
-    """FastAPI/Starlette middleware that records RED Prometheus metrics."""
+    """记录 RED Prometheus 指标的 FastAPI/Starlette 中间件。"""
 
     async def dispatch(self, request: "Request", call_next) -> "Response":
-        """Record Prometheus metrics for the request."""
+        """记录该请求的 Prometheus 指标。"""
         if not _should_record(request):
             return await call_next(request)
 

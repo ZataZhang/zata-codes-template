@@ -1,4 +1,4 @@
-"Backend application entrypoint."
+"""后端应用入口。"""
 
 from __future__ import annotations
 
@@ -226,7 +226,7 @@ app: FastAPI = create_app()
 
 
 def main() -> None:
-    """Run the backend entrypoint."""
+    """运行后端入口。"""
     backend_port: int = int(os.environ.get("PORT", "8000"))
     uvicorn.run("backend.main:app", host="0.0.0.0", port=backend_port, reload=True)
 

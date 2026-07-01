@@ -1,4 +1,4 @@
-"""SQLAlchemy database setup for infrastructure persistence."""
+"""基础设施持久层的 SQLAlchemy 数据库设置。"""
 
 from typing import Any, Generator
 
@@ -26,13 +26,13 @@ def _run_alembic_upgrade() -> None:
 
 
 def create_database_engine(**kwargs: Any) -> Any:
-    """Create a SQLAlchemy engine.
+    """创建 SQLAlchemy 引擎。
 
     Args:
-        **kwargs: Extra keyword arguments forwarded to ``create_engine``.
+        **kwargs: 透传给 ``create_engine`` 的额外关键字参数。
 
     Returns:
-        Any: SQLAlchemy engine instance.
+        Any: SQLAlchemy 引擎实例。
     """
     default_kwargs = {
         "poolclass": StaticPool,
@@ -47,20 +47,20 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 def create_tables(base: Any = None) -> None:  # noqa: ARG001
-    """Run Alembic migrations to create or upgrade all tables.
+    """运行 Alembic 迁移以创建或升级所有表。
 
     Args:
-        base: Unused; kept for backward compatibility.
+        base: 未使用；为兼容性保留。
     """
     _run_alembic_upgrade()
     logger.info("数据库表创建成功！")
 
 
 def get_db() -> Generator[Session, None, None]:
-    """Yield a database session for dependency injection.
+    """为依赖注入生成数据库会话。
 
     Yields:
-        Session: SQLAlchemy database session.
+        Session: SQLAlchemy 数据库会话。
     """
     db = SessionLocal()
     try:
@@ -70,15 +70,15 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def init_database(base: Any = None) -> None:
-    """Initialize database tables via Alembic migration.
+    """通过 Alembic 迁移初始化数据库表。
 
     Args:
-        base: Unused; kept for backward compatibility.
+        base: 未使用；为兼容性保留。
     """
     if config.db_migration_mode == "auto":
         create_tables(base)
     else:
-        logger.info("db_migration_mode=manual, skipping auto migration.")
+        logger.info("db_migration_mode=manual, 跳过自动迁移。")
 
 
 __all__ = [

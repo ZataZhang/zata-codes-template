@@ -12,7 +12,7 @@ class WorkflowRunner:
     """按拓扑顺序执行工作流节点。"""
 
     def __init__(self, workflow: Workflow) -> None:
-        """Initialize runner with workflow definition."""
+        """使用工作流定义初始化运行器。"""
         self._workflow = workflow
 
     def run(self) -> dict[str, Any]:

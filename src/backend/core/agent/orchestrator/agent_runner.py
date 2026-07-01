@@ -20,7 +20,7 @@ class AgentRunner:
         tool_registry: ToolRegistry,
         llm_client: LLMClient,
     ) -> None:
-        """Initialize runner with agent config and dependencies."""
+        """使用 Agent 配置与依赖初始化运行器。"""
         self._agent = agent
         self._tool_registry = tool_registry
         self._llm_client = llm_client

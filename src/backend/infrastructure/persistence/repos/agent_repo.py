@@ -33,7 +33,7 @@ class SqlAlchemyAgentRepository(AgentRepository):
     """基于 SQLAlchemy 的 Agent Repository 实现。"""
 
     def __init__(self, db_session: Session) -> None:
-        """Initialize repository with database session."""
+        """使用数据库会话初始化仓库。"""
         self._session = db_session
 
     def create(self, agent: Agent) -> Agent:

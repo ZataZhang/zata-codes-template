@@ -1,1 +1,1 @@
-"""Backend package boundary for the four-layer Python application."""
+"""四层 Python 后端应用的包边界。"""

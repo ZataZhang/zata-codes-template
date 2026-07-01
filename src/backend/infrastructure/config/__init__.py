@@ -1,4 +1,4 @@
-"""Infrastructure configuration exports."""
+"""基础设施层配置导出。"""
 
 from .settings import AppSettings, config
 

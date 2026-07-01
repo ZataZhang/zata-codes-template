@@ -33,6 +33,7 @@
   `src/backend/api/ -> src/backend/core/ -> src/backend/engines/ -> src/backend/infrastructure/`
 - Python 项目优先使用 `uv` 和 `just`
 - 公共 Python API 使用 Google Style Docstrings；后端启用 Ruff `D100`–`D107`/`D419` 强制检查
+- 内部注释、docstring、JSDoc/TSDoc 统一使用中文（专有名词除外）
 - 前端启用 `eslint-plugin-jsdoc` 强制公共函数/类/方法写 JSDoc/TSDoc（当前 warn，逐步升级 error）
 - Python 文本文件 I/O 必须显式写 `encoding="utf-8"`
 - 变量命名必须具有来源、类型或状态语义，避免 `data`、`item`、`res`

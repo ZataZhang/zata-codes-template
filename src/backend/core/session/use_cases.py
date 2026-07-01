@@ -24,7 +24,7 @@ class SessionUseCase:
         tool_registry: ToolRegistry,
         llm_client: LLMClient,
     ) -> None:
-        """Initialize use case with repositories and clients."""
+        """使用仓库与客户端初始化用例。"""
         self._session_repository = session_repository
         self._agent_repository = agent_repository
         self._tool_registry = tool_registry

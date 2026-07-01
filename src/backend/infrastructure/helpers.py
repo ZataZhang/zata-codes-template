@@ -1,4 +1,4 @@
-"""Reusable infrastructure-level helper functions."""
+"""可复用的基础设施层辅助函数。"""
 
 import json
 from collections.abc import Callable
@@ -7,14 +7,14 @@ from typing import Any, Optional
 
 
 def parse_datetime(date_str: str, fmt: str = "%Y/%m/%d %H:%M") -> Optional[datetime]:
-    """Parse a datetime string into a ``datetime`` object.
+    """将日期时间字符串解析为 ``datetime`` 对象。
 
     Args:
-        date_str (str): Input datetime string.
-        fmt (str): Datetime format string.
+        date_str (str): 输入的日期时间字符串。
+        fmt (str): 日期时间格式字符串。
 
     Returns:
-        Optional[datetime]: Parsed datetime, or ``None`` when parsing fails.
+        Optional[datetime]: 解析后的日期时间；解析失败时返回 ``None``。
     """
     if not date_str:
         return None
@@ -25,14 +25,14 @@ def parse_datetime(date_str: str, fmt: str = "%Y/%m/%d %H:%M") -> Optional[datet
 
 
 def safe_json_loads(json_str: str, default: Any = None) -> Any:
-    """Safely parse JSON text.
+    """安全地解析 JSON 文本。
 
     Args:
-        json_str (str): Raw JSON string.
-        default (Any): Value to return when parsing fails.
+        json_str (str): 原始 JSON 字符串。
+        default (Any): 解析失败时返回的值。
 
     Returns:
-        Any: Parsed object or ``default``.
+        Any: 解析后的对象或 ``default``。
     """
     try:
         return json.loads(json_str)
@@ -41,15 +41,15 @@ def safe_json_loads(json_str: str, default: Any = None) -> Any:
 
 
 def safe_get_nested(source_dict: dict[str, Any], keys: list[str], default: Any = None) -> Any:
-    """Safely read a nested dictionary path.
+    """安全地读取嵌套字典路径。
 
     Args:
-        source_dict (dict[str, Any]): Source dictionary.
-        keys (list[str]): Nested key path.
-        default (Any): Value returned when any lookup fails.
+        source_dict (dict[str, Any]): 源字典。
+        keys (list[str]): 嵌套键路径。
+        default (Any): 任意一次查找失败时返回的值。
 
     Returns:
-        Any: Resolved nested value or ``default``.
+        Any: 解析后的嵌套值或 ``default``。
     """
     try:
         resolved_value: Any = source_dict
@@ -61,15 +61,15 @@ def safe_get_nested(source_dict: dict[str, Any], keys: list[str], default: Any =
 
 
 def truncate_string(text: str, max_length: int = 100, suffix: str = "...") -> str:
-    """Truncate a string to a maximum length.
+    """将字符串截断到最大长度。
 
     Args:
-        text (str): Original string.
-        max_length (int): Maximum output length.
-        suffix (str): Suffix appended after truncation.
+        text (str): 原始字符串。
+        max_length (int): 最大输出长度。
+        suffix (str): 截断后追加的后缀。
 
     Returns:
-        str: Truncated string.
+        str: 截断后的字符串。
     """
     if len(text) <= max_length:
         return text
@@ -77,26 +77,26 @@ def truncate_string(text: str, max_length: int = 100, suffix: str = "...") -> st
 
 
 def normalize_whitespace(text: str) -> str:
-    """Collapse repeated whitespace into single spaces.
+    """将连续空白折叠为单个空格。
 
     Args:
-        text (str): Original string.
+        text (str): 原始字符串。
 
     Returns:
-        str: Normalized string.
+        str: 规范化后的字符串。
     """
     return " ".join(text.split())
 
 
 def chunks(values: list[Any], size: int) -> list[list[Any]]:
-    """Split a list into fixed-size chunks.
+    """将列表按固定大小分块。
 
     Args:
-        values (list[Any]): Input list.
-        size (int): Chunk size.
+        values (list[Any]): 输入列表。
+        size (int): 每块大小。
 
     Returns:
-        list[list[Any]]: Chunked values.
+        list[list[Any]]: 分块后的列表。
     """
     return [values[index : index + size] for index in range(0, len(values), size)]
 
@@ -108,17 +108,17 @@ def retry_on_exception(
     exceptions: tuple[type[BaseException], ...] = (Exception,),
     default: Any = None,
 ) -> Any:
-    """Retry a callable when selected exceptions are raised.
+    """当指定异常发生时重试执行可调用对象。
 
     Args:
-        func (Callable[[], Any]): Callable to execute.
-        max_retries (int): Maximum retry attempts.
-        delay (float): Delay between retries in seconds.
-        exceptions (tuple[type[BaseException], ...]): Retryable exceptions.
-        default (Any): Fallback value after final failure.
+        func (Callable[[], Any]): 待执行的可调用对象。
+        max_retries (int): 最大重试次数。
+        delay (float): 两次重试之间的间隔秒数。
+        exceptions (tuple[type[BaseException], ...]): 允许重试的异常类型。
+        default (Any): 最终失败后的回退值。
 
     Returns:
-        Any: Callable result or ``default``.
+        Any: 可调用对象的结果或 ``default``。
     """
     import time
 
