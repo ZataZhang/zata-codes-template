@@ -39,6 +39,20 @@ YYYYMMDD-HHMMSS-<slug>.py
 - 时间戳精确到秒；**省略 Alembic 默认的 12 位 hash 段**——文件内的 `revision` 变量仍由 Alembic 自动生成以保证唯一性，文件名上的 hash 反而降低可读性。
 - 同一秒内若出现重名，追加 `-2`、`-3` 等后缀手工解决。
 
+## 自动化检查
+
+提交前 `pre-commit` 会运行 `hooks/shared/check_schema_conventions.py`（注册为 `check-schema-conventions` hook），对 `alembic/versions/*.py` 强制执行以下约定：
+
+- 文件名必须符合 `YYYYMMDD-HHMMSS-<slug>.py` 格式。
+- `<slug>` 只能包含小写字母、数字和下划线，且不能以数字开头。
+- 文件内 `revision` 变量长度不得超过 32 字符（Alembic 默认 `alembic_version.version_num` 列宽上限）。
+
+派生项目若采用下划线分隔符或“文件名时间戳前缀即 revision”等额外约定，可在 `.pre-commit-config.yaml` 中调整该 hook 的参数：
+
+```yaml
+entry: uv run python hooks/shared/check_schema_conventions.py --filename-separator '_' --require-revision-equals-timestamp-prefix
+```
+
 ## TODO
 
 - TODO: 集成 Alembic 初始化脚手架。

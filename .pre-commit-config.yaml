@@ -82,7 +82,7 @@ repos:
         pass_filenames: true
       - id: check-schema-conventions
         name: Check database schema conventions
-        entry: uv run python hooks/shared/check_schema_conventions.py
+        entry: uv run python hooks/shared/check_schema_conventions.py --filename-separator '-'
         language: system
         files: ^alembic/versions/.*\.py$
         pass_filenames: true
