@@ -87,7 +87,7 @@ export function UserAuthForm({
             <FormItem>
               <FormLabel>用户名 / 邮箱</FormLabel>
               <FormControl>
-                <Input placeholder='admin@example.com' {...field} />
+                <Input data-testid='admin-login-identifier-input' placeholder='admin@example.com' {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -111,7 +111,7 @@ export function UserAuthForm({
                 </button>
               </div>
               <FormControl>
-                <PasswordInput placeholder='********' {...field} />
+                <PasswordInput data-testid='admin-login-password-input' placeholder='********' {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -134,7 +134,7 @@ export function UserAuthForm({
             </FormItem>
           )}
         />
-        <Button size='lg' disabled={isLoading}>
+        <Button data-testid='admin-login-submit-button' size='lg' disabled={isLoading}>
           {isLoading ? (
             <Loader2 className='mr-2 size-4 animate-spin' />
           ) : (

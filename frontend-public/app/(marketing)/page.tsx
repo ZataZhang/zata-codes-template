@@ -86,7 +86,10 @@ export default function HomePage() {
               <Sparkles className="size-4 text-primary" />
               面向开发者团队的 AI Agent 平台
             </div>
-            <h1 className="text-4xl font-bold tracking-tight md:text-6xl">
+            <h1
+              data-testid="public-hero-heading"
+              className="text-4xl font-bold tracking-tight md:text-6xl"
+            >
               让 Agent
               <span className="text-primary">为你工作</span>
             </h1>

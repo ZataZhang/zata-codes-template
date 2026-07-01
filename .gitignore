@@ -57,3 +57,6 @@ Thumbs.db
 *.db
 
 # Claude planning session archives (local state, not for VCS)
+
+# Task evidence (generated artifacts, screenshots, logs)
+tasks/evidence/

@@ -21,10 +21,12 @@
  *   playwright test --project=no-auth
  */
 import { expect, test } from '@playwright/test'
+import { humanPause } from '../../support/demo-helpers'
 
 test.describe('public surface smoke test', () => {
   test('login page loads and shows the login form', async ({ page }) => {
     await page.goto('/login')
+    await humanPause(page, 500)
 
     await expect(page.getByTestId('login-identifier-input')).toBeVisible()
     await expect(page.getByTestId('login-password-input')).toBeVisible()

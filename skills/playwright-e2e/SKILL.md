@@ -37,6 +37,10 @@ Do not create a second long-lived copy of the template inside `skills/`. The ski
    - Replace placeholder selectors and routes.
    - Keep `chromium` for authenticated flows.
    - Keep `no-auth` only if the product has meaningful unauthenticated coverage.
+   - Use the `no-auth` project for demo / acceptance videos: it already has
+     `launchOptions: { slowMo: 200 }` and a `humanPause(page, ms)` helper in
+     `support/demo-helpers.ts`. Set `PLAYWRIGHT_DEMO_PAUSE=0` in CI to skip
+     dwell pauses.
    - Keep screenshot or visual tests only when the UI is stable enough to avoid noisy snapshots.
 5. Verify with the package's Node.js toolchain.
 

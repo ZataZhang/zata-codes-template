@@ -41,7 +41,7 @@ export default defineConfig({
     baseURL,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
+    video: 'on',
     viewport: { width: 1440, height: 1200 },
     testIdAttribute: 'data-testid',
   },
@@ -72,12 +72,18 @@ export default defineConfig({
     },
 
     // ── Project 3: no-auth tests ───────────────────────────────────────────
+    // Tests that target public/unauthenticated surfaces.
+    // slowMo makes interactions human-paced, which is useful when these tests
+    // are also used to record demo / acceptance videos. Pair with a local
+    // `humanPause(page, ms)` helper inside tests for extra dwell time on key
+    // steps (e.g. after a form fill or before an assertion).
     {
       name: 'no-auth',
       testMatch: /.*\.no-auth\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 1440, height: 1200 },
+        launchOptions: { slowMo: 200 },
       },
     },
 

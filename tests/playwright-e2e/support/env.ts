@@ -1,4 +1,5 @@
-import { mkdirSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -23,6 +24,36 @@ const authStorageStatePath = resolve(authDirectoryPath, 'session.json')
 function trimTrailingSlash(rawUrl: string): string {
   return rawUrl.replace(/\/$/, '')
 }
+
+/** Reads the run-state file written by `just run` so E2E URLs follow the same ports. */
+function readRunState(): Record<string, string> {
+  try {
+    const repoRootPath = resolve(currentDirectoryPath, '../..')
+    const runStateFilePath = execFileSync(
+      'git',
+      ['rev-parse', '--git-path', 'vanta-run.env'],
+      { cwd: repoRootPath, encoding: 'utf-8' },
+    ).trim()
+
+    if (!runStateFilePath || !existsSync(runStateFilePath)) {
+      return {}
+    }
+
+    const content = readFileSync(runStateFilePath, 'utf-8')
+    const result: Record<string, string> = {}
+    for (const line of content.split('\n')) {
+      const [key, ...rest] = line.split('=')
+      if (key && rest.length > 0) {
+        result[key.trim()] = rest.join('=').trim()
+      }
+    }
+    return result
+  } catch {
+    return {}
+  }
+}
+
+const runState = readRunState()
 
 function readFirstDefinedEnv(keyList: string[]): string | null {
   for (const key of keyList) {
@@ -60,7 +91,8 @@ export function getStackMode(): StackMode {
  */
 export function getBaseUrl(): string {
   const stackMode = getStackMode()
-  const fallback = stackMode === 'docker' ? 'http://127.0.0.1:8080' : 'http://127.0.0.1:5173'
+  const publicPort = runState.FRONTEND_PUBLIC_PORT ?? '3000'
+  const fallback = stackMode === 'docker' ? 'http://127.0.0.1:8080' : `http://127.0.0.1:${publicPort}`
   return trimTrailingSlash(process.env.PLAYWRIGHT_BASE_URL ?? fallback)
 }
 
@@ -73,8 +105,9 @@ export function getApiBaseUrl(): string {
   const configured = process.env.PLAYWRIGHT_API_BASE_URL?.trim()
   if (configured) return trimTrailingSlash(configured)
 
+  const backendPort = runState.BACKEND_PORT ?? '8000'
   const stackMode = getStackMode()
-  return stackMode === 'docker' ? 'http://127.0.0.1:8000' : 'http://127.0.0.1:8000'
+  return stackMode === 'docker' ? 'http://127.0.0.1:8000' : `http://127.0.0.1:${backendPort}`
 }
 
 /**
@@ -84,7 +117,7 @@ export function getApiBaseUrl(): string {
  * Default: same as getApiBaseUrl() + '/healthz'
  */
 export function getHealthUrl(): string {
-  return process.env.PLAYWRIGHT_HEALTH_URL?.trim() ?? `${getApiBaseUrl()}/healthz`
+  return process.env.PLAYWRIGHT_HEALTH_URL?.trim() ?? `${getApiBaseUrl()}/health`
 }
 
 // ── Credentials ───────────────────────────────────────────────────────────────
@@ -135,7 +168,8 @@ export function getAuthStorageStatePath(): string {
  */
 export function getAdminBaseUrl(): string {
   const stackMode = getStackMode()
-  const fallback = stackMode === 'docker' ? 'http://127.0.0.1:8081' : 'http://127.0.0.1:5173'
+  const adminPort = runState.FRONTEND_PORT ?? '5173'
+  const fallback = stackMode === 'docker' ? 'http://127.0.0.1:8081' : `http://localhost:${adminPort}`
   return trimTrailingSlash(process.env.PLAYWRIGHT_ADMIN_BASE_URL ?? fallback)
 }
 

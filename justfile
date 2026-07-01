@@ -773,3 +773,18 @@ copy name force='':
     # Skip check-test-flag: a fresh repo has no .last_tested_commit yet.
     # Other hooks (ruff, yaml, architecture) still run to validate the template.
     SKIP=check-test-flag git -C "$NEW_DIR" commit -m "chore: initial commit from template"
+
+
+# Run a single E2E oracle from a PRD's Realistic Validation Plan and collect evidence.
+# Usage:
+#   just e2e-evidence tasks/pending/<prd-file>.md rv-2
+#   just e2e-evidence tasks/pending/<prd-file>.md       # runs all e2e/smoke/manual oracles
+# Evidence is written to tasks/evidence/<prd-basename>/.
+e2e-evidence prd_file rv_id="":
+    cd "{{justfile_directory()}}" && ./scripts/e2e/run-prd-evidence.sh "{{prd_file}}" "{{rv_id}}"
+
+# Install e2e dependencies and Playwright browsers using pnpm (overrides justfile.shared).
+# Usage:
+#   just e2e-install
+e2e-install:
+    cd "{{justfile_directory()}}/tests/playwright-e2e" && pnpm install && pnpm exec playwright install chromium
