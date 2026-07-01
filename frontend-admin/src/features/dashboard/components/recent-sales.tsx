@@ -1,5 +1,6 @@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 
+/** Render the RecentSales component. */
 export function RecentSales() {
   return (
     <div className='space-y-8'>

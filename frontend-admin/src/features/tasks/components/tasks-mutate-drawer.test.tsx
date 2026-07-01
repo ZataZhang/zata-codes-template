@@ -130,6 +130,7 @@ describe('TasksMutateDrawer', () => {
   })
 
   it('resets entered values when the sheet is closed and reopened', async () => {
+    /** Test harness wrapping the mutate drawer. */
     function Harness() {
       const [open, setOpen] = useState(true)
       return (

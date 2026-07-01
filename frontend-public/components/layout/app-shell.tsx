@@ -4,6 +4,7 @@ interface AppShellProps {
   children: React.ReactNode
 }
 
+/** Main application shell wrapping sidebar and content. */
 export function AppShell({ children }: AppShellProps) {
   return (
     <div className="flex min-h-svh">

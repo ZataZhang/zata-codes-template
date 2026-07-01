@@ -12,6 +12,7 @@ type SearchProviderProps = {
   children: React.ReactNode
 }
 
+/** Render the SearchProvider component. */
 export function SearchProvider({ children }: SearchProviderProps) {
   const [open, setOpen] = useState(false)
 

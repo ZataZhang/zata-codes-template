@@ -1,6 +1,7 @@
 import { type SVGProps } from 'react'
 import { cn } from '@/lib/utils'
 
+/** Render the IconMedium component. */
 export function IconMedium({ className, ...props }: SVGProps<SVGSVGElement>) {
   return (
     <svg

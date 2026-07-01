@@ -18,6 +18,7 @@ import type { Workflow } from "@/lib/types/workflow"
 import { GitBranch, Loader2, Play } from "lucide-react"
 import { toast } from "sonner"
 
+/** Render the workflowdetail page. */
 export default function WorkflowDetailPage() {
   const params = useParams()
   const workflowId = params.id as string

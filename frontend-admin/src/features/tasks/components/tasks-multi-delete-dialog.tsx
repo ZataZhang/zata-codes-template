@@ -18,6 +18,7 @@ type TaskMultiDeleteDialogProps<TData> = {
 
 const CONFIRM_WORD = 'DELETE'
 
+/** Render the TasksMultiDeleteDialog component. */
 export function TasksMultiDeleteDialog<TData>({
   open,
   onOpenChange,

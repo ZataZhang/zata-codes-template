@@ -3,6 +3,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { AuthLayout } from '../auth-layout'
 import { UserAuthForm } from './components/user-auth-form'
 
+/** Render the SignIn component. */
 export function SignIn() {
   const { redirect } = useSearch({ from: '/(auth)/sign-in' })
 

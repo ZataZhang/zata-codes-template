@@ -20,6 +20,7 @@ type SelectDropdownProps = {
   isControlled?: boolean
 }
 
+/** Render the SelectDropdown component. */
 export function SelectDropdown({
   defaultValue,
   onValueChange,

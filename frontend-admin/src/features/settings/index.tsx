@@ -37,6 +37,7 @@ const sidebarNavItems = [
   },
 ]
 
+/** Render the Settings component. */
 export function Settings() {
   return (
     <>

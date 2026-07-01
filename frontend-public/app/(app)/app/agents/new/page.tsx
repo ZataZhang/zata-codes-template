@@ -1,5 +1,6 @@
 import { AgentForm } from "@/components/agent/agent-form"
 
+/** Render the newagent page. */
 export default function NewAgentPage() {
   return (
     <div className="flex flex-col gap-6">

@@ -1,6 +1,7 @@
 import { type SVGProps } from 'react'
 import { cn } from '@/lib/utils'
 
+/** Render the IconGitlab component. */
 export function IconGitlab({ className, ...props }: SVGProps<SVGSVGElement>) {
   return (
     <svg

@@ -13,6 +13,7 @@ type LearnMoreProps = React.ComponentProps<typeof Root> & {
   triggerProps?: React.ComponentProps<typeof Trigger>
 }
 
+/** Render the LearnMore component. */
 export function LearnMore({
   children,
   contentProps,

@@ -1,5 +1,6 @@
 import { type SVGProps } from 'react'
 
+/** Render the IconSidebarSidebar component. */
 export function IconSidebarSidebar(props: SVGProps<SVGSVGElement>) {
   return (
     <svg

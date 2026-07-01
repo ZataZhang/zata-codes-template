@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/sidebar'
 import { Button } from '../ui/button'
 
+/** Render the AppTitle component. */
 export function AppTitle() {
   const { setOpenMobile } = useSidebar()
   return (
@@ -36,6 +37,7 @@ export function AppTitle() {
   )
 }
 
+/** Render the ToggleSidebar component. */
 function ToggleSidebar({
   className,
   onClick,

@@ -8,6 +8,7 @@ import { getAgent } from "@/lib/api/agents"
 import type { Agent } from "@/lib/types/agent"
 import { toast } from "sonner"
 
+/** Render the editagent page. */
 export default function EditAgentPage() {
   const params = useParams()
   const agentId = params.id as string

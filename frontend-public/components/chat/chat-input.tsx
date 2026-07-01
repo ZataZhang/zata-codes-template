@@ -10,6 +10,7 @@ interface ChatInputProps {
   disabled?: boolean
 }
 
+/** Chat message input with send handling. */
 export function ChatInput({ onSend, disabled }: ChatInputProps) {
   const [content, setContent] = useState("")
   const [sending, setSending] = useState(false)

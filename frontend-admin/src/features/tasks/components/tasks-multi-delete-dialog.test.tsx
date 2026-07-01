@@ -78,7 +78,8 @@ describe('TasksMultiDeleteDialog', () => {
   it('resets the confirm delete input when the dialog is closed and reopened', async () => {
     const { table } = createTableMock()
 
-    function Harness() {
+        /** Render the Harness component. */
+function Harness() {
       const [open, setOpen] = useState(true)
       return (
         <>

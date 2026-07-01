@@ -39,6 +39,7 @@ type TaskImportDialogProps = {
   onOpenChange: (open: boolean) => void
 }
 
+/** Render the TasksImportDialog component. */
 export function TasksImportDialog({
   open,
   onOpenChange,

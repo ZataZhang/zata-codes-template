@@ -26,6 +26,7 @@ const formSchema = z.object({
   password: z.string().min(1, "请输入密码"),
 })
 
+/** Render the LoginForm component. */
 export function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -39,6 +40,7 @@ export function LoginForm() {
     },
   })
 
+  /** Submit the login form. */
   async function onSubmit(data: z.infer<typeof formSchema>) {
     setIsLoading(true)
     try {

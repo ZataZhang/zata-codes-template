@@ -1,6 +1,7 @@
 import { type SVGProps } from 'react'
 import { cn } from '@/lib/utils'
 
+/** Render the IconTelegram component. */
 export function IconTelegram({ className, ...props }: SVGProps<SVGSVGElement>) {
   return (
     <svg

@@ -54,6 +54,7 @@ const defaultValues: Partial<DisplayFormValues> = {
   items: ['recents', 'home'],
 }
 
+/** Render the DisplayForm component. */
 export function DisplayForm() {
   const form = useForm<DisplayFormValues>({
     resolver: zodResolver(displayFormSchema),

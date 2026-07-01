@@ -1,5 +1,6 @@
 import { type SVGProps } from 'react'
 
+/** Render the IconLayoutFull component. */
 export function IconLayoutFull(props: SVGProps<SVGSVGElement>) {
   return (
     <svg

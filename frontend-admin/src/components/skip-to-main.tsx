@@ -1,3 +1,4 @@
+/** Render the SkipToMain component. */
 export function SkipToMain() {
   return (
     <a

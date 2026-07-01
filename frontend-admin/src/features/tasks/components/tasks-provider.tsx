@@ -13,6 +13,7 @@ type TasksContextType = {
 
 const TasksContext = React.createContext<TasksContextType | null>(null)
 
+/** Provide task dialog state to child components. */
 export function TasksProvider({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useDialogState<TasksDialogType>(null)
   const [currentRow, setCurrentRow] = useState<Task | null>(null)

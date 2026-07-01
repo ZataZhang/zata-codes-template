@@ -1,5 +1,6 @@
 import { type SVGProps } from 'react'
 
+/** Render the IconLayoutCompact component. */
 export function IconLayoutCompact(props: SVGProps<SVGSVGElement>) {
   return (
     <svg

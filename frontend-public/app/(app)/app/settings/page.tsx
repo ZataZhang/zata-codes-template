@@ -5,6 +5,7 @@ import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { logout, getCurrentSession, type UserSession } from "@/lib/api/auth"
 
+/** Render the settings page. */
 export default function SettingsPage() {
   const router = useRouter()
   const [user, setUser] = useState<UserSession | null>(null)
@@ -13,6 +14,7 @@ export default function SettingsPage() {
     getCurrentSession().then(setUser).catch(() => router.replace("/login"))
   }, [router])
 
+  /** Handle logout and redirect to the home page. */
   async function handleLogout() {
     await logout()
     router.replace("/")

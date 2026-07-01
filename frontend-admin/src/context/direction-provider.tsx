@@ -17,6 +17,7 @@ type DirectionContextType = {
 
 const DirectionContext = createContext<DirectionContextType | null>(null)
 
+/** Render the DirectionProvider component. */
 export function DirectionProvider({ children }: { children: React.ReactNode }) {
   const [dir, _setDir] = useState<Direction>(
     () => (getCookie(DIRECTION_COOKIE_NAME) as Direction) || DEFAULT_DIRECTION
@@ -51,6 +52,7 @@ export function DirectionProvider({ children }: { children: React.ReactNode }) {
   )
 }
 
+/** Hook to read and update the current text direction. */
 // eslint-disable-next-line react-refresh/only-export-components
 export function useDirection() {
   const context = useContext(DirectionContext)

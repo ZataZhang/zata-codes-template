@@ -1,5 +1,6 @@
 import { type SVGProps } from 'react'
 
+/** Render the IconSidebarFloating component. */
 export function IconSidebarFloating(props: SVGProps<SVGSVGElement>) {
   return (
     <svg

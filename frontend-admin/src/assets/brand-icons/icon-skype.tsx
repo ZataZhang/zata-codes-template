@@ -1,6 +1,7 @@
 import { type SVGProps } from 'react'
 import { cn } from '@/lib/utils'
 
+/** Render the IconSkype component. */
 export function IconSkype({ className, ...props }: SVGProps<SVGSVGElement>) {
   return (
     <svg

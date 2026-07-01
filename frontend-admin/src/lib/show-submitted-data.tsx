@@ -1,5 +1,6 @@
 import { toast } from 'sonner'
 
+/** Display submitted form data in a toast for debugging or confirmation. */
 export function showSubmittedData(
   data: unknown,
   title: string = 'You submitted the following values:'

@@ -16,6 +16,7 @@ import type { Workflow } from "@/lib/types/workflow"
 import { GitBranch, Loader2, Pencil, Play, Plus, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 
+/** Render the workflows page. */
 export default function WorkflowsPage() {
   const [workflows, setWorkflows] = useState<Workflow[]>([])
   const [loading, setLoading] = useState(true)

@@ -31,6 +31,7 @@ type LayoutProviderProps = {
   children: React.ReactNode
 }
 
+/** Render the LayoutProvider component. */
 export function LayoutProvider({ children }: LayoutProviderProps) {
   const [collapsible, _setCollapsible] = useState<Collapsible>(() => {
     const saved = getCookie(LAYOUT_COLLAPSIBLE_COOKIE_NAME)
@@ -74,7 +75,7 @@ export function LayoutProvider({ children }: LayoutProviderProps) {
   return <LayoutContext value={contextValue}>{children}</LayoutContext>
 }
 
-// Define the hook for the provider
+/** Hook to read and update the current layout configuration. */
 // eslint-disable-next-line react-refresh/only-export-components
 export function useLayout() {
   const context = useContext(LayoutContext)

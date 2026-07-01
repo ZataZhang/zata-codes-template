@@ -6,6 +6,7 @@ type GeneralErrorProps = React.HTMLAttributes<HTMLDivElement> & {
   minimal?: boolean
 }
 
+/** Render the GeneralError component. */
 export function GeneralError({
   className,
   minimal = false,

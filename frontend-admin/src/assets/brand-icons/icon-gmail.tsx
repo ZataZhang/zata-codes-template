@@ -1,6 +1,7 @@
 import { type SVGProps } from 'react'
 import { cn } from '@/lib/utils'
 
+/** Render the IconGmail component. */
 export function IconGmail({ className, ...props }: SVGProps<SVGSVGElement>) {
   return (
     <svg

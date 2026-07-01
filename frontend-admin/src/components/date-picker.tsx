@@ -14,6 +14,7 @@ type DatePickerProps = {
   placeholder?: string
 }
 
+/** Render the DatePicker component. */
 export function DatePicker({
   selected,
   onSelect,

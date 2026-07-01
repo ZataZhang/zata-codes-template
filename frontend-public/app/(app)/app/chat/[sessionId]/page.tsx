@@ -10,6 +10,7 @@ import { getSession, listMessages, listSessions, sendMessage } from "@/lib/api/s
 import type { ChatMessage as ChatMessageType, ChatSession } from "@/lib/types/session"
 import { toast } from "sonner"
 
+/** Render the chatsession page. */
 export default function ChatSessionPage() {
   const params = useParams()
   const sessionId = params.sessionId as string

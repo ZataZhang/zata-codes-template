@@ -9,6 +9,7 @@ interface WorkflowViewerProps {
   readOnly?: boolean
 }
 
+/** Read-only or editable workflow diagram viewer. */
 export function WorkflowViewer({ workflow, readOnly = true }: WorkflowViewerProps) {
   const initialNodes = useMemo(
     () =>

@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button'
 
+/** Render the MaintenanceError component. */
 export function MaintenanceError() {
   return (
     <div className='h-svh'>

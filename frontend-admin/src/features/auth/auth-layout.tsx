@@ -4,6 +4,7 @@ type AuthLayoutProps = {
   children: React.ReactNode
 }
 
+/** Root layout for the auth section. */
 export function AuthLayout({ children }: AuthLayoutProps) {
   return (
     <div className='grid min-h-svh lg:grid-cols-2'>

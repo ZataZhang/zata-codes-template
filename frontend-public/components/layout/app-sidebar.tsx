@@ -21,6 +21,7 @@ const navItems = [
   { href: "/app/settings", label: "Settings", icon: Settings },
 ]
 
+/** Sidebar navigation for authenticated pages. */
 export function AppSidebar() {
   const pathname = usePathname()
 

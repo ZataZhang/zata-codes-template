@@ -6,6 +6,7 @@ import { ThemeSwitch } from '@/components/theme-switch'
 import { ProjectsTable } from './components/projects-table'
 import { projects } from './data/projects'
 
+/** Render the Projects component. */
 export function Projects() {
   return (
     <>

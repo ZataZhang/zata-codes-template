@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/sheet'
 import { useSidebar } from './ui/sidebar'
 
+/** Render the ConfigDrawer component. */
 export function ConfigDrawer() {
   const { setOpen } = useSidebar()
   const { resetDir } = useDirection()
@@ -79,6 +80,7 @@ export function ConfigDrawer() {
   )
 }
 
+/** Render the SectionTitle component. */
 function SectionTitle({
   title,
   showReset = false,
@@ -117,6 +119,7 @@ function SectionTitle({
   )
 }
 
+/** Render the RadioGroupItem component. */
 function RadioGroupItem({
   item,
   isTheme = false,
@@ -172,6 +175,7 @@ function RadioGroupItem({
   )
 }
 
+/** Render the ThemeConfig component. */
 function ThemeConfig() {
   const { defaultTheme, theme, setTheme } = useTheme()
   return (
@@ -216,6 +220,7 @@ function ThemeConfig() {
   )
 }
 
+/** Render the SidebarConfig component. */
 function SidebarConfig() {
   const { defaultVariant, variant, setVariant } = useLayout()
   return (
@@ -260,6 +265,7 @@ function SidebarConfig() {
   )
 }
 
+/** Render the LayoutConfig component. */
 function LayoutConfig() {
   const { open, setOpen } = useSidebar()
   const { defaultCollapsible, collapsible, setCollapsible } = useLayout()
@@ -318,6 +324,7 @@ function LayoutConfig() {
   )
 }
 
+/** Render the DirConfig component. */
 function DirConfig() {
   const { defaultDir, dir, setDir } = useDirection()
   return (

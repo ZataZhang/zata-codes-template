@@ -24,6 +24,7 @@ interface AgentFormProps {
   initialAgent?: Agent
 }
 
+/** Form for creating or editing an agent. */
 export function AgentForm({ initialAgent }: AgentFormProps) {
   const router = useRouter()
   const [name, setName] = useState(initialAgent?.name || "")

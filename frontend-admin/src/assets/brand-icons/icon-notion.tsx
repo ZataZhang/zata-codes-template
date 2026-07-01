@@ -1,6 +1,7 @@
 import { type SVGProps } from 'react'
 import { cn } from '@/lib/utils'
 
+/** Render the IconNotion component. */
 export function IconNotion({ className, ...props }: SVGProps<SVGSVGElement>) {
   return (
     <svg

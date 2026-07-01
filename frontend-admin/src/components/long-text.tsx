@@ -18,6 +18,7 @@ type LongTextProps = {
   contentClassName?: string
 }
 
+/** Render the LongText component. */
 export function LongText({
   children,
   className = '',

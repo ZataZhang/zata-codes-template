@@ -33,6 +33,7 @@ import {
   type NavGroup as NavGroupProps,
 } from './types'
 
+/** Render the NavGroup component. */
 export function NavGroup({ title, items }: NavGroupProps) {
   const { state, isMobile } = useSidebar()
   const href = useLocation({ select: (location) => location.href })
@@ -58,10 +59,12 @@ export function NavGroup({ title, items }: NavGroupProps) {
   )
 }
 
+/** Render the NavBadge component. */
 function NavBadge({ children }: { children: ReactNode }) {
   return <Badge className='rounded-full px-1 py-0 text-xs'>{children}</Badge>
 }
 
+/** Render the SidebarMenuLink component. */
 function SidebarMenuLink({ item, href }: { item: NavLink; href: string }) {
   const { setOpenMobile } = useSidebar()
   return (
@@ -81,6 +84,7 @@ function SidebarMenuLink({ item, href }: { item: NavLink; href: string }) {
   )
 }
 
+/** Render the SidebarMenuCollapsible component. */
 function SidebarMenuCollapsible({
   item,
   href,
@@ -127,6 +131,7 @@ function SidebarMenuCollapsible({
   )
 }
 
+/** Render the SidebarMenuCollapsedDropdown component. */
 function SidebarMenuCollapsedDropdown({
   item,
   href,
@@ -173,6 +178,7 @@ function SidebarMenuCollapsedDropdown({
   )
 }
 
+/** Check whether a navigation item matches the current href. */
 function checkIsActive(href: string, item: NavItem, mainNav = false) {
   return (
     href === item.url || // /endpint?search=param

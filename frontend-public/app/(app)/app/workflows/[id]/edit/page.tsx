@@ -14,6 +14,7 @@ import { toast } from "sonner"
 import type { Edge, Node } from "@xyflow/react"
 import type { CustomNodeData } from "@/components/workflow/workflow-node"
 
+/** Render the editworkflow page. */
 export default function EditWorkflowPage() {
   const params = useParams()
   const router = useRouter()

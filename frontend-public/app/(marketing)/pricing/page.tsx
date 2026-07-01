@@ -51,6 +51,7 @@ const plans = [
   },
 ]
 
+/** Render the pricing page. */
 export default function PricingPage() {
   return (
     <div className="container mx-auto py-16">

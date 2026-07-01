@@ -23,6 +23,12 @@ apiClient.interceptors.response.use(
 
 /** Error thrown for API requests with an optional HTTP status code. */
 export class ApiRequestError extends Error {
+  /**
+   * Error thrown for API requests with an optional HTTP status code.
+   *
+   * @param message - Human-readable error message.
+   * @param status - Optional HTTP response status code.
+   */
   constructor(
     message: string,
     public status?: number

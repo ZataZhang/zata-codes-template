@@ -3,6 +3,7 @@
 import * as React from "react"
 import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes"
 
+/** Wrap the app with next-themes and inject theme hotkeys. */
 function ThemeProvider({
   children,
   ...props
@@ -21,6 +22,7 @@ function ThemeProvider({
   )
 }
 
+/** Check whether the event target is an editable input. */
 function isTypingTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) {
     return false
@@ -34,10 +36,12 @@ function isTypingTarget(target: EventTarget | null) {
   )
 }
 
+/** Listen for the "D" key to toggle light/dark theme. */
 function ThemeHotkey() {
   const { resolvedTheme, setTheme } = useTheme()
 
   React.useEffect(() => {
+    /** Toggle theme when the "D" key is pressed outside inputs. */
     function onKeyDown(event: KeyboardEvent) {
       if (event.defaultPrevented || event.repeat) {
         return

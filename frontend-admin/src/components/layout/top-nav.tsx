@@ -18,6 +18,7 @@ type TopNavProps = React.HTMLAttributes<HTMLElement> & {
   }[]
 }
 
+/** Render the TopNav component. */
 export function TopNav({ className, links, ...props }: TopNavProps) {
   return (
     <>

@@ -15,6 +15,7 @@ type FontContextType = {
 
 const FontContext = createContext<FontContextType | null>(null)
 
+/** Render the FontProvider component. */
 export function FontProvider({ children }: { children: React.ReactNode }) {
   const [font, _setFont] = useState<Font>(() => {
     const savedFont = getCookie(FONT_COOKIE_NAME)

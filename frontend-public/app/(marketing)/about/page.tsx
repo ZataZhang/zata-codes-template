@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/card"
 import { Heart, Lightbulb, Shield } from "lucide-react"
 
+/** Render the about page. */
 export default function AboutPage() {
   return (
     <div className="container mx-auto py-16">

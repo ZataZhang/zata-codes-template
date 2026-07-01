@@ -15,6 +15,7 @@ import type { Agent } from "@/lib/types/agent"
 import { Bot, Loader2, MessageSquare, Pencil, Plus, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 
+/** Render the agents page. */
 export default function AgentsPage() {
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)

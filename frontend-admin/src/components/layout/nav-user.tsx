@@ -36,6 +36,7 @@ type NavUserProps = {
   }
 }
 
+/** Render the NavUser component. */
 export function NavUser({ user }: NavUserProps) {
   const { isMobile } = useSidebar()
   const [open, setOpen] = useDialogState()

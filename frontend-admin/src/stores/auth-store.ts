@@ -14,6 +14,7 @@ interface AuthState {
   }
 }
 
+/** Load the persisted user from cookies, if any. */
 function loadInitialUser(): UserSession | null {
   const cookieState = getCookie(AUTH_USER_KEY)
   if (!cookieState) return null

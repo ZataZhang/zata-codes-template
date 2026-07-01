@@ -26,6 +26,7 @@ const appearanceFormSchema = z.object({
 
 type AppearanceFormValues = z.infer<typeof appearanceFormSchema>
 
+/** Render the AppearanceForm component. */
 export function AppearanceForm() {
   const { font, setFont } = useFont()
   const { theme, setTheme } = useTheme()
@@ -41,6 +42,7 @@ export function AppearanceForm() {
     defaultValues,
   })
 
+  /** Submit the appearance settings form. */
   function onSubmit(data: AppearanceFormValues) {
     if (data.font != font) setFont(data.font)
     if (data.theme != theme) setTheme(data.theme)

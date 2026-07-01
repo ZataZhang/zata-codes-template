@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { SignOutDialog } from '@/components/sign-out-dialog'
 
+/** Render the ProfileDropdown component. */
 export function ProfileDropdown() {
   const [open, setOpen] = useDialogState()
 

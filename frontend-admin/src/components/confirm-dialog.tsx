@@ -27,6 +27,7 @@ type ConfirmDialogProps = {
   | { form?: undefined; handleConfirm: () => void }
 )
 
+/** Render the ConfirmDialog component. */
 export function ConfirmDialog(props: ConfirmDialogProps) {
   const {
     title,

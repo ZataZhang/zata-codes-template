@@ -40,6 +40,7 @@ const formSchema = z
     path: ["confirmPassword"],
   })
 
+/** Render the register page. */
 export default function RegisterPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
@@ -54,6 +55,7 @@ export default function RegisterPage() {
     },
   })
 
+  /** Submit the registration form. */
   async function onSubmit(data: z.infer<typeof formSchema>) {
     setIsLoading(true)
     try {

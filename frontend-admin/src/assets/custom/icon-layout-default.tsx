@@ -1,5 +1,6 @@
 import { type SVGProps } from 'react'
 
+/** Render the IconLayoutDefault component. */
 export function IconLayoutDefault(props: SVGProps<SVGSVGElement>) {
   return (
     <svg

@@ -34,6 +34,7 @@ type DataTableProps = {
   data: Task[]
 }
 
+/** Data table for listing and managing tasks. */
 export function TasksTable({ data }: DataTableProps) {
   // Local UI-only states
   const [rowSelection, setRowSelection] = useState({})

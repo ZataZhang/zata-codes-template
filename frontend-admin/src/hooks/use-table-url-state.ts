@@ -65,6 +65,7 @@ type UseTableUrlStateReturn = {
   ) => void
 }
 
+/** Sync table pagination, filtering and sorting state with the URL. */
 export function useTableUrlState(
   params: UseTableUrlStateParams
 ): UseTableUrlStateReturn {

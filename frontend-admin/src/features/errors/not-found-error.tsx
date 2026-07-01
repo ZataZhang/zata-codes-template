@@ -1,6 +1,7 @@
 import { useNavigate, useRouter } from '@tanstack/react-router'
 import { Button } from '@/components/ui/button'
 
+/** Render the NotFoundError component. */
 export function NotFoundError() {
   const navigate = useNavigate()
   const { history } = useRouter()

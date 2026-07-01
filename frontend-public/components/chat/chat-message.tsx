@@ -7,6 +7,7 @@ interface ChatMessageProps {
   message: ChatMessageType
 }
 
+/** Render a single chat message bubble. */
 export function ChatMessage({ message }: ChatMessageProps) {
   const isUser = message.role === "user"
 

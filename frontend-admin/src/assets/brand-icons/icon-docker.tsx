@@ -1,6 +1,7 @@
 import { type SVGProps } from 'react'
 import { cn } from '@/lib/utils'
 
+/** Render the IconDocker component. */
 export function IconDocker({ className, ...props }: SVGProps<SVGSVGElement>) {
   return (
     <svg

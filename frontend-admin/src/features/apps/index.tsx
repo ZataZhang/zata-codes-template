@@ -29,6 +29,7 @@ const appText = new Map<AppType, string>([
   ['notConnected', 'Not Connected'],
 ])
 
+/** Render the Apps component. */
 export function Apps() {
   const {
     filter = '',

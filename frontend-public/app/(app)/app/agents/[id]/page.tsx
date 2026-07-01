@@ -18,6 +18,7 @@ import type { Agent } from "@/lib/types/agent"
 import { Bot, Loader2, MessageSquare, Pencil } from "lucide-react"
 import { toast } from "sonner"
 
+/** Render the agentdetail page. */
 export default function AgentDetailPage() {
   const params = useParams()
   const router = useRouter()

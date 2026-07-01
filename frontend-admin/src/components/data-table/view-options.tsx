@@ -14,6 +14,7 @@ type DataTableViewOptionsProps<TData> = {
   table: Table<TData>
 }
 
+/** Render the DataTableViewOptions component. */
 export function DataTableViewOptions<TData>({
   table,
 }: DataTableViewOptionsProps<TData>) {

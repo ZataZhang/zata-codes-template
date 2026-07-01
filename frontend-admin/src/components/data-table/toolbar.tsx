@@ -20,6 +20,7 @@ type DataTableToolbarProps<TData> = {
   }[]
 }
 
+/** Render the DataTableToolbar component. */
 export function DataTableToolbar<TData>({
   table,
   searchPlaceholder = 'Filter...',

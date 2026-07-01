@@ -1,5 +1,6 @@
 import { Telescope } from 'lucide-react'
 
+/** Render the ComingSoon component. */
 export function ComingSoon() {
   return (
     <div className='h-svh'>

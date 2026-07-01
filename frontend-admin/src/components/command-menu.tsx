@@ -15,6 +15,7 @@ import {
 import { sidebarData } from './layout/data/sidebar-data'
 import { ScrollArea } from './ui/scroll-area'
 
+/** Render the CommandMenu component. */
 export function CommandMenu() {
   const navigate = useNavigate()
   const { setTheme } = useTheme()

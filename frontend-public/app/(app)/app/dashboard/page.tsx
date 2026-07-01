@@ -18,6 +18,7 @@ import type { ChatSession } from "@/lib/types/session"
 import type { Workflow } from "@/lib/types/workflow"
 import { Bot, GitBranch, Loader2, MessageSquare, Plus } from "lucide-react"
 
+/** Render the dashboard page. */
 export default function DashboardPage() {
   const [agents, setAgents] = useState<Agent[]>([])
   const [sessions, setSessions] = useState<ChatSession[]>([])

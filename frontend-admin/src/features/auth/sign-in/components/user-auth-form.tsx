@@ -31,6 +31,7 @@ interface UserAuthFormProps extends React.HTMLAttributes<HTMLFormElement> {
   redirectTo?: string
 }
 
+/** Render the UserAuthForm component. */
 export function UserAuthForm({
   className,
   redirectTo,
@@ -49,6 +50,7 @@ export function UserAuthForm({
     },
   })
 
+  /** Submit the sign-in form. */
   async function onSubmit(data: z.infer<typeof formSchema>) {
     setIsLoading(true)
     try {

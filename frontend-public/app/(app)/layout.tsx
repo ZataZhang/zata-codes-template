@@ -5,6 +5,7 @@ import { useEffect, useState } from "react"
 import { AppShell } from "@/components/layout/app-shell"
 import { getCurrentSession } from "@/lib/api/auth"
 
+/** Root layout for the app section. */
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const [authenticated, setAuthenticated] = useState(false)

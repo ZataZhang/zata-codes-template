@@ -24,20 +24,24 @@ export type ListPublicUsersParams = {
   keyword?: string
 }
 
+/** List public users with optional filtering and pagination. */
 export async function listPublicUsers(
   params: ListPublicUsersParams = {}
 ): Promise<PublicUserListResponse> {
   return apiGet<PublicUserListResponse>('/admin/users', { params })
 }
 
+/** Get a single public user by ID. */
 export async function getPublicUser(userId: string): Promise<PublicUser> {
   return apiGet<PublicUser>(`/admin/users/${userId}`)
 }
 
+/** Enable a public user account. */
 export async function enablePublicUser(userId: string): Promise<PublicUser> {
   return apiPost<PublicUser>(`/admin/users/${userId}/enable`, {})
 }
 
+/** Disable a public user account. */
 export async function disablePublicUser(userId: string): Promise<PublicUser> {
   return apiPost<PublicUser>(`/admin/users/${userId}/disable`, {})
 }

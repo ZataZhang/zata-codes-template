@@ -27,6 +27,7 @@ export interface CustomNodeData extends Record<string, unknown> {
 
 export type CustomNode = Node<CustomNodeData>
 
+/** Visual card for a workflow node on the canvas. */
 export function WorkflowNodeCard({ data, selected }: NodeProps<CustomNode>) {
   const Icon = NODE_ICONS[data.nodeType] || Bot
   const colorClass = NODE_COLORS[data.nodeType] || NODE_COLORS.agent

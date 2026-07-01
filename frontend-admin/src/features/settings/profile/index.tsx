@@ -1,6 +1,7 @@
 import { ContentSection } from '../components/content-section'
 import { ProfileForm } from './profile-form'
 
+/** Render the SettingsProfile component. */
 export function SettingsProfile() {
   return (
     <ContentSection

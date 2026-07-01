@@ -8,10 +8,18 @@ export const apiClient = axios.create({
   withCredentials: true,
 })
 
+/** Error thrown for failed API requests with status and detail. */
 export class ApiRequestError extends Error {
   status: number
   detail: unknown
 
+  /**
+   * Create an API request error.
+   *
+   * @param status - HTTP response status code.
+   * @param message - Human-readable error message.
+   * @param detail - Raw error detail from the server.
+   */
   constructor(status: number, message: string, detail: unknown) {
     super(message)
     this.status = status
@@ -20,6 +28,7 @@ export class ApiRequestError extends Error {
   }
 }
 
+/** Resolve a user-facing error message from an Axios error. */
 function resolveErrorMessage(error: AxiosError): string {
   const data = error.response?.data
   if (data && typeof data === 'object') {
@@ -30,6 +39,7 @@ function resolveErrorMessage(error: AxiosError): string {
   return error.message || `HTTP ${error.response?.status}`
 }
 
+/** Throw an ``ApiRequestError`` for an Axios failure, otherwise re-throw. */
 export function handleApiError(error: unknown): never {
   if (error instanceof AxiosError && error.response) {
     throw new ApiRequestError(
@@ -41,6 +51,7 @@ export function handleApiError(error: unknown): never {
   throw error
 }
 
+/** Send a GET request and return the typed response data. */
 export async function apiGet<T>(path: string, config?: AxiosRequestConfig): Promise<T> {
   try {
     const response = await apiClient.get<T>(path, config)
@@ -50,6 +61,7 @@ export async function apiGet<T>(path: string, config?: AxiosRequestConfig): Prom
   }
 }
 
+/** Send a POST request with an optional body and return the typed response data. */
 export async function apiPost<T>(
   path: string,
   body?: unknown,
@@ -63,6 +75,7 @@ export async function apiPost<T>(
   }
 }
 
+/** Send a PATCH request with an optional body and return the typed response data. */
 export async function apiPatch<T>(
   path: string,
   body?: unknown,
@@ -76,6 +89,7 @@ export async function apiPatch<T>(
   }
 }
 
+/** Send a DELETE request and return the typed response data. */
 export async function apiDelete<T>(path: string, config?: AxiosRequestConfig): Promise<T> {
   try {
     const response = await apiClient.delete<T>(path, config)

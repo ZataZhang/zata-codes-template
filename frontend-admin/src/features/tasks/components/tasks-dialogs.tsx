@@ -4,6 +4,7 @@ import { TasksImportDialog } from './tasks-import-dialog'
 import { TasksMutateDrawer } from './tasks-mutate-drawer'
 import { useTasks } from './tasks-provider'
 
+/** Render the TasksDialogs component. */
 export function TasksDialogs() {
   const { open, setOpen, currentRow, setCurrentRow } = useTasks()
   return (

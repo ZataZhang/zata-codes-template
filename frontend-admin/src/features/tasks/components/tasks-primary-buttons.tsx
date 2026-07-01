@@ -2,6 +2,7 @@ import { Download, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTasks } from './tasks-provider'
 
+/** Primary action buttons for the tasks page. */
 export function TasksPrimaryButtons() {
   const { setOpen } = useTasks()
   return (

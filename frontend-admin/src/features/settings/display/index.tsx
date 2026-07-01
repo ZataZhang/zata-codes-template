@@ -1,6 +1,7 @@
 import { ContentSection } from '../components/content-section'
 import { DisplayForm } from './display-form'
 
+/** Render the SettingsDisplay component. */
 export function SettingsDisplay() {
   return (
     <ContentSection

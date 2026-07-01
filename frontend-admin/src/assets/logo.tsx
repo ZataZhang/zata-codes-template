@@ -1,6 +1,7 @@
 import { type SVGProps } from 'react'
 import { cn } from '@/lib/utils'
 
+/** Render the Logo component. */
 export function Logo({ className, ...props }: SVGProps<SVGSVGElement>) {
   return (
     <svg

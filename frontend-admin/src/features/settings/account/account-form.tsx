@@ -59,12 +59,14 @@ const defaultValues: Partial<AccountFormValues> = {
   name: '',
 }
 
+/** Render the AccountForm component. */
 export function AccountForm() {
   const form = useForm<AccountFormValues>({
     resolver: zodResolver(accountFormSchema),
     defaultValues,
   })
 
+  /** Submit the account settings form. */
   function onSubmit(data: AccountFormValues) {
     showSubmittedData(data)
   }

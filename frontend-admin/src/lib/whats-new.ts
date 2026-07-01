@@ -75,6 +75,7 @@ export function markSeen(version: string): void {
   }
 }
 
+/** Check whether the current session has already seen the given version. */
 function sessionSeen(version: string): boolean {
   try {
     return window.sessionStorage.getItem(SESSION_FLAG_KEY) === version
@@ -83,6 +84,7 @@ function sessionSeen(version: string): boolean {
   }
 }
 
+/** Type guard for a valid whats-new payload object. */
 function isPayload(value: unknown): value is WhatsNewPayload {
   if (typeof value !== 'object' || value === null) return false
   const record = value as Record<string, unknown>

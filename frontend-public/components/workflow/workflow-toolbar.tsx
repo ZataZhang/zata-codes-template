@@ -15,6 +15,7 @@ const NODE_PRESETS = [
   { type: "end", label: "结束", icon: Square },
 ]
 
+/** Toolbar with node presets for the workflow editor. */
 export function WorkflowToolbar({ onAddNode }: WorkflowToolbarProps) {
   return (
     <div className="flex items-center gap-2 border-b p-3">

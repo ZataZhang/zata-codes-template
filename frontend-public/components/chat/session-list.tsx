@@ -10,6 +10,7 @@ interface SessionListProps {
   activeSessionId?: string
 }
 
+/** List of chat sessions with active selection. */
 export function SessionList({ sessions, activeSessionId }: SessionListProps) {
   return (
     <div className="flex h-full flex-col border-r bg-sidebar">

@@ -9,6 +9,7 @@ import { ThemeProvider } from '@/context/theme-provider'
 import { SidebarProvider } from '@/components/ui/sidebar'
 import { ConfigDrawer } from './config-drawer'
 
+/** Render the config drawer inside its required providers. */
 async function renderConfigDrawer({
   sidebarDefaultOpen = true,
 }: {
@@ -27,6 +28,7 @@ async function renderConfigDrawer({
   )
 }
 
+/** Open the config drawer from a rendered test screen. */
 async function openDrawer(screen: RenderResult) {
   await userEvent.click(
     screen.getByRole('button', { name: /^Open theme settings$/i })

@@ -10,6 +10,7 @@ import { TasksProvider } from './components/tasks-provider'
 import { TasksTable } from './components/tasks-table'
 import { tasks } from './data/tasks'
 
+/** Render the Tasks component. */
 export function Tasks() {
   return (
     <TasksProvider>

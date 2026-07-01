@@ -1,5 +1,6 @@
 import Link from "next/link"
 
+/** Site footer for public pages. */
 export function SiteFooter() {
   return (
     <footer className="border-t bg-muted/50">

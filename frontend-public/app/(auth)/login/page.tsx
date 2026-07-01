@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/card"
 import { LoginForm } from "./login-form"
 
+/** Render the login page. */
 export default function LoginPage() {
   return (
     <Card className="border shadow-lg">

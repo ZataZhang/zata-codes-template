@@ -1,6 +1,7 @@
 import { type SVGProps } from 'react'
 import { cn } from '@/lib/utils'
 
+/** Render the IconZoom component. */
 export function IconZoom({ className, ...props }: SVGProps<SVGSVGElement>) {
   return (
     <svg

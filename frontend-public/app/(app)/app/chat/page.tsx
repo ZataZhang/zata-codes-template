@@ -7,6 +7,7 @@ import { listSessions } from "@/lib/api/sessions"
 import type { ChatSession } from "@/lib/types/session"
 import { toast } from "sonner"
 
+/** Render the chatcenter page. */
 export default function ChatCenterPage() {
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [loading, setLoading] = useState(true)

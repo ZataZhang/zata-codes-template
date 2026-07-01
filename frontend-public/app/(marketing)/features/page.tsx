@@ -39,6 +39,7 @@ const features = [
   },
 ]
 
+/** Render the features page. */
 export default function FeaturesPage() {
   return (
     <div className="container mx-auto py-16">

@@ -9,6 +9,7 @@ interface SignOutDialogProps {
   onOpenChange: (open: boolean) => void
 }
 
+/** Render the SignOutDialog component. */
 export function SignOutDialog({ open, onOpenChange }: SignOutDialogProps) {
   const navigate = useNavigate()
   const location = useLocation()

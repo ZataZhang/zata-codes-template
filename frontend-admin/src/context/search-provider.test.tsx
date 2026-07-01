@@ -24,6 +24,7 @@ vi.mock('@/context/theme-provider', () => ({
 
 type ShortcutModifier = 'Control' | 'Meta'
 
+/** Render the search provider wrapped in the test environment. */
 async function renderWithSearchProvider() {
   return await render(<SearchProvider>{null}</SearchProvider>)
 }

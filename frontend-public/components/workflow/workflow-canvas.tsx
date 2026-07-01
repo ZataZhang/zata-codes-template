@@ -28,6 +28,7 @@ interface WorkflowCanvasProps {
   readOnly?: boolean
 }
 
+/** Interactive canvas for building and viewing workflows. */
 export function WorkflowCanvas({
   initialNodes = [],
   initialEdges = [],

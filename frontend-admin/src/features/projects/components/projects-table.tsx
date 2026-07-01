@@ -33,6 +33,7 @@ type DataTableProps = {
   data: Project[]
 }
 
+/** Render the ProjectsTable component. */
 export function ProjectsTable({ data }: DataTableProps) {
   const [rowSelection, setRowSelection] = useState({})
   const [sorting, setSorting] = useState<SortingState>([])

@@ -21,6 +21,7 @@ type DataTableColumnHeaderProps<TData, TValue> =
     title: string
   }
 
+/** Render the DataTableColumnHeader component. */
 export function DataTableColumnHeader<TData, TValue>({
   column,
   title,

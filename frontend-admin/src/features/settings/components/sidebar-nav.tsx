@@ -19,6 +19,7 @@ type SidebarNavProps = React.HTMLAttributes<HTMLElement> & {
   }[]
 }
 
+/** Render the SidebarNav component. */
 export function SidebarNav({ className, items, ...props }: SidebarNavProps) {
   const { pathname } = useLocation()
   const navigate = useNavigate()

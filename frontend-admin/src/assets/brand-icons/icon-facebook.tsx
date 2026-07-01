@@ -1,6 +1,7 @@
 import { type SVGProps } from 'react'
 import { cn } from '@/lib/utils'
 
+/** Render the IconFacebook component. */
 export function IconFacebook({ className, ...props }: SVGProps<SVGSVGElement>) {
   return (
     <svg

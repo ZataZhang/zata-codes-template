@@ -86,12 +86,14 @@ export function WhatsNewDialog({ payload }: WhatsNewDialogProps) {
   )
 }
 
+/** Format an ISO timestamp for display in the changelog. */
 function formatDate(isoTimestamp: string): string {
   const parsed = new Date(isoTimestamp)
   if (Number.isNaN(parsed.getTime())) return ''
   return parsed.toLocaleDateString()
 }
 
+/** Convert a label into a URL-friendly slug. */
 function slug(label: string): string {
   return label.toLowerCase().replace(/\s+/g, '-')
 }

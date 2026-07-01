@@ -1,6 +1,7 @@
 import { type SVGProps } from 'react'
 import { cn } from '@/lib/utils'
 
+/** Render the IconFigma component. */
 export function IconFigma({ className, ...props }: SVGProps<SVGSVGElement>) {
   return (
     <svg

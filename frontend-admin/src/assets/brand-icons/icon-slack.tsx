@@ -1,6 +1,7 @@
 import { type SVGProps } from 'react'
 import { cn } from '@/lib/utils'
 
+/** Render the IconSlack component. */
 export function IconSlack({ className, ...props }: SVGProps<SVGSVGElement>) {
   return (
     <svg

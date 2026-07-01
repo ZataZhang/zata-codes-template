@@ -14,6 +14,7 @@ import { listAgents } from "@/lib/api/agents"
 import type { Agent } from "@/lib/types/agent"
 import { Bot, Loader2, MessageSquare } from "lucide-react"
 
+/** Render the agentsmarketplace page. */
 export default function AgentsMarketplacePage() {
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)

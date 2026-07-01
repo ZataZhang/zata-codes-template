@@ -18,6 +18,7 @@ export const metadata = {
     "Zata Agent Platform 帮助开发者团队创建、运行和编排 AI Agent，支持多 Agent 协作、工具调用与可视化工作流。",
 }
 
+/** Root layout for the root section. */
 export default function RootLayout({
   children,
 }: Readonly<{

@@ -30,6 +30,7 @@ type DataTableFacetedFilterProps<TData, TValue> = {
   }[]
 }
 
+/** Render the DataTableFacetedFilter component. */
 export function DataTableFacetedFilter<TData, TValue>({
   column,
   title,

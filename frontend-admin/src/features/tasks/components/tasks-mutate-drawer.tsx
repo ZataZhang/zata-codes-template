@@ -39,6 +39,7 @@ const formSchema = z.object({
 })
 type TaskForm = z.infer<typeof formSchema>
 
+/** Drawer for creating or editing a task. */
 export function TasksMutateDrawer({
   open,
   onOpenChange,

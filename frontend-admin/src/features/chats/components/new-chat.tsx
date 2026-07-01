@@ -26,6 +26,7 @@ type NewChatProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
 }
+/** Render the NewChat component. */
 export function NewChat({ users, onOpenChange, open }: NewChatProps) {
   const [selectedUsers, setSelectedUsers] = useState<User[]>([])
 

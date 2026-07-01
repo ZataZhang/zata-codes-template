@@ -23,6 +23,7 @@ type DataTableRowActionsProps<TData> = {
   row: Row<TData>
 }
 
+/** Render the DataTableRowActions component. */
 export function DataTableRowActions<TData>({
   row,
 }: DataTableRowActionsProps<TData>) {

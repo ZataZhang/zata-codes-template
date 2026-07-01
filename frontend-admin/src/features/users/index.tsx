@@ -37,12 +37,14 @@ import {
 
 const PUBLIC_USERS_QUERY_KEY = ['admin', 'public-users'] as const
 
+/** Format an ISO date string for display. */
 function formatDateTime(value: string | null): string {
   if (!value) return '-'
   const parsedDate = new Date(value)
   return Number.isNaN(parsedDate.getTime()) ? '-' : parsedDate.toLocaleString()
 }
 
+/** Render the Users component. */
 export function Users() {
   const queryClient = useQueryClient()
   const [keywordInput, setKeywordInput] = useState('')
@@ -76,6 +78,7 @@ export function Users() {
 
   const publicUsers: PublicUser[] = usersQuery.data?.items ?? []
 
+  /** Render the table body rows. */
   function renderTableBody() {
     if (usersQuery.isLoading) {
       return (

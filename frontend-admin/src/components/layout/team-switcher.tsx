@@ -24,6 +24,7 @@ type TeamSwitcherProps = {
   }[]
 }
 
+/** Render the TeamSwitcher component. */
 export function TeamSwitcher({ teams }: TeamSwitcherProps) {
   const { isMobile } = useSidebar()
   const [activeTeam, setActiveTeam] = React.useState(teams[0])

@@ -7,6 +7,7 @@ import {
 } from '@/components/ui/card'
 import { AnalyticsChart } from './analytics-chart'
 
+/** Render the Analytics component. */
 export function Analytics() {
   return (
     <div className='space-y-4'>
@@ -151,6 +152,7 @@ export function Analytics() {
   )
 }
 
+/** Render the SimpleBarList component. */
 function SimpleBarList({
   items,
   valueFormatter,

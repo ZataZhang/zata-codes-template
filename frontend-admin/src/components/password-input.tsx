@@ -10,6 +10,7 @@ type PasswordInputProps = Omit<
   ref?: React.Ref<HTMLInputElement>
 }
 
+/** Render the PasswordInput component. */
 export function PasswordInput({
   className,
   disabled,

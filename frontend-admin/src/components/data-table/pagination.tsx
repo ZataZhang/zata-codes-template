@@ -20,6 +20,7 @@ type DataTablePaginationProps<TData> = {
   className?: string
 }
 
+/** Render the DataTablePagination component. */
 export function DataTablePagination<TData>({
   table,
   className,

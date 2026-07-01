@@ -1,5 +1,6 @@
 import { type SVGProps } from 'react'
 
+/** Render the IconThemeDark component. */
 export function IconThemeDark(props: SVGProps<SVGSVGElement>) {
   return (
     <svg

@@ -17,6 +17,7 @@ const noop = () => {}
 const EMPTY_NODES: Node<CustomNodeData>[] = []
 const EMPTY_EDGES: Edge[] = []
 
+/** Render the newworkflow page. */
 export default function NewWorkflowPage() {
   const router = useRouter()
   const [name, setName] = useState("")

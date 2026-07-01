@@ -13,6 +13,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // shadcn/ui components are generated and not hand-maintained.
+    "components/ui/**",
   ]),
   {
     files: ["**/*.{ts,tsx}"],

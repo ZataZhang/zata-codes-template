@@ -13,6 +13,7 @@ import type { ToolDefinition } from "@/lib/types/tool"
 import { Loader2, Plug } from "lucide-react"
 import { toast } from "sonner"
 
+/** Render the tools page. */
 export default function ToolsPage() {
   const [tools, setTools] = useState<ToolDefinition[]>([])
   const [loading, setLoading] = useState(true)

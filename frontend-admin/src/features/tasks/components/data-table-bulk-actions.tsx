@@ -24,6 +24,7 @@ type DataTableBulkActionsProps<TData> = {
   table: Table<TData>
 }
 
+/** Render the DataTableBulkActions component. */
 export function DataTableBulkActions<TData>({
   table,
 }: DataTableBulkActionsProps<TData>) {

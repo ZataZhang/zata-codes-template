@@ -9,6 +9,7 @@ interface ToolCallCardProps {
   toolCall: ToolCall
 }
 
+/** Display a tool call with expandable details. */
 export function ToolCallCard({ toolCall }: ToolCallCardProps) {
   const [expanded, setExpanded] = useState(false)
 

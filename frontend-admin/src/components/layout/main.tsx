@@ -6,6 +6,7 @@ type MainProps = React.HTMLAttributes<HTMLElement> & {
   ref?: React.Ref<HTMLElement>
 }
 
+/** Render the Main component. */
 export function Main({ fixed, className, fluid, ...props }: MainProps) {
   return (
     <main

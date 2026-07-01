@@ -1,6 +1,7 @@
 import { clearCookies } from '@/test-utils/cookies'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+/** Dynamically import the auth store to reset module state between tests. */
 async function importAuthStore() {
   const { useAuthStore } = await import('./auth-store')
   return useAuthStore

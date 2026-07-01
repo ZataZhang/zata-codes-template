@@ -6,6 +6,7 @@ type IconDirProps = SVGProps<SVGSVGElement> & {
   dir: Direction
 }
 
+/** Render the IconDir component. */
 export function IconDir({ dir, className, ...props }: IconDirProps) {
   return (
     <svg

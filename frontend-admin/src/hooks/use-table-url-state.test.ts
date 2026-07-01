@@ -2,11 +2,13 @@ import { type Mock, describe, expect, it, vi } from 'vitest'
 import { renderHook } from 'vitest-browser-react'
 import { type NavigateFn, useTableUrlState } from '@/hooks/use-table-url-state'
 
+/** Return the last navigation options passed to the mocked navigate function. */
 function lastNavigateOpts(navigate: Mock<NavigateFn>) {
   const calls = navigate.mock.calls
   return calls[calls.length - 1]?.[0]
 }
 
+/** Apply the last search parameters to a previous state object. */
 function applyLastSearchFn(
   navigate: Mock<NavigateFn>,
   prev: Record<string, unknown>

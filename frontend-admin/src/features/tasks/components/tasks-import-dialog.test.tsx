@@ -77,7 +77,8 @@ describe('TasksImportDialog', () => {
   it('closes the dialog when Close is clicked', async () => {
     const onOpenChange = vi.fn()
 
-    function Harness() {
+        /** Render the Harness component. */
+function Harness() {
       const [open, setOpen] = useState(true)
       return (
         <>

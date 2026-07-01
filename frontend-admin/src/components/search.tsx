@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils'
 import { useSearch } from '@/context/search-provider'
 import { Button } from './ui/button'
 
+/** Render the Search component. */
 export function Search({
   className = '',
   placeholder = 'Search',

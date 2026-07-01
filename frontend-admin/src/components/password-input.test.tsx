@@ -62,7 +62,8 @@ describe('PasswordInput', () => {
   })
 
   it('works with FormLabel and react-hook-form field spread', async () => {
-    function PasswordInLabeledForm() {
+        /** Render the PasswordInLabeledForm component. */
+function PasswordInLabeledForm() {
       const form = useForm<{ password: string }>({
         defaultValues: { password: '' },
       })

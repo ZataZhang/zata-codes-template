@@ -1,6 +1,7 @@
 import { type SVGProps } from 'react'
 import { cn } from '@/lib/utils'
 
+/** Render the IconTrello component. */
 export function IconTrello({ className, ...props }: SVGProps<SVGSVGElement>) {
   return (
     <svg

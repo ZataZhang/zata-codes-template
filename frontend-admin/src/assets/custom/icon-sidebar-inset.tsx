@@ -1,5 +1,6 @@
 import { type SVGProps } from 'react'
 
+/** Render the IconSidebarInset component. */
 export function IconSidebarInset(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
