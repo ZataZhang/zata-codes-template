@@ -782,9 +782,3 @@ copy name force='':
 # Evidence is written to tasks/evidence/<prd-basename>/.
 e2e-evidence prd_file rv_id="":
     cd "{{justfile_directory()}}" && ./scripts/e2e/run-prd-evidence.sh "{{prd_file}}" "{{rv_id}}"
-
-# Install e2e dependencies and Playwright browsers using pnpm (overrides justfile.shared).
-# Usage:
-#   just e2e-install
-e2e-install:
-    cd "{{justfile_directory()}}/tests/playwright-e2e" && pnpm install && pnpm exec playwright install chromium

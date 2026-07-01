@@ -39,7 +39,7 @@ playwright-e2e/
 3. **`page-objects/LoginPage.ts`** — 保留模板，供需要表单登录的测试复用。
 4. **`tests/setup/auth.setup.ts` / `tests/setup/admin-auth.setup.ts`** — 使用 `/api/auth/login` / `/api/admin/auth/login` 建立 session。
 5. **`tests/smoke/public-home.no-auth.spec.ts`** — public 首页冒烟测试。
-6. **`tests/smoke/admin-sign-in.no-auth.spec.ts`** — admin 前端表单登录冒烟测试。
+6. **`tests/smoke/admin-sign-in.admin.spec.ts`** — admin 前端表单登录冒烟测试（admin project，自行完成登录）。
 
 ## 前置条件
 

@@ -43,9 +43,12 @@ jobs:
           cache: "pnpm"
           cache-dependency-path: frontend-admin/pnpm-lock.yaml
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v4
+
       - name: Generate "what's new" manifest
         working-directory: ${{ github.workspace }}
-        run: python3 scripts/build/build_whats_new_manifest.py --output frontend-admin/public/versions.json
+        run: uv run python scripts/build/build_whats_new_manifest.py --output frontend-admin/public/versions.json
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -78,10 +81,11 @@ jobs:
         run: uv run pre-commit run --all-files --show-diff-on-failure
 
       - name: Check max file lines (hard limit)
-        run: uv run python hooks/shared/check_max_file_lines.py --max-lines 1000 $(find src/backend -name "*.py")
+        run: uv run python hooks/shared/check_max_file_lines.py --max-lines 1000 --glob "*.py" src/backend
 
       - name: Run local test suite
-        run: uv run pytest tests/ -v -m "not expensive"
+        # Matches the default addopts filters in pyproject.toml.
+        run: uv run pytest tests/ -v -m "not slow and not real_api and not redis"
 
       - name: Build documentation
         run: uv run mkdocs build --strict
@@ -162,7 +166,9 @@ jobs:
         env:
           PLAYWRIGHT_SKIP_STACK_BOOT: "1"
           PLAYWRIGHT_BASE_URL: "http://127.0.0.1:3000"
-          PLAYWRIGHT_HEALTH_URL: "http://127.0.0.1:3000/login"
+          # The no-auth smoke tests only require frontend-public in this job;
+          # the backend is not started, so health-check the frontend root.
+          PLAYWRIGHT_HEALTH_URL: "http://127.0.0.1:3000"
         run: pnpm exec playwright test --project=no-auth
 
       - name: Stop frontend dev server

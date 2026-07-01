@@ -42,10 +42,11 @@ jobs:
         run: uv run pre-commit run --all-files --show-diff-on-failure
 
       - name: Check max file lines (hard limit)
-        run: uv run python hooks/shared/check_max_file_lines.py --max-lines 1000 $(find src/backend -name "*.py")
+        run: uv run python hooks/shared/check_max_file_lines.py --max-lines 1000 --glob "*.py" src/backend
 
       - name: Run local test suite
-        run: uv run pytest tests/ -v -m "not expensive"
+        # Matches the default addopts filters in pyproject.toml.
+        run: uv run pytest tests/ -v -m "not slow and not real_api and not redis"
 
       - name: Build documentation
         run: uv run mkdocs build --strict
