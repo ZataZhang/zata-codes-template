@@ -19,7 +19,7 @@
 |---|---|
 | `just sync` | 同步开发依赖 |
 | `just run` | 运行主应用（后端 + 管理平台前端 + 前台官网）；若前端 `node_modules` 缺失会自动运行 `pnpm install` |
-| `just run backend_port=8010 frontend_port=5178 frontend_public_port=3001` | 使用指定端口运行主应用，并保存为当前 Git worktree 的默认端口 |
+| `just run backend_port=8010 frontend_admin_port=13173 frontend_public_port=3001` | 使用指定端口运行主应用，并保存为当前 Git worktree 的默认端口 |
 | `just run frontend-public` | 只启动前台官网（Next.js，默认端口 3000） |
 | `just frontend-public dev` | 在 `frontend-public/` 运行 `pnpm dev` |
 | `just down` | 按当前 Git worktree 保存的端口停止本地开发服务 |
@@ -45,13 +45,13 @@
 
 ## Run Port State
 
-`just run` 会通过 `git rev-parse --git-path vanta-run.env` 定位 Git 本地状态文件。该文件不进入版本控制；在主 worktree 中位于 `.git/vanta-run.env`，在 linked worktree 中位于对应 `.git/worktrees/<name>/vanta-run.env`。
+`just run` 会把运行状态写入项目根目录的 `.env.run-state`。该文件不进入版本控制（被 `.env*` 规则忽略）；每个 worktree 拥有自己独立的运行状态文件，天然避免多 worktree 端口冲突。
 
 - 未传端口且状态文件不存在时，默认使用后端 `8000`、管理平台前端 `5173`、前台官网 `3000`。
-- 传入 `backend_port`、`frontend_port` 或 `frontend_public_port` 时，会保存本次端口配置。
+- 传入 `backend_port`、`frontend_admin_port` 或 `frontend_public_port` 时，会保存本次端口配置。
 - 后续 `just run` 和 `just down` 会复用保存的端口。
 - 前端 Vite 使用 `strictPort`，端口被占用时直接失败，避免自动漂移后 `just down` 停错端口。
-- `just copy <name>` 派生新项目时，会从三个互不重叠的区间随机分配端口（后端 `8000-8999`、管理平台前端 `5180-5999`、前台官网 `3010-3999`），并写入 destination justfile 的 `run`/`down` 默认值以及 `.git/vanta-run.env`，让首次 `just run` 就走随机端口；所选端口会打印到 stdout。`just sync-template` 不会覆盖已随机化的 justfile，因此派生项目可以长期保留自己的端口。
+- `just copy <name>` 派生新项目时，会从三个互不重叠的区间随机分配端口（后端 `8000-8999`、管理平台前端 `5180-5999`、前台官网 `3010-3999`），并写入 destination justfile 的 `run`/`down` 默认值以及 `.env.run-state`，让首次 `just run` 就走随机端口；所选端口会打印到 stdout。`just sync-template` 不会覆盖已随机化的 justfile，因此派生项目可以长期保留自己的端口。
 
 ## Automatic Frontend Dependency Install
 

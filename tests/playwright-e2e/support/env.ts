@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -29,13 +28,9 @@ function trimTrailingSlash(rawUrl: string): string {
 function readRunState(): Record<string, string> {
   try {
     const repoRootPath = resolve(currentDirectoryPath, '../..')
-    const runStateFilePath = execFileSync(
-      'git',
-      ['rev-parse', '--git-path', 'vanta-run.env'],
-      { cwd: repoRootPath, encoding: 'utf-8' },
-    ).trim()
+    const runStateFilePath = resolve(repoRootPath, '.env.run-state')
 
-    if (!runStateFilePath || !existsSync(runStateFilePath)) {
+    if (!existsSync(runStateFilePath)) {
       return {}
     }
 
@@ -168,7 +163,7 @@ export function getAuthStorageStatePath(): string {
  */
 export function getAdminBaseUrl(): string {
   const stackMode = getStackMode()
-  const adminPort = runState.FRONTEND_PORT ?? '5173'
+  const adminPort = runState.FRONTEND_ADMIN_PORT ?? runState.FRONTEND_PORT ?? '5173'
   const fallback = stackMode === 'docker' ? 'http://127.0.0.1:8081' : `http://localhost:${adminPort}`
   return trimTrailingSlash(process.env.PLAYWRIGHT_ADMIN_BASE_URL ?? fallback)
 }

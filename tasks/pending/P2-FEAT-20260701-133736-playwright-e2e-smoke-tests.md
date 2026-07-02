@@ -76,9 +76,9 @@
    # 并配置好 DATABASE_URL / REDIS_URL
 
    cp tests/playwright-e2e/.env.e2e.example tests/playwright-e2e/.env.e2e.local
-   # 编辑 .env.e2e.local（仅覆盖凭据；URL 默认会从 `just run` 写入的 git run-state 读取）
+   # 编辑 .env.e2e.local（仅覆盖凭据；URL 默认会从 `just run` 写入的 run-state 读取）
    ```
-2. 启动本地服务（端口会自动写入 `.git/vanta-run.env`，E2E 会据此自动定位）：
+2. 启动本地服务（端口会自动写入 `.env.run-state`，E2E 会据此自动定位）：
    ```bash
    just run
    ```
@@ -128,7 +128,7 @@
 
 - **E2E 包**：`tests/playwright-e2e/`
   - `playwright.config.ts`：已配置 `chromium`（public 认证）、`no-auth`、`admin`、`admin-setup` 四个 project，视频策略已改为 `video: 'on'`（通过/失败均保留视频）。
-  - `support/env.ts`：解析 `PLAYWRIGHT_*` 环境变量与凭据；dev 模式默认 URL 优先读取 `just run` 写入的 git run-state（`.git/vanta-run.env`）中的端口，避免硬编码。
+  - `support/env.ts`：解析 `PLAYWRIGHT_*` 环境变量与凭据；dev 模式默认 URL 优先读取 `just run` 写入的 run-state（`.env.run-state`）中的端口，避免硬编码。
   - `scripts/stack-control.mjs`：docker/dev 启动与就绪轮询；默认健康检查路径已从 `/healthz` 修正为 `/health`。
   - `tests/setup/auth.setup.ts`、`tests/setup/admin-auth.setup.ts`：已通过 `/api/auth/login`、`/api/admin/auth/login` 完成 API 登录并持久化 storage state。
   - `tests/workflows/no-auth-example.no-auth.spec.ts`：已有的 no-auth 示例，指向 `/login`。
@@ -140,7 +140,7 @@
   - `src/backend/api/admin/admin_auth_router.py`：`POST /admin/auth/login`。
   - `src/backend/main.py`：启动时按 `AUTH_ADMIN_BOOTSTRAP_USERNAME/PASSWORD` 幂等创建 admin 用户。
 - **本地运行入口**：`justfile`
-  - `just run` 默认启动 backend:8000、admin:5173、public:3000，并把实际端口写入 `.git/vanta-run.env`；`scripts/shared/worktree/create.sh` 为新 worktree 分配随机端口并写入对应 run-state，防止多 worktree 冲突。
+  - `just run` 默认启动 backend:8000、admin:5173、public:3000，并把实际端口写入 `.env.run-state`；`scripts/shared/worktree/create.sh` 为新 worktree 分配随机端口并写入对应 run-state，防止多 worktree 冲突。
   - `just e2e-install` 在 `justfile.shared` 中写死 `npm install && npx playwright install chromium`。
 
 ### 架构约束
@@ -172,7 +172,7 @@
 
 1. 在两个前端的关键元素上添加 `data-testid`（public 首页 Hero、admin 登录表单）。
 2. 新增两个 Playwright spec 文件：`public-home.no-auth.spec.ts` 和 `admin-sign-in.no-auth.spec.ts`。
-3. 修正 `support/env.ts` 与 `scripts/stack-control.mjs` 的默认端口/健康路径，使其与 `just run` 和 Docker Compose 对齐；`support/env.ts` 动态读取 `just run` 写入的 git run-state 端口。
+3. 修正 `support/env.ts` 与 `scripts/stack-control.mjs` 的默认端口/健康路径，使其与 `just run` 和 Docker Compose 对齐；`support/env.ts` 动态读取 `just run` 写入的 run-state 端口。
 4. 在 `scripts/shared/worktree/create.sh` 中为新 worktree 分配随机端口并写入 run-state，避免多 worktree 同时运行时的端口冲突。
 5. 在项目 `justfile` 中覆盖 `e2e-install`，改用 `pnpm` 安装依赖和浏览器。
 6. 新增通用 PRD E2E 证据收集器 `scripts/e2e/run-prd-evidence.sh` + `just e2e-evidence <prd> [rv-id]`，任何后续 PRD 的 e2e/smoke/manual oracle 都能复用。
@@ -187,7 +187,7 @@
 ### Proposed Solution Summary (实现机制)
 
 - **核心机制**：在现有 Playwright 框架内新增 no-auth 项目用例，直接通过浏览器访问真实前端 URL 并断言页面元素。
-- **输入/配置**：环境变量 `PLAYWRIGHT_ADMIN_IDENTIFIER` / `PLAYWRIGHT_ADMIN_PASSWORD`（或 fallback 到 `AUTH_ADMIN_BOOTSTRAP_*`）提供 admin 凭据；`support/env.ts` 提供默认 URL，优先读取 `just run` 写入 git run-state 的实际端口，避免硬编码。
+- **输入/配置**：环境变量 `PLAYWRIGHT_ADMIN_IDENTIFIER` / `PLAYWRIGHT_ADMIN_PASSWORD`（或 fallback 到 `AUTH_ADMIN_BOOTSTRAP_*`）提供 admin 凭据；`support/env.ts` 提供默认 URL，优先读取 `just run` 写入 run-state 的实际端口，避免硬编码。
 - **入口/边界**：
   - public 首页测试挂在 `no-auth` project，使用默认 `baseURL`。
   - admin 登录测试也挂在 `no-auth` project，但在 spec 内通过 `test.use({ baseURL: getAdminBaseUrl() })` 切换到 admin 前端 URL。
@@ -210,7 +210,7 @@
 数据/控制流：
 
 1. 开发者运行 `just e2e-install` → 在 `tests/playwright-e2e/` 执行 `pnpm install && pnpm exec playwright install chromium`。
-2. 开发者运行 `just e2e no-auth` → Playwright global setup 根据 `PLAYWRIGHT_STACK_MODE`/`PLAYWRIGHT_SKIP_STACK_BOOT` 决定启动/等待本地 stack；`support/env.ts` 从 `.git/vanta-run.env` 读取 `just run` 端口；然后运行 `*.no-auth.spec.ts`。
+2. 开发者运行 `just e2e no-auth` → Playwright global setup 根据 `PLAYWRIGHT_STACK_MODE`/`PLAYWRIGHT_SKIP_STACK_BOOT` 决定启动/等待本地 stack；`support/env.ts` 从 `.env.run-state` 读取 `just run` 端口；然后运行 `*.no-auth.spec.ts`。
 3. `public-home.no-auth.spec.ts`：访问 `/`，断言 `data-testid="public-hero-heading"` 可见且文本包含核心定位。
 4. `admin-sign-in.no-auth.spec.ts`：通过 `test.use` 切换 baseURL 到 admin 前端，访问 `/sign-in`，填写 `admin-login-*` 输入框，点击提交，等待 URL 不再是 `/sign-in` 并断言 Dashboard 标题可见。
 5. 测试完成后 Playwright `video: 'on'` 保留所有用例视频，`screenshot: 'only-on-failure'` 在失败时保留截图。
@@ -238,11 +238,11 @@
 ├── tests/playwright-e2e/
 │   ├── support/env.ts
 │   │   [修改]
-│   │   【总结】默认 URL 不再硬编码端口，而是读取 `just run` 写入的 git run-state（`.git/vanta-run.env`）中的 `BACKEND_PORT/FRONTEND_PORT/FRONTEND_PUBLIC_PORT`；未找到 run-state 时仍使用原固定端口 fallback。
+│   │   【总结】默认 URL 不再硬编码端口，而是读取 `just run` 写入的 run-state（`.env.run-state`）中的 `BACKEND_PORT/FRONTEND_ADMIN_PORT/FRONTEND_PUBLIC_PORT`；未找到 run-state 时仍使用原固定端口 fallback（兼容旧 `FRONTEND_PORT`）。
 │   │
-│   │   ├── 新增 readRunState() 通过 `git rev-parse --git-path vanta-run.env` 定位并解析 run-state
+│   │   ├── 新增 readRunState() 通过 `.env.run-state` 定位并解析 run-state
 │   │   ├── getBaseUrl() dev fallback 使用 runState.FRONTEND_PUBLIC_PORT ?? '3000'
-│   │   ├── getAdminBaseUrl() dev fallback 使用 runState.FRONTEND_PORT ?? '5173'（Vite dev 只绑 localhost）
+│   │   ├── getAdminBaseUrl() dev fallback 使用 runState.FRONTEND_ADMIN_PORT ?? runState.FRONTEND_PORT ?? '5173'（Vite dev 只绑 localhost）
 │   │   ├── getApiBaseUrl() dev fallback 使用 runState.BACKEND_PORT ?? '8000'
 │   │   └── getHealthUrl() 默认改为 ${apiBaseUrl}/health
 │   │
@@ -291,11 +291,11 @@
 │
 ├── tests/playwright-e2e/.env.e2e.example
 │   [新增]
-│   【总结】E2E 凭据覆盖模板，使用者复制为 `tests/playwright-e2e/.env.e2e.local` 后填入真实密码；该文件只包含凭据，不包含 URL，URL 由 `support/env.ts` 根据 git run-state 动态决定。`tests/playwright-e2e/.env.e2e.local` 已被 gitignore。
+│   【总结】E2E 凭据覆盖模板，使用者复制为 `tests/playwright-e2e/.env.e2e.local` 后填入真实密码；该文件只包含凭据，不包含 URL，URL 由 `support/env.ts` 根据 run-state 动态决定。`tests/playwright-e2e/.env.e2e.local` 已被 gitignore。
 │
 ├── scripts/shared/worktree/create.sh
 │   [修改]
-│   【总结】创建 worktree 后自动生成随机运行端口并写入该 worktree 的 git run-state（`.git/vanta-run.env`），避免多个 worktree 同时 `just run` 时端口冲突。
+│   【总结】创建 worktree 后自动生成随机运行端口并写入该 worktree 的 run-state（`.env.run-state`），避免多个 worktree 同时 `just run` 时端口冲突。
 │
 ├── justfile
 │   [修改]
@@ -315,7 +315,7 @@
 - 如果 admin 前端登录后落地页变化，可改为断言 `page.getByRole('heading', { name: 'Dashboard' })` 不存在失败；Executor 应检查 `frontend-admin/src/routes/_authenticated/index.tsx` 是否仍指向 Dashboard。
 - 若后端健康路径又改为 `/healthz` 以外的值，用 `rg "@health_router.get" src/backend/api/health_router.py` 确认真实路径。
 - 若 `just run` 默认端口调整，同步更新 `support/env.ts` 的 fallback 与 `scripts/shared/worktree/create.sh` 的随机端口范围。
-- 在多 worktree 场景下，确认每个 worktree 的 `.git/vanta-run.env` 端口互不冲突。
+- 在多 worktree 场景下，确认每个 worktree 的 `.env.run-state` 端口互不冲突。
 - 搜索现有 testid 避免命名冲突：
   ```bash
   rg "data-testid=\"[^\"]*login" frontend-public frontend-admin tests/playwright-e2e
@@ -353,7 +353,7 @@ No data model changes in this PRD.
     PLAYWRIGHT_SKIP_STACK_BOOT=1 \
     pnpm exec playwright test tests/smoke/public-home.no-auth.spec.ts
   expected: |
-    控制台输出类似 "1 passed"；playwright-report/index.html 中 public home page loads 测试为绿色。URL 默认从 `just run` 写入的 git run-state 读取，无需在命令中硬编码端口。
+    控制台输出类似 "1 passed"；playwright-report/index.html 中 public home page loads 测试为绿色。URL 默认从 `just run` 写入的 run-state 读取，无需在命令中硬编码端口。
   mock_boundary: 无需 mock；测试直接访问真实 public 前端与后端健康检查。
   negative_control: |
     临时删除 frontend-public/app/(marketing)/page.tsx 中的 data-testid="public-hero-heading" 再运行同一命令。
@@ -370,7 +370,7 @@ No data model changes in this PRD.
     PLAYWRIGHT_SKIP_STACK_BOOT=1 \
     pnpm exec playwright test tests/smoke/admin-sign-in.no-auth.spec.ts
   expected: |
-    控制台输出类似 "1 passed"；playwright-report/index.html 中 admin sign-in form 测试为绿色，且未停留在 /sign-in。admin 前端 URL 默认从 git run-state 读取，不再在命令或 .env 样例中硬编码端口；该命令只跑这一条 spec，不跑整个 smoke 目录。
+    控制台输出类似 "1 passed"；playwright-report/index.html 中 admin sign-in form 测试为绿色，且未停留在 /sign-in。admin 前端 URL 默认从 run-state 读取，不再在命令或 .env 样例中硬编码端口；该命令只跑这一条 spec，不跑整个 smoke 目录。
   mock_boundary: 无需 mock；表单通过真实 admin 前端调用真实 /api/admin/auth/login。
   negative_control: |
     复制 tests/playwright-e2e/.env.e2e.example 为 tests/playwright-e2e/.env.e2e.local 并将 PLAYWRIGHT_ADMIN_PASSWORD 改为错误值，再运行同一命令（或 just e2e-evidence ... rv-2）。
@@ -402,7 +402,7 @@ No data model changes in this PRD.
   required_for_acceptance: true
 ```
 
-**Failure Triage Note**：若 `rv-1`/`rv-2` 失败，首先检查本地服务是否真在运行（`just run` 会写入 `.git/vanta-run.env`，可用 `cat $(git rev-parse --git-path vanta-run.env)` 查看实际端口）以及 `PLAYWRIGHT_HEALTH_URL` 是否指向 `/health`；其次确认命令确实只跑了目标 spec（如 `tests/smoke/admin-sign-in.no-auth.spec.ts`），而不是被其他 smoke 测试的副作用影响。在多 worktree 场景下确认各 worktree 的 run-state 端口没有冲突。若 `rv-3` 安装失败，检查 Node/pnpm 版本与网络代理。
+**Failure Triage Note**：若 `rv-1`/`rv-2` 失败，首先检查本地服务是否真在运行（`just run` 会写入 `.env.run-state`，可用 `cat $(.env.run-state)` 查看实际端口）以及 `PLAYWRIGHT_HEALTH_URL` 是否指向 `/health`；其次确认命令确实只跑了目标 spec（如 `tests/smoke/admin-sign-in.no-auth.spec.ts`），而不是被其他 smoke 测试的副作用影响。在多 worktree 场景下确认各 worktree 的 run-state 端口没有冲突。若 `rv-3` 安装失败，检查 Node/pnpm 版本与网络代理。
 
 ### Low-Fidelity Prototype
 
@@ -455,7 +455,7 @@ No external validation required; repository evidence was sufficient.
 - [ ] public 首页测试通过：`cd tests/playwright-e2e && PLAYWRIGHT_SKIP_STACK_BOOT=1 pnpm exec playwright test tests/smoke/public-home.no-auth.spec.ts` → 控制台显示 1 passed，HTML 报告绿色。
 - [ ] admin 登录测试通过：方式 A（需提前在 `tests/playwright-e2e/.env.e2e.local` 或环境变量中设置 PLAYWRIGHT_ADMIN_PASSWORD）`cd tests/playwright-e2e && PLAYWRIGHT_SKIP_STACK_BOOT=1 pnpm exec playwright test tests/smoke/admin-sign-in.no-auth.spec.ts` → 控制台显示 1 passed；方式 B（复用收集器）`just e2e-evidence tasks/pending/P2-FEAT-20260701-133736-playwright-e2e-smoke-tests.md rv-2` → 退出码 0 并在 `tasks/evidence/P2-FEAT-20260701-133736-playwright-e2e-smoke-tests/` 下生成 `rv-2-output.log`、`rv-2-playwright-report/`、`rv-2-test-results/`。
 - [ ] 故意改错 admin 密码后 `pnpm exec playwright test tests/smoke/admin-sign-in.no-auth.spec.ts` 或 `just e2e-evidence ... rv-2` 失败，并能在对应 `test-results/` 目录找到失败视频。
-- [ ] worktree 随机端口生效：创建一个新 worktree 后，`.git/vanta-run.env` 被写入与主仓库不同的 `BACKEND_PORT/FRONTEND_PORT/FRONTEND_PUBLIC_PORT`，且 `just run` 在该 worktree 中实际监听这些端口。
+- [ ] worktree 随机端口生效：创建一个新 worktree 后，`.env.run-state` 被写入与主仓库不同的 `BACKEND_PORT/FRONTEND_ADMIN_PORT/FRONTEND_PUBLIC_PORT`，且 `just run` 在该 worktree 中实际监听这些端口。
 
 ### Frontend Acceptance
 
@@ -464,7 +464,7 @@ No external validation required; repository evidence was sufficient.
 
 ### Documentation Acceptance
 
-- [ ] `tests/playwright-e2e/README.md` 已更新，说明 `just run` 会写入 git run-state、E2E 默认 URL 从 run-state 读取、凭据来源（`tests/playwright-e2e/.env.e2e.local`）、新增 smoke 文件位置。
+- [ ] `tests/playwright-e2e/README.md` 已更新，说明 `just run` 会写入 run-state、E2E 默认 URL 从 run-state 读取、凭据来源（`tests/playwright-e2e/.env.e2e.local`）、新增 smoke 文件位置。
 - [ ] `docs/guides/e2e.md` 已新增，包含 "环境准备 → 启动服务 → 运行测试 → 查看报告" 的完整命令流，并说明 worktree 场景下的随机端口行为。
 
 ### Validation Acceptance
@@ -488,7 +488,7 @@ No external validation required; repository evidence was sufficient.
 
 - **FR-1**：public 首页无需登录即可加载，且页面上存在 `data-testid="public-hero-heading"` 的元素。
 - **FR-2**：admin 登录表单在填写正确凭据并提交后，浏览器 URL 离开 `/sign-in` 并显示 Dashboard 页面核心标题。
-- **FR-3**：`support/env.ts` 与 `scripts/stack-control.mjs` 的默认 URL/健康路径与 `just run` 保持一致；`support/env.ts` 优先读取 `just run` 写入 git run-state 的实际端口，并在无 run-state 时 fallback 到 backend:8000、admin:5173、public:3000、health:/health。
+- **FR-3**：`support/env.ts` 与 `scripts/stack-control.mjs` 的默认 URL/健康路径与 `just run` 保持一致；`support/env.ts` 优先读取 `just run` 写入 run-state 的实际端口，并在无 run-state 时 fallback 到 backend:8000、admin:5173、public:3000、health:/health。
 - **FR-4**：项目 `justfile` 提供 `e2e-install` recipe，使用 `pnpm` 安装 `tests/playwright-e2e/` 依赖并下载 Chromium。
 - **FR-5**：每次 E2E 运行都会生成视频并保留到 `tests/playwright-e2e/test-results/`；失败时额外保留截图（`video: 'on'`、`screenshot: 'only-on-failure'`）。
 - **FR-6**：项目提供通用 PRD E2E 证据收集器 `just e2e-evidence <prd-file> [rv-id]`，能解析 PRD 中的 YAML oracle 块、执行 `real_entry` 命令，并将日志/报告/视频收集到 `tasks/evidence/<prd-basename>/`。
@@ -511,7 +511,7 @@ No external validation required; repository evidence was sufficient.
 - **风险 1：本地 stack 未就绪导致测试失败**。缓解：README 与 docs/guides/e2e.md 明确前置步骤；`global-setup` 会轮询 `/health` 并在超时后给出清晰错误。
 - **风险 2：admin 凭据未配置或密码强度不满足未来策略**。缓解：测试优先读取 `PLAYWRIGHT_ADMIN_IDENTIFIER/PASSWORD`，fallback 到 `AUTH_ADMIN_BOOTSTRAP_*`；文档说明需在 `tests/playwright-e2e/.env.e2e.local` 或 `.env.local` 设置真实值。
 - **风险 3：前端路由/文案重构后测试变脆**。缓解：使用 `data-testid` 锚点，不依赖具体文案；后续若 Dashboard 标题变化，同步调整 `admin-sign-in.no-auth.spec.ts` 中的 heading 断言。
-- **风险 4：多 worktree 同时运行时端口冲突**。缓解：`scripts/shared/worktree/create.sh` 已为每个 worktree 分配随机端口；运行 `just run` 前可检查 `.git/vanta-run.env` 确认端口未被占用。
+- **风险 4：多 worktree 同时运行时端口冲突**。缓解：`scripts/shared/worktree/create.sh` 已为每个 worktree 分配随机端口；运行 `just run` 前可检查 `.env.run-state` 确认端口未被占用。
 - **非阻塞后续**：当 public 注册/登录流程稳定后，可新增 `public-login.spec.ts` 覆盖完整用户登录路径。
 
 ---
@@ -525,7 +525,7 @@ No external validation required; repository evidence was sufficient.
 | D-03 | 是否更新 Playwright env 默认值 | 更新为项目实际端口（public:3000/admin:5173/health） | 保持模板默认值并在文档中说明手动覆盖 | 默认值错误会让首次 `just e2e` 直接失败，更新默认值是最小修复。 |
 | D-04 | e2e-install 使用 npm 还是 pnpm | 在项目 `justfile` 覆盖为 `pnpm install` | 保持 `justfile.shared` 的 `npm install` | `frontend-admin`/`frontend-public` 与 e2e 包均声明 `packageManager: pnpm`，统一工具链减少锁文件冲突。 |
 | D-05 | rv-2 证据收集是一次性脚本还是通用能力 | 通用收集器 `scripts/e2e/run-prd-evidence.sh` + `just e2e-evidence <prd> [rv-id]` | 为 rv-2 单独写一个硬编码脚本 | 通用收集器可被任何后续 PRD 的 e2e/smoke/manual oracle 复用，避免每个 PRD 都重复造轮子。 |
-| D-06 | E2E 凭据样例与默认 URL 放在哪里 | `tests/playwright-e2e/.env.e2e.example` 只放凭据；URL 由 `support/env.ts` 从 `just run` 的 git run-state 动态读取 | 在仓库根目录放 `.env.e2e.example` 并写死 `PLAYWRIGHT_ADMIN_BASE_URL` | worktree 和随机端口场景下，硬编码 URL 会导致冲突；凭据与 URL 解耦后，`.env.e2e.local` 只需要改密码。 |
+| D-06 | E2E 凭据样例与默认 URL 放在哪里 | `tests/playwright-e2e/.env.e2e.example` 只放凭据；URL 由 `support/env.ts` 从 `just run` 的 run-state 动态读取 | 在仓库根目录放 `.env.e2e.example` 并写死 `PLAYWRIGHT_ADMIN_BASE_URL` | worktree 和随机端口场景下，硬编码 URL 会导致冲突；凭据与 URL 解耦后，`.env.e2e.local` 只需要改密码。 |
 | D-07 | worktree 如何防止端口冲突 | `scripts/shared/worktree/create.sh` 在创建时分配随机端口并写入该 worktree 的 run-state | 保持固定端口，依赖用户手动覆盖 | 多 worktree 并行开发常见，自动随机端口能显著降低 `just run` 冲突概率，且与 `support/env.ts` 的动态读取自然衔接。 |
 
 ---

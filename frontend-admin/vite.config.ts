@@ -7,7 +7,7 @@ import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import { playwright } from '@vitest/browser-playwright'
 
 const backendPort = Number(process.env.BACKEND_PORT) || 8000
-const frontendPort = Number(process.env.FRONTEND_PORT) || 5173
+const frontendPort = Number(process.env.FRONTEND_ADMIN_PORT || process.env.FRONTEND_PORT) || 5173
 
 // https://vite.dev/config/
 export default defineConfig({

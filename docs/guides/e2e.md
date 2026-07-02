@@ -25,7 +25,7 @@
 just run
 ```
 
-`just run` 会同时启动 backend、admin 前端、public 前端，并把实际端口写入当前仓库的 git run-state（`.git/vanta-run.env`）。E2E 默认 URL 会从该 run-state 自动读取，无需手动设置环境变量。
+`just run` 会同时启动 backend、admin 前端、public 前端，并把实际端口写入项目根目录的运行状态文件（`.env.run-state`）。E2E 默认 URL 会从该 run-state 自动读取，无需手动设置环境变量。
 
 默认端口（未被占用时）：
 
@@ -80,7 +80,7 @@ tasks/evidence/P2-FEAT-20260701-133736-playwright-e2e-smoke-tests/
 | 变量 | 说明 | 默认值（dev 模式） |
 |---|---|---|
 | `PLAYWRIGHT_BASE_URL` | public 前端地址 | 优先读取 run-state 中的 `FRONTEND_PUBLIC_PORT`，fallback `http://127.0.0.1:3000` |
-| `PLAYWRIGHT_ADMIN_BASE_URL` | admin 前端地址 | 优先读取 run-state 中的 `FRONTEND_PORT`，fallback `http://localhost:5173` |
+| `PLAYWRIGHT_ADMIN_BASE_URL` | admin 前端地址 | 优先读取 run-state 中的 `FRONTEND_ADMIN_PORT`（兼容旧 `FRONTEND_PORT`），fallback `http://localhost:5173` |
 | `PLAYWRIGHT_HEALTH_URL` | 后端健康检查 | `${apiBaseUrl}/health`，apiBaseUrl 优先读取 run-state 中的 `BACKEND_PORT` |
 | `PLAYWRIGHT_ADMIN_IDENTIFIER` | admin 登录账号 | fallback 到 `AUTH_ADMIN_BOOTSTRAP_USERNAME` |
 | `PLAYWRIGHT_ADMIN_PASSWORD` | admin 登录密码 | fallback 到 `AUTH_ADMIN_BOOTSTRAP_PASSWORD` |
@@ -91,9 +91,9 @@ tasks/evidence/P2-FEAT-20260701-133736-playwright-e2e-smoke-tests/
 如果 `3000` / `5173` / `8000` 被占用，可用：
 
 ```bash
-just run backend_port=8010 frontend_port=5178 frontend_public_port=3001
+just run backend_port=8010 frontend_admin_port=13173 frontend_public_port=3001
 ```
 
-`just run` 会把实际端口写入 `.git/vanta-run.env`，`support/env.ts` 会自动读取，无需再手动设置 `PLAYWRIGHT_*_URL`。
+`just run` 会把实际端口写入 `.env.run-state`，`support/env.ts` 会自动读取，无需再手动设置 `PLAYWRIGHT_*_URL`。
 
 在 worktree 场景中，`scripts/shared/worktree/create.sh` 会自动为新 worktree 分配随机端口并写入对应 run-state，避免多 worktree 同时 `just run` 冲突。

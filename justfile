@@ -21,7 +21,7 @@ default: _check-completion
 #   just run frontend               # start admin frontend only
 #   just run frontend-public        # start public frontend only
 #   just run docker                 # start with Docker Compose (one-click deploy)
-#   just run backend_port=8010 frontend_port=5178 frontend_public_port=3001
+#   just run backend_port=8010 frontend_admin_port=13173 frontend_public_port=3001
 #   just run all frontend_public_cmd="pnpm dev"
 run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="" arg7="" arg8="" arg9="": _check-completion
     #!/usr/bin/env bash
@@ -31,7 +31,7 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="" arg7="" arg8="" arg9="": _ch
     frontend_dir="frontend-admin"
     frontend_public_dir="frontend-public"
     backend_port=""
-    frontend_port=""
+    frontend_admin_port=""
     frontend_public_port=""
     backend_cmd="uv run python -m backend.main"
     frontend_cmd="pnpm dev"
@@ -39,7 +39,7 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="" arg7="" arg8="" arg9="": _ch
     backend_pid=""
     frontend_pid=""
     frontend_public_pid=""
-    run_state_file="$(git rev-parse --git-path vanta-run.env)"
+    run_state_file="{{justfile_directory()}}/.env.run-state"
     positional_index=0
 
     parse_run_arg() {
@@ -61,7 +61,7 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="" arg7="" arg8="" arg9="": _ch
                 echo ""
                 echo "Options:"
                 echo "  backend_port=<port>          Default: 8000"
-                echo "  frontend_port=<port>         Default: 5173"
+                echo "  frontend_admin_port=<port>   Default: 5173"
                 echo "  frontend_public_port=<port>  Default: 3000"
                 echo "  backend_cmd=<cmd>            Default: uv run python -m backend.main"
                 echo "  frontend_cmd=<cmd>           Default: pnpm dev"
@@ -82,8 +82,8 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="" arg7="" arg8="" arg9="": _ch
             backend_port=*)
                 backend_port="${cli_arg#backend_port=}"
                 ;;
-            frontend_port=*)
-                frontend_port="${cli_arg#frontend_port=}"
+            frontend_admin_port=*)
+                frontend_admin_port="${cli_arg#frontend_admin_port=}"
                 ;;
             frontend_public_port=*)
                 frontend_public_port="${cli_arg#frontend_public_port=}"
@@ -113,7 +113,7 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="" arg7="" arg8="" arg9="": _ch
                         ;;
                     *)
                         echo "ERROR: Unexpected run argument: $cli_arg"
-                        echo "Usage: just run [backend|frontend|frontend-public|all|docker] [backend_port=<port>] [frontend_port=<port>] [frontend_public_port=<port>]"
+                        echo "Usage: just run [backend|frontend|frontend-public|all|docker] [backend_port=<port>] [frontend_admin_port=<port>] [frontend_public_port=<port>]"
                         exit 1
                         ;;
                 esac
@@ -133,7 +133,7 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="" arg7="" arg8="" arg9="": _ch
         fi
 
         backend_port="${backend_port:-${BACKEND_PORT:-8000}}"
-        frontend_port="${frontend_port:-${FRONTEND_PORT:-5173}}"
+        frontend_admin_port="${frontend_admin_port:-${FRONTEND_ADMIN_PORT:-5173}}"
         frontend_public_port="${frontend_public_port:-${FRONTEND_PUBLIC_PORT:-3000}}"
     }
 
@@ -141,7 +141,7 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="" arg7="" arg8="" arg9="": _ch
         mkdir -p "$(dirname "$run_state_file")"
         {
             printf 'BACKEND_PORT=%s\n' "$backend_port"
-            printf 'FRONTEND_PORT=%s\n' "$frontend_port"
+            printf 'FRONTEND_ADMIN_PORT=%s\n' "$frontend_admin_port"
             printf 'FRONTEND_PUBLIC_PORT=%s\n' "$frontend_public_port"
         } > "$run_state_file"
     }
@@ -167,10 +167,10 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="" arg7="" arg8="" arg9="": _ch
             printf '%s\n' "${conflict_details[@]}"
             echo ""
             echo "   You can switch to a different port:"
-            echo "      just run backend_port=8010 frontend_port=5178"
+            echo "      just run backend_port=8010 frontend_admin_port=13173"
             echo ""
             echo "   Or stop the existing process:"
-            echo "      just down backend_port=$backend_port frontend_port=$frontend_port"
+            echo "      just down backend_port=$backend_port frontend_admin_port=$frontend_admin_port"
             echo ""
             echo "   For Docker containers, use: just down docker"
             echo ""
@@ -219,11 +219,11 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="" arg7="" arg8="" arg9="": _ch
         fi
 
         ensure_frontend_deps "$frontend_dir"
-        check_port "Admin Frontend" "$frontend_port"
-        echo "Starting admin frontend in $frontend_dir on port $frontend_port: $frontend_cmd"
+        check_port "Admin Frontend" "$frontend_admin_port"
+        echo "Starting admin frontend in $frontend_dir on port $frontend_admin_port: $frontend_cmd"
         (
             cd "$frontend_dir"
-            BACKEND_PORT="$backend_port" FRONTEND_PORT="$frontend_port" bash -lc "$frontend_cmd"
+            BACKEND_PORT="$backend_port" FRONTEND_ADMIN_PORT="$frontend_admin_port" bash -lc "$frontend_cmd"
         )
     }
 
@@ -343,7 +343,7 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="" arg7="" arg8="" arg9="": _ch
 #   just down backend
 #   just down frontend
 #   just down frontend-public
-#   just down backend_port=8010 frontend_port=5178 frontend_public_port=3001
+#   just down backend_port=8010 frontend_admin_port=13173 frontend_public_port=3001
 #   just down docker
 down arg1="" arg2="" arg3="" arg4="" arg5="": _check-completion
     #!/usr/bin/env bash
@@ -351,9 +351,9 @@ down arg1="" arg2="" arg3="" arg4="" arg5="": _check-completion
 
     target="all"
     backend_port=""
-    frontend_port=""
+    frontend_admin_port=""
     frontend_public_port=""
-    run_state_file="$(git rev-parse --git-path vanta-run.env)"
+    run_state_file="{{justfile_directory()}}/.env.run-state"
     positional_index=0
 
     parse_down_arg() {
@@ -375,7 +375,7 @@ down arg1="" arg2="" arg3="" arg4="" arg5="": _check-completion
                 echo ""
                 echo "Options:"
                 echo "  backend_port=<port>          Default: 8000"
-                echo "  frontend_port=<port>         Default: 5173"
+                echo "  frontend_admin_port=<port>   Default: 5173"
                 echo "  frontend_public_port=<port>  Default: 3000"
                 exit 0
                 ;;
@@ -385,8 +385,8 @@ down arg1="" arg2="" arg3="" arg4="" arg5="": _check-completion
             backend_port=*)
                 backend_port="${cli_arg#backend_port=}"
                 ;;
-            frontend_port=*)
-                frontend_port="${cli_arg#frontend_port=}"
+            frontend_admin_port=*)
+                frontend_admin_port="${cli_arg#frontend_admin_port=}"
                 ;;
             frontend_public_port=*)
                 frontend_public_port="${cli_arg#frontend_public_port=}"
@@ -397,7 +397,7 @@ down arg1="" arg2="" arg3="" arg4="" arg5="": _check-completion
                     positional_index=1
                 else
                     echo "ERROR: Unexpected down argument: $cli_arg"
-                    echo "Usage: just down [backend|frontend|frontend-public|all|docker] [backend_port=<port>] [frontend_port=<port>] [frontend_public_port=<port>]"
+                    echo "Usage: just down [backend|frontend|frontend-public|all|docker] [backend_port=<port>] [frontend_admin_port=<port>] [frontend_public_port=<port>]"
                     exit 1
                 fi
                 ;;
@@ -415,7 +415,7 @@ down arg1="" arg2="" arg3="" arg4="" arg5="": _check-completion
         fi
 
         backend_port="${backend_port:-${BACKEND_PORT:-8000}}"
-        frontend_port="${frontend_port:-${FRONTEND_PORT:-5173}}"
+        frontend_admin_port="${frontend_admin_port:-${FRONTEND_ADMIN_PORT:-5173}}"
         frontend_public_port="${frontend_public_port:-${FRONTEND_PUBLIC_PORT:-3000}}"
     }
 
@@ -489,14 +489,14 @@ down arg1="" arg2="" arg3="" arg4="" arg5="": _check-completion
             stop_port backend "$backend_port"
             ;;
         frontend)
-            stop_port "admin frontend" "$frontend_port"
+            stop_port "admin frontend" "$frontend_admin_port"
             ;;
         frontend-public)
             stop_port "public frontend" "$frontend_public_port"
             ;;
         all)
             stop_port backend "$backend_port"
-            stop_port "admin frontend" "$frontend_port"
+            stop_port "admin frontend" "$frontend_admin_port"
             stop_port "public frontend" "$frontend_public_port"
             ;;
         docker)
@@ -722,13 +722,13 @@ copy name force='':
     # well-known defaults and are mutually disjoint, so a single invocation
     # cannot collide with itself.
     backend_random_port=$((8000 + RANDOM % 1000))
-    frontend_random_port=$((5180 + RANDOM % 820))
+    frontend_admin_random_port=$((5180 + RANDOM % 820))
     frontend_public_random_port=$((3010 + RANDOM % 990))
-    echo "Picked random ports: backend=$backend_random_port, admin frontend=$frontend_random_port, public frontend=$frontend_public_random_port"
+    echo "Picked random ports: backend=$backend_random_port, admin frontend=$frontend_admin_random_port, public frontend=$frontend_public_random_port"
 
     # `run` and `down` both fall back to the hardcoded defaults, so rewrite all
     # six occurrences in the destination justfile at once.
-    python3 -c 'from pathlib import Path; import sys; jp = Path(sys.argv[1]); b, f, fp = sys.argv[2:5]; t = jp.read_text(encoding="utf-8"); t = t.replace("${BACKEND_PORT:-8000}", "${BACKEND_PORT:-" + b + "}").replace("${FRONTEND_PORT:-5173}", "${FRONTEND_PORT:-" + f + "}").replace("${FRONTEND_PUBLIC_PORT:-3000}", "${FRONTEND_PUBLIC_PORT:-" + fp + "}"); jp.write_text(t, encoding="utf-8")' "$NEW_JUSTFILE" "$backend_random_port" "$frontend_random_port" "$frontend_public_random_port"
+    python3 -c 'from pathlib import Path; import sys; jp = Path(sys.argv[1]); b, fa, fp = sys.argv[2:5]; t = jp.read_text(encoding="utf-8"); t = t.replace("${BACKEND_PORT:-8000}", "${BACKEND_PORT:-" + b + "}").replace("${FRONTEND_ADMIN_PORT:-5173}", "${FRONTEND_ADMIN_PORT:-" + fa + "}").replace("${FRONTEND_PUBLIC_PORT:-3000}", "${FRONTEND_PUBLIC_PORT:-" + fp + "}"); jp.write_text(t, encoding="utf-8")' "$NEW_JUSTFILE" "$backend_random_port" "$frontend_admin_random_port" "$frontend_public_random_port"
 
     echo "Updating project name in config files..."
     python3 -c 'from pathlib import Path; import sys; old_project_name = sys.argv[1]; new_project_name = sys.argv[2]; target_root = Path(sys.argv[3]); project_file_paths = [target_root / path for path in sys.argv[4:]]; [project_file_path.write_text(project_file_path.read_text(encoding="utf-8").replace(old_project_name, new_project_name), encoding="utf-8") for project_file_path in project_file_paths if project_file_path.exists()]' "$OLD_NAME" "$PROJECT_NAME" "$NEW_DIR" config.toml mkdocs.yml pyproject.toml uv.lock docker-compose.dokploy.yml docker-compose.yml frontend-admin/nginx.conf frontend-public/Dockerfile deploy/vps-traefik/README.md deploy/vps-traefik/docker-compose.yml deploy/vps-traefik/.env.example deploy/vps-traefik/app.env.example deploy/vps-traefik/github-actions-deploy.yml.example
@@ -750,11 +750,11 @@ copy name force='':
 
     # Seed the destination's run state file so the first `just run` reads the
     # same random ports instead of falling back to the justfile defaults.
-    run_state_file="$NEW_DIR/$(git -C "$NEW_DIR" rev-parse --git-path vanta-run.env)"
+    run_state_file="$NEW_DIR/.env.run-state"
     mkdir -p "$(dirname "$run_state_file")"
     {
         printf 'BACKEND_PORT=%s\n' "$backend_random_port"
-        printf 'FRONTEND_PORT=%s\n' "$frontend_random_port"
+        printf 'FRONTEND_ADMIN_PORT=%s\n' "$frontend_admin_random_port"
         printf 'FRONTEND_PUBLIC_PORT=%s\n' "$frontend_public_random_port"
     } > "$run_state_file"
 
@@ -774,6 +774,25 @@ copy name force='':
     # Other hooks (ruff, yaml, architecture) still run to validate the template.
     SKIP=check-test-flag git -C "$NEW_DIR" commit -m "chore: initial commit from template"
 
+
+# Install E2E dependencies and Playwright browsers (first time only).
+e2e-install:
+    cd "{{justfile_directory()}}/tests/playwright-e2e" && pnpm install
+    cd "{{justfile_directory()}}/tests/playwright-e2e" && pnpm exec playwright install chromium
+
+# Run E2E tests locally, starting services with `just run` if not already running.
+# Usage:
+#   just e2e
+#   just e2e headed          # run with --headed --workers=1
+#   just e2e smoke           # run only smoke tests
+#   just e2e @visual         # run tests matching a grep tag
+#   PLAYWRIGHT_SKIP_STACK_BOOT=1 just e2e   # reuse already-running services, skip teardown
+e2e filter="":
+    cd "{{justfile_directory()}}" && ./scripts/shared/e2e/run-with-just-stack.sh "{{filter}}"
+
+# Show the Playwright HTML report from the last E2E run.
+e2e-report:
+    cd "{{justfile_directory()}}/tests/playwright-e2e" && pnpm report
 
 # Run a single E2E oracle from a PRD's Realistic Validation Plan and collect evidence.
 # Usage:

@@ -37,7 +37,7 @@ just run
 可以通过参数指定端口；端口会保存到 Git 本地状态文件，下次 `just run` 会自动复用：
 
 ```bash
-just run backend_port=8010 frontend_port=5178 frontend_public_port=3001
+just run backend_port=8010 frontend_admin_port=13173 frontend_public_port=3001
 just run
 ```
 

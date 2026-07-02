@@ -34,7 +34,7 @@ playwright-e2e/
 
 本项目已适配：
 
-1. **`support/env.ts`** — dev 模式默认 URL 优先读取 `just run` 写入 git run-state（`.git/vanta-run.env`）的端口；无 run-state 时 fallback public 前端 `3000`、admin 前端 `5173`、backend `8000`，健康检查路径 `/health`。
+1. **`support/env.ts`** — dev 模式默认 URL 优先读取 `just run` 写入项目根目录运行状态文件（`.env.run-state`）的端口；无 run-state 时 fallback public 前端 `3000`、admin 前端 `5173`、backend `8000`，健康检查路径 `/health`。
 2. **`scripts/stack-control.mjs`** — 健康检查路径同步为 `/health`。
 3. **`page-objects/LoginPage.ts`** — 保留模板，供需要表单登录的测试复用。
 4. **`tests/setup/auth.setup.ts` / `tests/setup/admin-auth.setup.ts`** — 使用 `/api/auth/login` / `/api/admin/auth/login` 建立 session。
@@ -43,19 +43,29 @@ playwright-e2e/
 
 ## 前置条件
 
-**Docker 模式**（默认）需要在仓库根目录存在 compose 文件（`docker-compose.yml` / `compose.yaml` 等）。
-若目标服务已在运行，设置 `PLAYWRIGHT_SKIP_STACK_BOOT=1` 跳过 stack 启动即可。
+本地开发推荐使用 `just e2e` 单命令运行：它会先调用 `just run all` 启动 backend + admin 前端 + public 前端，跑完测试后再 `just down` 清理。如果服务已经由外部 `just run` 启动，则会复用现有服务，不会重复启动或关闭。
 
-本地 dev 默认端口（可被 `just run` 参数或 worktree 随机端口覆盖）：backend `8000`、admin `5173`、public `3000`。`just run` 会写入 `.git/vanta-run.env`，E2E 会据此自动定位。
+`just run` 会写入 `.env.run-state`，E2E 会据此自动定位端口；无 run-state 时 fallback 到 backend `8000`、admin `5173`、public `3000`。
 
-在父仓库中可通过 `just` 统一入口运行 e2e 测试：
+手动/CI 场景仍可直接使用 E2E 包自带的 Docker 模式或 dev 模式：
+
+- **Docker 模式**：需要仓库根目录存在 compose 文件（`docker-compose.yml` / `compose.yaml` 等）。
+- **Dev 模式**：目标服务已在运行时，设置 `PLAYWRIGHT_SKIP_STACK_BOOT=1` 跳过 stack 启动。
+
+在父仓库中可通过 `just` 统一入口运行 E2E 测试：
 
 ```bash
-just e2e-install   # 安装依赖（首次运行）
-just e2e           # 运行所有测试
-just e2e smoke     # 只跑 smoke
-just e2e no-auth   # 只跑无 auth 测试
-just e2e report    # 查看 HTML 报告
+just e2e-install     # 安装依赖并下载 Chromium（首次运行）
+just e2e             # 运行所有测试（自动启停 just-run stack）
+just e2e smoke       # 只跑 smoke
+just e2e no-auth     # 只跑无 auth 测试
+just e2e headed      # 带浏览器界面、单 worker 运行
+just e2e-report      # 查看上一次运行的 HTML 报告
+
+# 跑单个 spec / 目录 / grep tag（filter 会透传给 pnpm test）
+just e2e tests/smoke/pages.spec.ts
+just e2e tests/smoke
+just e2e @visual
 ```
 
 也可以按 PRD 收集 E2E 证据（日志、HTML 报告、失败视频）：
@@ -69,12 +79,37 @@ just e2e-evidence tasks/pending/P2-FEAT-20260701-133736-playwright-e2e-smoke-tes
 
 ## 运行命令
 
+### 推荐：通过父仓库 `just` 入口
+
+```bash
+# 首次安装
+just e2e-install
+
+# 运行所有测试（自动启停 just-run stack）
+just e2e
+
+# 常用过滤
+just e2e smoke                          # 只跑 smoke
+just e2e no-auth                        # 只跑无 auth project
+just e2e headed                         # 带浏览器界面、单 worker
+just e2e @visual                        # 按 grep tag 过滤
+
+# 跑单个 spec / 目录（filter 透传给 playwright test）
+just e2e tests/smoke/pages.spec.ts
+just e2e tests/smoke
+
+# 查看 HTML 报告
+just e2e-report
+```
+
+### 手动运行 E2E 包（高级 / CI）
+
 ```bash
 # 安装依赖
 pnpm install
 pnpm exec playwright install chromium
 
-# 运行所有测试 (需要本地 stack 或 docker-compose.yml)
+# 运行所有测试（默认走 docker stack mode；需要 docker-compose.yml）
 pnpm test
 
 # 只跑截图 / 审查类测试
