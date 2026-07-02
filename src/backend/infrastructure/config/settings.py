@@ -4,6 +4,18 @@
 1. 环境变量 / .env / .env.local
 2. config.toml（非敏感配置）
 3. 代码中的默认值
+
+新增配置项约定：
+- 非敏感默认值放到 ``config.toml`` 对应 section。
+- 密钥 / Token / 密码等敏感值本身不得在 ``config.toml`` 中写死；应只在
+  ``config.toml`` 中保留「给密钥类的配置变量」，例如 ``providers`` 的
+  ``api_key_env``、密钥别名或 provider 注册信息。
+- 新增给密钥类的配置变量时，同步在 ``.env.example`` 中保留未注释的空值并说明
+  用途（例如 ``OPENAI_API_KEY=``）。非密钥类变量应以 ``# KEY=默认值`` 的注释形式
+  作为示例；可能携带凭据的连接字符串（如 ``DATABASE_URL``、``REDIS_URL``）按密钥类
+  处理，同样保留未注释的空值。
+- 默认未填写 env 时，配置系统仍需能正常加载；若该密钥不可或缺，应在首次
+  使用时抛出清晰错误，而不是在模块导入阶段失败。
 """
 
 from __future__ import annotations

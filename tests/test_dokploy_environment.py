@@ -140,15 +140,22 @@ def test_active_dokploy_template_keys_are_used_in_compose() -> None:
 
 
 def test_compose_service_env_keys_are_documented_in_dokploy_template() -> None:
-    """Every compose service env key must be active in .env.dokploy (or hardcoded)."""
-    template_active: set[str] = _parse_active_env_keys(DOKPLOY_ENV_TEMPLATE_PATH)
+    """Every compose service env key must be declared in .env.dokploy (or hardcoded).
+
+    .. deprecated::
+        See ``test_compose_environment_vars_declared_in_env_example`` in
+        ``tests/repo/test_compose_parity.py`` for the canonical local-side
+        contract. Local-side parity is enforced there. This test covers the
+        same shape for the dokploy compose only.
+    """
+    template_declared: set[str] = _parse_all_env_keys(DOKPLOY_ENV_TEMPLATE_PATH)
     service_envs: dict[str, set[str]] = _parse_all_service_env_keys(DOKPLOY_COMPOSE_PATH)
 
     for service_name, env_keys in service_envs.items():
-        undocumented: list[str] = sorted(env_keys - template_active - HARDCODED_ENV_KEYS)
+        undocumented: list[str] = sorted(env_keys - template_declared - HARDCODED_ENV_KEYS)
         assert (
             not undocumented
-        ), f"Service '{service_name}' env keys must be active in .env.dokploy: {undocumented}"
+        ), f"Service '{service_name}' env keys must be declared in .env.dokploy: {undocumented}"
 
 
 def test_active_env_example_keys_are_used_in_local_compose() -> None:
@@ -165,14 +172,22 @@ def test_active_env_example_keys_are_used_in_local_compose() -> None:
 
 
 def test_local_compose_service_env_keys_are_documented_in_example() -> None:
-    """Every local compose service env key must be active in .env.example (or hardcoded)."""
-    template_active: set[str] = _parse_active_env_keys(ROOT_ENV_TEMPLATE_PATH)
+    """Every local compose service env key must be declared in .env.example (or hardcoded).
+
+    Duplicates the canonical contract from
+    ``tests/repo/test_compose_parity.py::test_compose_environment_vars_declared_in_env_example``
+    using this module's parse helpers. A line in .env.example counts as declared
+    regardless of whether it is active or commented out, so the contract is
+    "compose must not reference an undocumented variable", not "every compose
+    variable must have an active value".
+    """
+    template_declared: set[str] = _parse_all_env_keys(ROOT_ENV_TEMPLATE_PATH)
     service_envs: dict[str, set[str]] = _parse_all_service_env_keys(LOCAL_COMPOSE_PATH)
 
     for service_name, env_keys in service_envs.items():
-        undocumented: list[str] = sorted(env_keys - template_active - HARDCODED_ENV_KEYS)
+        undocumented: list[str] = sorted(env_keys - template_declared - HARDCODED_ENV_KEYS)
         assert not undocumented, (
-            f"Local service '{service_name}' env keys must be active in .env.example: "
+            f"Local service '{service_name}' env keys must be declared in .env.example: "
             f"{undocumented}"
         )
 
