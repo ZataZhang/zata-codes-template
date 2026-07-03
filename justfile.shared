@@ -1169,31 +1169,26 @@ sync-template flags="":
     echo "✅ just lint --full flag updated: $branch_name @ $head_hash"
 
 
-# Run Playwright e2e tests using pnpm (requires: just e2e-install first)
-# Usage:
-#   just e2e            # all tests (excluding visual regression)
-#   just e2e smoke      # smoke tests only
-#   just e2e no-auth    # public-page tests (no login required)
-#   just e2e report     # open HTML test report
-e2e type="":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    cd "{{justfile_directory()}}/tests/playwright-e2e"
-    case "{{type}}" in
-        smoke)   pnpm run test:smoke ;;
-        no-auth) pnpm run test:no-auth ;;
-        report)  pnpm run report ;;
-        "")      pnpm test ;;
-        *)
-            echo "ERROR: Unknown type: {{type}}"
-            echo "Usage: just e2e [smoke|no-auth|report]"
-            exit 1
-            ;;
-    esac
-
-# Install e2e dependencies and Playwright browsers using pnpm (run once before first just e2e)
+# Install E2E dependencies and Playwright browsers (first time only).
 e2e-install:
-    cd "{{justfile_directory()}}/tests/playwright-e2e" && pnpm install && pnpm exec playwright install chromium
+    cd "{{justfile_directory()}}/tests/playwright-e2e" && pnpm install
+    cd "{{justfile_directory()}}/tests/playwright-e2e" && pnpm exec playwright install chromium
+
+# Run E2E tests locally, starting services with `just run` if not already running.
+# Usage:
+#   just e2e
+#   just e2e headed                              # run with --headed --workers=1
+#   just e2e smoke                               # run only smoke tests
+#   just e2e @visual                             # run tests matching a grep tag
+#   just e2e tests/smoke/public-home.no-auth.spec.ts
+#   just e2e tests/smoke/public-home.no-auth.spec.ts --headed
+#   PLAYWRIGHT_SKIP_STACK_BOOT=1 just e2e        # reuse already-running services, skip teardown
+e2e *filter:
+    cd "{{justfile_directory()}}" && ./scripts/shared/e2e/run-with-just-stack.sh "{{filter}}"
+
+# Show the Playwright HTML report from the last E2E run.
+e2e-report:
+    cd "{{justfile_directory()}}/tests/playwright-e2e" && pnpm report
 
 # Pack all gitignored .env* files into a password-protected encrypted zip.
 # Output: ./<project_name>.zip  (one fixed file per project root)

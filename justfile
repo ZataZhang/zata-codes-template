@@ -775,27 +775,6 @@ copy name force='':
     SKIP=check-test-flag git -C "$NEW_DIR" commit -m "chore: initial commit from template"
 
 
-# Install E2E dependencies and Playwright browsers (first time only).
-e2e-install:
-    cd "{{justfile_directory()}}/tests/playwright-e2e" && pnpm install
-    cd "{{justfile_directory()}}/tests/playwright-e2e" && pnpm exec playwright install chromium
-
-# Run E2E tests locally, starting services with `just run` if not already running.
-# Usage:
-#   just e2e
-#   just e2e headed                              # run with --headed --workers=1
-#   just e2e smoke                               # run only smoke tests
-#   just e2e @visual                             # run tests matching a grep tag
-#   just e2e tests/smoke/public-home.no-auth.spec.ts
-#   just e2e tests/smoke/public-home.no-auth.spec.ts --headed
-#   PLAYWRIGHT_SKIP_STACK_BOOT=1 just e2e        # reuse already-running services, skip teardown
-e2e *filter:
-    cd "{{justfile_directory()}}" && ./scripts/shared/e2e/run-with-just-stack.sh "{{filter}}"
-
-# Show the Playwright HTML report from the last E2E run.
-e2e-report:
-    cd "{{justfile_directory()}}/tests/playwright-e2e" && pnpm report
-
 # Run a single E2E oracle from a PRD's Realistic Validation Plan and collect evidence.
 # Usage:
 #   just e2e-evidence tasks/pending/<prd-file>.md rv-2
