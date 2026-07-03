@@ -34,3 +34,17 @@ class TimestampMixin:
         nullable=False,
         comment="记录最近一次更新时间，UTC，数据库端自动维护。",
     )
+
+
+class CreatedAtMixin:
+    """为模型仅注入 ``created_at`` 审计时间字段。
+
+    适用于只记录创建时间、不维护更新时间的日志/审计表。
+    """
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=text("CURRENT_TIMESTAMP"),
+        nullable=False,
+        comment="记录创建时间，UTC，数据库端默认值。",
+    )

@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-
-from sqlalchemy import JSON, DateTime, ForeignKey, String, Text, text
+from sqlalchemy import JSON, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.infrastructure.persistence.database import Base
 
-from .base import TimestampMixin
+from .base import CreatedAtMixin, TimestampMixin
 
 
 class ChatSessionModel(Base, TimestampMixin):
@@ -53,7 +51,7 @@ class ChatSessionModel(Base, TimestampMixin):
     )
 
 
-class ChatMessageModel(Base):
+class ChatMessageModel(Base, CreatedAtMixin):
     """聊天消息表。"""
 
     __tablename__ = "chat_message"
@@ -90,12 +88,6 @@ class ChatMessageModel(Base):
         nullable=False,
         default=list,
         comment="消息附带的工具调用记录。",
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=text("CURRENT_TIMESTAMP"),
-        nullable=False,
-        comment="消息创建时间，UTC。",
     )
 
     session: Mapped["ChatSessionModel"] = relationship(back_populates="messages")
