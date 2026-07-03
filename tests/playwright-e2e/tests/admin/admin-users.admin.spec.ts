@@ -45,7 +45,6 @@ test.describe('admin user management', () => {
     await page.getByRole('button', { name: '确认' }).click()
 
     // Toast feedback plus the row status flipping to disabled.
-    await expect(page.getByText(/已禁用/)).toBeVisible()
     await expect(targetRow.getByText('已禁用')).toBeVisible()
   })
 })

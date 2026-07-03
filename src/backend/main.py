@@ -125,7 +125,11 @@ def _seed_admin_user(
         return
 
     normalized_username: str = bootstrap_username.lower()
-    if admin_repository.find_by_identifier(normalized_username) is not None:
+    existing_admin = admin_repository.find_by_identifier(normalized_username)
+    password_hash: str = password_hasher.hash(bootstrap_password)
+    if existing_admin is not None:
+        admin_repository.set_password(existing_admin.id, password_hash)
+        logger.info("已同步初始管理员密码：%s", normalized_username)
         return
 
     admin_repository.create(
@@ -133,11 +137,50 @@ def _seed_admin_user(
             id=uuid.uuid4().hex,
             identifier=normalized_username,
             display_name=bootstrap_username,
-            password_hash=password_hasher.hash(bootstrap_password),
+            password_hash=password_hash,
             is_active=True,
         )
     )
     logger.info("已创建初始管理员：%s", normalized_username)
+
+
+def _seed_public_user(
+    public_repository: SqlAlchemyUserAccountRepository,
+    password_hasher: BcryptPasswordHasher,
+) -> None:
+    """根据环境变量幂等创建初始 public 用户（用于本地开发 / E2E）。
+
+    仅当配置了 ``APP_BOOTSTRAP_EMAIL`` 与 ``APP_BOOTSTRAP_PASSWORD``
+    且该邮箱尚不存在时创建；凭据来自环境变量，库中只保存 bcrypt 哈希。
+
+    Args:
+        public_repository (SqlAlchemyUserAccountRepository): public 域用户仓库。
+        password_hasher (BcryptPasswordHasher): 密码哈希实现。
+    """
+    bootstrap_email: str = os.getenv("APP_BOOTSTRAP_EMAIL", "").strip()
+    bootstrap_password: str = os.getenv("APP_BOOTSTRAP_PASSWORD", "").strip()
+    if not bootstrap_email or not bootstrap_password:
+        logger.info("未配置 APP_BOOTSTRAP_*，跳过初始 public 用户种子。")
+        return
+
+    normalized_email: str = bootstrap_email.lower()
+    existing_public_user = public_repository.find_by_identifier(normalized_email)
+    password_hash: str = password_hasher.hash(bootstrap_password)
+    if existing_public_user is not None:
+        public_repository.set_password(existing_public_user.id, password_hash)
+        logger.info("已同步初始 public 用户密码：%s", normalized_email)
+        return
+
+    public_repository.create(
+        UserAccount(
+            id=uuid.uuid4().hex,
+            identifier=normalized_email,
+            display_name=bootstrap_email.split("@")[0],
+            password_hash=password_hash,
+            is_active=True,
+        )
+    )
+    logger.info("已创建初始 public 用户：%s", normalized_email)
 
 
 def create_app() -> FastAPI:
@@ -201,6 +244,7 @@ def create_app() -> FastAPI:
 
     _seed_tools()
     _seed_admin_user(admin_user_repository, password_hasher)
+    _seed_public_user(public_user_repository, password_hasher)
 
     app.include_router(auth_router)
     app.include_router(admin_auth_router)

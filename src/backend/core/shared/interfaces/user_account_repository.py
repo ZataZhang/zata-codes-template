@@ -64,6 +64,18 @@ class UserAccountRepository(ABC):
         """
 
     @abstractmethod
+    def set_password(self, account_id: str, password_hash: str) -> UserAccount | None:
+        """更新账户密码哈希。
+
+        Args:
+            account_id (str): 账户主键。
+            password_hash (str): 新的 bcrypt 密码哈希。
+
+        Returns:
+            UserAccount | None: 更新后的账户，未命中返回 None。
+        """
+
+    @abstractmethod
     def list_accounts(
         self,
         *,

@@ -41,14 +41,66 @@ just e2e-install
 
 ## 运行测试
 
+`just e2e` 是单命令入口：它会自动 `just run all` 启动 backend + admin 前端 + public 前端，跑完测试后再 `just down` 清理。如果服务已经在运行，会直接复用，不会重复启停。
+
 ```bash
-just e2e no-auth   # public 首页等无需登录的测试
-just e2e smoke     # smoke 测试（含 admin 登录）
-just e2e           # 全部测试（不含视觉回归）
-just e2e report    # 查看 HTML 报告
+just e2e                          # 全部测试（不含视觉回归；需要配置 public/admin 凭据）
+just e2e no-auth                  # 无需登录的测试，最快最稳
+just e2e smoke                    # smoke 测试（含 admin 登录）
+just e2e-report                   # 查看上一次运行的 HTML 报告
 ```
 
-每次测试都会保留视频（`video: 'on'`），失败用例额外保留截图（`screenshot: 'only-on-failure'`）。
+### 跑单个文件 / 目录
+
+```bash
+just e2e tests/smoke/public-home.no-auth.spec.ts
+just e2e tests/smoke
+```
+
+### 有头模式（弹出浏览器窗口）
+
+`--headed` 可以放在任意位置：
+
+```bash
+just e2e tests/smoke/public-home.no-auth.spec.ts --headed
+just e2e --headed tests/smoke/public-home.no-auth.spec.ts
+just e2e headed                   # 有头跑全部 no-auth（等效于 --grep-invert @visual --headed --workers=1）
+```
+
+### 凭据说明
+
+- `no-auth` 测试不需要任何凭据。
+- `smoke` / 全量测试默认读取项目根目录 `.env.local` 中的 public 种子凭据：
+  ```bash
+  APP_BOOTSTRAP_EMAIL=user@example.com
+  APP_BOOTSTRAP_PASSWORD=user123
+  ```
+  后端启动时会自动创建该 public 用户。
+- admin 相关测试默认读取 `.env.local` 中的 admin 种子凭据：
+  ```bash
+  AUTH_ADMIN_BOOTSTRAP_USERNAME=admin
+  AUTH_ADMIN_BOOTSTRAP_PASSWORD=admin
+  ```
+- 如需覆盖（例如使用不同的 E2E 账号），可在 `tests/playwright-e2e/.env.e2e.local` 中设置：
+  ```bash
+  PLAYWRIGHT_IDENTIFIER=<public 邮箱>
+  PLAYWRIGHT_PASSWORD=<密码>
+  PLAYWRIGHT_ADMIN_IDENTIFIER=<admin 用户名>
+  PLAYWRIGHT_ADMIN_PASSWORD=<密码>
+  ```
+  `.env.e2e.local` 优先级高于 `.env.local`。
+
+### 测试结果
+
+每次 `just e2e` 会把 artifacts（视频、截图、trace、junit.xml）写入按运行时间戳命名的目录：
+
+```text
+tests/playwright-e2e/test-results/2026-07-02T11-31-08/
+├── junit.xml
+└── .../video.webm
+```
+
+HTML 报告仍固定在 `tests/playwright-e2e/playwright-report/`，方便 `just e2e-report` 直接打开。
 
 ## 按 PRD 收集 E2E 证据
 

@@ -24,6 +24,15 @@ repo_root="$(cd "$script_dir/../../.." && pwd)"
 e2e_root="$repo_root/tests/playwright-e2e"
 cd "$repo_root"
 
+# Load project root .env.local so AUTH_ADMIN_BOOTSTRAP_* / APP_BOOTSTRAP_* are
+# available to Playwright. E2E-specific overrides in .env.e2e.local take precedence.
+if [ -f "$repo_root/.env.local" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$repo_root/.env.local"
+  set +a
+fi
+
 # Load local E2E env overrides (gitignored, never committed).
 if [ -f "$e2e_root/.env.e2e.local" ]; then
   set -a
@@ -123,22 +132,51 @@ else
   echo "Services ready on ports $BACKEND_PORT/$FRONTEND_ADMIN_PORT/$FRONTEND_PUBLIC_PORT."
 fi
 
+# Point Playwright global setup / tests to the actual ports from .env.run-state.
+# Users can still override these via their own environment.
+export PLAYWRIGHT_SKIP_STACK_BOOT=1
+export PLAYWRIGHT_BASE_URL="${PLAYWRIGHT_BASE_URL:-http://127.0.0.1:$FRONTEND_PUBLIC_PORT}"
+# Admin Vite dev server binds to localhost (IPv6 loopback on macOS), so use
+# localhost rather than 127.0.0.1 to avoid ERR_CONNECTION_REFUSED.
+export PLAYWRIGHT_ADMIN_BASE_URL="${PLAYWRIGHT_ADMIN_BASE_URL:-http://localhost:$FRONTEND_ADMIN_PORT}"
+export PLAYWRIGHT_HEALTH_URL="${PLAYWRIGHT_HEALTH_URL:-http://127.0.0.1:$BACKEND_PORT/health}"
+export PLAYWRIGHT_API_BASE_URL="${PLAYWRIGHT_API_BASE_URL:-http://127.0.0.1:$BACKEND_PORT}"
+
+# Put this run's artifacts under a single timestamped directory so multiple
+# runs do not overwrite each other. Each Playwright worker inherits this env
+# var, so all artifacts land in the same directory.
+run_timestamp=$(date -u +%Y-%m-%dT%H-%M-%S)
+export PLAYWRIGHT_TEST_RESULTS_DIR="${PLAYWRIGHT_TEST_RESULTS_DIR:-$e2e_root/test-results/$run_timestamp}"
+export PLAYWRIGHT_JUNIT_OUTPUT_FILE="${PLAYWRIGHT_JUNIT_OUTPUT_FILE:-$PLAYWRIGHT_TEST_RESULTS_DIR/junit.xml}"
+echo "E2E artifacts will be written to: $PLAYWRIGHT_TEST_RESULTS_DIR"
+
 cd "$e2e_root"
 
 case "$filter" in
   "")
-    PLAYWRIGHT_SKIP_STACK_BOOT=1 pnpm test
+    pnpm test
     ;;
-  headed)
-    PLAYWRIGHT_SKIP_STACK_BOOT=1 pnpm test:headed
+  headed|headed\ *)
+    # Support both `just e2e headed` and `just e2e "headed <file-or-filter>"`.
+    headed_filter="${filter#headed}"
+    headed_filter="${headed_filter# }"
+    if [ -z "$headed_filter" ]; then
+      pnpm test:headed
+    else
+      # shellcheck disable=SC2086
+      pnpm test:headed $headed_filter
+    fi
     ;;
   smoke)
-    PLAYWRIGHT_SKIP_STACK_BOOT=1 pnpm test:smoke
+    pnpm test:smoke
     ;;
   no-auth)
-    PLAYWRIGHT_SKIP_STACK_BOOT=1 pnpm test:no-auth
+    pnpm test:no-auth
     ;;
   *)
-    PLAYWRIGHT_SKIP_STACK_BOOT=1 pnpm test "$filter"
+    # Allow flags like `--headed` to be passed through as separate arguments,
+    # e.g. `just e2e tests/smoke/public-home.no-auth.spec.ts --headed`.
+    # shellcheck disable=SC2086
+    pnpm test $filter
     ;;
 esac

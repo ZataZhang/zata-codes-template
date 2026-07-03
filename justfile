@@ -783,11 +783,13 @@ e2e-install:
 # Run E2E tests locally, starting services with `just run` if not already running.
 # Usage:
 #   just e2e
-#   just e2e headed          # run with --headed --workers=1
-#   just e2e smoke           # run only smoke tests
-#   just e2e @visual         # run tests matching a grep tag
-#   PLAYWRIGHT_SKIP_STACK_BOOT=1 just e2e   # reuse already-running services, skip teardown
-e2e filter="":
+#   just e2e headed                              # run with --headed --workers=1
+#   just e2e smoke                               # run only smoke tests
+#   just e2e @visual                             # run tests matching a grep tag
+#   just e2e tests/smoke/public-home.no-auth.spec.ts
+#   just e2e tests/smoke/public-home.no-auth.spec.ts --headed
+#   PLAYWRIGHT_SKIP_STACK_BOOT=1 just e2e        # reuse already-running services, skip teardown
+e2e *filter:
     cd "{{justfile_directory()}}" && ./scripts/shared/e2e/run-with-just-stack.sh "{{filter}}"
 
 # Show the Playwright HTML report from the last E2E run.

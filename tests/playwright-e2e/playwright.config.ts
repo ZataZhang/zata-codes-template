@@ -15,7 +15,7 @@ const adminAuthStorageStatePath = resolve(
 const testResultOutputDirectory = process.env.PLAYWRIGHT_TEST_RESULTS_DIR ?? './test-results'
 const htmlReportOutputDirectory = process.env.PLAYWRIGHT_HTML_OUTPUT_DIR ?? 'playwright-report'
 const junitOutputFilePath =
-  process.env.PLAYWRIGHT_JUNIT_OUTPUT_FILE ?? 'test-results/junit.xml'
+  process.env.PLAYWRIGHT_JUNIT_OUTPUT_FILE ?? `${testResultOutputDirectory}/junit.xml`
 
 export default defineConfig({
   testDir: './tests',

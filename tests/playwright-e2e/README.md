@@ -71,9 +71,7 @@ just e2e @visual
 也可以按 PRD 收集 E2E 证据（日志、HTML 报告、失败视频）：
 
 ```bash
-cp tests/playwright-e2e/.env.e2e.example tests/playwright-e2e/.env.e2e.local
-# 编辑 tests/playwright-e2e/.env.e2e.local，填入真实 admin 密码
-
+# 凭据默认从项目根目录 .env.local 读取；如需覆盖再创建 .env.e2e.local
 just e2e-evidence tasks/pending/P2-FEAT-20260701-133736-playwright-e2e-smoke-tests.md rv-2
 ```
 
@@ -95,12 +93,45 @@ just e2e headed                         # 带浏览器界面、单 worker
 just e2e @visual                        # 按 grep tag 过滤
 
 # 跑单个 spec / 目录（filter 透传给 playwright test）
-just e2e tests/smoke/pages.spec.ts
+just e2e tests/smoke/public-home.no-auth.spec.ts
 just e2e tests/smoke
+
+# 有头模式跑单个文件（--headed 可放在任意位置）
+just e2e tests/smoke/public-home.no-auth.spec.ts --headed
+just e2e --headed tests/smoke/public-home.no-auth.spec.ts
 
 # 查看 HTML 报告
 just e2e-report
 ```
+
+`just e2e` 会把每次运行的 artifacts（视频、截图、trace、junit.xml）写入按时间戳命名的目录，例如 `tests/playwright-e2e/test-results/2026-07-02T11-31-08/`。HTML 报告仍固定在 `playwright-report/`，方便 `just e2e-report` 打开。
+
+### 凭据
+
+`no-auth` 测试不需要凭据。
+
+登录测试默认读取项目根目录 `.env.local`：
+
+```bash
+# public 用户（后端启动时自动创建）
+APP_BOOTSTRAP_EMAIL=user@example.com
+APP_BOOTSTRAP_PASSWORD=user123
+
+# admin 用户（后端启动时自动创建）
+AUTH_ADMIN_BOOTSTRAP_USERNAME=admin
+AUTH_ADMIN_BOOTSTRAP_PASSWORD=admin
+```
+
+如需覆盖，创建 `tests/playwright-e2e/.env.e2e.local`：
+
+```bash
+PLAYWRIGHT_IDENTIFIER=<public 邮箱>
+PLAYWRIGHT_PASSWORD=<密码>
+PLAYWRIGHT_ADMIN_IDENTIFIER=<admin 用户名>
+PLAYWRIGHT_ADMIN_PASSWORD=<密码>
+```
+
+`.env.e2e.local` 优先级高于 `.env.local`。
 
 ### 手动运行 E2E 包（高级 / CI）
 

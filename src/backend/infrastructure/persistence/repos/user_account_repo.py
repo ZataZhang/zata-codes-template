@@ -90,6 +90,17 @@ class SqlAlchemyUserAccountRepository(UserAccountRepository):
         self._session.refresh(model)
         return self._to_account(model)
 
+    def set_password(self, account_id: str, password_hash: str) -> UserAccount | None:
+        """更新账户密码哈希并提交。"""
+        model: Any | None = self._session.get(self._model_class, account_id)
+        if model is None:
+            return None
+        model.password_hash = password_hash
+        model.updated_at = datetime.now(timezone.utc)
+        self._session.commit()
+        self._session.refresh(model)
+        return self._to_account(model)
+
     def list_accounts(
         self,
         *,

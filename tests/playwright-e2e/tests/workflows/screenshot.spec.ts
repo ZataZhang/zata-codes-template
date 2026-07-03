@@ -16,8 +16,9 @@ import { expect, test } from '../../fixtures/session.fixture'
 
 /**
  * Captures a full-page screenshot and attaches it to the test report.
- * The file lands in test-results/<test-name>/<name>.png and is visible
- * in the HTML report under the "Attachments" section.
+ * The file lands in test-results/<test-name>/<name>.png (or a timestamped
+ * subdirectory when run via `just e2e`) and is visible in the HTML report under
+ * the "Attachments" section.
  */
 async function attachScreenshot(
   page: Page,
