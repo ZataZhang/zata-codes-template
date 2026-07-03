@@ -325,6 +325,10 @@ _is_upstream_owned() {
         # hooks must live directly under hooks/ and must not be placed in
         # hooks/shared/.
         hooks/shared/*) return 0 ;;
+        # Pre-commit configuration is maintained by the template. Hook scripts
+        # auto-detect project conventions (e.g. alembic filename separator) so
+        # the config can stay generic and syncable.
+        .pre-commit-config.yaml) return 0 ;;
         # Shared Playwright E2E infrastructure. Project-specific specs live in
         # tests/playwright-e2e/tests/ and are skipped via project_skip_paths.
         tests/playwright-e2e/fixtures/*) return 0 ;;
