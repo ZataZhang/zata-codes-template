@@ -529,3 +529,34 @@ def test_sync_template_skips_e2e_runtime_artifacts(
     assert "playwright-report/index.html" not in completed_process.stdout
     assert "node_modules/foo/index.js" not in completed_process.stdout
     assert ".env.e2e.local" not in completed_process.stdout
+
+
+def test_sync_template_default_mode_tool_configs_and_agents_md(
+    tmp_path: Path,
+) -> None:
+    """Default mode surfaces shared tool configs but skips AGENTS.md."""
+
+    template_repo_path = tmp_path / "template-repo"
+    project_repo_path = tmp_path / "project-repo"
+
+    template_files = {
+        "AGENTS.md": "# template agents\n",
+        "pytest.ini": "[pytest]\naddopts = -v\n",
+        "ruff.toml": "line-length = 88\n",
+    }
+    project_files = {
+        "AGENTS.md": "# project agents\n",
+        "pytest.ini": "[pytest]\naddopts = -q\n",
+        "ruff.toml": "line-length = 100\n",
+    }
+
+    create_repo(template_repo_path, template_files, commit_all=True)
+    create_repo(project_repo_path, project_files, commit_all=False)
+
+    completed_process = run_sync_template(project_repo_path, template_repo_path)
+
+    assert completed_process.returncode == 0, completed_process.stderr
+    assert "Found 2 changed + 0 new entry/entries." in completed_process.stdout
+    assert "CHANGED\tpytest.ini" in completed_process.stdout
+    assert "CHANGED\truff.toml" in completed_process.stdout
+    assert "AGENTS.md" not in completed_process.stdout

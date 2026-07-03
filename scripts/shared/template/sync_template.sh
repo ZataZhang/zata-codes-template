@@ -313,10 +313,11 @@ _is_upstream_owned() {
         scripts/shared/*) return 0 ;;
         # Cross-cutting build scripts maintained by the template
         scripts/build/*) return 0 ;;
-        # Tool entry files and the AI standards hub
-        AGENTS.md) return 0 ;;
+        # AI standards hub and shared tool configs
         docs/ai-standards/*) return 0 ;;
         docs/architecture/system-design.md) return 0 ;;
+        pytest.ini) return 0 ;;
+        ruff.toml) return 0 ;;
         .cursor/commands/cursor.md) return 0 ;;
         .cursor/rules/*) return 0 ;;
         .github/copilot-instructions.md) return 0 ;;
