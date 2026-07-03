@@ -811,6 +811,8 @@ ai subcommand arg1="" arg2="" arg3="" :
 # Output is a structured report; the AI does NOT modify the file, and the
 # REPL stays open so the caller can drill into findings or request targeted
 # edits one at a time.
+# When using kimi, the previous session for the current working directory is
+# resumed automatically, so follow-up `just ai check` calls keep context.
 _ai_check file_path ai_tool="claude" prompt="":
     #!/usr/bin/env bash
     set -euo pipefail

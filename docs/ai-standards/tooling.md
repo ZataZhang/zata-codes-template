@@ -27,6 +27,10 @@
 | `just test` | 运行本地测试 |
 | `uv run mkdocs build` | 验证文档站点 |
 | `just docs-serve` | 本地预览文档 |
+| `just ai check <file> [claude\|kimi]` | 用 AI 审查单个文件；使用 kimi 时会自动恢复当前工作目录的上一个会话，方便追问 |
+| `just ai fix [claude\|kimi]` | 用 AI 解决当前 git 冲突（rebase/merge/cherry-pick 等） |
+| `just ai commit [claude\|kimi]` | 先跑 `just test`，再用 AI 生成提交信息 |
+| `just ai implement <prd-file> [claude\|kimi]` | 按 PRD 实现功能 |
 
 ## Justfile Layering
 
