@@ -181,6 +181,11 @@ uv run pre-commit run --all-files
 
 重复检测区分"候选文件"和"比较语料"：候选文件来自当前变更；`jscpd` 比较 `src/backend/`、`frontend/` 与 `frontend-public/`，`pylint duplicate-code` 比较 `src/backend/`。这样可以阻断新增重复，同时避免历史重复让干净工作区的 `just lint` 永久失败。
 
+执行与性能约束：
+
+- 两个重复检测 hook 均声明 `require_serial: true`。wrapper 每次调用都做一次全量语料扫描，若允许 pre-commit 按 CPU 分片并行传参，`--all-files` 会同时启动 N 份完全相同的全量扫描，内存与耗时放大 N 倍。
+- `jscpd` 默认没有任何忽略规则、也不读取 `.gitignore`，wrapper 通过 `--ignore` 显式排除 `node_modules`、`dist`、`build`、`.next`、`coverage` 等依赖与构建产物目录，避免扫描产物导致单次扫描耗时数十分钟、内存数 GB。
+
 常用调试命令：
 
 | Command | Purpose |
