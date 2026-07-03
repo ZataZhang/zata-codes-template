@@ -38,6 +38,8 @@ project_skip_paths = [
     "frontend-public/",
     "docs/",
     "tests/",
+    # E2E infrastructure is upstream-owned; only project-specific specs are skipped.
+    "tests/playwright-e2e/tests/",
     "apps/",
     "services/",
     "infra/",

@@ -419,3 +419,113 @@ def test_sync_template_all_mode_skips_project_private_hooks(
     assert "Found 1 changed + 0 new entry/entries." in completed_process.stdout
     assert "CHANGED\thooks/shared/shared_hook.py" in completed_process.stdout
     assert "hooks/root_hook.py" not in completed_process.stdout
+
+
+def test_sync_template_default_mode_includes_e2e_infrastructure(
+    tmp_path: Path,
+) -> None:
+    """Default sync listing should surface upstream-owned E2E infrastructure."""
+
+    template_repo_path = tmp_path / "template-repo"
+    project_repo_path = tmp_path / "project-repo"
+
+    template_files = {
+        "tests/playwright-e2e/support/env.ts": "// template env\n",
+        "tests/playwright-e2e/tests/smoke/home.spec.ts": "// template spec\n",
+    }
+    project_files = {
+        "tests/playwright-e2e/support/env.ts": "// project env\n",
+        "tests/playwright-e2e/tests/smoke/home.spec.ts": "// project spec\n",
+    }
+
+    create_repo(template_repo_path, template_files, commit_all=True)
+    create_repo(project_repo_path, project_files, commit_all=False)
+
+    completed_process = run_sync_template(project_repo_path, template_repo_path)
+
+    assert completed_process.returncode == 0, completed_process.stderr
+    assert "Found 1 changed + 0 new entry/entries." in completed_process.stdout
+    assert "CHANGED\ttests/playwright-e2e/support/env.ts" in completed_process.stdout
+    assert "tests/playwright-e2e/tests/smoke/home.spec.ts" not in completed_process.stdout
+
+
+def test_sync_template_all_mode_includes_e2e_infrastructure_but_skips_specs(
+    tmp_path: Path,
+) -> None:
+    """--all mode surfaces E2E infrastructure while skipping project specs."""
+
+    template_repo_path = tmp_path / "template-repo"
+    project_repo_path = tmp_path / "project-repo"
+
+    template_files = {
+        "tests/playwright-e2e/support/env.ts": "// template env\n",
+        "tests/playwright-e2e/tests/smoke/home.spec.ts": "// template spec\n",
+        "tests/backend/test_auth.py": "# template backend test\n",
+    }
+    project_files = {
+        "config.toml": (
+            "[template_sync]\n" 'project_skip_paths = ["tests/"]\n' "project_include_paths = []\n"
+        ),
+        "tests/playwright-e2e/support/env.ts": "// project env\n",
+        "tests/playwright-e2e/tests/smoke/home.spec.ts": "// project spec\n",
+        "tests/backend/test_auth.py": "# project backend test\n",
+    }
+
+    create_repo(template_repo_path, template_files, commit_all=True)
+    create_repo(project_repo_path, project_files, commit_all=False)
+
+    completed_process = run_sync_template(
+        project_repo_path,
+        template_repo_path,
+        "--all",
+    )
+
+    assert completed_process.returncode == 0, completed_process.stderr
+    assert "Found 1 changed + 0 new entry/entries." in completed_process.stdout
+    assert "CHANGED\ttests/playwright-e2e/support/env.ts" in completed_process.stdout
+    assert "tests/playwright-e2e/tests/smoke/home.spec.ts" not in completed_process.stdout
+    assert "tests/backend/test_auth.py" not in completed_process.stdout
+
+
+def test_sync_template_skips_e2e_runtime_artifacts(
+    tmp_path: Path,
+) -> None:
+    """E2E runtime artifacts must never appear in sync output."""
+
+    template_repo_path = tmp_path / "template-repo"
+    project_repo_path = tmp_path / "project-repo"
+
+    template_files = {
+        "tests/playwright-e2e/.auth/session.json": "{}\n",
+        "tests/playwright-e2e/test-results/last-run.json": "{}\n",
+        "tests/playwright-e2e/playwright-report/index.html": "<html></html>\n",
+        "tests/playwright-e2e/node_modules/foo/index.js": "// foo\n",
+        "tests/playwright-e2e/.env.e2e.local": "SECRET=1\n",
+        "tests/playwright-e2e/support/env.ts": "// template env\n",
+    }
+    project_files = {
+        "tests/playwright-e2e/.auth/session.json": "{}\n",
+        "tests/playwright-e2e/test-results/last-run.json": "{}\n",
+        "tests/playwright-e2e/playwright-report/index.html": "<html></html>\n",
+        "tests/playwright-e2e/node_modules/foo/index.js": "// foo\n",
+        "tests/playwright-e2e/.env.e2e.local": "SECRET=2\n",
+        "tests/playwright-e2e/support/env.ts": "// project env\n",
+    }
+
+    create_repo(template_repo_path, template_files, commit_all=True)
+    create_repo(project_repo_path, project_files, commit_all=False)
+
+    completed_process = run_sync_template(
+        project_repo_path,
+        template_repo_path,
+        "--all",
+    )
+
+    assert completed_process.returncode == 0, completed_process.stderr
+    assert "Found 1 changed + 0 new entry/entries." in completed_process.stdout
+    assert "CHANGED\ttests/playwright-e2e/support/env.ts" in completed_process.stdout
+    assert ".auth/session.json" not in completed_process.stdout
+    assert "test-results/last-run.json" not in completed_process.stdout
+    assert "playwright-report/index.html" not in completed_process.stdout
+    assert "node_modules/foo/index.js" not in completed_process.stdout
+    assert ".env.e2e.local" not in completed_process.stdout

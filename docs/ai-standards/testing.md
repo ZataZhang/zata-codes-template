@@ -54,6 +54,10 @@
 - 不要对该目录强加 Python SSA 命名规则
 - 先看 `tests/playwright-e2e/README.md` 和 `docs/guides/e2e.md` 的适配说明
 
+### 模板同步边界
+
+E2E 基础设施（runner、配置、共享 support/fixtures/page-objects/scripts、README）是上游模板维护的共享层，`just sync-template` 会自动提示同步。项目特定的测试用例放在 `tests/playwright-e2e/tests/`，默认被 `config.toml` 的 `project_skip_paths` 排除，不会被模板覆盖。运行时产物（`.auth/`、`node_modules/`、`playwright-report/`、`test-results/`、`.env.e2e.local`）永远不会出现在同步列表中。
+
 ### AI Agent 常用命令
 
 `just e2e` 是单命令入口，会自动启停 `backend + admin 前端 + public 前端`。服务已在运行时直接复用，跑完自动 `just down` 清理。

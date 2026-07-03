@@ -41,6 +41,16 @@ playwright-e2e/
 5. **`tests/smoke/public-home.no-auth.spec.ts`** — public 首页冒烟测试。
 6. **`tests/smoke/admin-sign-in.admin.spec.ts`** — admin 前端表单登录冒烟测试（admin project，自行完成登录）。
 
+## 模板同步边界
+
+这个包本身被设计为**上游模板维护的共享层**：
+
+- **共享（`just sync-template` 会同步）**：`fixtures/`、`page-objects/`、`scripts/`、`support/`、`playwright.config.ts`、`package.json`、`pnpm-lock.yaml`、`tsconfig.json`、`.env.e2e.example`、`.eslintrc.cjs`、`.gitignore`、本 `README.md`、`demo/`。
+- **项目私有（不会被同步覆盖）**：`tests/` 目录下的 spec/setup 文件。在父仓库 `config.toml` 的 `project_skip_paths` 中已排除 `tests/playwright-e2e/tests/`。
+- **运行时产物（永远不会出现在同步列表）**：`.auth/`、`node_modules/`、`playwright-report/`、`test-results/`、`.env.e2e.local`。
+
+新增业务测试时，只在 `tests/` 下新增/修改文件，不要改动上层共享基础设施，除非要向上游模板反馈改进。
+
 ## 前置条件
 
 本地开发推荐使用 `just e2e` 单命令运行：它会先调用 `just run all` 启动 backend + admin 前端 + public 前端，跑完测试后再 `just down` 清理。如果服务已经由外部 `just run` 启动，则会复用现有服务，不会重复启动或关闭。
