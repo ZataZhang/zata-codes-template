@@ -119,6 +119,41 @@ uv run pre-commit run --show-diff-on-failure
 2. 修改复用边界、架构规则、AI 规范入口或疑似重复逻辑时运行 `just lint --reuse`。
 3. 交付、PRD 归档或合并前运行 `just lint --repo`；如果时间受限，至少运行 `just lint --full` 和相关测试。
 
+## Pre-commit Configuration Sync
+
+`.pre-commit-config.yaml` 由模板上游维护，已通过 `scripts/shared/template/sync_template.sh` 的 `_is_upstream_owned()` 纳入同步清单。派生项目**不要直接手改**该文件——本地修改会在下次 `sync_template` 时被覆盖。
+
+同步方式：
+
+```bash
+./scripts/shared/template/sync_template.sh
+```
+
+在 TUI 中选中 `.pre-commit-config.yaml` 的更新项并应用即可。应用后建议验证：
+
+```bash
+uv run pre-commit validate-config
+uv run pre-commit run --all-files
+```
+
+### 项目差异如何处理
+
+如果某个 hook 在不同派生项目需要不同行为（例如 Alembic 迁移文件名使用 `-` 还是 `_` 作为分隔符），**不要把差异写进 `.pre-commit-config.yaml`**，而应让 hook 脚本自身支持自动探测或通用参数：
+
+- 优先在 `hooks/shared/<hook>.py` 中增加自动探测逻辑
+- 次选通过环境变量或命令行参数让脚本自适应
+- 避免在 YAML 里硬编码项目特定值
+
+这样 `.pre-commit-config.yaml` 在所有项目中保持一致，模板改动可以一键同步到所有下游仓库。
+
+### 项目私有 hook 放哪里
+
+如果某个项目确实需要独有的 pre-commit hook，不要塞进 `.pre-commit-config.yaml`，建议：
+
+- 把检查逻辑做成独立脚本，放到项目私有的 `hooks/`（非 `hooks/shared/`）目录
+- 在 CI 或 `justfile` 中调用，而不是 pre-commit 统一配置
+- 若该 hook 具有通用价值，优先提交到上游模板，让所有派生项目受益
+
 ## Quality Check Flags
 
 `just lint --full` 和 `just test` 会把通过状态写入 Git 目录下的本地标记文件：
