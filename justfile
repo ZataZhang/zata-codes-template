@@ -197,6 +197,20 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="" arg7="" arg8="" arg9="": _ch
             exit 1
         fi
 
+        # 项目根存在 pnpm-workspace.yaml 时，把 frontend-admin / frontend-public
+        # 当作 pnpm workspace 的成员统一安装，避免在每个子目录里重复 install
+        # 且子目录里 pnpm 11 会自动创建带 allowBuilds 占位的 pnpm-workspace.yaml
+        # 覆盖根配置。
+        workspace_root="{{justfile_directory()}}"
+        if [ -f "$workspace_root/pnpm-workspace.yaml" ]; then
+            echo "Workspace detected at $workspace_root, running pnpm install at workspace root..."
+            (
+                cd "$workspace_root"
+                pnpm install
+            )
+            return 0
+        fi
+
         echo "Dependencies missing in $target_dir, running pnpm install..."
         (
             cd "$target_dir"
@@ -732,6 +746,9 @@ copy name force='':
 
     echo "Updating project name in config files..."
     python3 -c 'from pathlib import Path; import sys; old_project_name = sys.argv[1]; new_project_name = sys.argv[2]; target_root = Path(sys.argv[3]); project_file_paths = [target_root / path for path in sys.argv[4:]]; [project_file_path.write_text(project_file_path.read_text(encoding="utf-8").replace(old_project_name, new_project_name), encoding="utf-8") for project_file_path in project_file_paths if project_file_path.exists()]' "$OLD_NAME" "$PROJECT_NAME" "$NEW_DIR" config.toml mkdocs.yml pyproject.toml uv.lock docker-compose.dokploy.yml docker-compose.yml frontend-admin/nginx.conf frontend-public/Dockerfile deploy/vps-traefik/README.md deploy/vps-traefik/docker-compose.yml deploy/vps-traefik/.env.example deploy/vps-traefik/app.env.example deploy/vps-traefik/github-actions-deploy.yml.example
+
+    echo "Setting up project-specific database..."
+    uv run python "$TEMPLATE_DIR/scripts/shared/template/setup_copied_database.py" "$PROJECT_NAME" "$NEW_DIR"
 
     echo "Resetting README.md to template..."
     python3 "$TEMPLATE_DIR/scripts/shared/template/generate_readme.py" "$PROJECT_NAME" "$NEW_DIR/README.md"

@@ -1,0 +1,17 @@
+# pnpm 工作区配置
+# 把 frontend-admin 和 frontend-public 合并为一个 pnpm workspace。
+# 详见 https://pnpm.io/settings
+packages:
+  - frontend-admin
+  - frontend-public
+
+# pnpm 11 要求用 allowBuilds 显式声明哪些依赖的 install/postinstall 脚本可以运行，
+# 否则会打印 ERR_PNPM_IGNORED_BUILDS 并以退出码 1 失败。
+#
+# esbuild         — Vite / Tailwind / @tanstack/router-plugin / vitest 都需要原生二进制
+# sharp           — Next.js 图像优化
+# unrs-resolver   — eslint-import-resolver-typescript 使用的解析器
+allowBuilds:
+  esbuild: true
+  sharp: true
+  unrs-resolver: true

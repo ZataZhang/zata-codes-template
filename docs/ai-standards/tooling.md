@@ -23,7 +23,7 @@
 | `just run frontend-public` | 只启动前台官网（Next.js，默认端口 3000） |
 | `just frontend-public dev` | 在 `frontend-public/` 运行 `pnpm dev` |
 | `just down` | 按当前 Git worktree 保存的端口停止本地开发服务 |
-| `just copy <new-dir>` | 派生新项目；随机分配三个互不重叠的端口（后端 8000-8999、管理平台前端 5180-5999、前台官网 3010-3999）避免多副本端口冲突 |
+| `just copy <new-dir>` | 派生新项目；随机分配三个互不重叠的端口避免多副本端口冲突，并根据新项目名自动生成独立 PostgreSQL 数据库 |
 | `just test` | 运行本地测试 |
 | `uv run mkdocs build` | 验证文档站点 |
 | `just docs-serve` | 本地预览文档 |
@@ -56,6 +56,14 @@
 - 后续 `just run` 和 `just down` 会复用保存的端口。
 - 前端 Vite 使用 `strictPort`，端口被占用时直接失败，避免自动漂移后 `just down` 停错端口。
 - `just copy <name>` 派生新项目时，会从三个互不重叠的区间随机分配端口（后端 `8000-8999`、管理平台前端 `5180-5999`、前台官网 `3010-3999`），并写入 destination justfile 的 `run`/`down` 默认值以及 `.env.run-state`，让首次 `just run` 就走随机端口；所选端口会打印到 stdout。`just sync-template` 不会覆盖已随机化的 justfile，因此派生项目可以长期保留自己的端口。
+
+## Project Database Isolation
+
+`just copy <name>` 派生新项目时，会读取目标目录 `.env.local` 中的 `DATABASE_URL`。如果该 URL 使用 PostgreSQL，脚本会基于新项目名称派生一个唯一的数据库名（小写、下划线连接、不超过 63 字节），替换 URL 中的数据库名部分，并尝试连接 `postgres` 维护数据库自动创建该数据库。这样多个派生项目不会共享同一个数据库，避免迁移版本冲突或数据串扰。
+
+- 自动创建依赖当前环境已安装的 `psycopg2`；若不可用或连接失败，会打印手动建库命令。
+- 若 `.env.local` 不存在、未配置 `DATABASE_URL` 或使用非 PostgreSQL 数据库，则跳过该步骤。
+- 仅修改目标目录的 `.env.local`；模板源文件中的 `.env.example` 保持占位符不变。
 
 ## Automatic Frontend Dependency Install
 

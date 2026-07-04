@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from typing import Any, Sequence
 
 from sqlalchemy import or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.core.shared.interfaces.user_account_repository import (
@@ -75,7 +76,16 @@ class SqlAlchemyUserAccountRepository(UserAccountRepository):
             **{self._identifier_attr: account.identifier},
         )
         self._session.add(model)
-        self._session.commit()
+        try:
+            self._session.commit()
+        except IntegrityError:
+            # 并发种子场景下另一进程/线程已先行插入同标识账户，回滚后
+            # 转为查询已存在账户返回，保证幂等。
+            self._session.rollback()
+            existing = self.find_by_identifier(account.identifier)
+            if existing is not None:
+                return existing
+            raise
         self._session.refresh(model)
         return self._to_account(model)
 
