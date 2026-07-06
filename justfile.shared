@@ -770,6 +770,7 @@ implement prd_file ai_tool prompt="":
 #   just ai push                              # run `just test`, commit, then push with claude
 #   just ai push kimi "custom prompt"          # use kimi, then push
 #   just ai implement <prd-file> [tool]       # implement a PRD (default: claude)
+#   just ai tag                               # auto-bump patch of latest tag (v0.1.2 -> v0.1.3), tag, then push
 #   just ai tag <name>                        # write tag message, create annotated tag with claude, then push
 #   just ai tag <name> kimi "custom prompt"   # use kimi with a custom prompt, then push
 # Shortcuts: check, fix, commit, push, implement, tag — all delegate to scripts/shared/just/ai_run.sh
@@ -802,7 +803,7 @@ ai subcommand arg1="" arg2="" arg3="" :
             echo "  just ai commit                  # run just test, then commit"
             echo "  just ai push                    # run just test, then commit and push"
             echo "  just ai implement <prd-file>    # implement a PRD"
-            echo "  just ai tag <name>              # write tag message, create annotated tag, then push (default: claude)"
+            echo "  just ai tag [name]              # tag & push (no name = auto-bump patch, e.g. v0.1.2 -> v0.1.3; default: claude)"
             exit 1
             ;;
     esac
@@ -1026,10 +1027,30 @@ _ai_tag tag_name ai_tool="claude" prompt="" :
     ai_tool="{{ai_tool}}"
     prompt_text="{{prompt}}"
 
+    # When no tag name is given, default to bumping the patch (最后一位) of the
+    # most recent semver tag, e.g. v0.1.2 -> v0.1.3. This keeps `just ai tag`
+    # a zero-arg release shortcut for the common "next small version" case.
     if [ -z "$tag_name" ]; then
-        echo "Error: tag name is required."
-        echo "Usage: just ai tag <name> [claude|kimi] [prompt]"
-        exit 1
+        latest_tag="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+        if [ -z "$latest_tag" ]; then
+            echo "Error: no existing tag found to auto-increment from."
+            echo "Create the first tag explicitly, e.g.: just ai tag v0.1.0"
+            exit 1
+        fi
+        # Match an optional 'v' prefix + MAJOR.MINOR.PATCH; anything else is
+        # too ambiguous to bump safely, so require an explicit name instead.
+        if [[ "$latest_tag" =~ ^(v?)([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            tag_prefix="${BASH_REMATCH[1]}"
+            tag_major="${BASH_REMATCH[2]}"
+            tag_minor="${BASH_REMATCH[3]}"
+            tag_patch="${BASH_REMATCH[4]}"
+            tag_name="${tag_prefix}${tag_major}.${tag_minor}.$((tag_patch + 1))"
+            echo "No tag name given; auto-incrementing patch: ${latest_tag} -> ${tag_name}"
+        else
+            echo "Error: latest tag '${latest_tag}' is not a MAJOR.MINOR.PATCH version."
+            echo "Cannot auto-increment; pass a tag name explicitly, e.g.: just ai tag v1.2.3"
+            exit 1
+        fi
     fi
 
     # Tag is the only `ai` subcommand that strictly whitelists tools,

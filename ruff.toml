@@ -26,7 +26,7 @@ convention = "google"
 
 [lint.per-file-ignores]
 "tests/**/*.py" = ["D100", "D103", "D104"]
-"alembic/versions/*.py" = ["D"]
+"alembic/versions/*.py" = ["D", "E501"]
 "src/backend/infrastructure/persistence/models/__init__.py" = ["D104"]
 # System skill scripts contain long template strings and JSON-mapped camelCase fields.
 "skills/.system/**/*.py" = ["E501", "N815"]
