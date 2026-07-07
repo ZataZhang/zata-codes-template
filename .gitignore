@@ -60,3 +60,14 @@ Thumbs.db
 
 # Task evidence (generated artifacts, screenshots, logs)
 tasks/evidence/
+
+# >>> iar (managed by `iar init`) >>>
+# Realistic Validation evidence (worktree-local)
+.iar/
+
+# Agent runner state (worktree-local)
+.agent-runner/
+
+# IAR-managed git worktrees (host-local)
+.iar-worktrees/
+# <<< iar <<<

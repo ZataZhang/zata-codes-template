@@ -1,0 +1,308 @@
+# IAR 本地仓库配置
+# 本文件只覆盖当前仓库特有的配置；未指定的字段继承 config.toml / 环境变量的全局默认值。
+# 修改后无需重启 daemon，下一次轮询自动生效。
+# 完整字段说明见 docs/guides/agent-runner.md。
+
+# 仓库身份标识（用于多仓库管理时区分不同仓库）
+[agent_runner.repository]
+# 仓库在 IAR 中的唯一标识，通常与远程仓库名一致
+id = "zata-codes-template"
+# 是否允许 runner 处理该仓库的 Issue
+enabled = true
+# 管理终端 / 日志中显示的友好名称
+display_name = "zata_code_template"
+
+# Git 发布配置：推送 remote、目标基础分支 base_branch
+[agent_runner.git]
+# 推送分支和创建 PR 时使用的 Git remote 名称
+remote = "zata"
+# 创建 worktree 与 PR 的目标基础分支
+base_branch = "main"
+
+# Issue worktree 的创建与定位命令；默认使用 iar worktree，通常无需修改
+[agent_runner.worktree]
+# 创建新 worktree 的命令；{issue_number} 和 {base_branch} 会被替换
+create_command = "iar worktree create --branch issue-{issue_number} --base-branch {base_branch}"
+# 复用已有 worktree 时定位路径的命令
+reuse_command = "iar worktree path --branch issue-{issue_number}"
+# 获取 worktree 绝对路径的命令
+path_command = "iar worktree path --branch issue-{issue_number}"
+
+# Runner 行为配置：每轮处理 Issue 数量、默认 agent、提交前验证命令
+[agent_runner.runner]
+# 每次轮询每个仓库最多处理多少个 Issue
+max_issues = 1
+# 单轮内并行处理的 Issue 数量：1 为串行（默认）；>1 时同一轮并行跑多个 Issue，仅 iar daemon --concurrency 未指定时作为默认值
+max_concurrent_issues = 1
+# 默认使用的 AI agent：auto / claude / codex / kimi
+default_agent = "auto"
+# Agent 失败后的最大重试次数
+max_recovery_attempts = 5
+# 每次重试前等待的秒数
+recovery_retry_delay_seconds = 30
+# 跨 agent fallback 链：主 agent 失败后依次尝试本机可用 agent（如 ["claude", "kimi", "codex"]），命令不存在则自动跳过；设为空列表可关闭切换
+agent_fallback_order = [
+    "claude",
+    "kimi",
+    "codex",
+]
+# 最多切换 agent 次数（order=[a,b,c] 且此值=2 时最多尝试 3 个 agent）
+max_agent_switches = 2
+# 瞬时网络错误（socket 断开 / 5xx / 超时）的就地重试次数
+transient_retry_attempts = 2
+# 瞬时错误每次重试前等待的秒数
+transient_retry_delay_seconds = 10
+timeout_seconds = 14400
+fix_agent_enabled = true
+inactivity_timeout_seconds = 1200
+# 提交前自动运行的验证命令；任一命令失败会进入 recovery
+verification_commands = [
+    "git diff --check",
+    "uv run mkdocs build",
+    "just test",
+]
+# git add 后、git commit 前额外运行的 pre-commit 命令；失败转 Fix Agent
+pre_commit_verification_command = "SKIP=check-test-flag uv run pre-commit run --all-files"
+
+# 发布前安全边界：自动合并开关、禁止提交的路径模式
+[agent_runner.safety]
+# 是否允许自动合并 PR（强烈建议保持 false；与 agent_runner.autopilot.enabled 同时为 true 才会真正生效）
+auto_merge = false
+# 提交前禁止变更的路径通配模式
+forbidden_path_patterns = [
+    ".env",
+    ".env.*",
+    "secrets/*",
+    "docker-compose.prod.yml",
+]
+
+# Realistic Validation 证据门禁配置
+[agent_runner.validation]
+# 是否启用 Realistic Validation 证据门禁
+enabled = true
+# worktree 内证据目录（默认被 info/exclude 排除，不会进入代码 diff）
+evidence_dir = ".iar/evidence"
+# orphan 证据分支前缀
+branch_prefix = "iar-evidence/"
+# 是否逐项检查证据文件格式
+evidence_format_check = true
+# 是否用 agent 解析 PRD 中的格式要求
+parse_evidence_format_with_agent = true
+# 证据 prompt 与 PR 评论的固定标签语言，如 zh-CN / en-US
+language = "zh-CN"
+# 是否要求带 iar:structured-evidence marker 的 Issue 提供 evidence.json manifest
+structured_evidence = true
+# 是否要求每个结构化证据项提供 negative_control（红→绿判别力,默认开;关掉则回退旧行为）
+require_negative_control = true
+# 是否由 keda 复跑每个结构化证据项的 command 以确认其真的通过（默认开;关掉则只信 agent 证据文件）
+reexecute_commands = true
+# keda 复跑单条命令的超时秒数（默认 300;超时判失败,命令须为自终止的检查）
+reexecute_timeout_seconds = 300
+# 命中代码树指纹(HEAD^{tree})时跳过该项 RV 命令复跑,避免 blocked-continue/换 agent 重复跑（默认开;工作区脏则不缓存、照常复跑）
+reexecute_cache_enabled = true
+# 是否启用独立 verifier agent 复验（默认开;开启后在开 PR 前换一个 agent 对抗复验,red 自动打回 builder）
+verifier_enabled = true
+# verifier 用哪个 agent（auto=自动挑一个≠builder 的）
+verifier_agent = "auto"
+# verifier agent 运行超时秒数（默认 1800）
+verifier_timeout_seconds = 1800
+artifact_health_enabled = true
+# 前端改动（git diff 命中 frontend_paths）是否强制证据目录含真实视觉文件(图片/视频),否则门禁失败(默认开;独立于 verifier)
+frontend_visual_evidence_required = true
+# 判定为前端的目录前缀列表(默认 frontend-admin/frontend-public);runner 用它识别目标仓库的前端改动
+frontend_paths = [
+    "frontend-admin",
+    "frontend-public",
+]
+
+# 实现 Agent 的 prompt 模板；默认 phase 与自定义阶段模板
+[agent_runner.prompts]
+# 默认使用的 prompt 阶段
+default_phase = "execution"
+
+[agent_runner.prompts.phases]
+
+# Draft PR 创建前的 AI review 门禁（push 之后、PR 之前）
+[agent_runner.pre_pr_review]
+# 是否启用 Draft PR 创建前的 AI review
+enabled = true
+# 执行 review 的 agent：auto / claude / codex / kimi
+review_agent = "auto"
+# 是否允许实现 agent 与 reviewer 为同一个
+allow_same_agent = true
+# review 不通过时的最大修复轮数
+max_attempts = 2
+# review agent 最长运行秒数
+timeout_seconds = 1800
+# reviewer 报出问题但未写 commit request 时，同一轮内追加提醒的最大次数
+commit_request_reminder_attempts = 1
+review_prompt_template = []
+
+# Draft PR 创建后的自动 supervisor 配置
+[agent_runner.post_pr_supervisor]
+# 是否启用 post-PR supervisor
+enabled = true
+# 执行 supervisor 的 agent
+supervisor_agent = "auto"
+# supervisor 要求修复时的最大修复 / rebase 次数
+max_repair_attempts = 2
+# supervisor agent 进程崩溃（API / 网络等基础设施错误）时同一 cycle 内的最大重试次数
+max_agent_crash_retries = 5
+# 崩溃重试的初始退避秒数，之后每次重试翻倍
+crash_retry_initial_backoff_seconds = 30
+# 崩溃重试单次退避等待的最大秒数
+crash_retry_max_backoff_seconds = 600
+
+# GitHub Issue / PR 内容生成（面向人类阅读，不影响实现 Agent）
+[agent_runner.generated_content]
+# 是否启用 AI 生成 Issue / PR 正文
+enabled = true
+# 生成失败时的回退方式（当前仅支持 template）
+fallback = "template"
+# 生成 prompt 的最大字符数
+max_input_chars = 20000
+# 执行生成的默认 agent：auto / claude / codex / kimi
+default_agent = "auto"
+
+# 从 PRD 生成 GitHub Issue 的模板
+[agent_runner.generated_content.issue_from_prd]
+# 是否从 PRD 生成 Issue
+enabled = true
+# 生成模式：template（模板渲染）或 agent（调用 AI）
+mode = "template"
+# 输出格式：json / markdown
+output = "json"
+# Issue 标题模板
+title_template = ""
+# Issue 正文模板，支持字符串或字符串列表
+body_template = ""
+# 执行生成的 agent
+agent = "auto"
+# 生成超时秒数
+timeout_seconds = 120
+# agent 模式使用的 prompt
+prompt = ""
+# PR 生成时是否包含 commit log
+include_commit_log = true
+# PR 生成时是否包含 diff stat
+include_diff_stat = true
+
+# 从 commit 信息生成 Draft PR 的模板
+[agent_runner.generated_content.draft_pr]
+# 是否生成 Draft PR 正文
+enabled = true
+# 生成模式：template（模板渲染）或 agent（调用 AI）
+mode = "template"
+# 输出格式：json / markdown
+output = "json"
+# PR 标题模板
+title_template = ""
+# PR 正文模板，支持字符串或字符串列表
+body_template = ""
+# 执行生成的 agent
+agent = "auto"
+# 生成超时秒数
+timeout_seconds = 120
+# agent 模式使用的 prompt
+prompt = ""
+# PR 生成时是否包含 commit log
+include_commit_log = true
+# PR 生成时是否包含 diff stat
+include_diff_stat = true
+
+# 从 GitHub Issue 生成 / 重写 PRD（rework-prd 流程）
+[agent_runner.generated_content.prd_from_issue]
+# 是否从 Issue 生成 / 重写 PRD
+enabled = true
+# 生成模式：agent（调用 AI，推荐）或 template；PRD 无内置模板，template 会退回 fallback
+mode = "agent"
+# 输出格式：json / markdown
+output = "json"
+# PRD 标题模板（template 模式用）
+title_template = ""
+# PRD 正文模板（template 模式用；留空则退回 fallback）
+body_template = ""
+# 执行生成的 agent
+agent = "auto"
+# 生成超时秒数
+timeout_seconds = 120
+# agent 模式 prompt（留空则用内置 prd skill 规范）
+prompt = ""
+# （PRD 生成未使用）
+include_commit_log = true
+# （PRD 生成未使用）
+include_diff_stat = true
+
+# 交互式决策（iar ask）配置：默认 agent、输出目录、执行确认等
+[agent_runner.interactive_decision]
+# 是否启用 iar ask 交互式决策
+enabled = true
+# iar ask 默认使用的 agent：auto / claude / codex / kimi
+default_agent = "claude"
+# 决策日志与审计文件的默认输出目录
+default_output_dir = "logs/agent-runner/decisions"
+# 规划 agent 的最长运行秒数
+planner_timeout_seconds = 120
+# 输入 prompt 的最大字符数
+max_context_chars = 24000
+# 是否允许 `iar ask --yes` 跳过人工确认
+allow_execute_yes = true
+
+# 多 agent 审议（iar deliberate）配置：轮数、合成 agent、参与角色
+[agent_runner.deliberation]
+# 默认审议轮数
+default_rounds = 2
+# 汇总最终结论的默认 agent
+default_synthesizer = "claude"
+# 审议会话输出目录
+default_output_dir = "logs/agent-runner/deliberations"
+continue_on_agent_error = true
+agent_failure_timeout_seconds = 300
+stale_rounds_before_hint = 3
+
+# 审议角色：架构师，关注系统设计与可维护性
+[agent_runner.deliberation.profiles.architect]
+# 该角色使用的 agent
+agent = "claude"
+# 角色标识
+role = "architect"
+# 角色行为 prompt
+behavior_prompt = "You are an experienced software architect. Analyze the requirement from a system design perspective. Focus on modularity, scalability, and maintainability."
+
+# 审议角色：质疑者，挑战假设与风险
+[agent_runner.deliberation.profiles.skeptic]
+# 该角色使用的 agent
+agent = "kimi"
+# 角色标识
+role = "skeptic"
+# 角色行为 prompt
+behavior_prompt = "You are a skeptical reviewer. Challenge assumptions, identify risks, and point out edge cases. Ask hard questions that others might miss."
+
+# 审议角色：实现者，关注可行性与落地步骤
+[agent_runner.deliberation.profiles.implementer]
+# 该角色使用的 agent
+agent = "codex"
+# 角色标识
+role = "implementer"
+# 角色行为 prompt
+behavior_prompt = "You are a pragmatic implementer. Focus on feasibility, concrete steps, and implementation details. Highlight what can be built and what resources are needed."
+
+# GitHub labels 状态流转配置（如你的仓库使用不同标签名，可取消注释并覆盖）
+# [agent_runner.labels]
+# ready = "agent/ready"
+# running = "agent/running"
+# supervising = "agent/supervising"
+# review = "agent/review"
+# failed = "agent/failed"
+# blocked = "agent/blocked"
+# codex = "agent/codex"
+# claude = "agent/claude"
+# kimi = "agent/kimi"
+
+# Daemon 轮询与 reclaim 配置（取消注释可覆盖全局默认；不写则继承全局）
+# [agent_runner.daemon]
+# review_interval_seconds = 120      # review-daemon 轮询间隔秒数
+# run_interval_seconds = 120         # daemon 轮询间隔秒数
+# max_deliberation_issues = 1        # 每轮 Phase 0 审议最大 Issue 数
+# reclaim_stale_running = true       # 是否在每轮开头 reclaim 卡死的 agent/running
+# reclaim_ttl_seconds = 10800        # TTL 阈值(秒):claim 含 started_at 且超时即视为 stale
