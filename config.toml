@@ -24,10 +24,13 @@ log_level = "INFO"
 # Project-level paths skipped by `just sync-template --all`.
 #
 # Default mode (`just sync-template` with no flags) only shows upstream-owned
-# files (justfile.shared, scripts/shared/*, scripts/build/*, AI standards,
-# tool entry files, hooks/shared/*.py, etc.) — see `_is_upstream_owned` in
-# scripts/shared/template/sync_template.sh for the full allowlist. The list
-# below is irrelevant in default mode.
+# files (justfile.shared, scripts/shared/*, scripts/build/*, tool configs like
+# pytest.ini/ruff.toml/.pre-commit-config.yaml, hooks/shared/*.py, E2E
+# infrastructure, etc.) - see `_is_upstream_owned` in
+# scripts/shared/template/sync_template.sh. AI adapter files (docs/ai-standards/,
+# .github/copilot-instructions.md, .github/instructions/, .cursor/commands/,
+# AGENTS.md, CLAUDE.md) are excluded from default mode and only appear in --all.
+# The list below is irrelevant in default mode.
 #
 # --all mode additionally surfaces these project-level paths so you can decide
 # which to bring into your fork. Add new project-owned directories here so

@@ -566,3 +566,120 @@ def test_sync_template_default_mode_tool_configs_and_agents_md(
     assert "CHANGED\tpytest.ini" in completed_process.stdout
     assert "CHANGED\truff.toml" in completed_process.stdout
     assert "AGENTS.md" not in completed_process.stdout
+
+
+def test_sync_template_default_mode_skips_ai_adapter_files(tmp_path: Path) -> None:
+    """Default sync listing skips AI adapter files (AI standards + AI entry files)."""
+
+    template_repo_path = tmp_path / "template-repo"
+    project_repo_path = tmp_path / "project-repo"
+
+    template_files = {
+        "docs/ai-standards/index.md": "# template index\n",
+        ".github/copilot-instructions.md": "# template copilot\n",
+        ".github/instructions/python-tests.instructions.md": "# template instructions\n",
+        ".cursor/commands/cursor.md": "# template cursor\n",
+        "scripts/shared/tool.sh": "echo template\n",
+    }
+    project_files = {
+        "docs/ai-standards/index.md": "# project index\n",
+        ".github/copilot-instructions.md": "# project copilot\n",
+        ".github/instructions/python-tests.instructions.md": "# project instructions\n",
+        ".cursor/commands/cursor.md": "# project cursor\n",
+        "scripts/shared/tool.sh": "echo project\n",
+    }
+
+    create_repo(template_repo_path, template_files, commit_all=True)
+    create_repo(project_repo_path, project_files, commit_all=False)
+
+    completed_process = run_sync_template(project_repo_path, template_repo_path)
+
+    assert completed_process.returncode == 0, completed_process.stderr
+    # Only scripts/shared/tool.sh is upstream-owned and not an AI adapter file.
+    assert "Found 1 changed + 0 new entry/entries." in completed_process.stdout
+    assert "CHANGED\tscripts/shared/tool.sh" in completed_process.stdout
+    assert "docs/ai-standards/index.md" not in completed_process.stdout
+    assert ".github/copilot-instructions.md" not in completed_process.stdout
+    assert ".github/instructions/python-tests.instructions.md" not in completed_process.stdout
+    assert ".cursor/commands/cursor.md" not in completed_process.stdout
+
+
+def test_sync_template_all_mode_includes_ai_adapter_files(tmp_path: Path) -> None:
+    """--all mode surfaces AI adapter files even when docs/ is in skip_paths."""
+
+    template_repo_path = tmp_path / "template-repo"
+    project_repo_path = tmp_path / "project-repo"
+
+    template_files = {
+        "docs/ai-standards/index.md": "# template index\n",
+        ".github/copilot-instructions.md": "# template copilot\n",
+        ".cursor/commands/cursor.md": "# template cursor\n",
+        "scripts/shared/tool.sh": "echo template\n",
+    }
+    project_files = {
+        # docs/ is in default project_skip_paths, but docs/ai-standards/ is
+        # upstream-owned so --all still surfaces it.
+        "docs/ai-standards/index.md": "# project index\n",
+        ".github/copilot-instructions.md": "# project copilot\n",
+        ".cursor/commands/cursor.md": "# project cursor\n",
+        "scripts/shared/tool.sh": "echo project\n",
+    }
+
+    create_repo(template_repo_path, template_files, commit_all=True)
+    create_repo(project_repo_path, project_files, commit_all=False)
+
+    completed_process = run_sync_template(
+        project_repo_path,
+        template_repo_path,
+        "--all",
+    )
+
+    assert completed_process.returncode == 0, completed_process.stderr
+    # All four entries appear in --all mode.
+    assert "Found 4 changed + 0 new entry/entries." in completed_process.stdout
+    assert "CHANGED\tscripts/shared/tool.sh" in completed_process.stdout
+    assert "CHANGED\tdocs/ai-standards/index.md" in completed_process.stdout
+    assert "CHANGED\t.github/copilot-instructions.md" in completed_process.stdout
+    assert "CHANGED\t.cursor/commands/cursor.md" in completed_process.stdout
+
+
+def test_sync_template_claude_md_appears_only_in_all_mode(tmp_path: Path) -> None:
+    """CLAUDE.md is skipped in default mode but surfaced in --all mode."""
+
+    template_repo_path = tmp_path / "template-repo"
+    project_repo_path = tmp_path / "project-repo"
+
+    template_files = {
+        "CLAUDE.md": "# template claude\n",
+        "AGENTS.md": "# template agents\n",
+        "scripts/shared/tool.sh": "echo template\n",
+    }
+    project_files = {
+        "CLAUDE.md": "# project claude\n",
+        "AGENTS.md": "# project agents\n",
+        "scripts/shared/tool.sh": "echo project\n",
+    }
+
+    create_repo(template_repo_path, template_files, commit_all=True)
+    create_repo(project_repo_path, project_files, commit_all=False)
+
+    # Default mode: only scripts/shared/tool.sh (CLAUDE.md and AGENTS.md are
+    # not upstream-owned).
+    default_result = run_sync_template(project_repo_path, template_repo_path)
+    assert default_result.returncode == 0, default_result.stderr
+    assert "Found 1 changed + 0 new entry/entries." in default_result.stdout
+    assert "CHANGED\tscripts/shared/tool.sh" in default_result.stdout
+    assert "CLAUDE.md" not in default_result.stdout
+    assert "AGENTS.md" not in default_result.stdout
+
+    # --all mode: CLAUDE.md (no longer always-skipped) and AGENTS.md appear.
+    all_result = run_sync_template(
+        project_repo_path,
+        template_repo_path,
+        "--all",
+    )
+    assert all_result.returncode == 0, all_result.stderr
+    assert "Found 3 changed + 0 new entry/entries." in all_result.stdout
+    assert "CHANGED\tscripts/shared/tool.sh" in all_result.stdout
+    assert "CHANGED\tCLAUDE.md" in all_result.stdout
+    assert "CHANGED\tAGENTS.md" in all_result.stdout

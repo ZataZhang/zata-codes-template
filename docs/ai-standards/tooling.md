@@ -131,6 +131,17 @@ uv run pre-commit run --show-diff-on-failure
 2. 修改复用边界、架构规则、AI 规范入口或疑似重复逻辑时运行 `just lint --reuse`。
 3. 交付、PRD 归档或合并前运行 `just lint --repo`；如果时间受限，至少运行 `just lint --full` 和相关测试。
 
+## AI Adapter Sync
+
+`just sync-template` 默认模式只同步上游维护的基础设施（`justfile.shared`、`scripts/shared/*`、`scripts/build/*`、工具配置、`hooks/shared/*`、E2E 基础设施等），**不同步 AI 适配层文件**：
+
+- AI 规范源：`docs/ai-standards/*`
+- Copilot 入口：`.github/copilot-instructions.md`、`.github/instructions/*.md`
+- Cursor 入口：`.cursor/commands/cursor.md`、`.cursor/rules/*`
+- 跨工具入口摘要：`AGENTS.md`、`CLAUDE.md`
+
+这些文件派生项目常会自定义（改入口指向、调整规范），默认覆盖会破坏项目定制，因此只在 `just sync-template --all` 模式才作为同步候选出现。实现见 `scripts/shared/template/sync_template.sh` 的 `_is_ai_adapter_file`。
+
 ## Pre-commit Configuration Sync
 
 `.pre-commit-config.yaml` 由模板上游维护，已通过 `scripts/shared/template/sync_template.sh` 的 `_is_upstream_owned()` 纳入同步清单。派生项目**不要直接手改**该文件——本地修改会在下次 `sync_template` 时被覆盖。

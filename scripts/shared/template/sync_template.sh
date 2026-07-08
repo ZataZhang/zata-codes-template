@@ -260,7 +260,7 @@ _is_always_skipped() {
         # Project-owned root-level files (the project writes these; the
         # template never overwrites them)
         README.md|pyproject.toml|config.toml|mkdocs.yml|uv.lock) return 0 ;;
-        CLAUDE.md|main.py|justfile) return 0 ;;
+        main.py|justfile) return 0 ;;
         findings.md|progress.md|task_plan.md) return 0 ;;
         .DS_Store|.dockerignore|.gitignore) return 0 ;;
     esac
@@ -345,6 +345,27 @@ _is_upstream_owned() {
         tests/playwright-e2e/.gitignore) return 0 ;;
         tests/playwright-e2e/README.md) return 0 ;;
         tests/playwright-e2e/demo/*) return 0 ;;
+    esac
+    return 1
+}
+
+# AI 适配层文件：模板维护的 AI 入口与规范源。派生项目常会自定义这些文件
+# （改入口指向、调整规范），因此默认模式不同步它们，只在 --all 模式才作为
+# 候选出现。它们仍在 _is_upstream_owned 中，所以 --all 模式下即使匹配
+# project_skip_paths（如 docs/）也会显示。AGENTS.md 和 CLAUDE.md 不在此函数
+# 中：它们不是 upstream_owned，默认模式本就不显示；CLAUDE.md 已从
+# _is_always_skipped 移除，所以 --all 模式可以同步它。
+_is_ai_adapter_file() {
+    local p="$1"
+    case "$p" in
+        # AI 规范源
+        docs/ai-standards/*) return 0 ;;
+        # Copilot 入口与 scoped instructions
+        .github/copilot-instructions.md) return 0 ;;
+        .github/instructions/*.md) return 0 ;;
+        # Cursor 入口
+        .cursor/commands/cursor.md) return 0 ;;
+        .cursor/rules/*) return 0 ;;
     esac
     return 1
 }
@@ -778,8 +799,10 @@ if ! $LOCAL_SKILLS_MODE; then
             continue
         fi
         if ! $SHOW_ALL; then
-            # Default mode: only upstream-owned entries show up in the TUI.
-            if ! _is_upstream_owned "$rel_path"; then
+            # Default mode: only upstream-owned entries show up in the TUI,
+            # excluding AI adapter files (docs/ai-standards/, .github Copilot
+            # entries, .cursor entries) which only appear in --all mode.
+            if ! _is_upstream_owned "$rel_path" || _is_ai_adapter_file "$rel_path"; then
                 continue
             fi
         else

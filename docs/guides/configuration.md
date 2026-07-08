@@ -46,6 +46,8 @@
 - `project_skip_paths`：默认跳过的项目路径，例如 `src/backend/`、`frontend-admin/`、`infra/`。
 - `project_include_paths`：即使命中 `project_skip_paths` 也仍然显示的路径。
 
+默认模式（不带 `--all`）只显示上游维护的基础设施（`justfile.shared`、`scripts/shared/*`、`scripts/build/*`、工具配置如 `pytest.ini`/`ruff.toml`/`.pre-commit-config.yaml`、`hooks/shared/*`、E2E 基础设施等），**不显示 AI 适配层文件**（`docs/ai-standards/`、`.github/copilot-instructions.md`、`.github/instructions/`、`.cursor/commands/`、`AGENTS.md`、`CLAUDE.md`）--这些文件派生项目常会自定义，只在 `--all` 模式才作为同步候选出现。详见 `scripts/shared/template/sync_template.sh` 的 `_is_ai_adapter_file`。
+
 运行 `just sync-template --all` 时会忽略这些项目路径过滤规则，临时查看所有模板差异。
 
 也可以用环境变量临时覆盖：
