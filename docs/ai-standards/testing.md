@@ -44,6 +44,41 @@
 - `uv run python hooks/shared/check_guidelines_consistency.py`
 - `uv run mkdocs build`
 
+## Guard Tests
+
+`tests/guards/` 下的测试是**守卫测试**：它们断言仓库自身的约定、hook 行为、
+构建脚本契约和公共 API 契约没被破坏，而不是验证业务功能逻辑。业务功能测试
+放在 `tests/` 根目录或 `tests/backend/`。
+
+### 失败时如何处理
+
+**守卫测试失败，修复触发它的源代码、配置或脚本，不要修改守卫测试本身来让
+测试通过。** 改测试让失败消失等于拆掉规则本身——失败本来就是在告诉你有人
+破坏了约定。例如 `test_alembic_migration_naming.py` 失败，说明某个迁移文件
+名违反了命名约定，正确做法是改那个迁移文件名，而不是放宽测试断言。
+
+仅当**约定本身需要变更**时才修改守卫测试，且必须同步更新对应的约定文档。
+
+### 为什么单独成目录
+
+守卫测试和业务测试混在一起时，AI 编码代理无法区分二者：它的默认目标是"让
+测试通过"，而改测试是最短路径。集中到 `tests/guards/` 并在每个文件头标注
+guard test，是为了让代理第一眼识别"这是规则本身，不是被规则约束的对象"。
+每个守卫测试的 module docstring 都以"守护 X 的守卫测试（guard test）"开头，
+并指向本节。守卫测试清单见 `tests/guards/README.md`。
+
+### 提交保护
+
+修改 `tests/guards/**` 会触发 pre-commit hook `check-guard-test-modification`：
+默认拒绝提交，提示确认这是有意的规则更新。确认后设置环境变量再提交：
+
+```bash
+GUARD_UPDATE_ACK=1 git commit ...
+```
+
+AI 代理默认不会设置该变量，因此会被 hook 拦下——这是"指令被忽略"时的最后一
+道硬门禁。
+
 ## Playwright Boundary
 
 `tests/playwright-e2e/` 是**独立的 TypeScript/Node.js 包**。

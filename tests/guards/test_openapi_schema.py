@@ -1,4 +1,9 @@
-"""Contract test for the generated OpenAPI schema.
+"""守护公开 HTTP 契约（OpenAPI schema）的守卫测试（guard test）。
+
+本文件位于 ``tests/guards/``，失败意味着源代码、配置或脚本违反了仓库约定。
+正确做法是修复触发它的源代码或配置，而不是修改本文件让测试通过；仅当约定
+本身需要变更时才改本文件，并同步更新相关约定文档。详见
+``docs/ai-standards/testing.md`` 的 Guard Tests 小节。
 
 This test guards against accidental breaking changes to the public HTTP
 contract: it loads the FastAPI application without starting a server and

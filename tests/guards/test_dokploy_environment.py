@@ -1,4 +1,9 @@
-"""Tests for deployment environment templates.
+"""守护部署环境模板（env/compose 一致性）的守卫测试（guard test）。
+
+本文件位于 ``tests/guards/``，失败意味着源代码、配置或脚本违反了仓库约定。
+正确做法是修复触发它的源代码或配置，而不是修改本文件让测试通过；仅当约定
+本身需要变更时才改本文件，并同步更新相关约定文档。详见
+``docs/ai-standards/testing.md`` 的 Guard Tests 小节。
 
 These tests verify bidirectional consistency between environment variable
 templates and Docker Compose declarations, without hard-coding service
@@ -11,7 +16,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-PROJECT_ROOT_PATH: Path = Path(__file__).resolve().parents[1]
+PROJECT_ROOT_PATH: Path = Path(__file__).resolve().parents[2]
 DOKPLOY_COMPOSE_PATH: Path = PROJECT_ROOT_PATH / "docker-compose.dokploy.yml"
 LOCAL_COMPOSE_PATH: Path = PROJECT_ROOT_PATH / "docker-compose.yml"
 DOKPLOY_ENV_TEMPLATE_PATH: Path = PROJECT_ROOT_PATH / ".env.dokploy.example"

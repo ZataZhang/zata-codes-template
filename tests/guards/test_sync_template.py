@@ -1,4 +1,10 @@
-"""Regression tests for the template sync script."""
+"""守护 template sync 脚本的守卫测试（guard test）。
+
+本文件位于 ``tests/guards/``，失败意味着源代码、配置或脚本违反了仓库约定。
+正确做法是修复触发它的源代码或配置，而不是修改本文件让测试通过；仅当约定
+本身需要变更时才改本文件，并同步更新相关约定文档。详见
+``docs/ai-standards/testing.md`` 的 Guard Tests 小节。
+"""
 
 from __future__ import annotations
 
@@ -6,7 +12,7 @@ import os
 import subprocess
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 SYNC_TEMPLATE_SCRIPT_PATH = REPO_ROOT / "scripts" / "shared" / "template" / "sync_template.sh"
 
 

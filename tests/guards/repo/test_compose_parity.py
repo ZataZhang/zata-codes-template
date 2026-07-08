@@ -1,4 +1,9 @@
-"""Docker Compose 仓库约定检查。
+"""守护 Docker Compose 仓库约定的守卫测试（guard test）。
+
+本文件位于 ``tests/guards/``，失败意味着源代码、配置或脚本违反了仓库约定。
+正确做法是修复触发它的源代码或配置，而不是修改本文件让测试通过；仅当约定
+本身需要变更时才改本文件，并同步更新相关约定文档。详见
+``docs/ai-standards/testing.md`` 的 Guard Tests 小节。
 
 防范派生项目中常见的三类问题：
 
@@ -21,7 +26,7 @@ from typing import Any
 import pytest
 import yaml
 
-_PROJECT_ROOT_PATH = Path(__file__).resolve().parents[2]
+_PROJECT_ROOT_PATH = Path(__file__).resolve().parents[3]
 _LOCAL_COMPOSE_PATH = _PROJECT_ROOT_PATH / "docker-compose.yml"
 _DOKPLOY_COMPOSE_PATH = _PROJECT_ROOT_PATH / "docker-compose.dokploy.yml"
 

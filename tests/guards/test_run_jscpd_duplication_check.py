@@ -1,4 +1,9 @@
-"""Regression tests for the incremental jscpd duplication hook logic.
+"""守护 jscpd 增量重复检查 hook 的守卫测试（guard test）。
+
+本文件位于 ``tests/guards/``，失败意味着源代码、配置或脚本违反了仓库约定。
+正确做法是修复触发它的源代码或配置，而不是修改本文件让测试通过；仅当约定
+本身需要变更时才改本文件，并同步更新相关约定文档。详见
+``docs/ai-standards/testing.md`` 的 Guard Tests 小节。
 
 只覆盖“重复是否落在改动行”的判定与显示格式化，不实际调用 jscpd 二进制，
 因此不依赖 node 环境即可稳定运行。
@@ -11,7 +16,7 @@ from pathlib import Path
 
 # run_jscpd_duplication_check 依赖同目录的 duplication_check_utils，import 前需
 # 将 hooks/shared 放到 sys.path。
-_HOOKS_SHARED_PATH = Path(__file__).resolve().parents[1] / "hooks" / "shared"
+_HOOKS_SHARED_PATH = Path(__file__).resolve().parents[2] / "hooks" / "shared"
 if str(_HOOKS_SHARED_PATH) not in sys.path:
     sys.path.insert(0, str(_HOOKS_SHARED_PATH))
 
