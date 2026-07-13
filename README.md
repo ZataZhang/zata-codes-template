@@ -20,11 +20,7 @@ just sync dev   # 安装全部依赖 + pre-commit hooks
 just run        # 同时启动后端 + 管理平台前端 + 前台官网
 ```
 
-启动后会同时运行三个服务：
-
-- 后端 API：`http://localhost:8000`
-- 管理平台前端：`http://localhost:5173`
-- 前台官网：`http://localhost:3000`
+启动后会同时运行后端 API、管理平台前端和前台官网。各服务端口由当前项目的 `.env.run-state` 决定，`just run` 会在终端输出实际访问地址。
 
 认证使用 HTTP-only `session_id` cookie：在 `/login` 或 `/register` 登录/注册后，同一域名下的 `/dashboard` 等页面会自动携带会话。
 
@@ -49,9 +45,9 @@ just run        # 同时启动后端 + 管理平台前端 + 前台官网
 | `just run backend_port=8010 frontend_admin_port=13173 frontend_public_port=3001` | 指定并保存后端/管理平台/前台端口 |
 | `just down` | 按保存的端口停止本地后端和两个前端 |
 | `just run backend` | 只启动后端（默认命令为 `uv run python -m backend.main`） |
-| `just run frontend` | 只启动管理平台前端（默认进入 `frontend-admin/` 执行 `npm run dev`） |
+| `just run frontend` | 只启动管理平台前端（默认进入 `frontend-admin/` 执行 `pnpm dev`） |
 | `just run frontend-public` | 只启动前台官网（默认进入 `frontend-public/` 执行 `pnpm dev`） |
-| `just frontend-public dev` | 在 `frontend-public/` 运行 `pnpm dev` |
+| `just frontend-public dev` | 委托 `just run frontend-public`，按保存的端口启动前台官网 |
 | `just run all frontend_dir=web frontend_cmd="pnpm dev"` | 覆盖前端目录或启动命令 |
 | `just test` | 运行本地测试（无需 API key） |
 | `just test all` | 运行全部测试 |

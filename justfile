@@ -60,9 +60,9 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="" arg7="" arg8="" arg9="": _ch
                 echo "  docker               Start with Docker Compose"
                 echo ""
                 echo "Options:"
-                echo "  backend_port=<port>          Default: 8000"
-                echo "  frontend_admin_port=<port>   Default: 5173"
-                echo "  frontend_public_port=<port>  Default: 3000"
+                echo "  backend_port=<port>          Fallback without run-state: 8000"
+                echo "  frontend_admin_port=<port>   Fallback without run-state: 5173"
+                echo "  frontend_public_port=<port>  Fallback without run-state: 3000"
                 echo "  backend_cmd=<cmd>            Default: uv run python -m backend.main"
                 echo "  frontend_cmd=<cmd>           Default: pnpm dev"
                 echo "  frontend_public_cmd=<cmd>    Default: pnpm dev"
@@ -342,7 +342,15 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="" arg7="" arg8="" arg9="": _ch
             env_file_args=()
             [ -f ".env" ] && env_file_args+=(--env-file .env)
             env_file_args+=(--env-file "$compose_env_file")
-            COMPOSE_LOCAL_ENV_FILE="$compose_env_file" docker compose "${env_file_args[@]}" up --build
+            # Keep host-side Compose bindings aligned with the same ports used
+            # by the non-Docker run targets. This file is intentionally last so
+            # its generated runtime values win over project configuration.
+            env_file_args+=(--env-file "$run_state_file")
+            BACKEND_PORT="$backend_port" \
+                FRONTEND_ADMIN_PORT="$frontend_admin_port" \
+                FRONTEND_PUBLIC_PORT="$frontend_public_port" \
+                COMPOSE_LOCAL_ENV_FILE="$compose_env_file" \
+                docker compose "${env_file_args[@]}" up --build
             ;;
         *)
             echo "ERROR: Unknown run target: $target"
@@ -388,9 +396,9 @@ down arg1="" arg2="" arg3="" arg4="" arg5="": _check-completion
                 echo "  docker               Stop Docker Compose services"
                 echo ""
                 echo "Options:"
-                echo "  backend_port=<port>          Default: 8000"
-                echo "  frontend_admin_port=<port>   Default: 5173"
-                echo "  frontend_public_port=<port>  Default: 3000"
+                echo "  backend_port=<port>          Fallback without run-state: 8000"
+                echo "  frontend_admin_port=<port>   Fallback without run-state: 5173"
+                echo "  frontend_public_port=<port>  Fallback without run-state: 3000"
                 exit 0
                 ;;
             target=*)
@@ -547,8 +555,8 @@ frontend action="dev":
     set -euo pipefail
     case "{{action}}" in
         dev)
-            cd "{{justfile_directory()}}/frontend-admin"
-            pnpm dev
+            cd "{{justfile_directory()}}"
+            just run frontend
             ;;
         build)
             just whats-new-manifest
@@ -577,8 +585,8 @@ frontend-public action="dev":
     set -euo pipefail
     case "{{action}}" in
         dev)
-            cd "{{justfile_directory()}}/frontend-public"
-            pnpm dev
+            cd "{{justfile_directory()}}"
+            just run frontend-public
             ;;
         build)
             cd "{{justfile_directory()}}/frontend-public"
@@ -740,10 +748,6 @@ copy name force='':
     frontend_public_random_port=$((3010 + RANDOM % 990))
     echo "Picked random ports: backend=$backend_random_port, admin frontend=$frontend_admin_random_port, public frontend=$frontend_public_random_port"
 
-    # `run` and `down` both fall back to the hardcoded defaults, so rewrite all
-    # six occurrences in the destination justfile at once.
-    python3 -c 'from pathlib import Path; import sys; jp = Path(sys.argv[1]); b, fa, fp = sys.argv[2:5]; t = jp.read_text(encoding="utf-8"); t = t.replace("${BACKEND_PORT:-8000}", "${BACKEND_PORT:-" + b + "}").replace("${FRONTEND_ADMIN_PORT:-5173}", "${FRONTEND_ADMIN_PORT:-" + fa + "}").replace("${FRONTEND_PUBLIC_PORT:-3000}", "${FRONTEND_PUBLIC_PORT:-" + fp + "}"); jp.write_text(t, encoding="utf-8")' "$NEW_JUSTFILE" "$backend_random_port" "$frontend_admin_random_port" "$frontend_public_random_port"
-
     echo "Updating project name in config files..."
     python3 -c 'from pathlib import Path; import sys; old_project_name = sys.argv[1]; new_project_name = sys.argv[2]; target_root = Path(sys.argv[3]); project_file_paths = [target_root / path for path in sys.argv[4:]]; [project_file_path.write_text(project_file_path.read_text(encoding="utf-8").replace(old_project_name, new_project_name), encoding="utf-8") for project_file_path in project_file_paths if project_file_path.exists()]' "$OLD_NAME" "$PROJECT_NAME" "$NEW_DIR" config.toml mkdocs.yml pyproject.toml uv.lock docker-compose.dokploy.yml docker-compose.yml frontend-admin/nginx.conf frontend-public/Dockerfile deploy/vps-traefik/README.md deploy/vps-traefik/docker-compose.yml deploy/vps-traefik/.env.example deploy/vps-traefik/app.env.example deploy/vps-traefik/github-actions-deploy.yml.example
 
@@ -765,8 +769,9 @@ copy name force='':
     fi
     (cd "$NEW_DIR" && uv run pre-commit install)
 
-    # Seed the destination's run state file so the first `just run` reads the
-    # same random ports instead of falling back to the justfile defaults.
+    # Seed the destination's single source of truth for host-side runtime ports.
+    # Keep the copied justfile's fallback values unchanged so future recipe
+    # updates cannot drift from project-specific values embedded in source.
     run_state_file="$NEW_DIR/.env.run-state"
     mkdir -p "$(dirname "$run_state_file")"
     {

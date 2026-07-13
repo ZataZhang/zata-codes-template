@@ -20,8 +20,8 @@
 | `just sync` | 同步开发依赖 |
 | `just run` | 运行主应用（后端 + 管理平台前端 + 前台官网）；若前端 `node_modules` 缺失会自动运行 `pnpm install` |
 | `just run backend_port=8010 frontend_admin_port=13173 frontend_public_port=3001` | 使用指定端口运行主应用，并保存为当前 Git worktree 的默认端口 |
-| `just run frontend-public` | 只启动前台官网（Next.js，默认端口 3000） |
-| `just frontend-public dev` | 在 `frontend-public/` 运行 `pnpm dev` |
+| `just run frontend-public` | 只启动前台官网（Next.js，端口读取当前 run-state） |
+| `just frontend-public dev` | 委托 `just run frontend-public`，读取当前 run-state 端口 |
 | `just down` | 按当前 Git worktree 保存的端口停止本地开发服务 |
 | `just copy <new-dir>` | 派生新项目；随机分配三个互不重叠的端口避免多副本端口冲突，并根据新项目名自动生成独立 PostgreSQL 数据库 |
 | `just test` | 运行本地测试 |
@@ -55,7 +55,9 @@
 - 传入 `backend_port`、`frontend_admin_port` 或 `frontend_public_port` 时，会保存本次端口配置。
 - 后续 `just run` 和 `just down` 会复用保存的端口。
 - 前端 Vite 使用 `strictPort`，端口被占用时直接失败，避免自动漂移后 `just down` 停错端口。
-- `just copy <name>` 派生新项目时，会从三个互不重叠的区间随机分配端口（后端 `8000-8999`、管理平台前端 `5180-5999`、前台官网 `3010-3999`），并写入 destination justfile 的 `run`/`down` 默认值以及 `.env.run-state`，让首次 `just run` 就走随机端口；所选端口会打印到 stdout。`just sync-template` 不会覆盖已随机化的 justfile，因此派生项目可以长期保留自己的端口。
+- `just copy <name>` 派生新项目时，会从三个互不重叠的区间随机分配端口（后端 `8000-8999`、管理平台前端 `5180-5999`、前台官网 `3010-3999`），并且只写入 destination 的 `.env.run-state`；不会改写 justfile、前端配置或文档中的 fallback。首次 `just run` 会读取随机端口，所选端口也会打印到 stdout。
+- `just frontend dev` 与 `just frontend-public dev` 会委托给对应的 `just run` target，因此同样读取 `.env.run-state`，不会绕过已保存端口。
+- `just run docker` 会把 `.env.run-state` 作为最后一层 Compose 插值环境，动态设置三个主机端口；容器内部端口仍固定为 backend `8000`、admin `80`、public `3000`，不属于需要随机化的主机端口。
 
 ## Project Database Isolation
 

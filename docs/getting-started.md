@@ -28,11 +28,11 @@ just dev
 just run
 ```
 
-默认会同时启动后端、管理平台前端和前台官网：
+默认会同时启动后端、管理平台前端和前台官网。各服务端口读取当前 `.env.run-state`；`just copy` 会为派生项目预写随机端口，实际访问地址以 `just run` 的终端输出为准：
 
-- 后端默认执行 `uv run python -m backend.main`，端口 `8000`
-- 管理平台前端默认进入 `frontend-admin/` 目录执行 `npm run dev`，端口 `5173`
-- 前台官网默认进入 `frontend-public/` 目录执行 `pnpm dev`，端口 `3000`
+- 后端执行 `uv run python -m backend.main`
+- 管理平台前端在 `frontend-admin/` 中执行 `pnpm dev`
+- 前台官网在 `frontend-public/` 中执行 `pnpm dev`
 
 可以通过参数指定端口；端口会保存到 Git 本地状态文件，下次 `just run` 会自动复用：
 
@@ -57,6 +57,8 @@ just run backend
 just run frontend
 just run frontend-public
 ```
+
+`just frontend dev` 与 `just frontend-public dev` 也会委托给上述 `just run` 入口，因此不会绕过已保存的端口。`just run docker` 同样用 run-state 设置主机侧端口映射；Docker 容器内部端口保持固定。
 
 如果项目实际目录或命令不同，可以覆盖默认参数：
 

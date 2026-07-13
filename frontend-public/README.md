@@ -24,7 +24,7 @@ pnpm dev
 
 开发服务器启动后访问 `http://localhost:3000`。
 
-后端服务默认在 `http://localhost:8000`，前端通过 Next.js rewrites 代理 `/api/*` 到后端。
+直接运行 `pnpm dev` 时，后端默认在 `http://localhost:8000`，前端通过 Next.js rewrites 代理 `/api/*` 到后端。通过根目录 `just run` 启动时，会注入当前 `.env.run-state` 中的后端端口。
 
 ## 构建生产产物
 
@@ -68,8 +68,8 @@ frontend-public/
 
 ## 与后端的集成
 
-- 开发时直接请求 `http://localhost:8000`。
-- 生产时通过环境变量 `API_BASE_URL` 指向后端服务（如 `http://zata-codes-template-backend:8000`）。
+- 开发时可通过 `BACKEND_URL` 指向后端；`just run` 会自动注入该值。
+- 容器环境通过 `API_BASE_URL` 指向 Compose 内部后端服务（如 `http://zata-codes-template-backend:8000`），不使用主机随机端口。
 - 认证使用后端签发的 HTTP-only `session_id` cookie，因此与 `frontend-admin/` 管理平台共享登录态。
 
 ## Agent 平台功能
