@@ -1,6 +1,6 @@
 ---
 name: prd
-description: "[Updated 2026-06-28] Generate an architecture-aware technical PRD split into two altitudes — a human review layer (Part A) and an executor build layer (Part B) — with a risk-tiered human review map, a front-loaded interpretation lock, and a risk-map-ordered acceptance evidence package for a single end-of-flow human review. Triggers on: create a prd, write prd for, plan this feature. Prioritizes reuse, minimal-change plans, required output compliance, realistic validation, and conditional web research."
+description: "[Updated 2026-07-14] Generate an architecture-aware technical PRD split into two altitudes — a human review layer (Part A) and an executor build layer (Part B) — with a risk-tiered human review map, a front-loaded interpretation lock, and a risk-map-ordered acceptance evidence package for a single end-of-flow human review. Triggers on: create a prd, write prd for, plan this feature. Prioritizes reuse, minimal-change plans, required output compliance, realistic validation, and conditional web research."
 ---
 
 # PRD Generator (Architecture-First)
@@ -322,8 +322,6 @@ Use this shape:
 ### Delivery Dependencies
 
 - Group: [logical-delivery-group-or-none]
-- Depends on groups:
-  - none
 - Depends on tasks/issues:
   - none
 - Gate type: none
@@ -332,7 +330,6 @@ Use this shape:
 
 Rules:
 - `Group` names the logical delivery group for this PRD, or `none`.
-- `Depends on groups` lists logical upstream groups, not tool-specific labels.
 - `Depends on tasks/issues` lists upstream task names, PRD slugs, issue numbers, or `none`.
 - `Gate type` must be `none`, `soft`, or `hard`.
 - `hard` means an execution tool may treat the dependency as a blocking gate when that repository has a deterministic adapter.
