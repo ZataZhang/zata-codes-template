@@ -330,7 +330,9 @@ AUTH_ADMIN_BOOTSTRAP_USERNAME=admin
 AUTH_ADMIN_BOOTSTRAP_PASSWORD=change-me-please
 ```
 
-- **种子 admin**:`src/backend/main.py` 启动时,若配置了 `AUTH_ADMIN_BOOTSTRAP_*` 且该用户名不存在,则创建一个管理员;两项任一为空则跳过(不影响 public 流程)。
+- **种子 admin**：`src/backend/composition/bootstrap.py` 启动时，若配置了
+  `AUTH_ADMIN_BOOTSTRAP_*` 且该用户名不存在，则创建一个管理员；两项任一为空则
+  跳过（不影响 public 流程）。
 - **Cookie 安全**:本地开发 `secure=False`(http);生产经反代终止 TLS 后应置 `True`。Cookie 名是接入层常量(`session_id` / `admin_session_id`),会话窗口天数与 admin 种子来自 `AuthSettings`。
 - **会话窗口**:`AUTH_SESSION_SLIDING_DAYS`(默认 15)、`AUTH_SESSION_ABSOLUTE_DAYS`(默认 60)。
 
@@ -354,7 +356,7 @@ AUTH_ADMIN_BOOTSTRAP_PASSWORD=change-me-please
 | 鉴权依赖 | `src/backend/api/dependencies.py` |
 | public 路由 | `src/backend/api/auth_router.py` |
 | admin 路由 | `src/backend/api/admin/` |
-| 装配 + 种子 | `src/backend/main.py` |
+| 装配 + 种子 | `src/backend/composition/{auth_wiring,bootstrap,app_factory}.py` |
 | 迁移 | `alembic/versions/20260625-182322-auth_domains_init.py` |
 
 ---

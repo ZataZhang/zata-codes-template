@@ -6,6 +6,10 @@
 层次规则（由外到内）：
     <module>/api/ → <module>/core/ → <module>/engines/ → <module>/infrastructure/
 
+Composition root 规则：
+    <module>/composition/ 可以依赖全部四层；
+    四层模块均不得反向 import <module>/composition。
+
 依赖规则（只允许向内依赖）：
     - <module>/api/              可以依赖: <module>/core
     - <module>/core/             可以依赖: （仅 <module>/core 内部的 shared/interfaces）
@@ -33,10 +37,10 @@ LAYER_ORDER: list[str] = ["infrastructure", "engines", "core", "api"]
 """层次从内到外的顺序，index 越大表示越外层。"""
 
 FORBIDDEN_IMPORTS: dict[str, list[str]] = {
-    "infrastructure": ["core", "engines", "api"],
-    "core": ["engines", "infrastructure", "api"],
-    "api": ["infrastructure", "engines"],
-    "engines": ["api"],
+    "infrastructure": ["core", "engines", "api", "composition"],
+    "core": ["engines", "infrastructure", "api", "composition"],
+    "api": ["infrastructure", "engines", "composition"],
+    "engines": ["api", "composition"],
 }
 """每个层禁止 import 的其他层列表。"""
 
@@ -147,8 +151,8 @@ def _resolve_module_and_layer(file_path: Path, project_root: Path) -> Optional[t
 def _extract_imported_modules(source_code: str) -> list[tuple[int, str]]:
     """从 Python 源码中提取所有 import 的顶层模块名。
 
-    只要 import 路径的第二段是已知层名（api/core/engines/infrastructure），
-    就提取该层名作为 imported_layer_name。
+    只要 import 路径的第二段是已知层名或 ``composition``，
+    就提取该名称作为 imported_layer_name。
 
     Args:
         source_code: Python 文件的完整源码文本。
@@ -157,6 +161,7 @@ def _extract_imported_modules(source_code: str) -> list[tuple[int, str]]:
         (行号, 提取的层名或顶层模块名) 的列表。
     """
     imported_module_entries: list[tuple[int, str]] = []
+    managed_module_names: set[str] = {*LAYER_ORDER, "composition"}
 
     try:
         parsed_ast_tree: ast.Module = ast.parse(source_code)
@@ -169,7 +174,8 @@ def _extract_imported_modules(source_code: str) -> list[tuple[int, str]]:
                 imported_module_parts: list[str] = alias.name.split(".")
                 imported_layer_name: str = (
                     imported_module_parts[1]
-                    if len(imported_module_parts) > 1 and imported_module_parts[1] in LAYER_ORDER
+                    if len(imported_module_parts) > 1
+                    and imported_module_parts[1] in managed_module_names
                     else imported_module_parts[0]
                 )
                 imported_module_entries.append((ast_node.lineno, imported_layer_name))
@@ -179,7 +185,8 @@ def _extract_imported_modules(source_code: str) -> list[tuple[int, str]]:
                 imported_module_parts = ast_node.module.split(".")
                 imported_layer_name = (
                     imported_module_parts[1]
-                    if len(imported_module_parts) > 1 and imported_module_parts[1] in LAYER_ORDER
+                    if len(imported_module_parts) > 1
+                    and imported_module_parts[1] in managed_module_names
                     else imported_module_parts[0]
                 )
                 imported_module_entries.append((ast_node.lineno, imported_layer_name))

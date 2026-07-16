@@ -122,6 +122,6 @@ repos:
         name: Check guard test modification
         entry: uv run python hooks/shared/check_guard_test_modification.py
         language: system
-        files: ^tests/guards/.*
-        pass_filenames: true
+        pass_filenames: false
+        always_run: true
         stages: [pre-commit]

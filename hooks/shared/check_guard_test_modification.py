@@ -10,14 +10,47 @@ pre-commit local hook 配置::
       name: Check guard test modification
       entry: uv run python hooks/shared/check_guard_test_modification.py
       language: system
-      files: ^tests/guards/.*
-      pass_filenames: true
+      pass_filenames: false
+      always_run: true
 """
 
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
+
+
+def _get_staged_guard_files() -> list[str]:
+    """返回暂存区内发生变更的守卫测试文件。
+
+    Returns:
+        相对于仓库根目录的守卫测试文件路径。
+
+    Raises:
+        RuntimeError: 无法读取 Git 暂存区时抛出。
+    """
+    result = subprocess.run(
+        [
+            "git",
+            "-c",
+            "core.quotepath=false",
+            "diff",
+            "--cached",
+            "--name-only",
+            "--no-renames",
+            "--",
+            "tests/guards",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    if result.returncode != 0:
+        error_message = result.stderr.strip() or "未知 Git 错误"
+        raise RuntimeError(error_message)
+    return [file_path for file_path in result.stdout.splitlines() if file_path]
 
 
 def main() -> int:
@@ -27,7 +60,12 @@ def main() -> int:
         0 表示允许提交（无守卫测试改动，或已通过 ``GUARD_UPDATE_ACK`` 确认）；
         1 表示拒绝提交。
     """
-    guarded_files = [argument for argument in sys.argv[1:] if argument]
+    try:
+        guarded_files = _get_staged_guard_files()
+    except RuntimeError as error:
+        print(f"⛔ 无法检查守卫测试暂存状态：{error}", file=sys.stderr)
+        return 1
+
     if not guarded_files:
         return 0
 
