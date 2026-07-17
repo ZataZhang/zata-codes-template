@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""为新复制出的项目设置独立的数据库。
+"""为新复制出的项目或 Worktree 设置独立的数据库。
 
-读取目标项目的 ``.env.local``，根据项目名派生唯一的数据库名，更新
+读取目标目录的 ``.env.local``，根据标识派生唯一的数据库名，更新
 ``DATABASE_URL``，并尝试在 PostgreSQL 中创建该数据库。
 """
 
@@ -9,37 +9,44 @@ from __future__ import annotations
 
 import re
 import sys
+from hashlib import sha256
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
 
 
-def derive_database_name(project_name: str) -> str:
-    """根据项目名派生 Postgres 安全的数据库名。
+def derive_database_name(database_identifier: str) -> str:
+    """根据标识派生 Postgres 安全的数据库名。
 
     Args:
-        project_name: 新项目名称。
+        database_identifier: 用于派生数据库名的项目或 Worktree 标识。
 
     Returns:
         小写、下划线连接、不超过 63 字节的数据库名。
     """
-    db_name = re.sub(r"[^a-z0-9]+", "_", project_name.lower()).strip("_")
+    db_name = re.sub(r"[^a-z0-9]+", "_", database_identifier.lower()).strip("_")
     db_name = re.sub(r"_+", "_", db_name)
     if not db_name:
         db_name = "app"
-    # Postgres 标识符默认限制 63 字节。
-    return db_name[:63]
+    if db_name[0].isdigit():
+        db_name = f"app_{db_name}"
+    if len(db_name) <= 63:
+        return db_name
+
+    # Postgres 标识符默认限制 63 字节。保留哈希尾缀，避免长分支名截断后冲突。
+    identifier_digest = sha256(database_identifier.encode("utf-8")).hexdigest()[:8]
+    return f"{db_name[:54]}_{identifier_digest}"
 
 
 def update_database_url(
     env_local_path: Path,
-    project_name: str,
+    database_identifier: str,
 ) -> tuple[Optional[str], Optional[str]]:
     """更新 ``.env.local`` 中的 ``DATABASE_URL`` 为项目专用数据库。
 
     Args:
         env_local_path: 目标项目 ``.env.local`` 路径。
-        project_name: 新项目名称。
+        database_identifier: 用于派生数据库名的项目或 Worktree 标识。
 
     Returns:
         (新的 DATABASE_URL, 新的数据库名)；若无需更新则返回 ``(None, None)``。
@@ -63,7 +70,7 @@ def update_database_url(
         if not parsed.scheme.startswith("postgresql"):
             # 只改写 PostgreSQL URL，SQLite 等保持不变。
             continue
-        db_name = derive_database_name(project_name)
+        db_name = derive_database_name(database_identifier)
         new_url = parsed._replace(path=f"/{db_name}").geturl()
         lines[index] = f"DATABASE_URL={new_url}"
         updated = True
@@ -72,7 +79,7 @@ def update_database_url(
     if updated:
         env_local_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-    return (new_url, derive_database_name(project_name)) if updated else (None, None)
+    return (new_url, derive_database_name(database_identifier)) if updated else (None, None)
 
 
 def create_postgres_database(database_url: str) -> bool:
@@ -131,27 +138,36 @@ def create_postgres_database(database_url: str) -> bool:
 
 def main() -> int:
     """脚本入口。"""
-    if len(sys.argv) != 3:
-        print("Usage: python setup_copied_database.py <project_name> <project_root>")
+    script_arguments = sys.argv[1:]
+    strict_mode = "--strict" in script_arguments
+    positional_arguments = [
+        argument_value for argument_value in script_arguments if argument_value != "--strict"
+    ]
+    if len(positional_arguments) != 2:
+        print(
+            "Usage: python setup_copied_database.py "
+            "<database_identifier> <project_root> [--strict]"
+        )
         return 1
 
-    project_name = sys.argv[1]
-    project_root = Path(sys.argv[2])
+    database_identifier, project_root_argument = positional_arguments
+    project_root = Path(project_root_argument)
 
     env_local_path = project_root / ".env.local"
-    new_url, db_name = update_database_url(env_local_path, project_name)
+    new_url, db_name = update_database_url(env_local_path, database_identifier)
 
     if new_url is None or db_name is None:
         print(".env.local 中未找到 PostgreSQL 的 DATABASE_URL，跳过数据库设置。")
-        return 0
+        return 1 if strict_mode else 0
 
-    print(f"已更新 DATABASE_URL 为项目专用数据库: {new_url}")
+    print(f"已将 DATABASE_URL 改写为项目专用数据库: {db_name}")
 
     if create_postgres_database(new_url):
         print("数据库已就绪。")
     else:
         print("请手动创建数据库，然后运行 `uv run alembic upgrade head`:")
         print(f"  createdb -h localhost -U <user> {db_name}")
+        return 1 if strict_mode else 0
     return 0
 
 

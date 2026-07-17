@@ -31,6 +31,8 @@ Options:
 
 Behavior:
   所有 worktree 统一集中到 <repo_parent>/<repo-name>-worktrees/ 下。
+  只能从 Git primary worktree 创建，避免嵌套创建和本地资源冲突。
+  新 worktree 会获得独立 PostgreSQL 数据库；开发和 E2E 共用该库。
   issue-* 分支在未指定 --subdir 时，默认归入 tasks/ 子目录。
   默认会同步 base/源远程的 tracking ref 作为新 worktree 起点。
   可通过环境变量控制远程同步行为:
@@ -696,6 +698,9 @@ function ai_worktree() {
     local source_env_file_path=""
     local relative_env_file_path=""
     local target_env_file_path=""
+    local primary_worktree_path=""
+    local normalized_primary_worktree_path=""
+    local normalized_current_worktree_path=""
 
     while [ "$#" -gt 0 ]; do
         case "$1" in
@@ -813,6 +818,15 @@ function ai_worktree() {
     fi
 
     repo_root_path="$(git rev-parse --show-toplevel)"
+    primary_worktree_path="$(git worktree list --porcelain | awk '/^worktree / {print substr($0, 10); exit}')"
+    normalized_primary_worktree_path="$(cd "$primary_worktree_path" && pwd -P)"
+    normalized_current_worktree_path="$(cd "$repo_root_path" && pwd -P)"
+    if [ "$normalized_current_worktree_path" != "$normalized_primary_worktree_path" ]; then
+        echo "❌ 只能从 Git primary worktree 创建新的 worktree。"
+        echo "   primary: $normalized_primary_worktree_path"
+        echo "   current: $normalized_current_worktree_path"
+        return 1
+    fi
     repo_parent_path="$(dirname "$repo_root_path")"
     # 1. 约定 worktree 统一集中到 <repo_parent>/<repo-name>-worktrees/
     #    issue-* 分支在未指定 --subdir 时默认归入 tasks/ 子目录
@@ -927,6 +941,7 @@ function ai_worktree() {
             -not -path "$repo_root_path/.venv/*" \
             -not -path "$repo_root_path/.uv-cache/*" \
             -not -path "$repo_root_path/site/*" \
+            -not -path "$repo_root_path/.env.run-state" \
             -not -path "*/.iar-worktrees/*" \
             -not -path "*/node_modules/*"
     )
@@ -968,6 +983,26 @@ function ai_worktree() {
 
     if ! install_python_dependencies; then
         return 1
+    fi
+
+    # 使用现有项目复制建库能力，为当前 worktree 生成唯一数据库并拒绝回退到共享库。
+    local worktree_database_identifier=""
+    local worktree_branch_digest=""
+    worktree_branch_digest="$(printf '%s' "$branch_name" | git hash-object --stdin | cut -c1-8)"
+    worktree_database_identifier="${repo_name}_wt_${branch_name}_${worktree_branch_digest}"
+    echo "🗄️ 正在创建 worktree 专用数据库 ..."
+    if ! uv run python "$repo_root_path/scripts/shared/template/setup_copied_database.py" \
+        "$worktree_database_identifier" "$target_abs_path" --strict; then
+        echo "❌ 无法准备 worktree 专用 PostgreSQL 数据库，已停止创建流程。"
+        return 1
+    fi
+
+    if [ -f "$target_abs_path/alembic.ini" ]; then
+        echo "🧬 正在迁移 worktree 专用数据库 ..."
+        if ! uv run alembic upgrade head; then
+            echo "❌ worktree 数据库迁移失败。"
+            return 1
+        fi
     fi
 
     if [ "$enable_vscode_add" = "true" ]; then

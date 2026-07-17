@@ -24,6 +24,7 @@
 | `just frontend-public dev` | 委托 `just run frontend-public`，读取当前 run-state 端口 |
 | `just down` | 按当前 Git worktree 保存的端口停止本地开发服务 |
 | `just copy <new-dir>` | 派生新项目；随机分配三个互不重叠的端口避免多副本端口冲突，并根据新项目名自动生成独立 PostgreSQL 数据库 |
+| `just worktree <branch>` | 仅能从 Git primary worktree 创建；自动分配端口、创建专用 PostgreSQL 空库并执行迁移，开发与 E2E 共用该 Worktree 的数据库 |
 | `just test` | 运行本地测试 |
 | `uv run mkdocs build` | 验证文档站点 |
 | `just docs-serve` | 本地预览文档 |
@@ -66,6 +67,15 @@
 - 自动创建依赖当前环境已安装的 `psycopg2`；若不可用或连接失败，会打印手动建库命令。
 - 若 `.env.local` 不存在、未配置 `DATABASE_URL` 或使用非 PostgreSQL 数据库，则跳过该步骤。
 - 仅修改目标目录的 `.env.local`；模板源文件中的 `.env.example` 保持占位符不变。
+
+## Worktree Database Isolation
+
+`just worktree <branch>` 只能从 Git primary worktree 发起。创建时会复制必要环境配置，但会为目标 Worktree 重新派生唯一的 PostgreSQL 数据库名（包含分支标识和短哈希），改写**目标 Worktree** 的 `.env.local` 中 `DATABASE_URL`，然后执行 `uv run alembic upgrade head`。因此每个 Worktree 有独立的 `alembic_version` 和数据，开发服务与该 Worktree 的 E2E 测试共用这一个可丢弃的数据库。
+
+- 不复制主开发库或生产库的数据；初始状态是空库加当前迁移及应用 bootstrap seed。
+- `.env.local` 缺少 PostgreSQL `DATABASE_URL`，或创建数据库失败时，Worktree 创建会失败，避免静默回退到共享库。
+- Worktree 删除时数据库默认保留，方便排查；需要清理时手动删除对应数据库。
+- 数据库隔离不解决 Alembic 源码迁移链并发：多个分支各自新增 migration 后，合并前仍必须 rebase 并运行 `uv run alembic heads`，确保仅有一个 head。
 
 ## Automatic Frontend Dependency Install
 

@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 import uuid
 
+from sqlalchemy.exc import IntegrityError
+
 from alembic import command
 from alembic.config import Config
 from backend.core.shared.models.user_account import UserAccount
@@ -31,6 +33,7 @@ def run_migrations() -> None:
 def seed_tools() -> None:
     """写入模板内置工具种子数据。"""
 
+    builtin_tool_ids = ("web_search", "code_runner")
     database_session = SessionLocal()
     try:
         if database_session.query(ToolModel).first() is not None:
@@ -64,7 +67,20 @@ def seed_tools() -> None:
         ]
         for seed_tool_model in seed_tool_models:
             database_session.add(seed_tool_model)
-        database_session.commit()
+        try:
+            database_session.commit()
+        except IntegrityError:
+            database_session.rollback()
+            persisted_tool_ids = {
+                persisted_tool_model.id
+                for persisted_tool_model in database_session.query(ToolModel)
+                .filter(ToolModel.id.in_(builtin_tool_ids))
+                .all()
+            }
+            if persisted_tool_ids == set(builtin_tool_ids):
+                logger.info("内置工具已由并发启动实例写入，跳过重复种子。")
+                return
+            raise
     finally:
         database_session.close()
 
