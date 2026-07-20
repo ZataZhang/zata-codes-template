@@ -9,6 +9,16 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PATH="/app/.venv/bin:$PATH"
 
+# Allow apt to route through a host-side HTTP proxy when the build network
+# cannot reach deb.debian.org directly (e.g. corporate networks, GFW).
+# Pass via `docker compose build --build-arg APT_PROXY=...` or leave empty
+# in environments that already have direct outbound connectivity.
+ARG APT_PROXY=
+RUN if [ -n "$APT_PROXY" ]; then \
+        printf 'Acquire::http::Proxy "%s";\nAcquire::https::Proxy "%s";\n' \
+            "$APT_PROXY" "$APT_PROXY" > /etc/apt/apt.conf.d/99proxy; \
+    fi
+
 WORKDIR /app
 
 # Install system dependencies, uv, and Python packages in one layer

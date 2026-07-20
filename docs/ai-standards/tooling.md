@@ -62,10 +62,10 @@
 
 ## Project Database Isolation
 
-`just copy <name>` 派生新项目时，会读取目标目录 `.env.local` 中的 `DATABASE_URL`。如果该 URL 使用 PostgreSQL，脚本会基于新项目名称派生一个唯一的数据库名（小写、下划线连接、不超过 63 字节），替换 URL 中的数据库名部分，并尝试连接 `postgres` 维护数据库自动创建该数据库。这样多个派生项目不会共享同一个数据库，避免迁移版本冲突或数据串扰。
+`just copy <name>` 派生新项目时，会读取目标目录 `.env.local` 中的 `DATABASE_URL`。如果该 URL 使用 PostgreSQL，脚本会基于新项目名称派生一个唯一的数据库名（小写、下划线连接、不超过 63 字节），替换 URL 中的数据库名部分，并尝试连接 `postgres` 维护数据库自动创建该数据库；数据库创建后会立即执行 `uv run alembic upgrade head`。这样多个派生项目不会共享同一个数据库，且复制完成后已有完整迁移结构，避免迁移版本冲突或数据串扰。
 
 - 自动创建依赖当前环境已安装的 `psycopg2`；若不可用或连接失败，会打印手动建库命令。
-- 若 `.env.local` 不存在、未配置 `DATABASE_URL` 或使用非 PostgreSQL 数据库，则跳过该步骤。
+- 若 `.env.local` 不存在、未配置 `DATABASE_URL` 或使用非 PostgreSQL 数据库，则跳过 PostgreSQL 建库步骤，但复制流程仍会执行 Alembic 迁移。
 - 仅修改目标目录的 `.env.local`；模板源文件中的 `.env.example` 保持占位符不变。
 
 ## Worktree Database Isolation

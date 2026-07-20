@@ -325,6 +325,25 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="" arg7="" arg8="" arg9="": _ch
                 echo ".env.local and set your own service addresses (DATABASE_URL, S3_*, ...)."
                 exit 1
             fi
+
+            # Inject a build-time apt proxy so deb.debian.org is reachable
+            # inside the build container when the host network cannot reach it
+            # directly (e.g. GFW).
+            #
+            # Why we do NOT re-use the host shell's $http_proxy: inside the
+            # build container 127.0.0.1 refers to the container itself, not the
+            # host, so a host-side value like http://127.0.0.1:7897 is
+            # useless (and even causes Connection refused). We always default
+            # to host.docker.internal which Docker Desktop resolves to the host
+            # loopback. Override via APT_PROXY=http://host:port for any other
+            # proxy setup.
+            apt_proxy_url="${APT_PROXY:-http://host.docker.internal:7897}"
+            echo "Docker build will use APT_PROXY=${apt_proxy_url}"
+
+            export APT_PROXY="$apt_proxy_url"
+            export HTTP_PROXY="$apt_proxy_url"
+            export HTTPS_PROXY="$apt_proxy_url"
+
             # Containers cannot reach the host via localhost/127.0.0.1; only the
             # backend-facing DATABASE_URL / S3_ENDPOINT need host.docker.internal.
             # Generate .env.local.docker from .env.local on first run, then keep
@@ -350,7 +369,20 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="" arg7="" arg8="" arg9="": _ch
                 FRONTEND_ADMIN_PORT="$frontend_admin_port" \
                 FRONTEND_PUBLIC_PORT="$frontend_public_port" \
                 COMPOSE_LOCAL_ENV_FILE="$compose_env_file" \
-                docker compose "${env_file_args[@]}" up --build
+                docker compose "${env_file_args[@]}" build \
+                    --build-arg "APT_PROXY=${APT_PROXY}" \
+                    --build-arg "HTTP_PROXY=${HTTP_PROXY}" \
+                    --build-arg "HTTPS_PROXY=${HTTPS_PROXY}"
+            # `docker compose up` does not accept --env (that is `run`'s flag).
+            # Compose auto-injects the calling shell's HTTP_PROXY / HTTPS_PROXY
+            # into every container unless the service explicitly sets them in
+            # its environment: block, so the same proxy reaches uv / curl at
+            # container runtime without rebuilding.
+            BACKEND_PORT="$backend_port" \
+                FRONTEND_ADMIN_PORT="$frontend_admin_port" \
+                FRONTEND_PUBLIC_PORT="$frontend_public_port" \
+                COMPOSE_LOCAL_ENV_FILE="$compose_env_file" \
+                docker compose "${env_file_args[@]}" up
             ;;
         *)
             echo "ERROR: Unknown run target: $target"
@@ -769,6 +801,9 @@ copy name force='':
     fi
     (cd "$NEW_DIR" && uv run pre-commit install)
 
+    echo "Running database migrations..."
+    (cd "$NEW_DIR" && uv run alembic upgrade head)
+
     # Seed the destination's single source of truth for host-side runtime ports.
     # Keep the copied justfile's fallback values unchanged so future recipe
     # updates cannot drift from project-specific values embedded in source.
@@ -792,9 +827,12 @@ copy name force='':
 
     echo "Creating initial commit..."
     git -C "$NEW_DIR" add -A
-    # Skip check-test-flag: a fresh repo has no .last_tested_commit yet.
+    # Skip hooks that only apply to changes after repository initialization:
+    # a fresh repo has no .last_tested_commit, and its initial commit naturally
+    # stages the complete tests/guards/ directory.
     # Other hooks (ruff, yaml, architecture) still run to validate the template.
-    SKIP=check-test-flag git -C "$NEW_DIR" commit -m "chore: initial commit from template"
+    SKIP=check-test-flag,check-guard-test-modification \
+        git -C "$NEW_DIR" commit -m "chore: initial commit from template"
 
 
 # Run a single E2E oracle from a PRD's Realistic Validation Plan and collect evidence.
