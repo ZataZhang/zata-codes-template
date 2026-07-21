@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check that deliverable PRD acceptance checklists are fully completed."""
+"""Check deliverable PRD checklists and validation-evidence oracle integrity."""
 
 from __future__ import annotations
 
@@ -20,6 +20,31 @@ ACCEPTANCE_CHECKLIST_HEADING_RE = re.compile(
 TOP_LEVEL_HEADING_RE = re.compile(r"^##\s+")
 CHECKBOX_RE = re.compile(r"^\s*[-*+]\s+\[(?P<mark>[ xX])\]\s*(?P<label>.*)$")
 CODE_FENCE_RE = re.compile(r"^\s*(?:```|~~~)")
+REALISTIC_VALIDATION_HEADING_RE = re.compile(r"^###\s+(?:7\.6\s+)?Realistic Validation Plan\b")
+THIRD_LEVEL_HEADING_RE = re.compile(r"^###\s+")
+YAML_FENCE_START_RE = re.compile(r"^\s*```ya?ml\s*$", re.IGNORECASE)
+YAML_FENCE_END_RE = re.compile(r"^\s*```\s*$")
+ORACLE_ENTRY_RE = re.compile(r"^\s*-\s+id:\s*(?P<value>.*)$")
+ORACLE_FIELD_RE = re.compile(r"^\s+(?P<key>[a-z_]+):\s*(?P<value>.*)$")
+NO_EXECUTABLE_BEHAVIOR_MARKER = (
+    "No executable behavior changes; realistic validation is limited to "
+    "documentation/build checks."
+)
+REQUIRED_ORACLE_FIELDS = (
+    "behavior",
+    "real_entry",
+    "expected",
+    "mock_boundary",
+    "critical_value_source",
+    "must_cross",
+    "forbidden_bypasses",
+    "fresh_state_probe",
+    "final_tree_evidence",
+    "negative_control",
+    "expected_fail",
+    "test_layer",
+    "required_for_acceptance",
+)
 
 
 def _repo_root(start_path: Path | None = None) -> Path:
@@ -200,11 +225,115 @@ def _unchecked_items_in_acceptance_section(file_content: str) -> list[tuple[int,
     return unchecked_items
 
 
+def _meaningful_yaml_value(raw_value: str) -> str:
+    """Return a scalar YAML value with simple comments and quotes removed."""
+
+    value_without_comment = raw_value.partition("#")[0].strip()
+    return value_without_comment.strip("\"'").strip()
+
+
+def _oracle_schema_issues(file_content: str) -> list[tuple[int, str]]:
+    """Return missing or incomplete validation-oracle schema issues."""
+
+    lines = file_content.splitlines()
+    validation_heading_indexes = [
+        line_index
+        for line_index, line in enumerate(lines)
+        if REALISTIC_VALIDATION_HEADING_RE.match(line)
+    ]
+    if not validation_heading_indexes:
+        return [(-1, "Missing Realistic Validation Plan section")]
+
+    start_index = validation_heading_indexes[0] + 1
+    end_index = next(
+        (
+            line_index
+            for line_index in range(start_index, len(lines))
+            if THIRD_LEVEL_HEADING_RE.match(lines[line_index])
+        ),
+        len(lines),
+    )
+    section_lines = lines[start_index:end_index]
+    if any(NO_EXECUTABLE_BEHAVIOR_MARKER in line for line in section_lines):
+        return []
+
+    oracle_entries: list[tuple[str, int, dict[str, str]]] = []
+    current_oracle_id = ""
+    current_oracle_line_number = -1
+    current_oracle_fields: dict[str, str] = {}
+    in_yaml_block = False
+
+    for section_offset, line in enumerate(section_lines):
+        absolute_line_number = start_index + section_offset + 1
+        if not in_yaml_block and YAML_FENCE_START_RE.match(line):
+            in_yaml_block = True
+            continue
+        if in_yaml_block and YAML_FENCE_END_RE.match(line):
+            if current_oracle_id:
+                oracle_entries.append(
+                    (current_oracle_id, current_oracle_line_number, current_oracle_fields)
+                )
+            current_oracle_id = ""
+            current_oracle_fields = {}
+            in_yaml_block = False
+            continue
+        if not in_yaml_block:
+            continue
+
+        entry_match = ORACLE_ENTRY_RE.match(line)
+        if entry_match:
+            if current_oracle_id:
+                oracle_entries.append(
+                    (current_oracle_id, current_oracle_line_number, current_oracle_fields)
+                )
+            current_oracle_id = _meaningful_yaml_value(entry_match.group("value"))
+            current_oracle_line_number = absolute_line_number
+            current_oracle_fields = {}
+            continue
+
+        field_match = ORACLE_FIELD_RE.match(line)
+        if field_match and current_oracle_id:
+            current_oracle_fields[field_match.group("key")] = _meaningful_yaml_value(
+                field_match.group("value")
+            )
+
+    if current_oracle_id:
+        oracle_entries.append(
+            (current_oracle_id, current_oracle_line_number, current_oracle_fields)
+        )
+
+    if not oracle_entries:
+        return [
+            (
+                start_index,
+                "Realistic Validation Plan must contain a structured YAML oracle block",
+            )
+        ]
+
+    schema_issues: list[tuple[int, str]] = []
+    for oracle_id, oracle_line_number, oracle_fields in oracle_entries:
+        missing_fields = [
+            field_name for field_name in REQUIRED_ORACLE_FIELDS if not oracle_fields.get(field_name)
+        ]
+        if missing_fields:
+            schema_issues.append(
+                (
+                    oracle_line_number,
+                    f"Oracle {oracle_id!r} missing non-empty field(s): "
+                    + ", ".join(missing_fields),
+                )
+            )
+
+    return schema_issues
+
+
 def _validate_file(path: Path) -> list[tuple[int, str]]:
-    """Read a PRD file and return any checklist issues."""
+    """Read a PRD file and return checklist or oracle-integrity issues."""
 
     file_content = path.read_text(encoding="utf-8")
-    return _unchecked_items_in_acceptance_section(file_content)
+    return _unchecked_items_in_acceptance_section(file_content) + _oracle_schema_issues(
+        file_content
+    )
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -212,8 +341,8 @@ def _build_parser() -> argparse.ArgumentParser:
 
     parser = argparse.ArgumentParser(
         description=(
-            "Check deliverable PRD files for an Acceptance Checklist section "
-            "with no unchecked items."
+            "Check deliverable PRD files for a completed Acceptance Checklist "
+            "and a complete validation-evidence oracle chain."
         )
     )
     parser.add_argument(
@@ -264,7 +393,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     has_errors = False
-    print("Checking PRD acceptance checklists...\n")
+    print("Checking PRD acceptance checklists and validation oracles...\n")
 
     for prd_path in candidate_paths:
         relative_path = prd_path.resolve().relative_to(repo_root.resolve())
@@ -283,10 +412,10 @@ def main(argv: list[str] | None = None) -> int:
         print()
 
     if has_errors:
-        print("One or more deliverable PRD acceptance checklists are incomplete.")
+        print("One or more deliverable PRDs have incomplete acceptance or validation evidence.")
         return 1
 
-    print("\nAll deliverable PRD acceptance checklists are complete.")
+    print("\nAll deliverable PRD acceptance checklists and validation oracles are complete.")
     return 0
 
 

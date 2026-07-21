@@ -99,6 +99,7 @@
 - 新增、复制或重命名进入 `tasks/archive/` 的 PRD 也必须完成验收清单
 - 已存在的历史 archive PRD 不会因为普通修改被重新套用新规则
 - 验收清单标题支持英文 `Acceptance Checklist`、中文 `验收清单` 和双语标题
+- skill 内 checker 还会拒绝缺失关键值来源、必经边界、禁止旁路、fresh-state probe 或最终代码树证据的可执行 oracle
 
 这条规则的目标是让“归档”代表交付完成，同时避免历史归档文档被新标准批量翻旧账。
 
@@ -242,6 +243,7 @@ uv run pre-commit run --all-files
 - 新增、复制或重命名进入 `tasks/archive/` 的 PRD 也必须完成验收清单
 - 已存在的历史 archive PRD 不会因为普通修改被重新套用新规则
 - 验收清单标题支持英文 `Acceptance Checklist`、中文 `验收清单` 和双语标题
+- skill 内 checker 还会拒绝缺失关键值来源、必经边界、禁止旁路、fresh-state probe 或最终代码树证据的可执行 oracle
 
 这条规则的目标是让"归档"代表交付完成，同时避免历史归档文档被新标准批量翻旧账。
 

@@ -182,6 +182,16 @@ HTML 报告仍固定在 `tests/playwright-e2e/playwright-report/`，可用 `just
 7. **最终校验**：verifier 通过后，`just ai implement` 运行 `scripts/shared/just/check_prd_evidence.sh` 再次确认前端视觉证据存在，缺少则阻止流程结束。
 8. **工具不可用**：verifier 默认工具不可用时，降级到与 executor 相同工具；相同工具也不可用时，流程暂停并提示人工，不自动回退到 executor 自检。
 
+### 证据链完整性
+
+可执行 oracle 除了 `real_entry` 与预期结果，还必须记录关键值来源、必须穿过的真实边界、禁止的旁路、fresh-state 独立观察，以及证据对应的最终代码树。具体要求：
+
+- UI 显示或复制的 URL、token、ID、命令、载荷必须从 UI 原样提取并用于后续动作，禁止重构等价值或硬编码替代路径。
+- 写 API 返回成功后，必须用新的 browser/request/process/DB session 经消费者入口读取，证明事务提交与持久化已经完成。
+- 前端流程必须断言浏览器实际请求的 canonical path、method 与 contract；已知 legacy/重复前缀需有负断言。
+- 影响入口、关键值构造、代理/路由、事务、存储、消费者或断言的相关改动会使旧证据失效，必须在最终代码树重新收集。
+- 真实运行或现场报告反驳已归档的 verifier `PASS` 时，旧验收立即失效；重开或创建关联回归 PRD，修复并重新独立验收后才能再次归档。
+
 人工终点审查时，按风险地图顺序查看证据包，重点抽查高风险 oracle 结果、前端截图/录屏和 verifier report。
 
 ## Change Recording

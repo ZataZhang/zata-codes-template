@@ -212,6 +212,11 @@ If not required:
   real_entry: "用户真正会敲的命令 / URL / 入口"      # 真实入口,不是单测/helper
   expected: "看到什么算它真的成立(可观测)"
   mock_boundary: "什么可 mock、什么必须真"           # under-test 的那层不准 mock
+  critical_value_source: "URL/token/ID/命令/载荷必须从哪个真实 UI/响应/剪贴板取得"
+  must_cross: "必须依次穿过的真实边界: UI -> proxy -> canonical API -> commit -> fresh read"
+  forbidden_bypasses: "禁止 helper/重构值/直调 service/fake adapter/legacy 或兼容路由"
+  fresh_state_probe: "动作完成后由新 browser/request/process/DB session 独立观察什么"
+  final_tree_evidence: "证据如何绑定最终相关代码树，以及哪些改动后必须重跑"
   negative_control: "什么命令 / 种个 bug 能让它变红"  # 判别力:证明这测试会失败
   expected_fail: "红的时候长什么样"
   test_layer: unit|integration|e2e|smoke|sandbox|manual
@@ -221,6 +226,7 @@ If not required:
 Failure triage:
 - `real_entry` 跑挂,先查 `[第一处 config / 路径 / 边界]`,别急着改实现策略。
 - 生产 / 供应商 / 需凭据的项标 `opt-in / post-merge`;无凭据时必须有仍可跑的 fallback。
+- UI 产生的关键值必须从 UI 原样提取再消费；写操作必须跨 commit 后由 fresh state 独立读取；已归档 PASS 若被真实运行反驳，立即失效并重新验收。
 
 无可执行行为时,本块写：
 - `No executable behavior changes; realistic validation is limited to documentation/build checks.`
@@ -320,6 +326,8 @@ If no external validation was needed:
 
 - [ ] `[validation command]` passes
 - [ ] `[real entry command]` exercises the changed behavior through `[API/CLI/UI/job/startup/migration]` without bypassing `[critical boundary]`
+- [ ] Evidence uses the exact `[UI/response/clipboard]` value, crosses `[named boundaries]`, rejects `[forbidden bypasses]`, and proves the postcondition from `[fresh browser/request/process/DB session]`
+- [ ] Evidence artifacts identify the final relevant code tree and were recollected after the last change affecting the oracle chain
 - [ ] For user-visible changes: the repo's e2e/UI test command or a manual app run confirms the flow end-to-end
 - [ ] `[rg search command]` confirms no legacy entry point, duplicate path, or compatibility shim remains
 - [ ] `[rg search command]` confirms expected target references exist in the owning files
