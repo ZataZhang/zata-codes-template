@@ -1,3 +1,0 @@
-interface:
-  display_name: "CI/CD GitHub Actions Dokploy"
-  short_description: "Maintain GitHub Actions CI/CD and Dokploy deploy flows"
