@@ -198,7 +198,7 @@ uv run pre-commit run --all-files
 - `.last_tested_commit`：绑定当前分支、HEAD 和 test 有效 tree；提交前由 `check-test-flag` 校验，并在 `just test` 入口用于判断是否需要重新跑测试。
 - 对于刚 `git init`、尚无首个 commit 的仓库，flag 会绑定当前分支、`no-commit` 和对应有效 tree，因此模板仓库复制后可在首次提交前正常运行 `just test` / `just lint --full` / `git commit` 流程。
 
-`just test` 在入口处会先检查 `.last_tested_commit`：若分支、HEAD 和 test 有效 tree 均未变化，则直接打印提示并退出，避免重复 lint 与 pytest。只有在 flag 无效或不存在时，才会执行 `SKIP=check-test-flag just lint --full` 并运行测试。测试成功后会同时刷新 test 标记和 full lint 标记，避免刚跑完 `just test` 后再次执行完整 full lint。
+`just test` 在入口处先读 `.last_tested_commit`：若分支、HEAD 和 test 有效 tree 均未变化，则直接打印提示并退出，避免重复 pytest。如果 test 标记不命中，则进一步读 `.last_linted_commit`：命中时跳过 lint 前置直接进入 pytest，未命中时才执行 `SKIP=check-test-flag just lint --full`。这种"两级快路径"是 warm tree 上 `just test` 能稳定低于 30s 的关键。CI 环境（`CI` 非空）下会禁用这两条快路径，强制走完整 lint + pytest，避免跨 job/host 的 flag 文件泄漏掩盖回归。测试成功后会同时刷新 test 标记和 full lint 标记，避免刚跑完 `just test` 后再次执行完整 full lint。本地 pytest 默认使用 `-q`，CI 下回退到 `-v`。
 
 `just lint --full` 的快速路径仍会执行轻量的 `check-test-flag`，除非调用方显式设置 `SKIP=check-test-flag`。如果 `SKIP` 跳过了除 `check-test-flag` 以外的 hook，本次 full lint 不会写入 `.last_linted_commit`。
 

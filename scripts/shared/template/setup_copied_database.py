@@ -2,7 +2,7 @@
 """为新复制出的项目或 Worktree 设置独立的数据库。
 
 读取目标目录的 ``.env.local``，根据标识派生唯一的数据库名，更新
-``DATABASE_URL``，并尝试在 PostgreSQL 中创建该数据库。
+``DATABASE_URL``，并尝试在 PostgreSQL 或 MySQL 中创建该数据库。
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 
 
 def derive_database_name(database_identifier: str) -> str:
-    """根据标识派生 Postgres 安全的数据库名。
+    """根据标识派生 PostgreSQL/MySQL 安全的数据库名。
 
     Args:
         database_identifier: 用于派生数据库名的项目或 Worktree 标识。
@@ -33,7 +33,8 @@ def derive_database_name(database_identifier: str) -> str:
     if len(db_name) <= 63:
         return db_name
 
-    # Postgres 标识符默认限制 63 字节。保留哈希尾缀，避免长分支名截断后冲突。
+    # PostgreSQL 标识符默认限制 63 字节，低于 MySQL 的 64 字节限制。
+    # 保留哈希尾缀，避免长分支名截断后冲突。
     identifier_digest = sha256(database_identifier.encode("utf-8")).hexdigest()[:8]
     return f"{db_name[:54]}_{identifier_digest}"
 
@@ -67,8 +68,8 @@ def update_database_url(
         if not value:
             continue
         parsed = urlparse(value)
-        if not parsed.scheme.startswith("postgresql"):
-            # 只改写 PostgreSQL URL，SQLite 等保持不变。
+        if not parsed.scheme.startswith(("postgresql", "mysql")):
+            # 只改写 PostgreSQL/MySQL URL，SQLite 等保持不变。
             continue
         db_name = derive_database_name(database_identifier)
         new_url = parsed._replace(path=f"/{db_name}").geturl()
@@ -136,6 +137,60 @@ def create_postgres_database(database_url: str) -> bool:
             connection.close()
 
 
+def create_mysql_database(database_url: str) -> bool:
+    """尝试根据 ``DATABASE_URL`` 创建 MySQL 数据库。
+
+    Args:
+        database_url: 已更新为项目专用数据库的 MySQL URL。
+
+    Returns:
+        数据库已创建或已存在返回 ``True``，否则返回 ``False``。
+    """
+    parsed = urlparse(database_url)
+    host = parsed.hostname or "localhost"
+    port = parsed.port or 3306
+    user = parsed.username
+    password = parsed.password
+    db_name = parsed.path.lstrip("/") if parsed.path else ""
+
+    if not db_name:
+        return False
+
+    try:
+        import pymysql
+    except ImportError:
+        print("PyMySQL 不可用，无法自动创建数据库。")
+        return False
+
+    connection = None
+    try:
+        connection = pymysql.connect(
+            host=host,
+            port=port,
+            user=user,
+            password=password,
+            database="mysql",
+            autocommit=True,
+        )
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT 1 FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = %s;",
+                (db_name,),
+            )
+            if cursor.fetchone():
+                print(f"数据库 '{db_name}' 已存在。")
+                return True
+            cursor.execute(f"CREATE DATABASE `{db_name}`;")
+        print(f"已创建数据库: {db_name}")
+        return True
+    except pymysql.MySQLError as exc:
+        print(f"无法创建数据库 '{db_name}': {exc}")
+        return False
+    finally:
+        if connection is not None:
+            connection.close()
+
+
 def main() -> int:
     """脚本入口。"""
     script_arguments = sys.argv[1:]
@@ -145,8 +200,7 @@ def main() -> int:
     ]
     if len(positional_arguments) != 2:
         print(
-            "Usage: python setup_copied_database.py "
-            "<database_identifier> <project_root> [--strict]"
+            "Usage: python setup_copied_database.py <database_identifier> <project_root> [--strict]"
         )
         return 1
 
@@ -157,16 +211,23 @@ def main() -> int:
     new_url, db_name = update_database_url(env_local_path, database_identifier)
 
     if new_url is None or db_name is None:
-        print(".env.local 中未找到 PostgreSQL 的 DATABASE_URL，跳过数据库设置。")
+        print(".env.local 中未找到 PostgreSQL/MySQL 的 DATABASE_URL，跳过数据库设置。")
         return 1 if strict_mode else 0
 
     print(f"已将 DATABASE_URL 改写为项目专用数据库: {db_name}")
 
-    if create_postgres_database(new_url):
+    parsed_database_url = urlparse(new_url)
+    if parsed_database_url.scheme.startswith("postgresql"):
+        database_ready = create_postgres_database(new_url)
+    elif parsed_database_url.scheme.startswith("mysql"):
+        database_ready = create_mysql_database(new_url)
+    else:
+        database_ready = False
+
+    if database_ready:
         print("数据库已就绪。")
     else:
-        print("请手动创建数据库，然后运行 `uv run alembic upgrade head`:")
-        print(f"  createdb -h localhost -U <user> {db_name}")
+        print("请手动创建数据库，然后运行 `uv run alembic upgrade head`。")
         return 1 if strict_mode else 0
     return 0
 

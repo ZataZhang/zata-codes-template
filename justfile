@@ -842,3 +842,14 @@ copy name force='':
 # Evidence is written to tasks/evidence/<prd-basename>/.
 e2e-evidence prd_file rv_id="":
     cd "{{justfile_directory()}}" && ./scripts/e2e/run-prd-evidence.sh "{{prd_file}}" "{{rv_id}}"
+
+
+# Measure `just test` end-to-end latency to verify the 30s budget.
+# Runs warm + after-edit scenarios by default; pass --include-cold to also
+# force a full pre-commit run (may exceed 30s).
+# Usage:
+#   just bench-test
+#   just bench-test --include-cold
+#   just bench-test --budget 25
+bench-test *args:
+    cd "{{justfile_directory()}}" && uv run python scripts/dev/measure_just_test.py {{args}}

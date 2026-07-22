@@ -159,7 +159,7 @@ tests/playwright-e2e/test-results/2026-07-02T11-31-08/
 
 HTML 报告仍固定在 `tests/playwright-e2e/playwright-report/`，可用 `just e2e-report` 打开。
 
-`just test` 会先执行 `SKIP=check-test-flag just lint --full`；当测试最终通过时，会同时刷新 `just test` 与 full lint 的本地通过标记。若代码有效 tree 未变化，后续 `just lint --full` 可以复用该标记走快速路径，但提交门禁仍会检查 `just test` 标记。
+`just test`（local 档）会先读 `.last_tested_commit` 与 `.last_linted_commit` 两个本地通过标记：test 标记命中时直接跳过 pytest，lint 标记命中时跳过 lint 前置。当 `just test` 真正运行测试并通过后，会同时刷新 test 与 full lint 标记，避免刚跑完 `just test` 后再次执行完整 full lint。本地调用默认使用 `pytest -q` 以压低启动/格式化开销，CI 环境（`CI` 非空）下回退到 `-v` 以保留每条用例的结果输出。CI 环境同时禁用这两条快路径，强制走完整 lint + pytest，避免跨 job/host 的 flag 文件泄漏掩盖回归。提交门禁仍会检查 `just test` 标记。
 
 交付前建议：
 
