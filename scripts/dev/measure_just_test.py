@@ -13,6 +13,8 @@
 - --include-cold 会删除 .last_linted_commit 和 .last_tested_commit，
   强制走 pre-commit 全套；该路径可能超过 30s（pre-commit 全套时间决定），
   按当前默认不跑，需要时显式 opt-in。
+- after-edit 临时向 justfile.shared 追加注释以失效测试缓存；不修改
+  pyproject.toml，避免无关的依赖锁一致性检查影响性能测量。
 """
 
 from __future__ import annotations
@@ -29,6 +31,7 @@ GIT_DIR = PROJECT_ROOT / ".git"
 LINT_FLAG = GIT_DIR / ".last_linted_commit"
 TEST_FLAG = GIT_DIR / ".last_tested_commit"
 EDIT_MARKER = "# measure_just_test.py — temporary marker, safe to remove"
+EDIT_TARGET = PROJECT_ROOT / "justfile.shared"
 
 DEFAULT_BUDGET_SECONDS = 30.0
 
@@ -63,9 +66,8 @@ def _scenario(label: str, budget_seconds: float, *, include_cold: bool) -> dict:
                 flag.unlink()
         print("cleared .last_linted_commit and .last_tested_commit", flush=True)
     elif label == "after-edit":
-        pyproject = PROJECT_ROOT / "pyproject.toml"
-        original = pyproject.read_text(encoding="utf-8")
-        pyproject.write_text(original + "\n" + EDIT_MARKER + "\n", encoding="utf-8")
+        original = EDIT_TARGET.read_text(encoding="utf-8")
+        EDIT_TARGET.write_text(original + "\n" + EDIT_MARKER + "\n", encoding="utf-8")
         try:
             exit_code, elapsed = _run_just_test()
             return {
@@ -76,7 +78,7 @@ def _scenario(label: str, budget_seconds: float, *, include_cold: bool) -> dict:
                 "passed": exit_code == 0 and elapsed <= budget_seconds,
             }
         finally:
-            pyproject.write_text(original, encoding="utf-8")
+            EDIT_TARGET.write_text(original, encoding="utf-8")
             for flag in (LINT_FLAG, TEST_FLAG):
                 if flag.exists():
                     flag.unlink()

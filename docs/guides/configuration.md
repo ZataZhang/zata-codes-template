@@ -39,6 +39,38 @@
 
 对包含多个前端子项目的仓库，默认策略会覆盖类似 `demo-frontend/`、`admin-frontend/` 这类嵌套目录，而不是只处理仓库根目录。
 
+## 数据库建库选项
+
+`scripts/shared/template/setup_copied_database.py` 在创建 Worktree 专用数据库前，会从
+`.env.local` 读取以下四个选项来控制目标方言的字符集 / 排序规则 / locale。**未设置则
+使用脚本默认**，与下游业务标准一致即可无需修改。
+
+| 环境变量 | 作用于 | 默认值 | 说明 |
+|---|---|---|---|
+| `DATABASE_CHARSET` | MySQL | `utf8mb4` | 新建库的字符集。 |
+| `DATABASE_COLLATION` | MySQL | `utf8mb4_unicode_ci` | 新建库的排序规则。 |
+| `DATABASE_LOCALE` | PostgreSQL | 空（走 cluster 默认） | 拼到 `CREATE DATABASE ... LOCALE = '<value>'`，仅在显式设置时生效。 |
+| `DATABASE_ENCODING` | PostgreSQL | 空（走 cluster 默认） | 拼到 `CREATE DATABASE ... ENCODING = '<value>'`，仅在显式设置时生效。 |
+
+### 何时需要覆盖
+
+- **MySQL 8.0+**：脚本默认 `utf8mb4_unicode_ci` 与 MySQL 5.7 / MariaDB 默认一致，
+  跨版本兼容。如项目硬编码依赖 `utf8mb4_0900_ai_ci` 或其他 collation，直接在
+  `.env.local` 设 `DATABASE_COLLATION` 即可。
+- **PostgreSQL**：脚本默认从 `template0` 复制，**不**主动给 `LOCALE` / `ENCODING`——
+  这能避免在某些 OS locale 不匹配的环境里报错。若项目有强制 locale 需求（例如
+  想用 `C.UTF-8` 走纯 ASCII 排序加速），在 `.env.local` 设 `DATABASE_LOCALE` /
+  `DATABASE_ENCODING` 即可。注意 PostgreSQL 要求 `ENCODING` 与 `LC_COLLATE` /
+  `LC_CTYPE` 都与 OS locale 匹配；若集群未安装该 locale 会报错。
+
+### 不要做的
+
+- **不要**只改 `DATABASE_URL` 而不更新字符集相关 env var——脚本会落到默认
+  `utf8mb4_unicode_ci`，与迁移链期望不一致时仍会触发 `Illegal mix of collations`。
+- **不要**在脚本调用后再手工 `ALTER DATABASE` 改 collation——业务修复应在校验 /
+  迁移层做（参见 `just lint --reuse` 与项目自身的 `docs/architecture/system-design.md`）
+  而不是在 provisioning 阶段打补丁。
+
 ## 模板同步配置
 
 `just sync-template` 会读取 `config.toml` 中的 `[template_sync]` 表，用来决定默认模式下哪些项目路径不参与模板同步。

@@ -87,10 +87,149 @@ def test_database_setup_does_not_print_connection_secret(
         "update_database_url",
         lambda *_: (secret_database_url, "worktree_db"),
     )
-    monkeypatch.setattr(_SCRIPT_MODULE, "create_postgres_database", lambda _: True)
+    monkeypatch.setattr(_SCRIPT_MODULE, "create_postgres_database", lambda *_, **__: True)
 
     assert _SCRIPT_MODULE.main() == 0
 
     captured_output = capsys.readouterr().out
     assert "worktree_db" in captured_output
     assert "top-secret" not in captured_output
+
+
+def test_compose_mysql_create_database_sql_uses_safe_defaults() -> None:
+    """MySQL 建库默认走 utf8mb4 / utf8mb4_unicode_ci，远离 MySQL 8 0900_ai_ci。"""
+    sql = _SCRIPT_MODULE.compose_mysql_create_database_sql("wt_db")
+    assert sql == ("CREATE DATABASE `wt_db` " "CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;")
+    assert "utf8mb4_0900_ai_ci" not in sql
+
+
+def test_compose_mysql_create_database_sql_honors_overrides() -> None:
+    """下游项目可指定 charset / collation。"""
+    sql = _SCRIPT_MODULE.compose_mysql_create_database_sql(
+        "wt_db", charset="utf8mb4", collation="utf8mb4_0900_ai_ci"
+    )
+    assert "COLLATE utf8mb4_0900_ai_ci" in sql
+
+
+def test_compose_postgres_create_database_sql_uses_template0_by_default() -> None:
+    """PostgreSQL 默认从 template0 复制，避免被 template1 自定义污染。"""
+    sql = _SCRIPT_MODULE.compose_postgres_create_database_sql("wt_db")
+    assert sql == "CREATE DATABASE wt_db TEMPLATE template0;"
+
+
+def test_compose_postgres_create_database_sql_includes_locale_and_encoding() -> None:
+    """显式给定 LOCALE / ENCODING 时追加到 CREATE DATABASE 中。"""
+    sql = _SCRIPT_MODULE.compose_postgres_create_database_sql(
+        "wt_db", locale="C.UTF-8", encoding="UTF8"
+    )
+    assert "ENCODING = 'UTF8'" in sql
+    assert "LOCALE = 'C.UTF-8'" in sql
+    assert "TEMPLATE template0" in sql
+
+
+def test_read_database_options_returns_empty_when_file_missing(tmp_path: Path) -> None:
+    """目标 .env.local 不存在时返回空字典。"""
+    assert _SCRIPT_MODULE.read_database_options(tmp_path / ".env.local") == {}
+
+
+def test_read_database_options_parses_known_keys(tmp_path: Path) -> None:
+    """只识别登记在 DATABASE_OPTION_KEYS 里的键，忽略其它 env var。"""
+    env_local_path = tmp_path / ".env.local"
+    env_local_path.write_text(
+        "\n".join(
+            [
+                "# 与数据库建库无关的环境变量",
+                "LOG_LEVEL=INFO",
+                "DATABASE_CHARSET=utf8mb4",
+                "DATABASE_COLLATION=utf8mb4_unicode_ci",
+                "DATABASE_LOCALE=C.UTF-8",
+                "DATABASE_ENCODING=UTF8",
+                "OTHER_DB_OPTION=ignored",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    options = _SCRIPT_MODULE.read_database_options(env_local_path)
+    assert options == {
+        "DATABASE_CHARSET": "utf8mb4",
+        "DATABASE_COLLATION": "utf8mb4_unicode_ci",
+        "DATABASE_LOCALE": "C.UTF-8",
+        "DATABASE_ENCODING": "UTF8",
+    }
+    assert "OTHER_DB_OPTION" not in options
+    assert "LOG_LEVEL" not in options
+
+
+def test_read_database_options_preserves_empty_values(tmp_path: Path) -> None:
+    """空值保留——与"未设置"由调用方 ``or <default>`` 兜底。"""
+    env_local_path = tmp_path / ".env.local"
+    env_local_path.write_text(
+        "DATABASE_CHARSET=\nDATABASE_LOCALE=C.UTF-8\n",
+        encoding="utf-8",
+    )
+
+    options = _SCRIPT_MODULE.read_database_options(env_local_path)
+    assert options["DATABASE_CHARSET"] == ""
+    assert options["DATABASE_LOCALE"] == "C.UTF-8"
+
+
+def test_main_passes_database_options_to_mysql(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """main() 把 .env.local 里的 charset/collation 透给 create_mysql_database。"""
+    env_local_path = tmp_path / ".env.local"
+    env_local_path.write_text(
+        "DATABASE_URL=mysql://app:secret@localhost:3306/main_db\n"
+        "DATABASE_CHARSET=utf8mb4\n"
+        "DATABASE_COLLATION=utf8mb4_0900_ai_ci\n",
+        encoding="utf-8",
+    )
+
+    captured: dict[str, str] = {}
+
+    def _fake_create_mysql(database_url: str, charset: str, collation: str) -> bool:
+        captured["database_url"] = database_url
+        captured["charset"] = charset
+        captured["collation"] = collation
+        return True
+
+    monkeypatch.setattr(
+        _SCRIPT_MODULE.sys, "argv", ["setup_copied_database.py", "wt", str(tmp_path)]
+    )
+    monkeypatch.setattr(_SCRIPT_MODULE, "create_mysql_database", _fake_create_mysql)
+
+    assert _SCRIPT_MODULE.main() == 0
+    assert captured["charset"] == "utf8mb4"
+    assert captured["collation"] == "utf8mb4_0900_ai_ci"
+
+
+def test_main_passes_database_options_to_postgres(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """main() 把 .env.local 里的 locale/encoding 透给 create_postgres_database。"""
+    env_local_path = tmp_path / ".env.local"
+    env_local_path.write_text(
+        "DATABASE_URL=postgresql://app:secret@localhost:5432/main_db\n"
+        "DATABASE_LOCALE=C.UTF-8\n"
+        "DATABASE_ENCODING=UTF8\n",
+        encoding="utf-8",
+    )
+
+    captured: dict[str, str] = {}
+
+    def _fake_create_postgres(database_url: str, locale: str, encoding: str) -> bool:
+        captured["database_url"] = database_url
+        captured["locale"] = locale
+        captured["encoding"] = encoding
+        return True
+
+    monkeypatch.setattr(
+        _SCRIPT_MODULE.sys, "argv", ["setup_copied_database.py", "wt", str(tmp_path)]
+    )
+    monkeypatch.setattr(_SCRIPT_MODULE, "create_postgres_database", _fake_create_postgres)
+
+    assert _SCRIPT_MODULE.main() == 0
+    assert captured["locale"] == "C.UTF-8"
+    assert captured["encoding"] == "UTF8"

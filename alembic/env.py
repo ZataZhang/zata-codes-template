@@ -51,6 +51,10 @@ def run_migrations_online() -> None:
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
+            # MySQL DDL 会隐式提交；逐 migration 开启显式事务，确保紧随 DDL
+            # 的 alembic_version DML 也在连接关闭前提交，避免 schema 已变更
+            # 但版本号滞后一条、下次启动重复执行同一 DDL。
+            transaction_per_migration=connection.dialect.name == "mysql",
         )
 
         with context.begin_transaction():
