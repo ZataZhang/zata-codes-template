@@ -10,6 +10,7 @@ from __future__ import annotations
 import shutil
 import socket
 import subprocess
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -18,6 +19,19 @@ import yaml
 _PROJECT_ROOT_PATH = Path(__file__).resolve().parents[3]
 _JUSTFILE_PATH = _PROJECT_ROOT_PATH / "justfile"
 _LOCAL_COMPOSE_PATH = _PROJECT_ROOT_PATH / "docker-compose.yml"
+_PYPROJECT_PATH = _PROJECT_ROOT_PATH / "pyproject.toml"
+
+
+def _project_name() -> str:
+    """从 ``pyproject.toml`` 读项目名，作为 docker-compose service 命名前缀。
+
+    模板仓默认 ``zata-codes-template``；``just copy`` 替换时把
+    ``OLD_NAME=zata-codes-template`` 同步改写为派生项目名（同时改 service 名
+    和 ``pyproject.toml:6`` 的 ``[project] name``）。本守卫测试因此以
+    ``pyproject.toml`` 为唯一权威源，避免硬编码 service 名前缀。
+    """
+    pyproject_doc = tomllib.loads(_PYPROJECT_PATH.read_text(encoding="utf-8"))
+    return pyproject_doc["project"]["name"]
 
 
 @pytest.mark.skipif(shutil.which("just") is None, reason="需要 just 验证真实运行入口")
@@ -81,17 +95,18 @@ def test_local_host_entrypoints_consume_runtime_port_state() -> None:
         local_compose_doc = yaml.safe_load(compose_handle)
 
     local_service_by_name = local_compose_doc["services"]
-    assert local_service_by_name["zata-codes-template-backend"]["ports"] == [
+    project_name = _project_name()
+    assert local_service_by_name[f"{project_name}-backend"]["ports"] == [
         "${BACKEND_PORT:-8000}:8000"
     ]
-    assert local_service_by_name["zata-codes-template-admin"]["ports"] == [
+    assert local_service_by_name[f"{project_name}-admin"]["ports"] == [
         "${FRONTEND_ADMIN_PORT:-5173}:80"
     ]
-    assert local_service_by_name["zata-codes-template-public"]["ports"] == [
+    assert local_service_by_name[f"{project_name}-public"]["ports"] == [
         "${FRONTEND_PUBLIC_PORT:-3000}:3000"
     ]
-    assert local_service_by_name["zata-codes-template-public"]["environment"] == [
-        "API_BASE_URL=${API_BASE_URL:-http://zata-codes-template-backend:8000}"
+    assert local_service_by_name[f"{project_name}-public"]["environment"] == [
+        f"API_BASE_URL=${{API_BASE_URL:-http://{project_name}-backend:8000}}"
     ]
     assert 'env_file_args+=(--env-file "$run_state_file")' in justfile_text
     assert 'BACKEND_PORT="$backend_port"' in justfile_text
