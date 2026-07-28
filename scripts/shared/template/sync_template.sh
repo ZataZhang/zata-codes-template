@@ -263,6 +263,12 @@ _is_always_skipped() {
         main.py|justfile) return 0 ;;
         findings.md|progress.md|task_plan.md) return 0 ;;
         .DS_Store|.dockerignore|.gitignore) return 0 ;;
+        # Tests that exercise template-only artifacts (e.g. skills/prd/scripts)
+        # are not portable to derived projects: the underlying artifact is
+        # always-skipped below, so importing the test would guarantee a
+        # collection-time FileNotFoundError downstream. Keep these tests
+        # template-internal by listing them here.
+        tests/test_prd_skill_checker.py) return 0 ;;
     esac
     case "$p" in
         # Local state, build output, runtime artifacts
