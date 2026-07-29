@@ -14,7 +14,7 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
   const [expanded, setExpanded] = useState(false)
 
   return (
-    <div className="rounded-lg border bg-muted/50 text-foreground">
+    <div className="max-w-full overflow-hidden rounded-lg border bg-muted/50 text-foreground">
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}

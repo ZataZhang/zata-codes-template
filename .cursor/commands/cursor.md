@@ -19,6 +19,7 @@
 ## Critical Summary
 
 - 新的后端功能先读 `docs/architecture/system-design.md`
+- 任何代码变更开始前，以及收集验证证据或声称完成前，重新核对 `docs/ai-standards/testing.md`；组件预览不得冒充真实入口验证
 - Python 工作流优先 `uv` 与 `just`
 - 公共 Python API 使用 Google Style Docstrings
 - Python 文件读写显式使用 UTF-8
