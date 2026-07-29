@@ -80,6 +80,17 @@ frontend-public/
 - **工作流编排**：基于 React Flow 的可视化节点画布，保存/运行工作流
 - **工具管理**：查看平台预置工具列表
 
+### 复用流式聊天展示
+
+`components/chat/streaming-chat-turn.tsx` 提供与具体会话 API 解耦的流式展示层：
+
+- `StreamingChatTurn` 按 SSE 到达顺序交错展示 Markdown 文本与工具调用
+- `appendStreamingDelta` 把增量文本合并到当前文本块
+- `upsertStreamingTool` 按工具调用 ID 新增或更新运行状态
+- 底层统一复用 `ChatMessage` 与 `ToolCallCard`
+
+调用方只需要把自己的 SSE 事件转换成 `StreamingChatBlock[]`，无需复制消息气泡或工具卡片。
+
 ## 容器化
 
 ```bash

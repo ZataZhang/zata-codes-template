@@ -1,20 +1,30 @@
 import { cn } from "@/lib/utils"
 import type { ChatMessage as ChatMessageType } from "@/lib/types/session"
 import { Bot, User } from "lucide-react"
+import { MarkdownMessage } from "./markdown-message"
 import { ToolCallCard } from "./tool-call-card"
 
 interface ChatMessageProps {
   message: ChatMessageType
+  streamingContent?: string
+  isStreaming?: boolean
+  streamingStatusText?: string
 }
 
 /** Render a single chat message bubble. */
-export function ChatMessage({ message }: ChatMessageProps) {
+export function ChatMessage({
+  message,
+  streamingContent,
+  isStreaming = false,
+  streamingStatusText = "正在生成…",
+}: ChatMessageProps) {
   const isUser = message.role === "user"
+  const displayContent = streamingContent ?? message.content
 
   return (
     <div
       className={cn(
-        "flex gap-3",
+        "flex w-full gap-3",
         isUser ? "flex-row-reverse" : "flex-row"
       )}
     >
@@ -28,20 +38,40 @@ export function ChatMessage({ message }: ChatMessageProps) {
       </div>
       <div
         className={cn(
-          "max-w-[80%] rounded-2xl px-4 py-3",
-          isUser
-            ? "bg-primary text-primary-foreground"
-            : "border bg-card"
+          "flex min-w-0 flex-col gap-1",
+          isUser ? "max-w-[75%] items-end" : "w-full items-start"
         )}
       >
-        <div className="whitespace-pre-wrap text-sm">{message.content}</div>
-        {message.tool_calls && message.tool_calls.length > 0 && (
-          <div className="mt-3 space-y-2">
-            {message.tool_calls.map((toolCall) => (
-              <ToolCallCard key={toolCall.id} toolCall={toolCall} />
-            ))}
-          </div>
-        )}
+        <div
+          className={cn(
+            "max-w-full space-y-2 text-sm",
+            isUser
+              ? "rounded-2xl bg-primary px-4 py-3 text-primary-foreground"
+              : "w-full min-w-0 text-card-foreground"
+          )}
+        >
+          {displayContent ? (
+            <div className="break-words">
+              {isUser ? (
+                <span className="whitespace-pre-wrap">{displayContent}</span>
+              ) : (
+                <MarkdownMessage content={displayContent} />
+              )}
+            </div>
+          ) : null}
+          {isStreaming ? (
+            <div className="text-xs text-muted-foreground">
+              {streamingStatusText}
+            </div>
+          ) : null}
+          {message.tool_calls && message.tool_calls.length > 0 ? (
+            <div className="space-y-2">
+              {message.tool_calls.map((toolCall) => (
+                <ToolCallCard key={toolCall.id} toolCall={toolCall} />
+              ))}
+            </div>
+          ) : null}
+        </div>
       </div>
     </div>
   )

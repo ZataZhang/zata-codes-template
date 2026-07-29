@@ -6,6 +6,8 @@ Use `uv` and `just` for Python workflows. Public Python APIs require Google Styl
 
 Keep `docs/` and `mkdocs.yml` in sync when behavior, configuration, architecture, or standards change.
 
+Before any code change, and again before collecting validation evidence or claiming completion, read `docs/ai-standards/testing.md`. A component preview, temporary route, or manually injected state must not be presented as real-entry or end-to-end validation.
+
 `tests/playwright-e2e/` is a standalone TypeScript/Node package that uses `npm`; do not force Python SSA naming conventions onto that subtree.
 
 Guard tests in `tests/guards/` assert repo conventions and hook contracts, not business logic. When one fails, fix the source code or config that triggered it-never edit the guard test to make it pass. Modifying `tests/guards/**` requires `GUARD_UPDATE_ACK=1 git commit`. See `docs/ai-standards/testing.md` (Guard Tests).
