@@ -78,7 +78,7 @@ just run        # 同时启动后端 + 管理平台前端 + 前台官网
 | 命令 | 说明 |
 |------|------|
 | `just copy <name>` | 将本模版复制为新项目到 `../<name>/`，不包含 `node_modules`、`dist` 等依赖和构建产物；目标目录非空时可用 `--force` 覆盖 |
-| `just sync-template` | 与上游模版对比，交互式选择更新。默认同步模板维护的通用文件；跳过 `tasks/`、环境/缓存产物、`config.toml` 中 `[template_sync].project_skip_paths` 配置的项目路径，以及 README、CLAUDE.md、main.py、justfile、pyproject.toml、config.toml、mkdocs.yml、uv.lock 等项目特定文件。如有模板技能更新，可选择安装到 `~/.cc-switch/skills`，若该目录不存在则提示选择 Codex 或 Claude 的 skills 目录 |
+| `just sync-template` | 与上游模版对比，交互式选择更新。默认同步模板维护的通用文件；跳过 `tasks/`、环境/缓存产物、`config.toml` 中 `[template_sync].project_skip_paths` 配置的项目路径，以及 README、CLAUDE.md、main.py、justfile、pyproject.toml、config.toml、mkdocs.yml、uv.lock 等项目特定文件。如有模板技能更新，会安装到检测到的全部目标：`~/.cc-switch/skills` 和 `~/.pi/agent/skills`；两者均不存在时提示选择 Codex、Claude 或 Pi 的 skills 目录 |
 | `just sync-template --all` | 同上，但额外包含 `project_skip_paths` 中的项目路径（如 `src/backend/`、`frontend-admin/`、`docs/`、`tests/`、`deploy/` 等）；`tasks/` 和顶层身份文件仍跳过 |
 | `just release` | 通过 `scripts/shared/release.py` 构建发布包 |
 

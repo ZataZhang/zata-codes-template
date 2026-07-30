@@ -156,6 +156,13 @@ uv run pre-commit run --show-diff-on-failure
 
 这些文件派生项目常会自定义（改入口指向、调整规范），默认覆盖会破坏项目定制，因此只在 `just sync-template --all` 模式才作为同步候选出现。实现见 `scripts/shared/template/sync_template.sh` 的 `_is_ai_adapter_file`。
 
+模板包含 Skill 更新时，`just sync-template` 与 `just sync-local-skills` 按本机目录选择安装目标：
+
+1. 检测到 `~/.cc-switch` 时加入 `~/.cc-switch/skills`。
+2. 检测到 `~/.pi` 时加入 Pi 的 `~/.pi/agent/skills`；它与 cc-switch 不互斥。
+3. 同时检测到两者时，同一批选中的 Skill 会同步到两个目录。
+4. 两者均不存在时，交互选择 Codex、Claude 或 Pi 的 skills 目录。
+
 ## Pre-commit Configuration Sync
 
 `.pre-commit-config.yaml` 由模板上游维护，已通过 `scripts/shared/template/sync_template.sh` 的 `_is_upstream_owned()` 纳入同步清单。派生项目**不要直接手改**该文件——本地修改会在下次 `sync_template` 时被覆盖。
