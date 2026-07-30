@@ -446,27 +446,32 @@ _ensure_fzf() {
 }
 
 CC_SWITCH_SKILLS_DIR="${CC_SWITCH_SKILLS_DIR:-}"
-SKILL_INSTALL_TARGET_DIR=""
+SKILL_INSTALL_TARGET_DIRS=()
 
-_resolve_skill_install_target_dir() {
-    if [ -n "$SKILL_INSTALL_TARGET_DIR" ]; then
+_resolve_skill_install_target_dirs() {
+    if [ "${#SKILL_INSTALL_TARGET_DIRS[@]}" -gt 0 ]; then
         return 0
     fi
 
     if [ -n "$CC_SWITCH_SKILLS_DIR" ]; then
-        SKILL_INSTALL_TARGET_DIR="$CC_SWITCH_SKILLS_DIR"
+        SKILL_INSTALL_TARGET_DIRS+=("$CC_SWITCH_SKILLS_DIR")
+    elif [ -d "$HOME/.cc-switch" ]; then
+        SKILL_INSTALL_TARGET_DIRS+=("$HOME/.cc-switch/skills")
+    fi
+
+    if [ -d "$HOME/.pi" ]; then
+        SKILL_INSTALL_TARGET_DIRS+=("$HOME/.pi/agent/skills")
+    fi
+
+    if [ "${#SKILL_INSTALL_TARGET_DIRS[@]}" -gt 0 ]; then
         return 0
     fi
 
-    if [ -d "$HOME/.cc-switch" ]; then
-        SKILL_INSTALL_TARGET_DIR="$HOME/.cc-switch/skills"
-        return 0
-    fi
-
-    echo "No ~/.cc-switch directory found."
+    echo "No ~/.cc-switch or ~/.pi directory found."
     echo "Choose a skill install target:"
     echo "  [1] Codex  -> $HOME/.codex/skills"
     echo "  [2] Claude -> $HOME/.claude/skills"
+    echo "  [3] Pi     -> $HOME/.pi/agent/skills"
     echo "  [q] Skip skill installation"
 
     while true; do
@@ -475,11 +480,15 @@ _resolve_skill_install_target_dir() {
         read -r target_choice </dev/tty
         case "$target_choice" in
             1)
-                SKILL_INSTALL_TARGET_DIR="$HOME/.codex/skills"
+                SKILL_INSTALL_TARGET_DIRS+=("$HOME/.codex/skills")
                 return 0
                 ;;
             2)
-                SKILL_INSTALL_TARGET_DIR="$HOME/.claude/skills"
+                SKILL_INSTALL_TARGET_DIRS+=("$HOME/.claude/skills")
+                return 0
+                ;;
+            3)
+                SKILL_INSTALL_TARGET_DIRS+=("$HOME/.pi/agent/skills")
                 return 0
                 ;;
             q|Q|"")
@@ -500,21 +509,28 @@ _collect_template_skill_updates() {
         return 0
     fi
 
-    if ! _resolve_skill_install_target_dir; then
+    if ! _resolve_skill_install_target_dirs; then
         return 0
     fi
 
     while IFS= read -r template_skill_dir; do
-        local skill_name installed_skill_dir skill_status
+        local skill_name installed_skill_dir skill_status skill_target_dir
         skill_name="$(basename "$template_skill_dir")"
-        installed_skill_dir="$SKILL_INSTALL_TARGET_DIR/$skill_name"
+        skill_status=""
 
-        if [ ! -d "$installed_skill_dir" ]; then
-            skill_status="NEW"
-        elif diff -qr "$template_skill_dir" "$installed_skill_dir" >/dev/null 2>&1; then
+        for skill_target_dir in "${SKILL_INSTALL_TARGET_DIRS[@]}"; do
+            installed_skill_dir="$skill_target_dir/$skill_name"
+            if [ ! -d "$installed_skill_dir" ]; then
+                skill_status="NEW"
+                break
+            fi
+            if ! diff -qr "$template_skill_dir" "$installed_skill_dir" >/dev/null 2>&1; then
+                skill_status="UPDATE"
+            fi
+        done
+
+        if [ -z "$skill_status" ]; then
             continue
-        else
-            skill_status="UPDATE"
         fi
 
         template_skill_entries+=("$skill_status"$'\t'"$skill_name"$'\t'"$template_skill_dir")
@@ -533,7 +549,12 @@ _install_template_skills() {
         return 0
     fi
 
-    echo "Template skills with installable updates for $SKILL_INSTALL_TARGET_DIR:"
+    echo "Template skills will be installed to:"
+    local skill_target_dir
+    for skill_target_dir in "${SKILL_INSTALL_TARGET_DIRS[@]}"; do
+        echo "  - $skill_target_dir"
+    done
+    echo "Template skills with installable updates:"
     local skill_entry_preview skill_status_preview skill_name_preview
     for skill_entry_preview in "${template_skill_entries[@]}"; do
         skill_status_preview="${skill_entry_preview%%$'\t'*}"
@@ -651,14 +672,15 @@ _install_template_skills() {
         return 0
     fi
 
-    mkdir -p "$SKILL_INSTALL_TARGET_DIR"
-
     local installed_count=0
     for skill_name in "${selected_skill_names[@]}"; do
         template_skill_dir="$template_root/skills/$skill_name"
-        rsync -a --delete "$template_skill_dir/" "$SKILL_INSTALL_TARGET_DIR/$skill_name/"
-        echo "  ✅ Installed: $SKILL_INSTALL_TARGET_DIR/$skill_name"
-        ((installed_count++)) || true
+        for skill_target_dir in "${SKILL_INSTALL_TARGET_DIRS[@]}"; do
+            mkdir -p "$skill_target_dir"
+            rsync -a --delete "$template_skill_dir/" "$skill_target_dir/$skill_name/"
+            echo "  ✅ Installed: $skill_target_dir/$skill_name"
+            ((installed_count++)) || true
+        done
     done
 
     skill_install_count=$installed_count
