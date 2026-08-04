@@ -70,7 +70,7 @@ sync mode="": _check-completion
                         completion_dir="$HOME/.zsh/completions"
                         completion_dst="$completion_dir/_just"
                         mkdir -p "$completion_dir"
-                        just --completions zsh > "$completion_dst"
+                        cp "{{justfile_directory()}}/scripts/shared/just/worktree_completion.zsh" "$completion_dst"
                         fpath_line="fpath=(\"$completion_dir\" \$fpath)"
                         autoload_line="autoload -Uz compinit && compinit"
                         if ! grep -Fqx "$fpath_line" "$HOME/.zshrc" 2>/dev/null; then
@@ -88,7 +88,7 @@ sync mode="": _check-completion
                         completion_dst="$completion_dir/just_completion.bash"
                         source_line="[ -f \"$completion_dst\" ] && source \"$completion_dst\""
                         mkdir -p "$completion_dir"
-                        just --completions bash > "$completion_dst"
+                        cp "{{justfile_directory()}}/scripts/shared/just/worktree_completion.bash" "$completion_dst"
                         if ! grep -Fqx "$source_line" "$HOME/.bashrc" 2>/dev/null; then
                             printf '\n%s\n' "$source_line" >> "$HOME/.bashrc"
                         fi
