@@ -113,7 +113,7 @@ AI 代理默认不会设置该变量，因此会被 hook 拦下——这是"指�
 
 ### 模板同步边界
 
-E2E 基础设施（runner、配置、共享 support/fixtures/page-objects/scripts、README）是上游模板维护的共享层，`just sync-template` 会自动提示同步。项目特定的测试用例放在 `tests/playwright-e2e/tests/`，默认被 `config.toml` 的 `project_skip_paths` 排除，不会被模板覆盖。运行时产物（`.auth/`、`node_modules/`、`playwright-report/`、`test-results/`、`.env.e2e.local`）永远不会出现在同步列表中。
+E2E 基础设施（runner、配置、共享 fixtures/page-objects/scripts、README）是上游模板维护的共享层，`just sync-template` 会自动提示同步。`support/` 会承载项目 API 与环境解析，和项目特定的 `tests/` 用例一样归项目维护，默认被 `config.toml` 的 `project_skip_paths` 排除，不会被模板覆盖。运行时产物（`.auth/`、`node_modules/`、`playwright-report/`、`test-results/`、`.env.e2e.local`）永远不会出现在同步列表中。
 
 ### AI Agent 常用命令
 
