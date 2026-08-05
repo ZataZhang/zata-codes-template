@@ -26,6 +26,11 @@ default: _check-completion
 run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="" arg7="" arg8="" arg9="": _check-completion
     #!/usr/bin/env bash
     set -euo pipefail
+    # 启用作业控制：每个 `run_* &` 后台服务会成为独立进程组的组长，
+    # 因此 $! 既是子进程 PID 也是其 PGID。cleanup_processes 据此对整组
+    # 发信号，可终止 uv run -> uvicorn、pnpm -> vite/next 等孙进程，
+    # 避免它们被 reparent 到 launchd 成为残留孤儿进程。
+    set -m
 
     target="all"
     frontend_dir="frontend-admin"
@@ -39,6 +44,7 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="" arg7="" arg8="" arg9="": _ch
     backend_pid=""
     frontend_pid=""
     frontend_public_pid=""
+    frontend_deps_checked="false"
     run_state_file="{{justfile_directory()}}/.env.run-state"
     positional_index=0
 
@@ -186,7 +192,7 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="" arg7="" arg8="" arg9="": _ch
 
     ensure_frontend_deps() {
         target_dir="$1"
-        if [ -d "$target_dir/node_modules" ]; then
+        if [ "$frontend_deps_checked" = "true" ]; then
             return 0
         fi
 
@@ -203,18 +209,19 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="" arg7="" arg8="" arg9="": _ch
         # 覆盖根配置。
         workspace_root="{{justfile_directory()}}"
         if [ -f "$workspace_root/pnpm-workspace.yaml" ]; then
-            echo "Workspace detected at $workspace_root, running pnpm install at workspace root..."
+            echo "Checking pnpm workspace dependencies at $workspace_root..."
             (
                 cd "$workspace_root"
-                pnpm install
+                CI=true pnpm install --frozen-lockfile --prefer-offline
             )
+            frontend_deps_checked="true"
             return 0
         fi
 
-        echo "Dependencies missing in $target_dir, running pnpm install..."
+        echo "Checking pnpm dependencies in $target_dir..."
         (
             cd "$target_dir"
-            pnpm install
+            CI=true pnpm install --frozen-lockfile --prefer-offline
         )
     }
 
@@ -232,7 +239,6 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="" arg7="" arg8="" arg9="": _ch
             exit 1
         fi
 
-        ensure_frontend_deps "$frontend_dir"
         check_port "Admin Frontend" "$frontend_admin_port"
         echo "Starting admin frontend in $frontend_dir on port $frontend_admin_port: $frontend_cmd"
         (
@@ -255,7 +261,6 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="" arg7="" arg8="" arg9="": _ch
             exit 1
         fi
 
-        ensure_frontend_deps "$frontend_public_dir"
         check_port "Public Frontend" "$frontend_public_port"
         echo "Starting public frontend in $frontend_public_dir on port $frontend_public_port: $frontend_public_cmd"
         (
@@ -264,11 +269,32 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="" arg7="" arg8="" arg9="": _ch
         )
     }
 
+    # 对单个服务的整棵进程树发信号。set -m 下 $! == PGID，对负 PID 发信号
+    # 即对整个进程组发信号，可杀掉该服务的全部孙进程（uv run -> uvicorn、
+    # pnpm -> vite/next 等）。即使该服务的子 shell 已死、孙进程仍以原 PGID
+    # 残留为孤儿，只要组内还有成员，`kill -0 -- -$pid` 仍会成功并一并清理。
+    # 若 set -m 因故未生效（无独立进程组），组不存在，退化为只杀该 PID，
+    # 绝不会误伤 just 自身所在的父进程组。
+    kill_tree() {
+        local tree_pid="$1"
+        local tree_sig="${2:-TERM}"
+        [ -n "$tree_pid" ] || return 0
+        if kill -0 -- -"$tree_pid" 2>/dev/null; then
+            kill -"$tree_sig" -- -"$tree_pid" 2>/dev/null || true
+        else
+            kill -"$tree_sig" "$tree_pid" 2>/dev/null || true
+        fi
+    }
+
     cleanup_processes() {
+        # 先 SIGTERM 整组，给服务 graceful shutdown 的机会
         for process_pid in "$backend_pid" "$frontend_pid" "$frontend_public_pid"; do
-            if [ -n "$process_pid" ] && kill -0 "$process_pid" 2>/dev/null; then
-                kill "$process_pid" 2>/dev/null || true
-            fi
+            kill_tree "$process_pid" TERM
+        done
+        # 留一点时间再对仍存活的组补 SIGKILL，确保孙进程不残留
+        sleep 0.5
+        for process_pid in "$backend_pid" "$frontend_pid" "$frontend_public_pid"; do
+            kill_tree "$process_pid" KILL
         done
         wait 2>/dev/null || true
     }
@@ -303,13 +329,19 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="" arg7="" arg8="" arg9="": _ch
             run_backend
             ;;
         frontend)
+            ensure_frontend_deps "$frontend_dir"
             run_frontend
             ;;
         frontend-public)
+            ensure_frontend_deps "$frontend_public_dir"
             run_frontend_public
             ;;
         all)
             trap cleanup_processes EXIT INT TERM
+            # 依赖预检必须在服务进入后台进程组前完成。否则 pnpm 发现旧的
+            # node_modules 元数据时可能隐式安装，并因无法读取 TTY 而暂停。
+            ensure_frontend_deps "$frontend_dir"
+            ensure_frontend_deps "$frontend_public_dir"
             run_backend &
             backend_pid=$!
             run_frontend &

@@ -15,3 +15,7 @@ allowBuilds:
   esbuild: true
   sharp: true
   unrs-resolver: true
+
+# 后台或自动化入口没有可供清理确认使用的 TTY；依赖预检可安全重建
+# 与当前 pnpm 配置不一致的 node_modules。
+confirmModulesPurge: false
