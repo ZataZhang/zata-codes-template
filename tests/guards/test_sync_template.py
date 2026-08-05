@@ -546,10 +546,10 @@ def test_sync_template_skips_e2e_runtime_artifacts(
     assert ".env.e2e.local" not in completed_process.stdout
 
 
-def test_sync_template_default_mode_tool_configs_and_agents_md(
+def test_sync_template_default_mode_skips_project_owned_configs_and_agents_md(
     tmp_path: Path,
 ) -> None:
-    """Default mode surfaces shared tool configs but skips AGENTS.md."""
+    """Default mode skips project-owned tool configs and AGENTS.md."""
 
     template_repo_path = tmp_path / "template-repo"
     project_repo_path = tmp_path / "project-repo"
@@ -571,9 +571,9 @@ def test_sync_template_default_mode_tool_configs_and_agents_md(
     completed_process = run_sync_template(project_repo_path, template_repo_path)
 
     assert completed_process.returncode == 0, completed_process.stderr
-    assert "Found 2 changed + 0 new entry/entries." in completed_process.stdout
-    assert "CHANGED\tpytest.ini" in completed_process.stdout
-    assert "CHANGED\truff.toml" in completed_process.stdout
+    assert "Everything is up to date with the template." in completed_process.stdout
+    assert "pytest.ini" not in completed_process.stdout
+    assert "ruff.toml" not in completed_process.stdout
     assert "AGENTS.md" not in completed_process.stdout
 
 

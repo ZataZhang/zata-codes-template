@@ -18,7 +18,7 @@
 | Command | Purpose |
 |---|---|
 | `just sync` | 同步开发依赖 |
-| `just run` | 运行主应用（后端 + 管理平台前端 + 前台官网）；若前端 `node_modules` 缺失会自动运行 `pnpm install` |
+| `just run` | 运行主应用（后端 + 管理平台前端 + 前台官网）；启动后台服务前会以非交互模式预检 pnpm workspace 依赖 |
 | `just run backend_port=8010 frontend_admin_port=13173 frontend_public_port=3001` | 使用指定端口运行主应用，并保存为当前 Git worktree 的默认端口 |
 | `just run frontend-public` | 只启动前台官网（Next.js，端口读取当前 run-state） |
 | `just frontend-public dev` | 委托 `just run frontend-public`，读取当前 run-state 端口 |
@@ -80,7 +80,7 @@
 
 ## Automatic Frontend Dependency Install
 
-`just run`（以及 `just run frontend`、`just run frontend-public`）在启动前端服务前会检查对应目录是否存在 `node_modules/`。若缺失且系统已安装 `pnpm`，则自动运行 `pnpm install` 安装依赖；若 `pnpm` 未安装，会给出明确提示并退出。这样新克隆仓库或清理依赖后首次运行无需手动执行安装步骤。
+`just run`（以及 `just run frontend`、`just run frontend-public`）会在前端服务进入后台进程组前，以非交互模式运行 `pnpm install --frozen-lockfile --prefer-offline`。模板根目录是统一 pnpm workspace，因此 `all` 模式只执行一次预检。该步骤既安装缺失依赖，也修复 pnpm 判定为过期的 `node_modules` 元数据；lockfile 与清单不一致时则在任何长驻服务启动前明确失败。依赖预检不得留给后台的 `pnpm dev` 隐式执行，否则 pnpm 的清理确认可能因无法读取 TTY 而暂停整个服务进程组。
 
 ## Docker Local Run
 
@@ -147,7 +147,7 @@ uv run pre-commit run --show-diff-on-failure
 
 ## AI Adapter Sync
 
-`just sync-template` 默认模式只同步上游维护的基础设施（`justfile.shared`、`scripts/shared/*`、`scripts/build/*`、工具配置、`hooks/shared/*`、E2E 基础设施等），**不同步 AI 适配层文件**：
+`just sync-template` 默认模式只同步上游维护的基础设施（`justfile.shared`、`scripts/shared/*`、`scripts/build/*`、`.pre-commit-config.yaml`、`hooks/shared/*`、E2E 基础设施等）。`pytest.ini` 与 `ruff.toml` 需要保留项目自己的 markers、addopts 和 lint 例外，因此归项目所有，默认不同步。默认模式也**不同步 AI 适配层文件**：
 
 - AI 规范源：`docs/ai-standards/*`
 - Copilot 入口：`.github/copilot-instructions.md`、`.github/instructions/*.md`
