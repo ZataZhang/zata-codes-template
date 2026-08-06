@@ -6,6 +6,7 @@
   "packageManager": "pnpm@11.3.0",
   "scripts": {
     "dev": "vite",
+    "typecheck": "tsc -b",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",

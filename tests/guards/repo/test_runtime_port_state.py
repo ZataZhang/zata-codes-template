@@ -86,10 +86,12 @@ def test_local_host_entrypoints_consume_runtime_port_state() -> None:
     justfile_text = _JUSTFILE_PATH.read_text(encoding="utf-8")
     frontend_recipe_start = justfile_text.index('frontend action="dev":')
     public_recipe_start = justfile_text.index('frontend-public action="dev":')
-    copy_recipe_start = justfile_text.index("copy name force='':")
+    # `just copy` 会把 copy 段从派生项目的 justfile 剥掉（仅模板维护者需要），
+    # 派生项目允许缺失；缺失时跳过 copy 专属断言，其余契约照常校验。
+    copy_recipe_start = justfile_text.find("copy name force='':")
     frontend_recipe_text = justfile_text[frontend_recipe_start:public_recipe_start]
-    public_recipe_text = justfile_text[public_recipe_start:copy_recipe_start]
-    copy_recipe_text = justfile_text[copy_recipe_start:]
+    public_recipe_end = copy_recipe_start if copy_recipe_start != -1 else len(justfile_text)
+    public_recipe_text = justfile_text[public_recipe_start:public_recipe_end]
 
     with open(_LOCAL_COMPOSE_PATH, "r", encoding="utf-8") as compose_handle:
         local_compose_doc = yaml.safe_load(compose_handle)
@@ -114,8 +116,11 @@ def test_local_host_entrypoints_consume_runtime_port_state() -> None:
     assert 'FRONTEND_PUBLIC_PORT="$frontend_public_port"' in justfile_text
     assert "just run frontend" in frontend_recipe_text
     assert "just run frontend-public" in public_recipe_text
-    assert '.replace("${BACKEND_PORT:-8000}"' not in copy_recipe_text
-    assert "printf 'BACKEND_PORT=%s\\n'" in copy_recipe_text
-    assert "process.env.API_BASE_URL" in (
-        _PROJECT_ROOT_PATH / "frontend-public" / "next.config.ts"
-    ).read_text(encoding="utf-8")
+    if copy_recipe_start != -1:
+        copy_recipe_text = justfile_text[copy_recipe_start:]
+        assert '.replace("${BACKEND_PORT:-8000}"' not in copy_recipe_text
+        assert "printf 'BACKEND_PORT=%s\\n'" in copy_recipe_text
+    # 模板栈的 frontend-public 是 Next.js；派生项目改用 Vite 时无此文件，跳过。
+    next_config_path = _PROJECT_ROOT_PATH / "frontend-public" / "next.config.ts"
+    if next_config_path.exists():
+        assert "process.env.API_BASE_URL" in next_config_path.read_text(encoding="utf-8")
