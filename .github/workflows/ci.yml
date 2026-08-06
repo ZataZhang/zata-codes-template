@@ -41,7 +41,8 @@ jobs:
         with:
           node-version: "22"
           cache: "pnpm"
-          cache-dependency-path: frontend-admin/pnpm-lock.yaml
+          # 两个前端已合并为根目录 pnpm workspace，锁文件只有根目录这一份
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v4
@@ -62,6 +63,21 @@ jobs:
   validate-template:
     name: Validate Template
     runs-on: ubuntu-latest
+    services:
+      # 后端测试通过 settings 默认解析落到 localhost PostgreSQL（config.toml
+      # [database]），用 service 容器提供真实数据库；trust 认证免密码。
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: app_database
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -83,8 +99,20 @@ jobs:
       - name: Check max file lines (hard limit)
         run: uv run python hooks/shared/check_max_file_lines.py --max-lines 1000 --glob "*.py" src/backend
 
+      - name: Apply database migrations
+        # xdist worker 各自 import backend.main，模块顶层会触发 create_app() ->
+        # run_migrations()，并发 CREATE TABLE alembic_version 会 unique violation。
+        # 先在这里把 schema 升到 head，worker 进入 run_migrations() 时 alembic
+        # 看到 alembic_version 已存在且为 head，会直接 no-op，从而打破竞争。
+        env:
+          DATABASE_URL: postgresql+psycopg2://postgres@localhost:5432/app_database
+        run: uv run alembic upgrade head
+
       - name: Run local test suite
         # Matches the default addopts filters in pyproject.toml.
+        env:
+          # 显式指向 job 内的 postgres service；postgres 超级用户由镜像默认创建
+          DATABASE_URL: postgresql+psycopg2://postgres@localhost:5432/app_database
         run: uv run pytest tests/ -v -m "not slow and not real_api and not redis"
 
       - name: Build documentation
@@ -129,7 +157,7 @@ jobs:
           node-version: "22"
           cache: "pnpm"
           cache-dependency-path: |
-            frontend-public/pnpm-lock.yaml
+            pnpm-lock.yaml
             tests/playwright-e2e/pnpm-lock.yaml
 
       - name: Install frontend-public dependencies
@@ -139,7 +167,9 @@ jobs:
       - name: Install Playwright dependencies and browsers
         working-directory: tests/playwright-e2e
         run: |
-          pnpm install --frozen-lockfile
+          # 该目录位于根 pnpm workspace 树内但不是 workspace 成员；
+          # 不加 --ignore-workspace 时 pnpm 会改为操作根 workspace 而不安装本包依赖
+          pnpm install --frozen-lockfile --ignore-workspace
           pnpm exec playwright install chromium
 
       - name: Start frontend-public dev server

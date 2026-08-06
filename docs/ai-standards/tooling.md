@@ -40,6 +40,7 @@
 
 - `justfile.shared`：模板上游维护的共享 recipe 集合，由 `just sync-template` 同步。所有项目无关的脚手架命令（`sync`、`lint`、`test`、`docs-serve`、`clean`、`release`、`check`、`codex-notify`、`staged_changes`、`worktree`、`implement`、`sync-template`、`e2e`、`e2e-install`、`export-env-encrypted` 以及内部 `_check-completion`）都在这里。**不要手改这个文件**——改了下次 `just sync-template` 会提示覆盖。
 - `justfile`：项目私有入口，第一行启用 `set allow-duplicate-recipes` 后通过 `import 'justfile.shared'` 引入共享层，之后只保留与项目结构耦合、仅模板维护者使用，或会触达本机 AI 工具目录的 recipe：`default`、`run`、`down`、`frontend`、`ops`、`sync-local-skills`、`copy`。派生项目可以自由增删此文件中的 recipe，`just sync-template` 默认会跳过它。
+- 注意上述 recipe 清单描述的是**模板仓自身**的 justfile。`just copy` 会把 `copy` 段（含其后的 `e2e-evidence`、`bench-test`）从派生项目的 justfile 剥掉——只有模板维护者需要派生新项目，因此派生项目的 justfile 不以 `copy` recipe 结尾是预期状态，守卫测试 `test_runtime_port_state` 对 copy 相关断言按段落是否存在条件执行。
 
 行为约定：
 
