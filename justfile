@@ -800,6 +800,11 @@ copy name force='':
         --exclude='/task_plan.md' \
         --exclude='docker-compose.testing.yml' \
         --exclude='.claude/planning' \
+        # 模板仓库专属，不随模板分发：.iar.toml 是模板自身的 IAR 工具配置
+        # （含仓库身份 id / remote / verification_commands），派生项目应自建；
+        # zata_code_template.zip 是含加密 .env.local 备份的历史产物，不应分发。
+        --exclude='/.iar.toml' \
+        --exclude='/zata_code_template.zip' \
         "$TEMPLATE_DIR/" "$NEW_DIR/"
 
     # Strip this `copy` recipe from the destination's justfile — only the
