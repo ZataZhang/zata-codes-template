@@ -8,12 +8,11 @@
 新增配置项约定：
 - 非敏感默认值放到 ``config.toml`` 对应 section。
 - 密钥 / Token / 密码等敏感值本身不得在 ``config.toml`` 中写死；应只在
-  ``config.toml`` 中保留「给密钥类的配置变量」，例如 ``providers`` 的
-  ``api_key_env``、密钥别名或 provider 注册信息。
+  ``config.toml`` 中保留「给密钥类的配置变量」。
 - 新增给密钥类的配置变量时，同步在 ``.env.example`` 中保留未注释的空值并说明
-  用途（例如 ``OPENAI_API_KEY=``）。非密钥类变量应以 ``# KEY=默认值`` 的注释形式
-  作为示例；可能携带凭据的连接字符串（如 ``DATABASE_URL``、``REDIS_URL``）按密钥类
-  处理，同样保留未注释的空值。
+  用途。非密钥类变量应以 ``# KEY=默认值`` 的注释形式作为示例；可能携带凭据的
+  连接字符串（如 ``DATABASE_URL``、``REDIS_URL``）按密钥类处理，同样保留未注释
+  的空值。
 - 默认未填写 env 时，配置系统仍需能正常加载；若该密钥不可或缺，应在首次
   使用时抛出清晰错误，而不是在模块导入阶段失败。
 """
@@ -22,17 +21,12 @@ from __future__ import annotations
 
 import os
 import tomllib
-from dataclasses import dataclass
-from functools import lru_cache
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Mapping, MutableMapping
+from typing import Any
 from urllib.parse import quote_plus
 
 from dotenv import dotenv_values
 from pydantic import Field, SecretStr
-
-if TYPE_CHECKING:
-    from langchain_core.language_models import BaseLanguageModel
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
@@ -47,9 +41,9 @@ _SOURCE_DIR_PATH: Path = _BACKEND_DIR_PATH.parent
 _PROJECT_ROOT_PATH: Path = _SOURCE_DIR_PATH.parent
 _TOML_CONFIG_FILE_PATH: Path = _PROJECT_ROOT_PATH / "config.toml"
 
-# Pydantic 会把 .env/.env.local 加载到设置字段，但 provider 解析阶段会通过
-# os.getenv 读取任意的 api_key_env 变量。因此需要先把同一份环境文件写入
-# os.environ，使这些密钥可见；Shell 环境变量仍保持最高优先级。
+# Pydantic 会把 .env/.env.local 加载到设置字段，但部分配置解析阶段会通过
+# os.getenv 读取任意的环境变量。因此需要先把同一份环境文件写入
+# os.environ，使这些变量可见；Shell 环境变量仍保持最高优先级。
 _dotenv_loaded_values: dict[str, str | None] = {}
 _dotenv_loaded_values.update(dotenv_values(_PROJECT_ROOT_PATH / ".env"))
 _dotenv_loaded_values.update(dotenv_values(_PROJECT_ROOT_PATH / ".env.local"))
@@ -142,7 +136,7 @@ class ObservabilitySettings(BaseSettings):
     metrics_enabled: bool = Field(default=True)
     request_id_enabled: bool = Field(default=True)
     log_format: str = Field(default="text")
-    service_name: str = Field(default="zata-codes-template-backend")
+    service_name: str = Field(default="app-backend")
     service_version: str = Field(default="0.1.0")
     deployment_environment: str = Field(default="development")
 
@@ -238,7 +232,7 @@ class AppSettings(BaseSettings):
         extra="ignore",
     )
 
-    app_name: str = Field(default="app", validation_alias="NAME")
+    app_name: str = Field(default="app")
     log_level: str = Field(default="INFO")
 
     postgres_user: str = ""
@@ -300,235 +294,6 @@ class AppSettings(BaseSettings):
         )
 
 
-class ModelConfigError(RuntimeError):
-    """当 provider 配置或调用前置条件不满足时抛出的异常。
-
-    例如：模型名格式错（缺少 provider 前缀）、provider 未在 ``[providers]`` 中
-    声明、缺少 ``base_url``，或对应的 API key 环境变量缺失。
-    """
-
-
-@dataclass(frozen=True)
-class ProviderEndpoint:
-    """单个 provider 对应的 OpenAI 协议端点描述。
-
-    Attributes:
-        provider_name (str): provider 标识（与配置文件中的键一致）。
-        base_url (str): OpenAI 协议端点的基础 URL。
-        api_key (str): 已经解析好的 API 密钥。
-        extra (Mapping[str, Any]): 透传给 ``ChatOpenAI`` 的额外关键字参数。
-    """
-
-    provider_name: str
-    base_url: str
-    api_key: str
-    extra: Mapping[str, Any]
-
-
-@lru_cache(maxsize=4)
-def load_providers_config(config_path: str | Path | None = None) -> dict[str, Any]:
-    """加载 ``config.toml`` 中的 ``[providers]`` section。
-
-    每个子表（``[providers.<provider-name>]``）描述一个 OpenAI 协议端点：
-    ``base_url``、``api_key_env``，以及可选的 ``extra`` 子表。
-
-    Args:
-        config_path (str | Path | None): 可选的 TOML 文件路径覆盖；缺省为仓库根
-            的 ``config.toml``。
-
-    Returns:
-        dict[str, Any]: 形如 ``{"openai": {"base_url": ..., "api_key_env": ...}}``
-        的 provider 条目映射；若 section 缺失则返回空 dict。
-
-    Raises:
-        FileNotFoundError: 当显式传入的 ``config_path`` 不存在时抛出。
-    """
-
-    resolved_toml_path: Path = Path(config_path) if config_path else _TOML_CONFIG_FILE_PATH
-    if not resolved_toml_path.is_file():
-        if config_path is not None:
-            raise FileNotFoundError(f"Providers config file not found: {resolved_toml_path}")
-        return {}
-
-    with open(resolved_toml_path, "rb") as toml_file_handle:
-        raw_toml_data: dict[str, Any] = tomllib.load(toml_file_handle)
-
-    providers_section: Any = raw_toml_data.get("providers", {})
-    if not isinstance(providers_section, dict):
-        return {}
-    return providers_section
-
-
-def _lookup_provider(
-    provider_name: str,
-    providers_config: Mapping[str, Any],
-) -> Mapping[str, Any]:
-    """根据 provider 名在配置中查找条目（大小写不敏感、忽略首尾空白）。
-
-    Args:
-        provider_name (str): provider 标识符。
-        providers_config (Mapping[str, Any]): 已加载的 provider 配置。
-
-    Returns:
-        Mapping[str, Any]: 对应的 provider 条目。
-
-    Raises:
-        ModelConfigError: 如果 provider 名未在配置中声明。
-    """
-
-    normalized_provider_name: str = provider_name.strip().lower()
-    for declared_provider_name, provider_entry in providers_config.items():
-        if declared_provider_name.strip().lower() == normalized_provider_name and isinstance(
-            provider_entry, Mapping
-        ):
-            return provider_entry
-    raise ModelConfigError(f"Provider '{provider_name}' is not declared in providers config.")
-
-
-def list_providers(
-    *,
-    config_path: str | Path | None = None,
-) -> list[dict[str, Any]]:
-    """返回配置中所有可用 provider 的元数据列表。
-
-    Args:
-        config_path (str | Path | None): 配置文件路径的覆盖。
-
-    Returns:
-        list[dict[str, Any]]: 形如 ``{"name": ..., "base_url": ..., ...}`` 的
-        条目列表。
-    """
-
-    raw_providers_config: dict[str, Any] = load_providers_config(config_path)
-    listed_providers: list[dict[str, Any]] = []
-    for provider_name, provider_entry in raw_providers_config.items():
-        if not isinstance(provider_entry, Mapping):
-            continue
-        listed_providers.append({"name": provider_name, **dict(provider_entry)})
-    return listed_providers
-
-
-def resolve_provider_endpoint(
-    provider_name: str,
-    *,
-    config_path: str | Path | None = None,
-) -> ProviderEndpoint:
-    """解析 provider 对应的 OpenAI 协议端点。
-
-    解析顺序：
-
-    1. 在 ``[providers]`` 中按 provider 名查表（大小写不敏感）
-    2. 读取 ``base_url``（必填）
-    3. 读取 ``api_key_env``（必填）指向的环境变量
-    4. 读取可选 ``extra`` 字段，透传给 ``ChatOpenAI``
-
-    Args:
-        provider_name (str): provider 名称。
-        config_path (str | Path | None): 可选的配置文件路径覆盖。
-
-    Returns:
-        ProviderEndpoint: 已解析好的端点描述。
-
-    Raises:
-        ModelConfigError: 当 provider 未声明、缺少 ``base_url`` 或 API 密钥无法
-            解析时抛出。
-    """
-
-    providers_config: dict[str, Any] = load_providers_config(config_path)
-    provider_entry: Mapping[str, Any] = _lookup_provider(provider_name, providers_config)
-
-    base_url_value: Any = provider_entry.get("base_url")
-    if not isinstance(base_url_value, str) or not base_url_value:
-        raise ModelConfigError(
-            f"Provider '{provider_name}' is missing a string 'base_url' in providers config."
-        )
-
-    api_key_env_name: Any = provider_entry.get("api_key_env")
-    if not isinstance(api_key_env_name, str) or not api_key_env_name:
-        raise ModelConfigError(
-            f"Provider '{provider_name}' is missing 'api_key_env' in providers config."
-        )
-    env_api_key_value: str | None = os.getenv(api_key_env_name)
-    if not env_api_key_value:
-        raise ModelConfigError(
-            f"Environment variable '{api_key_env_name}' for provider "
-            f"'{provider_name}' is empty or unset."
-        )
-
-    extra_value: Any = provider_entry.get("extra", {})
-    if not isinstance(extra_value, Mapping):
-        raise ModelConfigError(
-            f"Provider '{provider_name}' field 'extra' must be a mapping if provided."
-        )
-
-    return ProviderEndpoint(
-        provider_name=provider_name,
-        base_url=base_url_value,
-        api_key=env_api_key_value,
-        extra=dict(extra_value),
-    )
-
-
-def create_chat_model(
-    model_name: str,
-    *,
-    temperature: float = 0.0,
-    config_path: str | Path | None = None,
-    client_kwargs: Mapping[str, Any] | None = None,
-) -> BaseLanguageModel:
-    """根据 ``provider/model_id`` 形式的模型名实例化 OpenAI 协议聊天客户端。
-
-    解析顺序：
-
-    1. 按第一个 ``/`` 拆分 ``model_name`` → ``(provider_name, model_id)``
-    2. 在 ``[providers]`` 中查找 ``provider_name`` 端点
-    3. 读取 ``base_url`` 和对应的 API key（必填）
-    4. 透传 provider 的 ``extra`` 表与 ``client_kwargs`` 给 ``ChatOpenAI``
-
-    Args:
-        model_name (str): ``provider/model_id`` 形式的模型名（例
-            ``"openai/gpt-4o"``、``"dashscope/qwen3-max"``）。
-        temperature (float): 传递给底层客户端的温度值。
-        config_path (str | Path | None): 可选的配置路径覆盖。
-        client_kwargs (Mapping[str, Any] | None): 额外的 ``ChatOpenAI`` 关键字参数；
-            优先级高于配置文件 ``extra``。
-
-    Returns:
-        BaseLanguageModel: 已配置好的 ``ChatOpenAI`` 实例。
-
-    Raises:
-        ModelConfigError: 当 ``model_name`` 格式错、provider 未声明、缺少
-            ``base_url`` 或 API key 无法解析时抛出。
-        FileNotFoundError: 当配置路径不存在时抛出。
-    """
-
-    if not isinstance(model_name, str) or "/" not in model_name:
-        raise ModelConfigError(f"Model name '{model_name}' must be in 'provider/model_id' form.")
-
-    provider_name, model_id = model_name.split("/", 1)
-    if not provider_name.strip() or not model_id.strip():
-        raise ModelConfigError(f"Model name '{model_name}' must be in 'provider/model_id' form.")
-
-    resolved_endpoint: ProviderEndpoint = resolve_provider_endpoint(
-        provider_name,
-        config_path=config_path,
-    )
-
-    chat_model_kwargs: MutableMapping[str, Any] = {
-        "model": model_id,
-        "temperature": temperature,
-        "base_url": resolved_endpoint.base_url,
-        "api_key": resolved_endpoint.api_key,
-    }
-    chat_model_kwargs.update(resolved_endpoint.extra)
-    if client_kwargs:
-        chat_model_kwargs.update(client_kwargs)
-
-    from langchain_openai import ChatOpenAI
-
-    return ChatOpenAI(**chat_model_kwargs)
-
-
 def _ensure_no_proxy_for_local_services() -> None:
     """确保本地服务（localhost/127.0.0.1）不经过系统 HTTP 代理。"""
     existing_no_proxy: str = os.getenv("NO_PROXY", "")
@@ -552,13 +317,7 @@ __all__ = [
     "AppSettings",
     "AuthSettings",
     "DatabaseSettings",
-    "ModelConfigError",
     "ObservabilitySettings",
     "RedisSettings",
-    "ProviderEndpoint",
     "config",
-    "create_chat_model",
-    "list_providers",
-    "load_providers_config",
-    "resolve_provider_endpoint",
 ]

@@ -3,21 +3,10 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import {
-  Bot,
-  GitBranch,
-  LayoutDashboard,
-  MessageSquare,
-  Plug,
-  Settings,
-} from "lucide-react"
+import { LayoutDashboard, Settings } from "lucide-react"
 
 const navItems = [
   { href: "/app/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/app/agents", label: "Agents", icon: Bot },
-  { href: "/app/chat", label: "Chat", icon: MessageSquare },
-  { href: "/app/workflows", label: "Workflows", icon: GitBranch },
-  { href: "/app/tools", label: "Tools", icon: Plug },
   { href: "/app/settings", label: "Settings", icon: Settings },
 ]
 
@@ -29,7 +18,7 @@ export function AppSidebar() {
     <aside className="flex w-64 flex-col border-r bg-sidebar">
       <div className="flex h-14 items-center gap-2 border-b px-4">
         <span className="size-6 rounded-md bg-primary" />
-        <span className="font-semibold text-sidebar-foreground">Zata</span>
+        <span className="font-semibold text-sidebar-foreground">My App</span>
       </div>
       <nav className="flex-1 p-3">
         <ul className="space-y-1">

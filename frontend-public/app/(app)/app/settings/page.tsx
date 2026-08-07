@@ -37,10 +37,9 @@ export default function SettingsPage() {
         </p>
       </div>
       <div className="rounded-2xl border bg-muted/30 p-6">
-        <h2 className="mb-2 text-lg font-semibold">关于 Zata Agent Platform</h2>
+        <h2 className="mb-2 text-lg font-semibold">关于本模板</h2>
         <p className="text-sm text-muted-foreground">
-          当前版本为 MVP 演示，真实 LLM 调用需要在后端配置 provider 和 API key。
-          工作流执行目前返回 mock 结果，用于验证编排流程。
+          本模板仅保留认证与基础设施骨架，不内置任何业务域。请在此基础上搭建你自己的业务。
         </p>
       </div>
       <Button variant="destructive" onClick={handleLogout}>

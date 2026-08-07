@@ -1,6 +1,6 @@
 """平台能力引擎层（engines）。
 
-放置 skills、RAG、registry 等可插拔能力。
+放置可插拔的平台能力（如检索、爬虫、OCR、审核等）。
 实现 backend/core/shared/interfaces 定义的端口契约。
 
 依赖规则：

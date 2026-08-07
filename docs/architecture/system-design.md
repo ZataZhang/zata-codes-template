@@ -1,6 +1,6 @@
 # 系统架构
 
-本仓库遵循 **DDD 边界意识 + Clean Architecture 依赖方向 + 模块化单体** 的设计理念，目标是把模板演进为一个可长期维护的四层 AI Agent 骨架，而不是把所有能力堆在一个扁平工具目录里。
+本仓库遵循 **DDD 边界意识 + Clean Architecture 依赖方向 + 模块化单体** 的设计理念，目标是把模板演进为一个可长期维护的四层项目骨架，而不是把所有能力堆在一个扁平工具目录里。模板刻意不内置业务域，业务模块由派生项目自行添加。
 
 ## 架构原则
 
@@ -25,7 +25,7 @@
 
 ### `src/backend/engines/` 平台能力层
 
-- 放置 skills、RAG、registry、可插拔能力。
+- 放置可插拔的平台能力（如检索、爬虫、OCR 等）。
 - 实现 `src/backend/core/` 定义的端口。
 - 不承担基础设施细节。
 
@@ -43,11 +43,11 @@
   不承载业务规则。
 - `src/backend/main.py`：兼容导出与进程启动薄入口。
 - `main.py`：根目录兼容启动包装器，转发到 `backend.main`。
-- `src/backend/infrastructure/config/`：承接配置管理；还承接 OpenAI 协议 provider 注册表与 `create_chat_model` 工厂（按 `provider/model_id` 分发）。
+- `src/backend/infrastructure/config/`：承接配置管理。
 - `src/backend/infrastructure/logging/`：承接日志实现。
 - `src/backend/infrastructure/persistence/`：承接数据库与持久化实现。
 - `src/backend/infrastructure/helpers.py`：承接通用无状态辅助函数。
-- `src/backend/engines/`：承接项目特定的平台能力（如 RAG、爬虫、OCR 等）。
+- `src/backend/engines/`：承接项目特定的平台能力（如爬虫、OCR 等，由派生项目添加）。
 - `tests/`：用于验证边界、用例和适配器行为。
 
 ## 模块关系图
@@ -102,23 +102,17 @@ flowchart TD
         Platform --> Infra
 
         subgraph CoreDetails["src/backend/core/"]
-            UC["use_cases"]
-            ORCH["agent/orchestrator"]
-            PLAN["agent/planner"]
-            MEM["agent/memory"]
+            AUTH["auth/"]
             IFACE["shared/interfaces"]
         end
 
         subgraph PlatformDetails["src/backend/engines/"]
-            REG["skills/registry"]
-            SKILL["skills/concrete skills"]
-            RAG["rag/retriever + chunker"]
+            PLAT["平台能力（由派生项目添加）"]
         end
 
         subgraph InfraDetails["src/backend/infrastructure/"]
             CFG["config/settings"]
             LOG["logging/logger"]
-            LLM["models/clients"]
             DB["persistence/repos"]
             HTTP["http_clients"]
         end
@@ -148,8 +142,8 @@ flowchart TD
 
 | 层 | 路径 | 职责 |
 |---|---|---|
-| 营销页面 | `app/(marketing)/` | 首页、功能、定价、FAQ 等落地页 |
-| 应用页面 | `app/(app)/` | 登录后的 Dashboard、Settings、Tasks、Projects |
+| 营销页面 | `app/(marketing)/` | 首页、功能、授权、关于等落地页 |
+| 应用页面 | `app/(app)/` | 登录后的 Dashboard、Settings（仅认证骨架，无业务域） |
 | 认证层 | `lib/auth.tsx` | 会话状态、受保护布局 |
 | API 层 | `lib/api.ts` | axios/fetch 封装、环境基址、错误处理 |
 
@@ -199,14 +193,14 @@ src/backend/api/ → src/backend/core/ → src/backend/engines/ → src/backend/
 | 会话 Cookie | `session_id` | `admin_session_id` |
 | 会话存储 | Redis，key 前缀 `public:session:` | Redis，key 前缀 `admin:session:` |
 | 鉴权依赖 | `get_current_public_user` | `get_current_admin_user` |
-| 主要 API | 业务 `agents/workflows/sessions/tools`（`owner_id = public_user.id`） | `/admin/users` 管理 public 用户 |
+| 主要 API | `/auth/*`（无业务资源） | `/admin/users` 管理 public 用户 |
 | 前端 | `frontend-public` | `frontend-admin` |
 
 ### 隔离保证
 
 - 两域各自独立的用户表、Cookie 与 Redis 命名空间；一个域的会话 token 在另一域命名空间中查不到，因此 public 会话无法通过 admin 守卫（反之亦然），均返回 401。
 - admin 专属路由集中在 `src/backend/api/admin/`，统一经 `get_current_admin_user` 守卫。
-- 业务资源归属 public 用户；admin 域仅用于管理，不拥有业务资源。
+- 模板不内置业务资源，业务模块由派生项目添加；admin 域仅用于管理，不拥有业务资源。
 - 被禁用（`is_active=false`）的用户既有会话在下次请求解析时立即失效。
 
 ### 共享编排（避免重复）
