@@ -288,11 +288,12 @@ def run_architecture_check(project_root: Path) -> CheckResult:
 # ==========================================
 
 
-def _format_report(check_result: CheckResult) -> str:
+def _format_report(check_result: CheckResult, project_root: Path) -> str:
     """将检查结果格式化为可读报告。
 
     Args:
         check_result: run_architecture_check 返回的结果对象。
+        project_root: 项目根目录绝对路径，用于输出相对路径（不依赖目录名）。
 
     Returns:
         格式化后的报告字符串。
@@ -308,7 +309,9 @@ def _format_report(check_result: CheckResult) -> str:
     report_lines.append(f"❌ 发现 {len(check_result.violations)} 处违规：\n")
 
     for violation in check_result.violations:
-        relative_file_path: str = str(violation.file_path).split("zata_code_template/")[-1]
+        # 违规文件必然位于 project_root 之下（由 rglob 发现），relative_to 安全。
+        # 不使用按目录名 split：派生项目目录名不同，会退化为输出完整绝对路径。
+        relative_file_path: str = str(violation.file_path.relative_to(project_root))
         report_lines.append(
             f"  [{violation.module_name}/{violation.source_layer}]"
             f" → [{violation.forbidden_layer}]  "
@@ -326,7 +329,7 @@ def main() -> None:
 
     print("🔍 正在检查架构依赖方向...")
     final_check_result: CheckResult = run_architecture_check(project_root_path)
-    formatted_report_str: str = _format_report(final_check_result)
+    formatted_report_str: str = _format_report(final_check_result, project_root_path)
     print(formatted_report_str)
 
     sys.exit(0 if final_check_result.passed else 1)

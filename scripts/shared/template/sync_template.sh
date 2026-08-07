@@ -263,6 +263,10 @@ _is_always_skipped() {
         main.py|justfile) return 0 ;;
         findings.md|progress.md|task_plan.md) return 0 ;;
         .DS_Store|.dockerignore|.gitignore) return 0 ;;
+        # 模板仓库专属工具配置与历史产物：.iar.toml 含模板仓库身份/remote，
+        # 派生项目需自建；zata_code_template.zip 是含加密 .env.local 备份的
+        # 过期产物。两者都不应同步进派生项目（与 just copy 的排除名单一致）。
+        .iar.toml|zata_code_template.zip) return 0 ;;
         # Tests that exercise template-only artifacts (e.g. skills/prd/scripts)
         # are not portable to derived projects: the underlying artifact is
         # always-skipped below, so importing the test would guarantee a
