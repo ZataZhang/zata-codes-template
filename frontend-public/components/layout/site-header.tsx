@@ -9,17 +9,14 @@ export function SiteHeader() {
         <div className="flex items-center gap-6">
           <Link href="/" className="flex items-center gap-2 font-semibold">
             <span className="size-6 rounded-md bg-primary" />
-            Zata Agent Platform
+            My App
           </Link>
           <nav className="hidden gap-4 text-sm text-muted-foreground md:flex">
-            <Link href="/marketplace" className="hover:text-foreground">
-              Agent 广场
-            </Link>
             <Link href="/features" className="hover:text-foreground">
               功能
             </Link>
             <Link href="/pricing" className="hover:text-foreground">
-              定价
+              授权
             </Link>
             <Link href="/about" className="hover:text-foreground">
               关于

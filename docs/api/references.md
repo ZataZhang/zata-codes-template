@@ -107,5 +107,4 @@
 
 ## 模型模块
 
-`create_chat_model` / `list_providers` / `ModelConfigError` 由上方的
-`backend.infrastructure.config.settings` 块通过 mkdocstrings 自动渲染。
+模板不内置 LLM 相关模块；派生项目在 `backend.infrastructure/` 下自行添加。

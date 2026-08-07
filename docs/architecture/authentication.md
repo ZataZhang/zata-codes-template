@@ -20,7 +20,6 @@ flowchart TD
         PAUTH["public 认证<br/>auth_router"]
         AAUTH["admin 认证<br/>admin/admin_auth_router"]
         AUSERS["admin 管理<br/>admin/admin_user_router"]
-        BIZ["业务路由<br/>agents / workflows / sessions / tools"]
         DEP["dependencies<br/>get_current_public_user<br/>get_current_admin_user"]
     end
 
@@ -68,7 +67,7 @@ flowchart TD
 
 - **一份 `AuthService` 服务两域**:登录 / 登出 / 会话解析 / 注册的编排只有一份,通过注入不同的「用户仓库 + 会话存储(不同前缀)+ 是否允许注册」区分 public 与 admin,避免复制两套近似代码。
 - **两域在数据层物理隔离**:不同用户表、不同 Cookie、不同 Redis 命名空间。
-- 业务资源(agent / workflow / session)归属 **public 用户**(`owner_id = public_user.id`);admin 域只做管理,不拥有业务资源。
+- 模板不内置业务资源；业务模块由派生项目添加，其资源归属 public 用户（`owner_id = public_user.id`），admin 域只做管理，不拥有业务资源。
 
 ---
 
@@ -83,7 +82,7 @@ flowchart TD
 | 会话 Cookie | `session_id` | `admin_session_id` |
 | Redis 命名空间 | `public:session:<token>` | `admin:session:<token>` |
 | 鉴权依赖 | `get_current_public_user` | `get_current_admin_user` |
-| 业务能力 | 业务 API(`agents` 等) | `/admin/users` 管理 public 用户 |
+| 业务能力 | `/auth/*`（无内置业务资源） | `/admin/users` 管理 public 用户 |
 | 前端 | `frontend-public` | `frontend-admin` |
 
 ---
@@ -281,26 +280,10 @@ erDiagram
         datetime created_at
         datetime updated_at
     }
-    agent {
-        string id PK
-        string owner_id FK "= public_user.id"
-    }
-    workflow {
-        string id PK
-        string owner_id FK "= public_user.id"
-    }
-    chat_session {
-        string id PK
-        string owner_id FK "= public_user.id"
-    }
-
-    public_user ||--o{ agent : owns
-    public_user ||--o{ workflow : owns
-    public_user ||--o{ chat_session : owns
 ```
 
-- 会话**不落 PG**——它在 Redis。PG 只存用户与业务实体。
-- `owner_id` 维持 `String` 类型、应用层关联(不加数据库外键),与既有 per-owner 模式一致;`admin_user` 与业务资源无所有权关系。
+- 会话**不落 PG**——它在 Redis。PG 只存用户。
+- 模板不内置业务实体；派生项目添加的业务资源以 `owner_id`（`String` 类型、应用层关联）归属 public 用户。
 
 ---
 

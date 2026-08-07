@@ -12,10 +12,11 @@ export default function AboutPage() {
   return (
     <div className="container mx-auto py-16">
       <div className="mx-auto max-w-3xl text-center">
-        <h1 className="text-3xl font-bold md:text-5xl">关于 Zata Agent Platform</h1>
+        <h1 className="text-3xl font-bold md:text-5xl">关于本模板</h1>
         <p className="mt-4 text-muted-foreground">
-          我们相信未来的开发者工作流将由 AI Agent 驱动。Zata Agent Platform
-          让团队能够安全、可扩展地创建、运行和编排专属 Agent。
+          这是一个用于启动新项目的 Python 模板：提供四层后端骨架、双认证域与
+          完整工程化设施，同时刻意不内置任何业务域，让每个派生项目从干净的
+          起点开始搭建自己的业务。
         </p>
       </div>
 
@@ -25,7 +26,7 @@ export default function AboutPage() {
             <Lightbulb className="size-8 text-primary" />
             <CardTitle className="mt-2">简洁至上</CardTitle>
             <CardDescription>
-              去掉多余复杂度，让工具服务于工作本身。
+              去掉多余复杂度，只保留真正可复用的骨架。
             </CardDescription>
           </CardHeader>
           <CardContent />
@@ -43,9 +44,9 @@ export default function AboutPage() {
         <Card>
           <CardHeader>
             <Heart className="size-8 text-primary" />
-            <CardTitle className="mt-2">持续迭代</CardTitle>
+            <CardTitle className="mt-2">持续演进</CardTitle>
             <CardDescription>
-              倾听用户反馈，快速迭代产品体验。
+              骨架能力持续打磨，业务边界始终留给派生项目。
             </CardDescription>
           </CardHeader>
           <CardContent />

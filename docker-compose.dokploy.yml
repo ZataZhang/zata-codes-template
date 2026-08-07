@@ -34,10 +34,6 @@ services:
       - AUTH_ADMIN_BOOTSTRAP_PASSWORD
       - APP_BOOTSTRAP_EMAIL
       - APP_BOOTSTRAP_PASSWORD
-      - OPENAI_API_KEY
-      - DASHSCOPE_API_KEY
-      - DEEPSEEK_API_KEY
-      - OPENROUTER_API_KEY
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]

@@ -64,11 +64,11 @@ def test_public_token_rejected_as_admin_cookie(
     assert forge_client.get("/admin/users").status_code == 401
 
 
-def test_admin_session_cannot_reach_business_api(
+def test_admin_session_cannot_reach_public_api(
     build_client: Callable[[], TestClient],
     seed_admin: Callable[[str, str], str],
 ) -> None:
-    """持 admin 会话的请求访问 public 业务 API 应被拒（401）。"""
+    """持 admin 会话的请求访问 public 域 API 应被拒（401）。"""
     username = f"admin-{uuid.uuid4().hex[:8]}"
     seed_admin(username, "adminpass1")
     client = build_client()
@@ -76,8 +76,8 @@ def test_admin_session_cannot_reach_business_api(
         "/admin/auth/login", json={"identifier": username, "password": "adminpass1"}
     )
     assert login_response.status_code == 200
-    # 仅持 admin_session_id，业务 API 走 public 守卫
-    assert client.get("/agents").status_code == 401
+    # 仅持 admin_session_id，public 守卫（/auth/me）无法解析该 Cookie
+    assert client.get("/auth/me").status_code == 401
 
 
 def test_admin_login_me_and_no_register(

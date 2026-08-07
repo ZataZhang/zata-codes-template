@@ -5,16 +5,12 @@ from __future__ import annotations
 import os
 import uuid
 
-from sqlalchemy.exc import IntegrityError
-
 from alembic import command
 from alembic.config import Config
 from backend.core.shared.models.user_account import UserAccount
 from backend.infrastructure.auth.bcrypt_password_hasher import BcryptPasswordHasher
 from backend.infrastructure.config.settings import config
 from backend.infrastructure.logger import logger
-from backend.infrastructure.persistence.database import SessionLocal
-from backend.infrastructure.persistence.models.tool import ToolModel
 from backend.infrastructure.persistence.repos.user_account_repo import (
     SqlAlchemyUserAccountRepository,
 )
@@ -28,61 +24,6 @@ def run_migrations() -> None:
         "alembic.ini",
     )
     command.upgrade(Config(alembic_ini_path), "head")
-
-
-def seed_tools() -> None:
-    """写入模板内置工具种子数据。"""
-
-    builtin_tool_ids = ("web_search", "code_runner")
-    database_session = SessionLocal()
-    try:
-        if database_session.query(ToolModel).first() is not None:
-            return
-        seed_tool_models = [
-            ToolModel(
-                id="web_search",
-                name="网页搜索",
-                description="通过关键词搜索网页并返回摘要结果。",
-                handler_path="backend.engines.skills.tools.web_search",
-                schema={
-                    "type": "object",
-                    "properties": {"query": {"type": "string", "description": "搜索关键词"}},
-                    "required": ["query"],
-                },
-            ),
-            ToolModel(
-                id="code_runner",
-                name="代码执行",
-                description="执行一段代码并返回运行结果。",
-                handler_path="backend.engines.skills.tools.code_runner",
-                schema={
-                    "type": "object",
-                    "properties": {
-                        "code": {"type": "string", "description": "代码内容"},
-                        "language": {"type": "string", "description": "编程语言"},
-                    },
-                    "required": ["code"],
-                },
-            ),
-        ]
-        for seed_tool_model in seed_tool_models:
-            database_session.add(seed_tool_model)
-        try:
-            database_session.commit()
-        except IntegrityError:
-            database_session.rollback()
-            persisted_tool_ids = {
-                persisted_tool_model.id
-                for persisted_tool_model in database_session.query(ToolModel)
-                .filter(ToolModel.id.in_(builtin_tool_ids))
-                .all()
-            }
-            if persisted_tool_ids == set(builtin_tool_ids):
-                logger.info("内置工具已由并发启动实例写入，跳过重复种子。")
-                return
-            raise
-    finally:
-        database_session.close()
 
 
 def seed_admin_user(
@@ -155,4 +96,4 @@ def seed_public_user(
     logger.info("已创建初始 public 用户：%s", normalized_email)
 
 
-__all__ = ["run_migrations", "seed_admin_user", "seed_public_user", "seed_tools"]
+__all__ = ["run_migrations", "seed_admin_user", "seed_public_user"]

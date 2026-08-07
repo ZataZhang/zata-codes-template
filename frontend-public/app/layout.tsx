@@ -13,9 +13,9 @@ const fontMono = Geist_Mono({
 })
 
 export const metadata = {
-  title: "Zata Agent Platform - 面向开发者团队的 AI Agent 平台",
+  title: "My App - 项目模板",
   description:
-    "Zata Agent Platform 帮助开发者团队创建、运行和编排 AI Agent，支持多 Agent 协作、工具调用与可视化工作流。",
+    "四层后端骨架 + 双认证域 + 双前端 + 可观测性的 Python 项目模板，不内置业务域。",
 }
 
 /** Root layout for the root section. */

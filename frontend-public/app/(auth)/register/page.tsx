@@ -83,7 +83,7 @@ export default function RegisterPage() {
     <Card className="border shadow-lg">
       <CardHeader className="text-center">
         <CardTitle className="text-2xl">注册账号</CardTitle>
-        <CardDescription>创建账号，开始免费试用 Zata</CardDescription>
+        <CardDescription>创建账号，开始免费试用</CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>

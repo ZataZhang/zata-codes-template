@@ -9,20 +9,9 @@ from __future__ import annotations
 from fastapi import HTTPException, Request
 from starlette.status import HTTP_401_UNAUTHORIZED
 
-from backend.core.agent.use_cases import AgentUseCase
 from backend.core.auth.directory import PublicUserDirectory
 from backend.core.auth.models import AuthenticatedPrincipal
 from backend.core.auth.service import AuthService
-from backend.core.session.use_cases import SessionUseCase
-from backend.core.shared.interfaces.agent_repository import AgentRepository
-from backend.core.shared.interfaces.llm_client import LLMClient
-from backend.core.shared.interfaces.session_repository import SessionRepository
-from backend.core.shared.interfaces.tool_registry import ToolRegistry
-from backend.core.shared.interfaces.tool_repository import (
-    ToolRepository as ToolMetadataRepository,
-)
-from backend.core.shared.interfaces.workflow_repository import WorkflowRepository
-from backend.core.workflow.use_cases import WorkflowUseCase
 
 # 两域会话 Cookie 名是接入层契约常量；配置仅在 composition root 使用。
 PUBLIC_SESSION_COOKIE_NAME: str = "session_id"
@@ -88,53 +77,3 @@ def get_current_admin_user(request: Request) -> AuthenticatedPrincipal:
         cookie_name=ADMIN_SESSION_COOKIE_NAME,
         auth_service=get_admin_auth_service(request),
     )
-
-
-def get_agent_repository(request: Request) -> AgentRepository:
-    """从应用状态中获取 Agent Repository。"""
-    return request.app.state.agent_repository
-
-
-def get_session_repository(request: Request) -> SessionRepository:
-    """从应用状态中获取 Session Repository。"""
-    return request.app.state.session_repository
-
-
-def get_workflow_repository(request: Request) -> WorkflowRepository:
-    """从应用状态中获取 Workflow Repository。"""
-    return request.app.state.workflow_repository
-
-
-def get_tool_metadata_repository(request: Request) -> ToolMetadataRepository:
-    """从应用状态中获取 Tool Metadata Repository。"""
-    return request.app.state.tool_metadata_repository
-
-
-def get_tool_registry(request: Request) -> ToolRegistry:
-    """从应用状态中获取 Tool Registry。"""
-    return request.app.state.tool_registry
-
-
-def get_llm_client(request: Request) -> LLMClient:
-    """从应用状态中获取 LLM Client。"""
-    return request.app.state.llm_client
-
-
-def get_agent_use_case(request: Request) -> AgentUseCase:
-    """构造 Agent UseCase。"""
-    return AgentUseCase(repository=get_agent_repository(request))
-
-
-def get_session_use_case(request: Request) -> SessionUseCase:
-    """构造 Session UseCase。"""
-    return SessionUseCase(
-        session_repository=get_session_repository(request),
-        agent_repository=get_agent_repository(request),
-        tool_registry=get_tool_registry(request),
-        llm_client=get_llm_client(request),
-    )
-
-
-def get_workflow_use_case(request: Request) -> WorkflowUseCase:
-    """构造 Workflow UseCase。"""
-    return WorkflowUseCase(repository=get_workflow_repository(request))

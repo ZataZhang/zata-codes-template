@@ -23,7 +23,7 @@ if str(_HOOKS_SHARED_PATH) not in sys.path:
 import run_jscpd_duplication_check as jscpd_hook  # noqa: E402
 
 _SETTINGS_PATH = Path("frontend-public/app/(app)/app/settings/page.tsx")
-_AGENTS_NEW_PATH = Path("frontend-public/app/(app)/app/agents/new/page.tsx")
+_AGENTS_NEW_PATH = Path("frontend-public/app/(marketing)/features/page.tsx")
 
 
 def _scaffold_duplicate() -> dict[str, object]:
