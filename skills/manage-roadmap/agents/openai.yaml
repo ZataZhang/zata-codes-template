@@ -1,0 +1,4 @@
+interface:
+  display_name: "Manage Roadmap"
+  short_description: "创建并持续维护架构优先、可验收的项目 Roadmap"
+  default_prompt: "Use $manage-roadmap to create or update this repository’s ROADMAP.md from architecture and task evidence."
