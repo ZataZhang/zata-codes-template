@@ -1,6 +1,6 @@
 ---
 name: prd
-description: "[Updated 2026-07-21] Generate an architecture-aware technical PRD split into two altitudes — a human review layer (Part A) and an executor build layer (Part B) — with a risk-tiered human review map, a front-loaded interpretation lock, and a risk-map-ordered acceptance evidence package for a single end-of-flow human review. Triggers on: create a prd, write prd for, plan this feature. Prioritizes reuse, minimal-change plans, evidence-chain integrity, required output compliance, realistic validation, and conditional web research."
+description: "[Updated 2026-08-21] Generate an architecture-aware technical PRD split into two altitudes — a human review layer (Part A) and an executor build layer (Part B) — with a decision-oriented human review map, a front-loaded interpretation lock, and a risk-ordered acceptance evidence package for a single end-of-flow human review. Triggers on: create a prd, write prd for, plan this feature. Prioritizes reuse, minimal-change plans, evidence-chain integrity, required output compliance, realistic validation, and conditional web research."
 ---
 
 # PRD Generator (Architecture-First)
@@ -25,8 +25,8 @@ The default recommendation must be the smallest change that cleanly solves the p
 9. **Executor-Resilient Detail:** Write implementation detail for a less capable executor: be concrete, but prefer semantic anchors and repository searches over brittle coordinates such as line numbers.
 10. **Full-Stack Surface:** Treat the user-visible frontend as first-class. Discover the repo's actual frontend app(s) (don't assume a framework or directory) and plan any user-facing change with backend-level rigor; a genuinely backend-only PRD must state `No frontend impact` with a one-line reason rather than omit it silently. (Detailed gate: Phase 1.5.)
 11. **Two-Altitude Output:** Structure every PRD as **Part A · Review Layer** (problem, user-facing value, human review map, requirement shape) and **Part B · Build Layer** (mechanism, change tree, validation commands, dependency metadata). Part A must let a human accept or reject the work *without* reading implementation mechanism, file paths, commands, or scheduling metadata; all executor detail lives in Part B. Do not front-load Part A with mechanism — the historical failure mode was a first section so full of code/test/scheduling detail that human review was hard.
-12. **Risk-Tiered Human Review Map:** Part A must contain a Human Review Map that classifies each change point by architecture layer, assigns a risk tier (layer gives the default, then risk factors — irreversibility, blast radius, security/money, correctness-criticality — adjust it), and routes it to either **human confirmation** or **executor + automated gate** (hook / test / architecture check). Keep the human-confirm set short and principled; over-flagging defeats the map.
-13. **Two-Touch Autonomy + Evidence Package:** The operating model is two batched human touches with autonomous execution between them — up front the human approves the Agent's interpretation (Section 1) and the acceptance oracles (Section 2); at the end the human reads a risk-map-ordered **Acceptance Evidence Package** (Section 9). There is no mid-flow human gate: the Agent self-verifies as deeply as needed (many rounds, adversarial checks — tokens are cheaper than human attention). So "human confirmation" means **high evidence burden** (the item tops the end package with an executable oracle), not an interruption; and every Review Map row — high or low — must name executable evidence that would fail if the change were wrong.
+12. **Decision-Oriented Human Review Map:** Internally classify every meaningful change point with the deterministic `R0`–`R3` model in Phase 3.6, recording the result in Part B. Do not expose the classification machinery as a menu or compliance table in Part A. Present only the concrete decisions that require **human confirmation**, written as questions a reviewer can answer. Summarize everything else under **executor + automated gates**. Keep the human-confirm set short and principled; over-flagging defeats the map.
+13. **Two-Touch Autonomy + Evidence Package:** The operating model is two batched human touches with autonomous execution between them — up front the human approves the Agent's interpretation (Section 1) and the human-facing decisions plus acceptance outcomes (Section 2); at the end the human reads a risk-ordered **Acceptance Evidence Package** (Section 9). There is no mid-flow human gate: the Agent self-verifies as deeply as needed (many rounds, adversarial checks — tokens are cheaper than human attention). So "human confirmation" means **high evidence burden** (the item tops the end package with an executable oracle), not an interruption; every human decision and automated gate must map to evidence in Part B that would fail if the change were wrong.
 14. **Evidence-Chain Integrity:** A passing nearby path is not delivery evidence. Every executable oracle must identify the exact critical-value source, runtime boundaries that must be crossed, forbidden bypasses, a fresh-state postcondition probe, and how evidence is tied to the final implementation tree. Read [references/validation-evidence-integrity.md](references/validation-evidence-integrity.md) whenever executable behavior changes or a PRD is prepared for archive.
 
 ---
@@ -134,7 +134,7 @@ If you cannot justify the new item, do not recommend it.
 
 ### Phase 3.5: Realistic Validation Gate
 
-Identify the highest-fidelity validation that proves the behavior through a real project entry point, and record it in the Section 7 **Realistic Validation Plan** (content rule F defines the table columns, mock boundary, opt-in live, and fallback rules). Mirror it in plain language as the Part A "如何证明它生效" note in the Human Review Map.
+Identify the highest-fidelity validation that proves the behavior through a real project entry point, and record it in the Section 7 **Realistic Validation Plan** (content rule F defines the table columns, mock boundary, opt-in live, and fallback rules). Mirror the relevant outcome in plain language as the short **验收** line under each human-facing decision; keep commands and `rv-id` references in Part B.
 
 For executable behavior, read [references/validation-evidence-integrity.md](references/validation-evidence-integrity.md) and lock the full evidence chain before handoff. Values displayed or copied by a UI must be extracted from that UI and used unchanged; successful writes must be observed from a fresh consumer after the durability boundary; frontend flows must assert their actual canonical request path and reject known compatibility/duplicate paths.
 
@@ -150,20 +150,46 @@ Pending PRDs may keep unchecked acceptance items, so this completion checker is 
 
 ### Phase 3.6: Human Review Map Gate
 
-Once the change surface is known (from the architecture analysis, recommendation, and Change Impact Tree), classify it for the Part A **Human Review Map** (Section 2). For each meaningful change point:
+Once the change surface is known (from the architecture analysis, recommendation, and Change Impact Tree), classify it internally before writing the Part A **Human Review Map** (Section 2). For each meaningful change point:
 
 1. **Layer:** which architecture layer it lands in (`api` / `core` / `engines` / `infrastructure` / a frontend app). The layer sets the default intervention: `core` business logic leans human; `api` adapters and `infrastructure` plumbing lean executor + automated gate.
-2. **Risk tier:** start from the layer default, then adjust with risk factors — **irreversibility, blast radius, security/money, correctness-criticality**.
-3. **Intervention:** route to **human confirmation** or **executor + automated gate**, and name the concrete gate (a specific hook, test, or architecture check) when it is the latter.
+2. **Risk tier:** evaluate the dimensions below and assign `R0`–`R3` using the highest applicable dimension or override; never average risks down.
+3. **Intervention:** route to **human confirmation** or **executor + automated gate**, and name the concrete gate (a specific hook, test, or architecture check) when it is the latter. This classification guides what appears in Part A; it is not itself the human-facing format.
+
+#### Internal Risk Classification
+
+Use these tiers consistently:
+
+| Tier | Definition | Typical consequence if wrong | Default intervention |
+|---|---|---|---|
+| `R0 · Trivial` | Mechanical or presentation-only change with no behavioral contract change | Local, immediately visible, and fully reversible | Executor + targeted automated gate |
+| `R1 · Contained` | Behavioral change confined to one component or adapter, with a proven rollback and no fixed-zone boundary | Limited users or one workflow; recovery is routine | Executor + failure-discriminating test |
+| `R2 · Material` | Cross-component behavior, compatibility, persistent state handling, or operational behavior where failure has meaningful blast radius | Multiple workflows/users affected, difficult diagnosis, or non-trivial recovery | Human confirmation when a product/contract trade-off remains; otherwise executor + strong oracle |
+| `R3 · Critical` | Security, money, destructive/irreversible data effects, breaking external contracts, or correctness-critical concurrency/transaction behavior | Unauthorized access, financial loss, unrecoverable corruption, or broad outage | Human confirmation + executable negative control |
+
+Evaluate these dimensions independently:
+
+- **Reversibility:** immediate clean rollback (`R0/R1`); rollback needs coordinated repair, migration, or replay (`R2`); effects cannot be reliably undone (`R3`).
+- **Blast radius:** one local surface (`R0/R1`); multiple components, tenants, workflows, or deployments (`R2`); system-wide or externally propagated impact (`R3`).
+- **Security / money:** no trust or financial boundary (`R0/R1`); indirect quota, permission, sensitive-data, or cost impact (`R2`); authorization, credential exposure, billing correctness, or direct financial movement (`R3`).
+- **Correctness criticality:** cosmetic or mechanically detectable (`R0`); ordinary behavior with a clear test oracle (`R1`); persistent-state, compatibility, ordering, or recovery correctness (`R2`); corruption, double execution, privilege failure, or safety-critical invariant (`R3`).
+
+Classification rules:
+
+1. Assign the tier from the **highest** dimension reached. Do not lower it because other dimensions are benign.
+2. When evidence is incomplete, classify one tier higher until the uncertainty is resolved; record the missing evidence. Mere implementation complexity does not increase risk unless it increases consequence or uncertainty.
+3. The fixed zones and cross-cutting triggers below override the calculated intervention. A fixed-zone item still receives an `R0`–`R3` tier; the override explains why human confirmation is required despite that tier.
+4. Merge change points only when they share one human decision and one acceptance oracle. Do not inflate risk merely because several low-risk edits implement the same decision.
+5. Record the internal result in Section 7 under `Risk Classification Register` with: `change point | tier | decisive dimension/override | intervention | oracle/gate`. Part A receives only the resulting human decisions, not this register.
 
 Always flag these for human confirmation regardless of where the code lands:
 
 - **Fixed zones:** core business logic / orchestration (`core/`); database structure / schema / migration (even under `infrastructure/`); security / auth / trust boundaries; external API contracts / breaking changes.
 - **Cross-cutting triggers** (escalate any layer): money / billing / quota (when applicable); irreversible or destructive data operations (bulk delete, backfill, down-migration); concurrency / transaction / idempotency.
 
-**Hard rule:** keep the human-confirm set short and justified — if everything is flagged, the map adds no signal. Anything not in a fixed zone and not hitting a trigger defaults to executor + automated gate; do not list it as human-confirm. In Section 2, name only the menu items the change actually hits and summarize all misses in one line — do not write `不涉及` for every unmatched zone. When a schema change is present, the ER diagram (Section 7.5) must be surfaced in the Human Review Map for human review. Every human-confirm change point must get a matching item under the `Human-Confirmed` group in the Section 9 Acceptance Checklist.
+**Hard rule:** keep the human-confirm set short and justified — if everything is flagged, the map adds no signal. Anything not in a fixed zone and not hitting a trigger defaults to executor + automated gate. Do not show the full zone/trigger menu, hit/miss bookkeeping, architecture-layer classification table, or `rv-id` references in Part A; those are executor metadata, not human decisions. Instead, turn each human-confirm point into a concrete decision with a plain-language recommendation, material risk, an explicit `请确认：` question, and a short `验收：` statement. Prefer one or two natural paragraphs over repeated `建议 / 原因 / 风险 / 如何证明` micro-headings. When a schema change is present, surface the relevant ER diagram in the decision that asks the human to approve the schema. Every human-confirm decision must get a matching item under the `Human-Confirmed` group in the Section 9 Acceptance Checklist.
 
-**Acceptance Oracle Lock (up front):** For every human-confirm row, name the executable oracle that locks its correct behavior — characterization/golden test for core logic; round-trip + migration up/down for schema; an actual unauthorized-access test for auth; contract/snapshot test for an external API. For executor + automated-gate rows, name a gate that genuinely discriminates *this* change's failure (a generic `build`/`lint` that would pass even if the change were wrong is not valid). These oracles are agreed up front, run continuously during autonomous implementation, and presented as the Section 9 Acceptance Evidence Package. A high-risk row with no definable oracle is flagged, not marked done.
+**Acceptance Oracle Lock (up front):** For every human-confirm decision, define the executable oracle that locks its correct behavior — characterization/golden test for core logic; round-trip + migration up/down for schema; an actual unauthorized-access test for auth; contract/snapshot test for an external API. Keep the oracle ID, commands, boundary detail, and negative controls in Section 7.6; Part A states only what observable result will prove the decision. For executor + automated-gate work, name a gate that genuinely discriminates *this* change's failure (a generic `build`/`lint` that would pass even if the change were wrong is not valid). These oracles are agreed up front, run continuously during autonomous implementation, and presented as the Section 9 Acceptance Evidence Package. A high-risk decision with no definable oracle is flagged, not marked done.
 
 ### Phase 4: Conditional Web Research
 
@@ -240,17 +266,22 @@ Do not place a proposed solution summary, validation commands, or delivery-depen
 
 ### 2. Human Review Map (介入与风险地图)
 
-The heart of the review layer: it decides how a human allocates attention. Must include:
+The heart of the review layer: it tells a human exactly what they need to decide. It must be written for decision-making, not as a visible risk-classification worksheet.
 
-- A **numbered reference menu** of fixed zones (① core business logic/orchestration `core/`; ② database structure/schema/migration even under `infrastructure/`; ③ security/auth/trust boundaries; ④ external API contracts/breaking changes) and cross-cutting triggers (⑤ money/billing/quota; ⑥ irreversible or destructive data operations; ⑦ concurrency/transaction/idempotency).
-- A **命中的人审项 (hits)** list naming only the menu items this change actually triggers (or `本次无人工确认项` when none); each hit becomes a 人工确认 row in the table.
-- A **未命中 (misses)** one-liner summarizing the remaining menu numbers as executor + automated gate — do not enumerate each miss as its own `不涉及` line.
-- A **classification table** with columns: `改动点 | 架构层 | 风险 | 介入方式（人工确认=高证据负担 / 执行器+门禁=兜底） | 证据 / Oracle`. The last column **references the `rv-id`(s) in the Section 7.6 oracle block** (e.g. `rv-1, rv-3`), keeping Section 2 scannable; the oracle detail lives once in Section 7.6. Every human-confirm row must point to at least one `rv-id`; a low-risk executor row may name a failure-discriminating gate instead. A row with no nameable evidence is a red flag, not a pass.
-- For each **未命中** item, add a one-line worst-case-if-wrong; if the worst case is severe or irreversible, it cannot be left as a miss.
-- A **"如何证明它生效（真实入口，白话）"** note — the plain-language mirror of the Section 7.6 Realistic Validation Plan, without command-level detail.
-- A **数据库结构评审** note: when schema changes, surface the ER diagram here for human review; otherwise state `本次无数据库结构变化。`
+For each human-confirm item, include:
 
-Keep the human-confirm set short and principled (see Core Rules 12-13 and Phase 3.6). Anything not in a fixed zone and not hitting a trigger defaults to executor + automated gate and must not be listed as human-confirm. "人工确认" here means **high evidence burden** — the item tops the Section 9 evidence package with an executable oracle for the single end-of-flow review — not a mid-flow interruption.
+- a descriptive decision heading phrased in domain language rather than internal layer names;
+- one or two natural paragraphs explaining the recommendation, why it matters, and the material risk;
+- an explicit `**请确认：**` question that can be answered directly;
+- a short `**验收：**` statement describing the observable proof in plain language.
+
+Do not force simple decisions into separate `建议` / `为什么需要确认` / `主要风险` / `如何证明` subsections. Expand only genuinely complex decisions with real alternatives. Avoid unexplained internal jargon in Part A; translate terms such as `semantic adapter`, `canonical contract`, `bbox`, and `provenance` into reader-facing language, retaining the code term in parentheses only when needed for precision.
+
+After the decisions, include a compact **自动门禁，不需要逐项人工审阅** summary for ordinary work and a **本次明确不涉及** scope sentence. Do not list `rv-id` values, commands, file paths, the full fixed-zone menu, or hit/miss bookkeeping in Part A. Those details belong in Sections 5-9.
+
+If no item requires human confirmation, state that once and show only the automated-gate summary and explicit non-scope. When a schema change requires approval, place the relevant ER diagram with that decision; otherwise the non-scope sentence may simply say there is no database structure change.
+
+Keep the human-confirm set short and principled (see Core Rules 12-13 and Phase 3.6). "人工确认" means **high evidence burden** — the decision tops the Section 9 evidence package with an executable oracle for the single end-of-flow review — not a mid-flow interruption.
 
 ### 3. Usage And Impact After Implementation
 
@@ -307,6 +338,7 @@ This section must start with this sentence or a close equivalent:
 Must include:
 - **Core Logic:** how data and control move through the existing system
 - **Change Impact Tree**
+- **Risk Classification Register:** the internal `R0`–`R3` classification required by Phase 3.6; keep it in Part B, not the Human Review Map
 - **Executor Drift Guard** when hidden references or repository drift could affect implementation
 - **Flow or Architecture Diagram**
 - **ER Diagram** when the data model changes (this is the detail figure linked from the Section 2 schema-review note)
@@ -343,7 +375,7 @@ Rules:
 
 Include:
 - a dedicated section named `Acceptance Checklist`
-- this section is the **single human-facing acceptance artifact** ("look once at the end"): organize it as an **Acceptance Evidence Package** ordered by the Human Review Map — high-risk oracle results first, then the Review Map's Predicted→Reconciled reconciliation, then adversarial-check results on the misses, then diffs against locked contracts, then folded low-risk gate results
+- this section is the **single human-facing acceptance artifact** ("look once at the end"): organize it as an **Acceptance Evidence Package** ordered by the Section 7 risk classification — human-confirmed and `R3` oracle results first, then `R2` results and decision reconciliation, then contract diffs and folded `R1`/`R0` gate results
 - every checkbox must be **evidence-bearing**: name the command output, observation, or artifact that proves it, not a bare claim
 - a `Human-Confirmed` group whose checkbox items correspond one-to-one to the human-confirm change points in the Section 2 Human Review Map
 - grouped checklist headings such as `Architecture Acceptance`, `Dependency Acceptance`, `Behavior Acceptance`, `Frontend Acceptance` (when a frontend app changes), `Documentation Acceptance`, `Validation Acceptance`, and `Delivery Readiness` (the overall delivery gate formerly in Definition Of Done) when relevant
@@ -402,14 +434,15 @@ Read [references/prd-content-rules.md](references/prd-content-rules.md) before g
 * [ ] **BLOCKER:** The PRD starts with `# PRD: <descriptive feature title>` as its first Markdown H1 heading; the title describes the feature and is not the literal Part A/Part B heading text
 * [ ] **BLOCKER:** Structured as Part A (Review Layer, Sections 1-4) and Part B (Build Layer, Sections 5-13); Part A contains no implementation mechanism, file paths, commands, or scheduling metadata
 * [ ] Section 1 stays review-altitude: Problem Statement, an `Interpretation (解读回显)` of how the request was read (the up-front approval target), What The User Gets, and Measurable Objectives only — no proposed solution summary, validation commands, or delivery-dependency metadata
-* [ ] **BLOCKER:** Section 2 Human Review Map present: a numbered zone/trigger menu, a 命中的人审项 list (only hit items, or `本次无人工确认项`), a 未命中 one-liner for the rest, a per-change-point classification table (layer + risk tier + intervention + 证据/Oracle column), a plain-language "如何证明它生效" note, and an ER-diagram surfacing or `本次无数据库结构变化` note
-* [ ] Every Section 2 Review Map row points its 证据/Oracle column to ≥1 `rv-id` in the Section 7.6 oracle block (or a failure-discriminating gate name for low-risk executor rows); rows with no nameable evidence are flagged, not passed
-* [ ] Each Section 2 未命中 item carries a one-line worst-case-if-wrong; severe or irreversible worst cases are not left as misses
-* [ ] Human-confirm set is short and principled (fixed zones + triggers only); ordinary low-risk changes are routed to executor + automated gate, not flagged for human review
+* [ ] **BLOCKER:** Section 2 Human Review Map presents only concrete human decisions, each with a plain-language recommendation/risk explanation, an explicit `请确认：` question, and a short observable `验收：` statement; it does not expose the fixed-zone menu, hit/miss bookkeeping, classification tables, commands, file paths, or `rv-id` values
+* [ ] Section 2 ends with a compact automated-gate summary and explicit non-scope; schema changes surface the relevant ER diagram with the decision that approves them
+* [ ] Every Section 2 human decision maps to ≥1 executable oracle in Section 7.6 and one evidence-bearing `Human-Confirmed` item in Section 9, without requiring the reader to follow IDs from Part A
+* [ ] **BLOCKER:** Section 7 contains a complete `Risk Classification Register`; every meaningful change point has an `R0`–`R3` tier derived from its highest applicable dimension, a decisive reason or override, an intervention, and a failure-discriminating oracle/gate
+* [ ] Human-confirm set is short and principled (fixed-zone overrides, cross-cutting triggers, `R3`, or unresolved material `R2` decisions only); ordinary `R0`/`R1` changes are routed to executor + automated gate
 * [ ] Section 6 Recommendation includes the `Proposed Solution Summary (实现机制)` carrying the mechanism that moved out of Section 1
 * [ ] Section 8 includes a tool-neutral Delivery Dependencies block, using explicit `none` values when no sequencing dependency exists
 * [ ] Section 9 Acceptance Checklist includes a `Human-Confirmed` group whose items map one-to-one to the Section 2 human-confirm change points
-* [ ] **BLOCKER:** Section 9 is organized as a risk-map-ordered Acceptance Evidence Package with evidence-bearing items (oracle results / observations / artifacts named), suitable for a single end-of-flow human review
+* [ ] **BLOCKER:** Section 9 is organized as a risk-ordered Acceptance Evidence Package using the Section 7 classification (human-confirmed and `R3` evidence first, then `R2`, then folded `R1`/`R0` gates), with evidence-bearing items suitable for a single end-of-flow human review
 * [ ] Included a Change Impact Tree with architecture-fit reasoning
 * [ ] **BLOCKER:** Stated frontend impact explicitly — for user-visible features named the affected frontend app(s) and their changes (components, routes, API wiring) in the Change Impact Tree; for backend-only work recorded `No frontend impact` with a reason; never omitted the frontend silently
 * [ ] For user-visible changes, the Realistic Validation Plan includes a real frontend entry point (the repo's e2e/UI test command or a manual app run), not only component unit tests
