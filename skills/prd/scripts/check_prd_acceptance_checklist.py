@@ -26,6 +26,19 @@ YAML_FENCE_START_RE = re.compile(r"^\s*```ya?ml\s*$", re.IGNORECASE)
 YAML_FENCE_END_RE = re.compile(r"^\s*```\s*$")
 ORACLE_ENTRY_RE = re.compile(r"^\s*-\s+id:\s*(?P<value>.*)$")
 ORACLE_FIELD_RE = re.compile(r"^\s+(?P<key>[a-z_]+):\s*(?P<value>.*)$")
+PART_A_HEADING_RE = re.compile(r"^#\s+Part A\b")
+PART_B_HEADING_RE = re.compile(r"^#\s+Part B\b")
+PART_A_EXECUTOR_METADATA_RE = re.compile(
+    r"\brv-\d+\b|critical_value_source:|must_cross:|forbidden_bypasses:|"
+    r"fresh_state_probe:|final_tree_evidence:"
+)
+FUNCTIONAL_REQUIREMENT_HEADING_RE = re.compile(r"^##\s+(?:10\.\s+)?Functional Requirements\b")
+FUNCTIONAL_REQUIREMENT_RE = re.compile(r"^\s*[-*+]\s+(?:\*\*)?FR-(?P<number>\d+)(?:\*\*)?\s*[:：]")
+FINAL_RECONCILIATION_HEADING_RE = re.compile(r"^###\s+Final Reconciliation\b")
+RECONCILIATION_FIELD_RE = re.compile(
+    r"^\s*[-*+]\s+(?P<key>Interpretation|Public behavior and contracts|"
+    r"Related PRD status|Requirements and risks):\s*(?P<value>.*)$"
+)
 NO_EXECUTABLE_BEHAVIOR_MARKER = (
     "No executable behavior changes; realistic validation is limited to "
     "documentation/build checks."
@@ -44,6 +57,45 @@ REQUIRED_ORACLE_FIELDS = (
     "expected_fail",
     "test_layer",
     "required_for_acceptance",
+)
+REQUIRED_RECONCILIATION_FIELDS = (
+    "Interpretation",
+    "Public behavior and contracts",
+    "Related PRD status",
+    "Requirements and risks",
+)
+REQUIRED_SECTION_PATTERNS = (
+    ("Introduction & Goals", re.compile(r"^##\s+(?:1\.\s+)?Introduction & Goals\s*$")),
+    ("Human Review Map", re.compile(r"^##\s+(?:2\.\s+)?Human Review Map\b")),
+    (
+        "Usage And Impact After Implementation",
+        re.compile(r"^##\s+(?:3\.\s+)?Usage And Impact After Implementation\s*$"),
+    ),
+    ("Requirement Shape", re.compile(r"^##\s+(?:4\.\s+)?Requirement Shape\s*$")),
+    (
+        "Repository Context And Architecture Fit",
+        re.compile(r"^##\s+(?:5\.\s+)?Repository Context And Architecture Fit\s*$"),
+    ),
+    ("Recommendation", re.compile(r"^##\s+(?:6\.\s+)?Recommendation\s*$")),
+    (
+        "Implementation Guide",
+        re.compile(r"^##\s+(?:7\.\s+)?Implementation Guide\s*$"),
+    ),
+    (
+        "Delivery Dependencies",
+        re.compile(r"^##\s+(?:8\.\s+)?Delivery Dependencies\s*$"),
+    ),
+    ("Acceptance Checklist", ACCEPTANCE_CHECKLIST_HEADING_RE),
+    (
+        "Functional Requirements",
+        re.compile(r"^##\s+(?:10\.\s+)?Functional Requirements\s*$"),
+    ),
+    ("Non-Goals", re.compile(r"^##\s+(?:11\.\s+)?Non-Goals\s*$")),
+    (
+        "Risks And Follow-Ups",
+        re.compile(r"^##\s+(?:12\.\s+)?Risks And Follow-Ups\s*$"),
+    ),
+    ("Decision Log", re.compile(r"^##\s+(?:13\.\s+)?Decision Log\s*$")),
 )
 
 
@@ -198,6 +250,163 @@ def _section_bounds(lines: list[str]) -> tuple[int, int] | None:
     return start_index + 1, end_index
 
 
+def _required_section_issues(file_content: str) -> list[tuple[int, str]]:
+    """Return missing or out-of-order required PRD section issues."""
+
+    lines = file_content.splitlines()
+    section_positions: list[tuple[str, int]] = []
+    issues: list[tuple[int, str]] = []
+
+    for section_name, section_pattern in REQUIRED_SECTION_PATTERNS:
+        matching_indexes = [
+            line_index for line_index, line in enumerate(lines) if section_pattern.match(line)
+        ]
+        if not matching_indexes:
+            issues.append((-1, f"Missing required PRD section: {section_name}"))
+            continue
+        section_positions.append((section_name, matching_indexes[0]))
+
+    for previous_section, current_section in zip(
+        section_positions, section_positions[1:], strict=False
+    ):
+        previous_name, previous_index = previous_section
+        current_name, current_index = current_section
+        if current_index < previous_index:
+            issues.append(
+                (
+                    current_index + 1,
+                    f"Section {current_name!r} must appear after {previous_name!r}",
+                )
+            )
+
+    return issues
+
+
+def _part_a_metadata_issues(file_content: str) -> list[tuple[int, str]]:
+    """Return executor-only metadata found inside the human review layer."""
+
+    lines = file_content.splitlines()
+    part_a_index = next(
+        (line_index for line_index, line in enumerate(lines) if PART_A_HEADING_RE.match(line)),
+        None,
+    )
+    part_b_index = next(
+        (line_index for line_index, line in enumerate(lines) if PART_B_HEADING_RE.match(line)),
+        None,
+    )
+    if part_a_index is None:
+        return [(-1, "Missing Part A review-layer heading")]
+    if part_b_index is None:
+        return [(-1, "Missing Part B build-layer heading")]
+    if part_b_index <= part_a_index:
+        return [(part_b_index + 1, "Part B must appear after Part A")]
+
+    issues: list[tuple[int, str]] = []
+    for line_index in range(part_a_index + 1, part_b_index):
+        metadata_match = PART_A_EXECUTOR_METADATA_RE.search(lines[line_index])
+        if metadata_match:
+            issues.append(
+                (
+                    line_index + 1,
+                    f"Part A contains executor-only metadata: {metadata_match.group(0)!r}",
+                )
+            )
+    return issues
+
+
+def _functional_requirement_issues(file_content: str) -> list[tuple[int, str]]:
+    """Return missing, duplicate, skipped, or out-of-order FR identifiers."""
+
+    lines = file_content.splitlines()
+    heading_index = next(
+        (
+            line_index
+            for line_index, line in enumerate(lines)
+            if FUNCTIONAL_REQUIREMENT_HEADING_RE.match(line)
+        ),
+        None,
+    )
+    if heading_index is None:
+        return [(-1, "Missing Functional Requirements section")]
+
+    end_index = next(
+        (
+            line_index
+            for line_index in range(heading_index + 1, len(lines))
+            if TOP_LEVEL_HEADING_RE.match(lines[line_index])
+        ),
+        len(lines),
+    )
+    requirement_entries = [
+        (line_index + 1, int(requirement_match.group("number")))
+        for line_index in range(heading_index + 1, end_index)
+        if (requirement_match := FUNCTIONAL_REQUIREMENT_RE.match(lines[line_index]))
+    ]
+    if not requirement_entries:
+        return [(heading_index + 1, "Functional Requirements must contain FR-1, FR-2, … items")]
+
+    actual_numbers = [requirement_number for _, requirement_number in requirement_entries]
+    expected_numbers = list(range(1, len(actual_numbers) + 1))
+    if actual_numbers == expected_numbers:
+        return []
+    return [
+        (
+            requirement_entries[0][0],
+            "Functional Requirement IDs must be unique, sequential, and ordered from FR-1; "
+            f"found {actual_numbers}",
+        )
+    ]
+
+
+def _archive_reconciliation_issues(file_content: str) -> list[tuple[int, str]]:
+    """Return missing or incomplete final narrative reconciliation issues."""
+
+    lines = file_content.splitlines()
+    heading_index = next(
+        (
+            line_index
+            for line_index, line in enumerate(lines)
+            if FINAL_RECONCILIATION_HEADING_RE.match(line)
+        ),
+        None,
+    )
+    if heading_index is None:
+        return [(-1, "Missing Final Reconciliation section required for archive readiness")]
+
+    end_index = next(
+        (
+            line_index
+            for line_index in range(heading_index + 1, len(lines))
+            if THIRD_LEVEL_HEADING_RE.match(lines[line_index])
+        ),
+        len(lines),
+    )
+    reconciliation_fields: dict[str, tuple[int, str]] = {}
+    for line_index in range(heading_index + 1, end_index):
+        field_match = RECONCILIATION_FIELD_RE.match(lines[line_index])
+        if field_match:
+            reconciliation_fields[field_match.group("key")] = (
+                line_index + 1,
+                field_match.group("value").strip(),
+            )
+
+    issues: list[tuple[int, str]] = []
+    for field_name in REQUIRED_RECONCILIATION_FIELDS:
+        field_entry = reconciliation_fields.get(field_name)
+        if field_entry is None:
+            issues.append((heading_index + 1, f"Final Reconciliation missing field: {field_name}"))
+            continue
+        line_number, field_value = field_entry
+        normalized_value = field_value.lower().replace(" ", "")
+        if (
+            not field_value
+            or ("[" in field_value and "]" in field_value)
+            or normalized_value in {"confirmed/corrected", "confirmed/corrected—summary"}
+        ):
+            issues.append((line_number, f"Final Reconciliation field {field_name!r} is incomplete"))
+    return issues
+
+
 def _unchecked_items_in_acceptance_section(file_content: str) -> list[tuple[int, str]]:
     """Return unchecked checklist items found in the acceptance section."""
 
@@ -327,13 +536,22 @@ def _oracle_schema_issues(file_content: str) -> list[tuple[int, str]]:
     return schema_issues
 
 
-def _validate_file(path: Path) -> list[tuple[int, str]]:
+def _validate_file(
+    path: Path, *, require_archive_reconciliation: bool = False
+) -> list[tuple[int, str]]:
     """Read a PRD file and return checklist or oracle-integrity issues."""
 
     file_content = path.read_text(encoding="utf-8")
-    return _unchecked_items_in_acceptance_section(file_content) + _oracle_schema_issues(
-        file_content
+    issues = (
+        _required_section_issues(file_content)
+        + _part_a_metadata_issues(file_content)
+        + _functional_requirement_issues(file_content)
+        + _unchecked_items_in_acceptance_section(file_content)
+        + _oracle_schema_issues(file_content)
     )
+    if require_archive_reconciliation:
+        issues += _archive_reconciliation_issues(file_content)
+    return issues
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -341,8 +559,8 @@ def _build_parser() -> argparse.ArgumentParser:
 
     parser = argparse.ArgumentParser(
         description=(
-            "Check deliverable PRD files for a completed Acceptance Checklist "
-            "and a complete validation-evidence oracle chain."
+            "Check deliverable PRD structure, Acceptance Checklist completion, "
+            "validation-evidence oracles, and archive reconciliation."
         )
     )
     parser.add_argument(
@@ -364,6 +582,14 @@ def _build_parser() -> argparse.ArgumentParser:
             "or otherwise outside the default deliverable lifecycle filter."
         ),
     )
+    parser.add_argument(
+        "--archive-ready",
+        action="store_true",
+        help=(
+            "Require Final Reconciliation for explicitly provided PRDs that are "
+            "being prepared for archive. Requires --check-provided."
+        ),
+    )
     parser.add_argument("paths", nargs="*", type=Path, help="PRD files to validate.")
     return parser
 
@@ -375,6 +601,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     repo_root = _repo_root(args.repo_root)
+    if args.archive_ready and not args.check_provided:
+        parser.error("--archive-ready requires --check-provided")
     if args.check_provided:
         if not args.paths:
             parser.error("--check-provided requires at least one PRD path")
@@ -397,7 +625,12 @@ def main(argv: list[str] | None = None) -> int:
 
     for prd_path in candidate_paths:
         relative_path = prd_path.resolve().relative_to(repo_root.resolve())
-        issues = _validate_file(prd_path)
+        issues = _validate_file(
+            prd_path,
+            require_archive_reconciliation=(
+                args.archive_ready or _is_archived_prd_path(prd_path, repo_root)
+            ),
+        )
         if not issues:
             print(f"PASS {relative_path.as_posix()}")
             continue
@@ -412,7 +645,7 @@ def main(argv: list[str] | None = None) -> int:
         print()
 
     if has_errors:
-        print("One or more deliverable PRDs have incomplete acceptance or validation evidence.")
+        print("One or more deliverable PRDs have structural or delivery-readiness issues.")
         return 1
 
     print("\nAll deliverable PRD acceptance checklists and validation oracles are complete.")

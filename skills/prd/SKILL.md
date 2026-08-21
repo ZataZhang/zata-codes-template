@@ -28,6 +28,7 @@ The default recommendation must be the smallest change that cleanly solves the p
 12. **Decision-Oriented Human Review Map:** Internally classify every meaningful change point with the deterministic `R0`–`R3` model in Phase 3.6, recording the result in Part B. Do not expose the classification machinery as a menu or compliance table in Part A. Present only the concrete decisions that require **human confirmation**, written as questions a reviewer can answer. Summarize everything else under **executor + automated gates**. Keep the human-confirm set short and principled; over-flagging defeats the map.
 13. **Two-Touch Autonomy + Evidence Package:** The operating model is two batched human touches with autonomous execution between them — up front the human approves the Agent's interpretation (Section 1) and the human-facing decisions plus acceptance outcomes (Section 2); at the end the human reads a risk-ordered **Acceptance Evidence Package** (Section 9). There is no mid-flow human gate: the Agent self-verifies as deeply as needed (many rounds, adversarial checks — tokens are cheaper than human attention). So "human confirmation" means **high evidence burden** (the item tops the end package with an executable oracle), not an interruption; every human decision and automated gate must map to evidence in Part B that would fail if the change were wrong.
 14. **Evidence-Chain Integrity:** A passing nearby path is not delivery evidence. Every executable oracle must identify the exact critical-value source, runtime boundaries that must be crossed, forbidden bypasses, a fresh-state postcondition probe, and how evidence is tied to the final implementation tree. Read [references/validation-evidence-integrity.md](references/validation-evidence-integrity.md) whenever executable behavior changes or a PRD is prepared for archive.
+15. **Information-Preserving Plain Language:** Part A must reduce the background knowledge needed to understand the PRD without weakening its meaning. Translate technical constraints; do not delete them. Preserve anything that changes required processing order, supported modes, forbidden legacy or bypass paths, required data completeness, failure or unresolved behavior, compatibility promises, or acceptance conclusions. Introduce a necessary internal term as `plain-language meaning (internal name)`, then prefer the plain-language term afterward.
 
 ---
 
@@ -39,6 +40,8 @@ State in plain language:
 - who wants what behavior
 - under which conditions
 - what changes in system state, API, UI, or workflow
+
+When repository evidence is available, record at least one concrete current-state fact behind the request: a duplicate call, legacy dependency, observed failure, measured waste, or blocked extension path. Architectural smells such as "boundaries are unclear" or "maintenance is difficult" are insufficient by themselves.
 
 If you cannot rewrite the request concretely, call that out before generating a PRD.
 
@@ -132,6 +135,10 @@ For every proposed new item, answer:
 
 If you cannot justify the new item, do not recommend it.
 
+### Phase 3.4: Scope Cohesion Gate
+
+List the independently approvable decisions discovered for Part A. If three or more decisions can be implemented, rolled back, or validated independently, explicitly assess whether they should become separate PRDs. Keep them together only when they form one indivisible target state and splitting them would require a temporary compatibility layer, duplicated migration, or another concrete delivery hazard. The count triggers review; it is not an automatic split rule.
+
 ### Phase 3.5: Realistic Validation Gate
 
 Identify the highest-fidelity validation that proves the behavior through a real project entry point, and record it in the Section 7 **Realistic Validation Plan** (content rule F defines the table columns, mock boundary, opt-in live, and fallback rules). Mirror the relevant outcome in plain language as the short **验收** line under each human-facing decision; keep commands and `rv-id` references in Part B.
@@ -146,7 +153,9 @@ For delivery/archive readiness, run the bundled checker when a Python runtime is
 python scripts/check_prd_acceptance_checklist.py --repo-root <repo-root> --all
 ```
 
-Pending PRDs may keep unchecked acceptance items, so this completion checker is not a blocker for a normal newly generated PRD; for a pending PRD about to be archived, validate it with `--check-provided tasks/pending/<prd-file>.md`. The checker also rejects executable oracle entries missing the evidence-chain fields defined below.
+Pending PRDs may keep unchecked acceptance items, so this completion checker is not a blocker for a normal newly generated PRD; for a pending PRD about to be archived, validate it with `--check-provided --archive-ready tasks/pending/<prd-file>.md`. The checker also rejects executable oracle entries missing the evidence-chain fields defined below.
+
+Before archive, perform a **Final Narrative Reconciliation** against the final implementation and fresh evidence. Correct earlier sections when implementation disproved an assumption; do not leave a false statement in the body merely because a later validation record explains it. Reconcile at least Part A interpretation and compatibility claims, public API/UI/CLI fields and entry points, supported modes and failure semantics, related PRD status, Functional Requirements, Risks, and the Decision Log. Record the outcome in Section 13 under `Final Reconciliation`.
 
 ### Phase 3.6: Human Review Map Gate
 
@@ -188,6 +197,8 @@ Always flag these for human confirmation regardless of where the code lands:
 - **Cross-cutting triggers** (escalate any layer): money / billing / quota (when applicable); irreversible or destructive data operations (bulk delete, backfill, down-migration); concurrency / transaction / idempotency.
 
 **Hard rule:** keep the human-confirm set short and justified — if everything is flagged, the map adds no signal. Anything not in a fixed zone and not hitting a trigger defaults to executor + automated gate. Do not show the full zone/trigger menu, hit/miss bookkeeping, architecture-layer classification table, or `rv-id` references in Part A; those are executor metadata, not human decisions. Instead, turn each human-confirm point into a concrete decision with a plain-language recommendation, material risk, an explicit `请确认：` question, and a short `验收：` statement. Prefer one or two natural paragraphs over repeated `建议 / 原因 / 风险 / 如何证明` micro-headings. When a schema change is present, surface the relevant ER diagram in the decision that asks the human to approve the schema. Every human-confirm decision must get a matching item under the `Human-Confirmed` group in the Section 9 Acceptance Checklist.
+
+A concise decision must still retain every material forbidden behavior, failure behavior, compatibility boundary, data-completeness requirement, and supported-mode distinction. If the rewrite would let an executor restore a forbidden legacy path or change failure semantics while still claiming compliance, it is too vague.
 
 **Acceptance Oracle Lock (up front):** For every human-confirm decision, define the executable oracle that locks its correct behavior — characterization/golden test for core logic; round-trip + migration up/down for schema; an actual unauthorized-access test for auth; contract/snapshot test for an external API. Keep the oracle ID, commands, boundary detail, and negative controls in Section 7.6; Part A states only what observable result will prove the decision. For executor + automated-gate work, name a gate that genuinely discriminates *this* change's failure (a generic `build`/`lint` that would pass even if the change were wrong is not valid). These oracles are agreed up front, run continuously during autonomous implementation, and presented as the Section 9 Acceptance Evidence Package. A high-risk decision with no definable oracle is flagged, not marked done.
 
@@ -257,10 +268,10 @@ The PRD opens with `# PRD: <descriptive feature title>` as the very first headin
 ### 1. Introduction & Goals
 
 Review-altitude only. Must include, in order:
-- `### Problem Statement` — the pain, who feels it, why the current behavior is insufficient. Problem only; no solution, mechanism, files, or commands.
-- `### Interpretation (解读回显)` — the Agent's plain-language restatement of how it read the request (from Phase 0), kept falsifiable ("read as X, not Y"); this is the human's up-front approval target, the first of the two human touches.
+- `### Problem Statement` — the pain, who feels it, why the current behavior is insufficient, and at least one concrete repository-observable current-state fact when available. Problem only; no solution, mechanism, files, or commands.
+- `### Interpretation (解读回显)` — the Agent's plain-language restatement of how it read the request (from Phase 0), kept falsifiable ("read as X, not Y"); state the target behavior, key boundaries whose omission would permit a materially different implementation, and explicit non-goals. Preserve formal mode/config names only when the human is approving them. This is the human's up-front approval target, the first of the two human touches.
 - `### What The User Gets` — plain-language description of the capability/behavior the consumer (end user / caller / operator) receives, from the consumer's point of view. No implementation mechanism or module paths — mechanism belongs in Section 6.
-- `### Measurable Objectives` — measurable success criteria.
+- `### Measurable Objectives` — success criteria with an obvious pass/fail oracle through a test, runtime observation, static boundary check, or human-visible result. Do not use unqualified goals such as "clearer responsibilities", "more maintainable", "better extensibility", or "can be described as".
 
 Do not place a proposed solution summary, validation commands, or delivery-dependency metadata here — those live in Sections 6, 7, and 8 respectively. The first section must stay reviewable without implementation detail.
 
@@ -289,7 +300,9 @@ Part of the review layer so reviewers see the concrete delivered outcome before 
 
 Required when the change is user-visible or has executable behavior (API/CLI/UI/job/startup/migration). For a purely internal change with no user-facing or executable surface, keep the section and state `No user-facing usage change; internal-only change.`
 
-See the `Usage And Impact After Implementation` content rule for the per-role walkthrough, entry commands/API examples, backward-compatibility impact, and anti-duplication rules.
+A role is affected when its existing entry point crosses the changed system flow, even if its UI and actions remain unchanged. Before writing this section, identify direct end users, reviewers/admins, operators, API/CLI callers, and developers/integrators. For every applicable role, state what changes or explicitly state what remains unchanged; do not silently omit direct users because the task has no frontend changes. Section 4 `actor` must cover the same affected roles.
+
+See the `Usage And Impact After Implementation` content rule for the per-role walkthrough, entry-point description, backward-compatibility impact, and anti-duplication rules. Complete `curl`, CLI scripts, test commands, and evidence collection belong in Section 7.6, except that a normal end-user command may appear here when the product itself is a CLI.
 
 ### 4. Requirement Shape
 
@@ -431,12 +444,15 @@ Read [references/prd-content-rules.md](references/prd-content-rules.md) before g
 * [ ] Compared a minimal-change option against a heavier option
 * [ ] Justified every new abstraction, dependency, or file path
 * [ ] Rejected redundant layers where reuse was sufficient
+* [ ] Assessed whether independently approvable decisions should be split; documented why the remaining scope is one cohesive target state
 * [ ] **BLOCKER:** The PRD starts with `# PRD: <descriptive feature title>` as its first Markdown H1 heading; the title describes the feature and is not the literal Part A/Part B heading text
 * [ ] **BLOCKER:** Structured as Part A (Review Layer, Sections 1-4) and Part B (Build Layer, Sections 5-13); Part A contains no implementation mechanism, file paths, commands, or scheduling metadata
 * [ ] Section 1 stays review-altitude: Problem Statement, an `Interpretation (解读回显)` of how the request was read (the up-front approval target), What The User Gets, and Measurable Objectives only — no proposed solution summary, validation commands, or delivery-dependency metadata
+* [ ] Problem Statement includes a concrete repository-observable current-state fact when available; Measurable Objectives are pass/fail outcomes rather than unqualified maintainability claims
 * [ ] **BLOCKER:** Section 2 Human Review Map presents only concrete human decisions, each with a plain-language recommendation/risk explanation, an explicit `请确认：` question, and a short observable `验收：` statement; it does not expose the fixed-zone menu, hit/miss bookkeeping, classification tables, commands, file paths, or `rv-id` values
 * [ ] Section 2 ends with a compact automated-gate summary and explicit non-scope; schema changes surface the relevant ER diagram with the decision that approves them
 * [ ] Every Section 2 human decision maps to ≥1 executable oracle in Section 7.6 and one evidence-bearing `Human-Confirmed` item in Section 9, without requiring the reader to follow IDs from Part A
+* [ ] Part A translated rather than deleted required paths, supported modes, forbidden legacy/bypass paths, data-completeness requirements, failure semantics, compatibility promises, and acceptance conclusions
 * [ ] **BLOCKER:** Section 7 contains a complete `Risk Classification Register`; every meaningful change point has an `R0`–`R3` tier derived from its highest applicable dimension, a decisive reason or override, an intervention, and a failure-discriminating oracle/gate
 * [ ] Human-confirm set is short and principled (fixed-zone overrides, cross-cutting triggers, `R3`, or unresolved material `R2` decisions only); ordinary `R0`/`R1` changes are routed to executor + automated gate
 * [ ] Section 6 Recommendation includes the `Proposed Solution Summary (实现机制)` carrying the mechanism that moved out of Section 1
@@ -446,7 +462,8 @@ Read [references/prd-content-rules.md](references/prd-content-rules.md) before g
 * [ ] Included a Change Impact Tree with architecture-fit reasoning
 * [ ] **BLOCKER:** Stated frontend impact explicitly — for user-visible features named the affected frontend app(s) and their changes (components, routes, API wiring) in the Change Impact Tree; for backend-only work recorded `No frontend impact` with a reason; never omitted the frontend silently
 * [ ] For user-visible changes, the Realistic Validation Plan includes a real frontend entry point (the repo's e2e/UI test command or a manual app run), not only component unit tests
-* [ ] For user-visible or executable-behavior changes, included a `Usage And Impact After Implementation` section with a per-role usage walkthrough and entry commands/API examples; for purely internal changes recorded `No user-facing usage change`
+* [ ] For user-visible or executable-behavior changes, included a `Usage And Impact After Implementation` section covering every role whose existing entry point crosses the changed flow, including unchanged end-user behavior; for purely internal changes recorded `No user-facing usage change`
+* [ ] Section 3 roles and Section 4 Actor are consistent; What The User Gets, Section 3, Functional Requirements, and Non-Goals do not contradict one another
 * [ ] **BLOCKER:** Did not include line-number-dependent edit instructions; all fragile edits use semantic anchors and/or `rg` search commands
 * [ ] Included at least one flow or architecture diagram
 * [ ] Implementation Guide includes the required living implementation guide statement
@@ -468,3 +485,4 @@ Read [references/prd-content-rules.md](references/prd-content-rules.md) before g
 * [ ] Recommended a full target state rather than leaving required work in `Phase 2`, `follow-up`, or temporary compatibility layers unless a hard constraint was explicitly documented
 * [ ] Decision Log has at least one row for each major trade-off or documented alternative resolved in Section 6
 * [ ] Each Decision Log row names a concrete rejected alternative (not a vague "other approaches")
+* [ ] Before archive, completed Final Reconciliation and corrected any earlier narrative contradicted by the final implementation or evidence
