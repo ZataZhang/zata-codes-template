@@ -13,6 +13,8 @@ Read this reference before generating the final PRD.
 - [G. External Validation](#g-external-validation)
 - [H. Usage And Impact After Implementation](#h-usage-and-impact-after-implementation)
 - [I. Acceptance Checklist](#i-acceptance-checklist)
+- [J. Review-Layer Information Fidelity](#j-review-layer-information-fidelity)
+- [K. Final Narrative Reconciliation](#k-final-narrative-reconciliation)
 
 ## A. Change Impact Tree
 
@@ -97,7 +99,7 @@ If no prototype files changed, state:
 
 ## F. Realistic Validation Plan (Oracle block)
 
-Every PRD with executable behavior must include this as a **structured YAML block** — the single machine-and-human-readable oracle source. Section 2's evidence column, the Section 9 evidence package, and any deterministic extractor reference/parse the `id`s here. Do not restate oracles as prose tables elsewhere.
+Every PRD with executable behavior must include this as a **structured YAML block** — the single machine-readable oracle source. The Section 9 evidence package and any deterministic extractor reference/parse the `id`s here. Part A mirrors only the observable acceptance outcome in plain language and must not display `rv-id`, commands, evidence-chain fields, or oracle tables. Do not restate oracles as prose tables elsewhere.
 
 Each entry:
 
@@ -120,7 +122,7 @@ Each entry:
 
 Rules:
 
-- One entry per real observable behavior; every Section 2 human-confirm row points to ≥1 `id`.
+- One entry per real observable behavior; every Section 2 human decision has at least one corresponding oracle, with the mapping recorded in Part B and Section 9 rather than exposed in Part A.
 - `real_entry` is the highest-fidelity real entry point (not pytest/helpers); for user-visible changes at least one entry's `real_entry` is the repo's e2e/UI command or a manual app run.
 - `negative_control` + `expected_fail` are **mandatory for human-confirm / high-risk entries** — a test that cannot be shown to fail proves nothing. A purely mechanical low-risk entry may instead name a discriminating gate.
 - `critical_value_source`, `must_cross`, `forbidden_bypasses`, `fresh_state_probe`, and `final_tree_evidence` are mandatory for every executable entry. Apply the evidence-integrity reference loaded by Phase 3.5.
@@ -157,14 +159,16 @@ Include this section when the change is user-visible or has executable behavior 
 
 When included, cover only what the abstract sections cannot:
 
-- **Per-role usage walkthrough:** for each affected role that actually applies (end user, admin, developer, operator), the concrete steps to use the delivered capability — which page/route, which entry point, which fields, and the resulting identifier or output format. Anchor to real paths and entry points, not line numbers.
-- **Entry commands / API examples:** copy-paste `curl`, CLI, or client snippets that exercise the new or changed entry points. This is usually the only place these concrete examples live.
+- **Affected-role discovery:** before writing, build an internal role list from real entry points. Check direct end users, reviewers/admins, operators, API/CLI callers, and developers/integrators. A role is affected when its existing entry point crosses the changed flow, even when its UI and actions remain unchanged.
+- **Per-role usage walkthrough:** for every applicable role, explain where the role enters, what it does, what it observes, what changes, and what explicitly stays unchanged. Use the real role name from the repository rather than forcing generic End User/Admin/Developer labels. Do not silently omit direct users because the task has no frontend changes.
+- **Entry-point description:** name the real page, route, API capability, CLI, job, or startup path in plain language. Complete `curl`, CLI scripts, test commands, temporary-file handling, and evidence collection belong in Section 7.6. When the product itself is a CLI, its normal end-user command may appear here as usage; test scaffolding still belongs in Part B.
 - **Impact on existing behavior:** backward-compatibility and migration effects only — what stays the same for existing users/data/config, plus any new optional config/env and its default-off behavior.
 
 Rules:
 
 - This subsection is the concrete walkthrough; keep `Goals`, `Functional Requirements`, and `Requirement Shape` abstract and do not restate them verbatim here.
 - Do not introduce a capability that has no matching `FR-n`; if writing this subsection surfaces one, add the `FR` first.
+- Section 4 `Actor` must cover the same affected roles. `What The User Gets`, Section 3, Functional Requirements, and Non-Goals must not contradict one another.
 - The impact list covers backward-compatibility/migration, not the "won't build" scope — keep negative scope in `Non-Goals` and do not duplicate it here.
 
 ## I. Acceptance Checklist
@@ -189,3 +193,56 @@ For executable behavior, it must also name the critical value provenance, actual
 For repository-wide refactors, migrations, or path moves, include at least one repository search assertion that proves obsolete references are gone and expected target references remain.
 If a default group does not fit the task, rename or replace it with a more precise group instead of dropping the section entirely.
 The checklist must validate the final target state, not merely the completion of an interim first phase.
+
+## J. Review-Layer Information Fidelity
+
+Part A reduces the background knowledge needed to understand the PRD; it does not reduce the decision information. Translate rather than delete constraints.
+
+| Information that must survive | Human-facing expression |
+|---|---|
+| Concrete current problem | Observable repository fact and its impact |
+| Required processing path | Plain-language order, with an internal name in parentheses only when useful |
+| Formal mode or option | Plain-language behavior plus the exact config value when the human approves it |
+| Forbidden legacy or bypass path | An explicit "must not" statement |
+| Required data completeness | The business information that must remain available |
+| Failure or unresolved behavior | What the user/system observes when the value cannot be produced |
+| Compatibility boundary | The concrete entry points, results, states, and status semantics that stay stable |
+| Acceptance result | An observable pass/fail outcome |
+
+Do not replace a material constraint with a vague abstraction. For example:
+
+Too vague:
+
+> 文本识别使用统一结果。
+
+Information-preserving:
+
+> 文本字段识别只使用统一整理后的文档结构（Layer2），不能重新读取原文件；字段位置必须来自该结构记录的原文来源，找不到时明确标记为“未定位”。
+
+The rewrite is too weak if an executor could restore a forbidden path, omit a supported mode, manufacture a default value, or change a compatibility promise while still claiming compliance.
+
+## K. Final Narrative Reconciliation
+
+Before archive, reread the complete PRD against the final implementation and fresh acceptance evidence. Correct the main narrative when implementation disproved an assumption; a later validation note does not excuse a false earlier statement.
+
+Section 13 must include:
+
+```markdown
+### Final Reconciliation
+
+- Interpretation: confirmed / corrected — [summary]
+- Public behavior and contracts: confirmed / corrected — [summary]
+- Related PRD status: confirmed / corrected — [summary]
+- Requirements and risks: confirmed / corrected — [summary]
+- Reconciled differences:
+  - none
+  - [or list each difference already corrected in the main PRD]
+```
+
+Reconcile at least:
+
+- Part A interpretation and compatibility claims;
+- public API/UI/CLI fields and real entry points;
+- supported modes, forbidden paths, and failure semantics;
+- related PRD state and dependency statements;
+- Functional Requirements, Risks, and the Decision Log.

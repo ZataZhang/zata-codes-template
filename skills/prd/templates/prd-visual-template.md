@@ -13,11 +13,11 @@
 
 ### Problem Statement
 
-[痛点：谁、在什么场景、遇到什么问题，现状为什么不够。只讲问题，不讲方案、机制、文件或命令。]
+[用大白话说明现在发生了什么、谁受到影响、造成什么实际问题。尽量包含至少一个从仓库确认的现状事实，例如重复调用、旧依赖、实际错误或扩展阻塞；不要只写“边界不清晰”。只讲问题，不讲方案、文件或命令。]
 
 ### Interpretation (解读回显)
 
-[Agent 把需求读成了什么——"我理解为 X，而不是 Y";假设的范围 / 边界。这是你**前置批准**的对象:批准这条 = 同意按这个解读自动实现（第一次人类触点）。]
+[先说明目标行为，再说明会改变方案含义的关键边界和明确不做什么。保留强制路径、正式模式、禁止旧路径、失败语义和兼容承诺；把必要术语写成“大白话（内部名称）”。不放文件路径、类名和命令。这是你**前置批准**的对象。]
 
 ### What The User Gets
 
@@ -25,9 +25,11 @@
 
 ### Measurable Objectives
 
-- [可度量目标 1]
-- [可度量目标 2]
-- [可度量目标 3]
+- [可明确判定通过或失败的行为结果]
+- [必须保持不变的兼容结果]
+- [禁止路径或失败语义的可验证结果]
+
+[不要写“更清晰”“更易维护”“能被描述为”等无法直接验收的目标。]
 
 ---
 
@@ -37,7 +39,7 @@
 
 ### 决策一：[用业务语言描述需要确认的决定]
 
-[用一到两段自然语言说明建议、为什么重要以及主要风险。不要机械拆成“建议 / 原因 / 风险 / 如何证明”多个小节；避免未解释的内部术语。]
+[用一到两段自然语言说明建议、为什么重要以及主要风险。保留会限制实现的强制路径、正式模式、禁止行为、失败语义、数据完整性和兼容范围；不要因为改成大白话而删除它们，也不要机械拆成“建议 / 原因 / 风险 / 如何证明”多个小节。]
 
 **请确认：** [写成 reviewer 可以直接回答的问题。]
 
@@ -63,16 +65,19 @@
 
 ## 3. Usage And Impact After Implementation
 
-写 PRD 时即填写，描述实现后的**目标态使用脚本**（消费者视角），作为构建目标和回头验证的依据；不是事后日志。用户可见或有可执行行为（API/CLI/UI/job/启动/迁移）时必填；纯内部改动只写最后一行兜底说明。保持各角色走查具体，但不要照抄 Goals / FR / Requirement Shape。
+写 PRD 时即填写，描述实现后的**目标态使用脚本**（消费者视角），作为构建目标和回头验证的依据；不是事后日志。先识别所有经过本次修改流程的角色，即使入口和操作不变，也要明确说明“不变”。删除某类角色前，确认其真实入口不经过本次修改流程。完整命令和验证脚本留在 Part B。
 
-### [终端用户 / End User]
-- [Which page/route and entry point, which fields, and the resulting identifier or output format]
+### [直接使用者的真实角色名称]
 
-### [管理员 / Admin]
-- [What the admin manages and where; any operational attributes set here]
+[从哪里进入、做什么、看到什么；哪些变化、哪些保持不变。]
 
-### [开发者 / Developer]
-- [Which existing entry point developers keep using; which DTO/contract to follow when extending]
+### [管理 / 审核角色，存在时保留]
+
+[管理或审核什么、从哪里查看、结果如何变化或保持不变。]
+
+### [运行 / 接入 / 开发角色，存在时保留]
+
+[如何运行、排障或扩展，应使用什么公开边界。]
 
 ### Impact On Existing Behavior
 - [What stays unchanged for existing users/data/config]
@@ -85,7 +90,7 @@ If the change is purely internal:
 
 ## 4. Requirement Shape
 
-- Actor: [谁需要这个行为]
+- Actor: [必须覆盖 Section 3 中的实际角色，不得遗漏直接使用者]
 - Trigger: [何时触发]
 - Expected behavior: [系统应做什么]
 - Scope boundary: [本 PRD 不覆盖什么]
@@ -359,3 +364,12 @@ If no external validation was needed:
 | # | 决策问题 | 选择 | 放弃的方案 | 理由 |
 |---|---|---|---|---|
 | D-01 | [决策问题，如"架构模式选择"] | [最终选择] | [放弃的方案] | [一句话说明为什么] |
+
+### Final Reconciliation (Archive Only)
+
+- Interpretation: [confirmed / corrected — summary]
+- Public behavior and contracts: [confirmed / corrected — summary]
+- Related PRD status: [confirmed / corrected — summary]
+- Requirements and risks: [confirmed / corrected — summary]
+- Reconciled differences:
+  - [none，或列出已经反向修正到正文的差异]
