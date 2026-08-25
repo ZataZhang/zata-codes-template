@@ -777,6 +777,14 @@ copy name force='':
     # src/backend/engines/skills/，曾导致派生项目后端 import 链整体断裂。
     # tests/test_prd_skill_checker.py 依赖模板专属的 skills/prd/scripts，
     # 与 sync_template.sh 的跳过名单保持一致，不复制到派生项目。
+    #
+    # 模板仓库专属，不随模板分发：.iar.toml 是模板自身的 IAR 工具配置
+    # （含仓库身份 id / remote / verification_commands），派生项目应自建；
+    # zata_code_template.zip 是含加密 .env.local 备份的历史产物，不应分发。
+    #
+    # 注意：以下 --exclude 列表靠反斜杠续行，中间不能插入注释行。
+    # `\` 会把注释行并入同一逻辑行，`#` 之后的源和目标路径会被整段丢弃，
+    # rsync 因缺少参数直接报 usage 错误。
     rsync -av \
         --exclude='.git' \
         --exclude='.venv' \
@@ -800,9 +808,6 @@ copy name force='':
         --exclude='/task_plan.md' \
         --exclude='docker-compose.testing.yml' \
         --exclude='.claude/planning' \
-        # 模板仓库专属，不随模板分发：.iar.toml 是模板自身的 IAR 工具配置
-        # （含仓库身份 id / remote / verification_commands），派生项目应自建；
-        # zata_code_template.zip 是含加密 .env.local 备份的历史产物，不应分发。
         --exclude='/.iar.toml' \
         --exclude='/zata_code_template.zip' \
         "$TEMPLATE_DIR/" "$NEW_DIR/"
@@ -822,8 +827,26 @@ copy name force='':
     frontend_public_random_port=$((3010 + RANDOM % 990))
     echo "Picked random ports: backend=$backend_random_port, admin frontend=$frontend_admin_random_port, public frontend=$frontend_public_random_port"
 
+    # 实例化 app-slug 占位前缀。docs/guides/deployment.md 的“App-slug 命名空间”
+    # 一节定义了该契约：模板源文件中的服务名、卷名、nginx 上游主机名统一使用
+    # `zata-codes-template-` 前缀，`just copy` 负责替换成项目目录名。
+    #
+    # 下列文件**必须排除**，它们引用的是上游模板本身，替换会破坏功能：
+    #   scripts/shared/template/sync_template.sh   TEMPLATE_REPO 与产物排除规则
+    #   docs/guides/deployment.md                  正文在解释占位符机制本身
+    #   tests/guards/repo/test_runtime_port_state.py  docstring 解释同一机制
+    #
+    # 新增 observability/ 与 docker-compose.monitoring.yml 后必须同步登记到
+    # 这里：这些是运行时事实而非文档措辞，漏掉会让 overlay 里的 volume/
+    # compose_service/scrape target 指向不存在的名字，
+    # `docker compose -f docker-compose.yml -f docker-compose.monitoring.yml config`
+    # 直接失败，派生项目的监控栈起不来。
     echo "Updating project name in config files..."
-    python3 -c 'from pathlib import Path; import sys; old_project_name = sys.argv[1]; new_project_name = sys.argv[2]; target_root = Path(sys.argv[3]); project_file_paths = [target_root / path for path in sys.argv[4:]]; [project_file_path.write_text(project_file_path.read_text(encoding="utf-8").replace(old_project_name, new_project_name), encoding="utf-8") for project_file_path in project_file_paths if project_file_path.exists()]' "$OLD_NAME" "$PROJECT_NAME" "$NEW_DIR" config.toml mkdocs.yml pyproject.toml uv.lock docker-compose.dokploy.yml docker-compose.yml frontend-admin/nginx.conf frontend-public/Dockerfile deploy/vps-traefik/README.md deploy/vps-traefik/docker-compose.yml deploy/vps-traefik/.env.example deploy/vps-traefik/app.env.example deploy/vps-traefik/github-actions-deploy.yml.example
+    python3 -c 'from pathlib import Path; import sys; old_project_name = sys.argv[1]; new_project_name = sys.argv[2]; target_root = Path(sys.argv[3]); project_file_paths = [target_root / path for path in sys.argv[4:]]; [project_file_path.write_text(project_file_path.read_text(encoding="utf-8").replace(old_project_name, new_project_name), encoding="utf-8") for project_file_path in project_file_paths if project_file_path.exists()]' "$OLD_NAME" "$PROJECT_NAME" "$NEW_DIR" config.toml mkdocs.yml pyproject.toml uv.lock docker-compose.dokploy.yml docker-compose.yml docker-compose.monitoring.yml .env.example .env.dokploy.example observability/vector/vector.yaml observability/prometheus/prometheus.yml observability/grafana/dashboards/red-and-logs.json frontend-admin/nginx.conf frontend-admin/README.md frontend-public/Dockerfile frontend-public/README.md docs/guides/observability.md docs/architecture/frontend-architecture.md deploy/vps-traefik/README.md deploy/vps-traefik/docker-compose.yml deploy/vps-traefik/.env.example deploy/vps-traefik/app.env.example deploy/vps-traefik/github-actions-deploy.yml.example
+
+    # 目录名形式（下划线）只出现在 codex 通知的示例输出里，OLD_NAME 的
+    # 连字符形式匹配不到，单独走一遍。
+    python3 -c 'from pathlib import Path; import sys; old_project_name = sys.argv[1]; new_project_name = sys.argv[2]; target_root = Path(sys.argv[3]); project_file_paths = [target_root / path for path in sys.argv[4:]]; [project_file_path.write_text(project_file_path.read_text(encoding="utf-8").replace(old_project_name, new_project_name), encoding="utf-8") for project_file_path in project_file_paths if project_file_path.exists()]' "zata_code_template" "$PROJECT_NAME" "$NEW_DIR" docs/guides/codex-notifications.md
 
     echo "Setting up project-specific database..."
     uv run python "$TEMPLATE_DIR/scripts/shared/template/setup_copied_database.py" "$PROJECT_NAME" "$NEW_DIR"
