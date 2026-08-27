@@ -47,6 +47,8 @@ AI 代理默认不会设置该变量，因此会被 hook 拦下——这是"指�
 | `test_release_script.py` | release 归档排除规则 |
 | `test_sync_template.py` | template sync 脚本 |
 | `test_dokploy_environment.py` | 部署环境模板（env/compose 一致性） |
+| `test_runtime_dependency_declaration.py` | 后端模块级 import 必须由 `[project.dependencies]` 覆盖，裸 `uv sync` 即可装齐 |
+| `test_database_connection_pool.py` | 非 SQLite 后端不得使用 `StaticPool`（共用单连接会让事务互相覆盖、静默丢数据） |
 | `repo/test_compose_parity.py` | Docker Compose 仓库约定 |
 | `repo/test_runtime_port_state.py` | `.env.run-state` 主机端口单一来源与 Compose 映射 |
 | `repo/test_migrations.py` | Alembic 迁移链完整性 |
