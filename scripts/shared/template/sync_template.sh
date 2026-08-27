@@ -11,7 +11,10 @@
 
 set -euo pipefail
 
-TEMPLATE_REPO="${SYNC_TEMPLATE_TEMPLATE_REPO:-https://github.com/zata-zhangtao/zata-codes-template.git}"
+# 模板仓库地址。旧地址 zata-zhangtao/zata-codes-template 目前仍能靠 GitHub 的
+# 仓库重定向工作，但重定向不保证长期有效（旧用户名一旦被他人注册，行为即不可
+# 预期），而这个默认值会随模板分发到每个下游项目，所以直接写新地址。
+TEMPLATE_REPO="${SYNC_TEMPLATE_TEMPLATE_REPO:-https://github.com/ZataZhang/zata-codes-template.git}"
 LOCAL_ROOT="$(git rev-parse --show-toplevel)"
 TEMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TEMP_DIR"' EXIT
