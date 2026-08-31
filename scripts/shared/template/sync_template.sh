@@ -95,8 +95,34 @@ _append_split_paths() {
     done
 }
 
+# 解析 config.toml 需要 TOML 解析器：tomllib 要 Python 3.11+，而 macOS 自带的
+# python3 至今仍是 3.9。选不出可用解释器时必须报错，不能静默回退默认值——
+# 否则用户在 [template_sync] 里配的路径会被悄悄忽略，TUI 却显示得像配置生效了。
+# 依次尝试：显式指定的解释器 -> 项目 venv -> PATH 上的 python3 -> 具名新版本。
+_select_toml_python() {
+    local python_candidate
+
+    for python_candidate in \
+        "${SYNC_TEMPLATE_PYTHON:-}" \
+        "$LOCAL_ROOT/.venv/bin/python" \
+        python3 \
+        python3.14 python3.13 python3.12 python3.11
+    do
+        [ -n "$python_candidate" ] || continue
+        command -v "$python_candidate" >/dev/null 2>&1 || continue
+        if "$python_candidate" -c 'import tomllib' >/dev/null 2>&1 \
+            || "$python_candidate" -c 'import tomli' >/dev/null 2>&1; then
+            printf '%s\n' "$python_candidate"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
 _load_configured_project_paths() {
     local config_file="$LOCAL_ROOT/config.toml"
+    local toml_python=""
     local config_output=""
     local configured_skip=false
     local configured_include=false
@@ -112,14 +138,27 @@ _load_configured_project_paths() {
     PROJECT_INCLUDE_PATH_COUNT=0
 
     if [ -f "$config_file" ]; then
-        if ! config_output="$(python3 - "$config_file" <<'PYEOF'
+        toml_python="$(_select_toml_python || true)"
+    fi
+
+    if [ -z "$toml_python" ]; then
+        if [ -f "$config_file" ] \
+            && grep -q '^[[:space:]]*\[template_sync\]' "$config_file"; then
+            echo "❌ 无法解析 $config_file 里的 [template_sync]：找不到自带 TOML 解析器的 Python。" >&2
+            echo "   需要 Python 3.11+（内置 tomllib），或任一装了 tomli 的 Python。" >&2
+            echo "   可用 SYNC_TEMPLATE_PYTHON=/path/to/python3.11 指定解释器，" >&2
+            echo "   或用 SYNC_TEMPLATE_PROJECT_SKIP_PATHS / SYNC_TEMPLATE_PROJECT_INCLUDE_PATHS 直接覆盖路径。" >&2
+            exit 1
+        fi
+    else
+        if ! config_output="$("$toml_python" - "$config_file" <<'PYEOF'
 import sys
 from pathlib import Path
 
 try:
     import tomllib
-except ModuleNotFoundError:
-    sys.exit(0)
+except ModuleNotFoundError:  # Python < 3.11：调用方已确保 tomli 可用
+    import tomli as tomllib
 
 config_path = Path(sys.argv[1])
 try:

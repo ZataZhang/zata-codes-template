@@ -87,6 +87,9 @@
 
 - `SYNC_TEMPLATE_PROJECT_SKIP_PATHS`：逗号或空格分隔的跳过路径列表。
 - `SYNC_TEMPLATE_PROJECT_INCLUDE_PATHS`：逗号或空格分隔的保留显示路径列表。
+- `SYNC_TEMPLATE_PYTHON`：指定解析 `config.toml` 所用的 Python 解释器。
+
+读取 `[template_sync]` 需要 TOML 解析器：Python 3.11+ 自带 `tomllib`，更低版本需装 `tomli`。脚本按 `SYNC_TEMPLATE_PYTHON` → 项目 `.venv/bin/python` → `PATH` 上的 `python3` → `python3.14`/`3.13`/`3.12`/`3.11` 的顺序挑第一个可用的。macOS 自带的 `python3` 至今是 3.9，通常由项目 `.venv` 兜底。一个都挑不到、而 `config.toml` 又确实写了 `[template_sync]` 时，脚本会**报错退出**而不是静默回退到内置默认跳过列表——否则你配的路径会被丢弃且毫无提示。
 
 ## 日志相关配置
 
