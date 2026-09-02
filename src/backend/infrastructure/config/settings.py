@@ -5,6 +5,10 @@
 2. config.toml（非敏感配置）
 3. 代码中的默认值
 
+需要调用大模型的派生项目，用 ``.env`` 的 ``MODEL_BASE_URL`` / ``MODEL_API_KEY`` /
+``MODEL_NAME`` 三件套声明端点，经 :func:`load_primary_model_settings` 读取。模板
+只做这层解析，不内置 LLM 客户端，也不维护 provider 目录。
+
 新增配置项约定：
 - 非敏感默认值放到 ``config.toml`` 对应 section。
 - 密钥 / Token / 密码等敏感值本身不得在 ``config.toml`` 中写死；应只在
@@ -21,6 +25,7 @@ from __future__ import annotations
 
 import os
 import tomllib
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote_plus
@@ -294,6 +299,84 @@ class AppSettings(BaseSettings):
         )
 
 
+# ---------------------------------------------------------------------------
+# 主模型配置（厂商无关）
+# ---------------------------------------------------------------------------
+# 模板只负责把 `.env` 里的端点三件套读出来，不内置任何 LLM 客户端，也不维护
+# provider 目录——那属于派生项目的业务选择。
+
+PRIMARY_MODEL_BASE_URL_ENV: str = "MODEL_BASE_URL"
+PRIMARY_MODEL_API_KEY_ENV: str = "MODEL_API_KEY"
+PRIMARY_MODEL_NAME_ENV: str = "MODEL_NAME"
+
+
+class PrimaryModelConfigError(RuntimeError):
+    """主模型环境变量只声明了一部分时抛出。
+
+    三件套要么齐全、要么全空；缺一半通常意味着复制 ``.env.example`` 时漏填，
+    静默回退会让调用方在真正发请求时才收到含义不明的 401 或 404。
+    """
+
+
+@dataclass(frozen=True)
+class PrimaryModelSettings:
+    """``.env`` 声明的主模型端点。
+
+    Attributes:
+        base_url (str): OpenAI 协议端点的基础 URL，通常以 ``/v1`` 结尾。
+        api_key (SecretStr): 端点密钥；包成 ``SecretStr`` 避免误打进日志。
+        model_name (str): 模型 id，原样发送给端点，允许自带斜杠。
+    """
+
+    base_url: str
+    api_key: SecretStr
+    model_name: str
+
+
+def load_primary_model_settings() -> PrimaryModelSettings | None:
+    """读取 ``.env`` 的主模型三件套。
+
+    模板不假设派生项目用哪个 SDK：拿到这三个值后，接 ``langchain_openai``
+    的 ``ChatOpenAI``、官方 ``openai.OpenAI`` 或任意 OpenAI 协议兼容客户端都可以。
+    需要同时接多个端点的项目，在此基础上自建 provider 注册表。
+
+    Returns:
+        PrimaryModelSettings | None: 三件套齐全时返回端点配置；三者都未设置时
+        返回 ``None``，表示本项目不使用模型。
+
+    Raises:
+        PrimaryModelConfigError: 三件套只设置了一部分时抛出，错误体列出缺失的
+            变量名。
+    """
+    configured_base_url: str = os.getenv(PRIMARY_MODEL_BASE_URL_ENV, "").strip()
+    configured_api_key: str = os.getenv(PRIMARY_MODEL_API_KEY_ENV, "").strip()
+    configured_model_name: str = os.getenv(PRIMARY_MODEL_NAME_ENV, "").strip()
+
+    missing_env_names: list[str] = [
+        env_name
+        for env_name, env_value in (
+            (PRIMARY_MODEL_BASE_URL_ENV, configured_base_url),
+            (PRIMARY_MODEL_API_KEY_ENV, configured_api_key),
+            (PRIMARY_MODEL_NAME_ENV, configured_model_name),
+        )
+        if not env_value
+    ]
+    if len(missing_env_names) == 3:
+        return None
+    if missing_env_names:
+        raise PrimaryModelConfigError(
+            f"主模型环境变量不完整，缺少：{'、'.join(missing_env_names)}。请同时设置 "
+            f"{PRIMARY_MODEL_BASE_URL_ENV} / {PRIMARY_MODEL_API_KEY_ENV} / "
+            f"{PRIMARY_MODEL_NAME_ENV}，或三者都留空表示本项目不使用模型。"
+        )
+
+    return PrimaryModelSettings(
+        base_url=configured_base_url,
+        api_key=SecretStr(configured_api_key),
+        model_name=configured_model_name,
+    )
+
+
 def _ensure_no_proxy_for_local_services() -> None:
     """确保本地服务（localhost/127.0.0.1）不经过系统 HTTP 代理。"""
     existing_no_proxy: str = os.getenv("NO_PROXY", "")
@@ -314,10 +397,16 @@ config.ensure_log_directory()
 _ensure_no_proxy_for_local_services()
 
 __all__ = [
+    "PRIMARY_MODEL_API_KEY_ENV",
+    "PRIMARY_MODEL_BASE_URL_ENV",
+    "PRIMARY_MODEL_NAME_ENV",
     "AppSettings",
     "AuthSettings",
     "DatabaseSettings",
     "ObservabilitySettings",
+    "PrimaryModelConfigError",
+    "PrimaryModelSettings",
     "RedisSettings",
     "config",
+    "load_primary_model_settings",
 ]

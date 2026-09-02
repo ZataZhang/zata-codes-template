@@ -34,6 +34,9 @@ services:
       - AUTH_ADMIN_BOOTSTRAP_PASSWORD=${AUTH_ADMIN_BOOTSTRAP_PASSWORD:-}
       - APP_BOOTSTRAP_EMAIL=${APP_BOOTSTRAP_EMAIL:-}
       - APP_BOOTSTRAP_PASSWORD=${APP_BOOTSTRAP_PASSWORD:-}
+      - MODEL_BASE_URL=${MODEL_BASE_URL:-}
+      - MODEL_API_KEY=${MODEL_API_KEY:-}
+      - MODEL_NAME=${MODEL_NAME:-}
     volumes:
       - zata-codes-template-backend-logs:/app/logs
       - zata-codes-template-backend-data:/app/backend/data
