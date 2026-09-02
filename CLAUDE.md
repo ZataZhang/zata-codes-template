@@ -45,6 +45,8 @@
 - 单代码文件非空行不超过 1000 行；`just lint` 会对此发出警告
 - 随手想法先落 `tasks/inbox/`：原话逐字**只追加**到 `tasks/inbox/ideas.md`（禁止改写已有条目），AI 维护 `tasks/inbox/summary.md` 做总结；想法成熟后用 PRD 流程升级到 `tasks/pending/`。详见 `docs/guides/idea-inbox.md`
 - PRD 对应任务全部完成后：生成验证计划、收集证据、经独立 verifier Agent 审查通过并完成 Acceptance Checklist，所有条目达到完成态后，再将 PRD 从 `tasks/pending/` 归档到 `tasks/archive/`
+- 禁止为了可测性修改生产代码：不得为了让测试或负控能变红而往 `src/`、前端 app 加故障注入开关、失败模式、test-only 配置项、计数器或观测钩子；无法变红时记 `negative_control: not feasible — <原因>`
+- verifier finding 必须分 `BLOCKER` / `NON-BLOCKING` / `SECURITY`，只有 `BLOCKER` 触发重跑；验证最多 2 轮，之后交人决定，不开第 3 轮
 - PRD 必须包含 Realistic Validation Plan，验收清单需覆盖最高可行保真度的真实入口验证，或说明无可执行行为变更
 - 前端截图必须标注验证层级；临时预览页、直接渲染组件或手工注入状态仅属于 `component preview`，不得称为真实验证。涉及 Dialog、Portal、父级布局或用户流程时，验收证据必须保留对应生产边界；无法走真实入口时必须披露限制
 - 变更代码时同步更新 `docs/` 与 `mkdocs.yml`

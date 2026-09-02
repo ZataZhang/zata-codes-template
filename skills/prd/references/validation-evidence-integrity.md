@@ -5,7 +5,9 @@ The goal is to prove the delivered path, not a nearby path that happens to retur
 
 ## Oracle Chain Contract
 
-For every executable `rv-id`, record these fields in the Section 7.6 YAML oracle:
+For every `R2` / `R3` executable `rv-id`, record these fields in the Section 7.6 YAML oracle.
+`R0` / `R1` entries are out of scope for this contract — they need one assertion that
+discriminates their own failure, not a provenance chain. Content rule F defines the split.
 
 - `critical_value_source`: the exact origin of any URL, token, identifier, command, or payload used by the assertion.
 - `must_cross`: the runtime boundaries the evidence must traverse in order, including proxies, canonical routes, transaction commits, queues, or storage reads.
@@ -81,4 +83,25 @@ The verifier must answer all of these for each required `rv-id`:
 - Did a fresh consumer independently observe the postcondition?
 - Was the evidence collected after the last relevant implementation change?
 
-Any `no`, unknown answer, or missing provenance is a `REJECT`, not a warning.
+A `no` or an unknown answer to any of these is a `BLOCKER` — the behavior is not proven.
+
+## Finding Severity
+
+Verification rounds are expensive, so a finding only earns one when it can change the
+verdict. Label every finding with the answer to a single question: **if this were fully
+addressed, could the verdict flip from PASS to FAIL?**
+
+- `BLOCKER` — yes, or it cannot be ruled out. Rejects, and drives another round.
+- `NON-BLOCKING` — no. Recorded under the verdict and carried forward; never rejects.
+  Missing raw logs where the result is reported and reproducible, untidy evidence naming,
+  a mirror-image variant of an already-passing test that exercises the same guard, and
+  coverage no acceptance item claims all live here.
+- `SECURITY` — a real credential is visible in a log or screenshot. Must be fixed, but it
+  casts no doubt on the behavior, so it never forces a round on its own. Prevent it
+  mechanically instead: scan the evidence package before submitting, and capture status
+  views rather than live one-time links.
+
+Severity is per finding. Several `NON-BLOCKING` findings do not add up to a `BLOCKER`.
+
+Rounds are capped at two. If `BLOCKER` items still stand after the second round, escalate
+them to a human as named open items — a third round is not the answer.

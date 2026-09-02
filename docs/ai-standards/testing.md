@@ -198,23 +198,38 @@ HTML 报告仍固定在 `tests/playwright-e2e/playwright-report/`，可用 `just
 流程：
 
 1. **生成验证计划**：executor 在 `tasks/evidence/<prd-basename>/<prd-basename>.verification-plan.md` 中列出每条验收项对应的可执行验证命令或 e2e 用例。
-2. **收集证据**：executor 执行验证命令，把命令输出、测试日志、截图、录屏按 `rv-id` 命名保存到 `tasks/evidence/<prd-basename>/`。
-3. **写证据报告**：executor 在 `<prd-basename>.evidence-report.md` 中解释每条证据对应哪个验收项、证据显示了什么、为什么能证明验收项成立。
-4. **独立 verifier 审查**：`just ai implement` 自动启动一个 verifier Agent，默认使用与 executor 不同的 AI 工具；verifier 只读审查证据与 PRD 验收项的匹配度，输出 `<prd-basename>.verifier-report.md`，结论为 `PASS` 或 `REJECT`。
-5. **循环**：verifier 输出 `REJECT` 时，executor 必须修复问题并重新收集证据，再次进入 verifier 审查。
-6. **前端强制视觉证据**：如果 PRD 涉及 `frontend-admin/` 或 `frontend-public/` 改动，证据目录必须包含至少一个 `.png`、`.jpg` 或 `.webm` 文件。
-7. **最终校验**：verifier 通过后，`just ai implement` 运行 `scripts/shared/just/check_prd_evidence.sh` 再次确认前端视觉证据存在，缺少则阻止流程结束。
-8. **工具不可用**：verifier 默认工具不可用时，降级到与 executor 相同工具；相同工具也不可用时，流程暂停并提示人工，不自动回退到 executor 自检。
+2. **先写 oracle 再写实现**：验收项对应的测试必须在实现之前写好并跑红，那次红色运行就是最诚实的负控。测试留到最后写，失败的多半是脚手架（响应结构猜错、缺 fixture、collection marker、测试数据撞库），而那时修复最贵。
+3. **收集证据**：executor 执行验证命令，把命令输出、测试日志、截图、录屏按 `rv-id` 命名保存到 `tasks/evidence/<prd-basename>/`。所有验证命令第一次跑就 `tee` 进证据目录——原始日志是跑命令的副产品，不是事后补的独立任务。
+4. **写证据报告**：executor 在 `<prd-basename>.evidence-report.md` 中解释每条证据对应哪个验收项、证据显示了什么、为什么能证明验收项成立。
+5. **提交前脱敏扫描**：`just ai implement` 在进入 verifier 之前运行 `scripts/shared/just/scan_evidence_secrets.sh`，命中即失败。凭据泄漏是机械可判的，绝不该消耗一整轮验证。一次性凭据（邀请链接、重置链接、token）不要截图，先关掉 reveal 再拍状态视图。
+6. **独立 verifier 审查**：`just ai implement` 自动启动一个 verifier Agent，默认使用与 executor 不同的 AI 工具；verifier 只读审查证据与 PRD 验收项的匹配度，输出 `<prd-basename>.verifier-report.md`，结论为 `PASS` 或 `REJECT`。
+7. **finding 分级**：verifier 的每条 finding 必须标 `BLOCKER` / `NON-BLOCKING` / `SECURITY`，判据只有一句——**这条补齐后，结论有可能从 PASS 翻成 FAIL 吗？** 只有 `BLOCKER` 才 REJECT。缺原始日志、命名不整齐、已通过测试的对称变体、没有验收项声明的额外覆盖，都是 `NON-BLOCKING`，记录后带走，不消耗轮次。多条 `NON-BLOCKING` 不能叠加成 `BLOCKER`。
+8. **轮次上限**：最多 2 轮。第 2 轮 verifier 只复查第 1 轮的 `BLOCKER` 和证据变更带来的新 `BLOCKER`，不对已接受的证据开新的 `NON-BLOCKING` 战线。2 轮后仍有 `BLOCKER` 时流程停止，在证据报告里写 `Open Items For Human Review` 交人决定——没有第 3 轮。轮次计数落在 `<evidence-dir>/.verifier-round`。
+9. **前端强制视觉证据**：如果 PRD 涉及 `frontend-admin/` 或 `frontend-public/` 改动，证据目录必须包含至少一个 `.png`、`.jpg` 或 `.webm` 文件。
+10. **最终校验**：verifier 通过后，`just ai implement` 运行 `scripts/shared/just/check_prd_evidence.sh` 再次确认前端视觉证据存在，缺少则阻止流程结束。
+11. **工具不可用**：verifier 默认工具不可用时，降级到与 executor 相同工具；相同工具也不可用时，流程暂停并提示人工，不自动回退到 executor 自检。
 
-### 证据链完整性
+### 证据链完整性（按风险分层）
 
-可执行 oracle 除了 `real_entry` 与预期结果，还必须记录关键值来源、必须穿过的真实边界、禁止的旁路、fresh-state 独立观察，以及证据对应的最终代码树。具体要求：
+证据链是成本，要花在失败有爆炸半径的地方。每条 oracle 按所属变更点的 `R0`–`R3` 分级决定深度：
+
+| tier | 必须记录 |
+|---|---|
+| `R0` / `R1` | 一条能真正区分**本次改动**失败的断言。不写证据链字段——通用 `build`/`lint` 不算判别力。 |
+| `R2` | 追加关键值来源、必须穿过的真实边界、禁止的旁路、fresh-state 独立观察、证据对应的最终代码树。 |
+| `R3` / 人审项 | 再追加负控与预期红色表现。 |
+
+不写 `tier` 视为 `R3`，背全套——减免要靠明确声明风险来换。一份 PRD 超过 3 条 `R2`/`R3` 是范围信号，先回去看拆分。
+
+`R2`/`R3` 的具体要求：
 
 - UI 显示或复制的 URL、token、ID、命令、载荷必须从 UI 原样提取并用于后续动作，禁止重构等价值或硬编码替代路径。
 - 写 API 返回成功后，必须用新的 browser/request/process/DB session 经消费者入口读取，证明事务提交与持久化已经完成。
 - 前端流程必须断言浏览器实际请求的 canonical path、method 与 contract；已知 legacy/重复前缀需有负断言。
 - 影响入口、关键值构造、代理/路由、事务、存储、消费者或断言的相关改动会使旧证据失效，必须在最终代码树重新收集。
 - 真实运行或现场报告反驳已归档的 verifier `PASS` 时，旧验收立即失效；重开或创建关联回归 PRD，修复并重新独立验收后才能再次归档。
+
+**禁止为了可测性修改生产代码。** 不得为了让负控能变红而往 `src/` 或前端 app 加故障注入开关、失败模式、test-only 配置项、计数器或观测钩子。合法来源依次是：实现之前先跑红的那次运行、测试边界打桩（`monkeypatch` / fixture / 依赖覆盖）、`tests/` 下的 fake 或子类。都不行就记 `negative_control: not feasible — <原因>`——"做不到"是被接受的结论，不构成为测试重塑产品的许可。
 
 人工终点审查时，按风险地图顺序查看证据包，重点抽查高风险 oracle 结果、前端截图/录屏和 verifier report。
 
