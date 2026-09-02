@@ -16,6 +16,7 @@
 - **数据库配置**：后端类型、主机、端口、库名、驱动。
 - **可观测性配置**：指标/请求 ID 开关、服务名、日志格式。
 - **认证配置**：初始管理员种子、会话窗口。
+- **主模型配置**：调用大模型所需的端点三件套（见下节，按需启用）。
 - **基础设施配置**：Redis 等（派生项目按需扩展）。
 
 ## 常用实践
@@ -23,6 +24,48 @@
 - 推荐在 `.env` 中存放密钥与敏感信息。
 - 推荐在 `config.toml` 中维护非敏感默认项。
 - 所有业务代码统一从 `config` 实例读取，不直接散落调用 `os.getenv`。
+
+## 主模型配置
+
+需要调用大模型的项目，在 `.env` / `.env.local` 声明端点三件套：
+
+| 环境变量 | 作用 | 说明 |
+|---|---|---|
+| `MODEL_BASE_URL` | OpenAI 协议端点 | 通常以 `/v1` 结尾 |
+| `MODEL_API_KEY` | 端点密钥 | 无需鉴权的本地端点（Ollama / vLLM）也要填占位值 |
+| `MODEL_NAME` | 模型 id | 原样发送给端点，自带斜杠的写法（如 `anthropic/claude-3.5-sonnet`）同样可用 |
+
+示例：
+
+```bash
+MODEL_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+MODEL_API_KEY=sk-xxxx
+MODEL_NAME=qwen3-max
+```
+
+用 `load_primary_model_settings()` 读取：
+
+```python
+from backend.infrastructure.config.settings import load_primary_model_settings
+
+primary_model_settings = load_primary_model_settings()
+if primary_model_settings is not None:
+    chat_model = ChatOpenAI(  # 或 openai.OpenAI(...)，模板不限定 SDK
+        base_url=primary_model_settings.base_url,
+        api_key=primary_model_settings.api_key.get_secret_value(),
+        model=primary_model_settings.model_name,
+    )
+```
+
+规则：
+
+- 三项必须同时填写或同时留空。只填一部分会抛 `PrimaryModelConfigError` 并列出缺失的变量名——
+  静默回退会让调用方在真正发请求时才收到含义不明的 401 或 404。
+- 三项都留空时返回 `None`，表示本项目不使用模型；这是模板的默认状态，不影响启动。
+- `api_key` 是 `SecretStr`，取值要显式 `.get_secret_value()`，避免误打进日志。
+- **模板不内置 LLM 客户端，也不维护 provider 目录**（见归档 PRD
+  `tasks/archive/20260518-164340-prd-decouple-template-from-business.md`）。需要同时接多个端点的
+  项目，在这三个值之上自建注册表。
 
 ## Worktree 相关环境变量
 
