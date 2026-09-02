@@ -17,7 +17,28 @@
 
 ### Interpretation (解读回显)
 
-[先说明目标行为，再说明会改变方案含义的关键边界和明确不做什么。保留强制路径、正式模式、禁止旧路径、失败语义和兼容承诺；把必要术语写成“大白话（内部名称）”。不放文件路径、类名和命令。这是你**前置批准**的对象。]
+这是你**前置批准**的对象，也是唯一能拦住"解读错了"的关卡——oracle 和实现都是同一份解读的产物，解读错了它们会互相印证，下游检查全绿在错的行为上。散文没法逐条否证，所以先给可以逐格改的具体样例。
+
+| 输入 / 操作 | 期望观察到的结果 |
+|---|---|
+| [用你自己的业务语言写的具体操作] | [具体、可观测的结果] |
+| [第二个正常场景] | [期望结果] |
+| [一个边界场景] | [期望结果] |
+| [一个失败场景] | [期望的失败表现，不是"报错"] |
+
+以上每一行会被逐字转成 §7.6 的验收 oracle：**改一格就等于改验收标准**，所以逐行看一遍是值得的。
+
+**我默默定了这些**（没问你、我自己定的歧义点）
+
+- [歧义点 → 我选的答案]
+- [歧义点 → 我选的答案]
+
+**我理解为不做**（你可能想要、但我读成不在范围内的）
+
+- [可能被期待但排除的能力]
+- [可能被期待但排除的能力]
+
+[最后写可否证的散文解读："读成 X，不是 Y"。说明目标行为、会改变方案含义的关键边界和明确不做什么。保留强制路径、正式模式、禁止旧路径、失败语义和兼容承诺；把必要术语写成"大白话（内部名称）"。不放文件路径、类名和命令。]
 
 ### What The User Gets
 
@@ -203,27 +224,34 @@ If not required:
 
 机读 + 执行追踪的**单一 oracle 源**：§9 证据包和任何确定性抽取器都引用 / 解析这里的 `id`。不要把命令、边界字段或 `rv-id` 复制到 Part A；Part A 每个人审决策至少在这里对应一条 oracle。
 
+证据深度按 `tier` 走：`R0`/`R1` 只写"总是必填"那几项，`R2` 加证据链，`R3`/人审项再加负控。不写 `tier` 视为 `R3`，背全套。一份 PRD 超过 3 条 `R2`/`R3` 是范围信号，先回去看 §3.4 拆分。
+
 ```yaml
 - id: rv-1
+  # --- 总是必填 ---
   behavior: 这条证明的用户可见行为(白话)
   real_entry: "用户真正会敲的命令 / URL / 入口"      # 真实入口,不是单测/helper
   expected: "看到什么算它真的成立(可观测)"
   mock_boundary: "什么可 mock、什么必须真"           # under-test 的那层不准 mock
+  tier: R0|R1|R2|R3                                  # 取自 §7.3 风险分级登记
+  test_layer: unit|integration|e2e|smoke|sandbox|manual
+  required_for_acceptance: true
+  # --- 仅 R2 / R3 必填 ---
   critical_value_source: "URL/token/ID/命令/载荷必须从哪个真实 UI/响应/剪贴板取得"
   must_cross: "必须依次穿过的真实边界: UI -> proxy -> canonical API -> commit -> fresh read"
   forbidden_bypasses: "禁止 helper/重构值/直调 service/fake adapter/legacy 或兼容路由"
   fresh_state_probe: "动作完成后由新 browser/request/process/DB session 独立观察什么"
   final_tree_evidence: "证据如何绑定最终相关代码树，以及哪些改动后必须重跑"
+  # --- 仅 R3 / 人审项必填 ---
   negative_control: "什么命令 / 种个 bug 能让它变红"  # 判别力:证明这测试会失败
   expected_fail: "红的时候长什么样"
-  test_layer: unit|integration|e2e|smoke|sandbox|manual
-  required_for_acceptance: true
 ```
 
 Failure triage:
 - `real_entry` 跑挂,先查 `[第一处 config / 路径 / 边界]`,别急着改实现策略。
 - 生产 / 供应商 / 需凭据的项标 `opt-in / post-merge`;无凭据时必须有仍可跑的 fallback。
 - UI 产生的关键值必须从 UI 原样提取再消费；写操作必须跨 commit 后由 fresh state 独立读取；已归档 PASS 若被真实运行反驳，立即失效并重新验收。
+- **禁止为了让 oracle 能变红去改生产代码**（故障注入开关、失败模式、test-only 配置项、计数器、观测钩子）。合法来源依次是：实现前先跑红的那次运行、测试边界打桩、`tests/` 下的 fake/子类。都不行就写 `negative_control: not feasible — <原因>` 并省略 `expected_fail`。
 
 无可执行行为时,本块写：
 - `No executable behavior changes; realistic validation is limited to documentation/build checks.`

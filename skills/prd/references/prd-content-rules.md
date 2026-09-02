@@ -105,27 +105,36 @@ Each entry:
 
 ```yaml
 - id: rv-1
+  # --- always required ---
   behavior: <user-visible behavior this proves, plain language>
   real_entry: "<exact command / URL / entry point the real user runs>"   # not a unit test or helper
   expected: "<observable that proves it works>"
   mock_boundary: "<what may be mocked vs must be real>"   # the under-test boundary must NOT be mocked
+  tier: R0|R1|R2|R3          # the Section 7 Risk Classification Register tier for this change point
+  test_layer: unit|integration|e2e|smoke|sandbox|manual
+  required_for_acceptance: true
+  # --- required for R2 / R3 only ---
   critical_value_source: "<exact producer/UI response/clipboard source of URLs, tokens, IDs, commands, or payloads>"
   must_cross: "<ordered real boundaries: UI -> proxy -> canonical API -> commit -> fresh read>"
   forbidden_bypasses: "<helpers, reconstructed values, direct calls, fake adapters, legacy/compatibility paths>"
   fresh_state_probe: "<independent new browser/request/process/DB session observation after the action>"
   final_tree_evidence: "<how evidence is tied to the final relevant code tree and when it must be rerun>"
+  # --- required for R3 / human-confirm only ---
   negative_control: "<command or seeded break that makes this entry go RED>"   # proves the test can fail
   expected_fail: "<what red looks like>"
-  test_layer: unit|integration|e2e|smoke|sandbox|manual
-  required_for_acceptance: true
 ```
 
 Rules:
 
 - One entry per real observable behavior; every Section 2 human decision has at least one corresponding oracle, with the mapping recorded in Part B and Section 9 rather than exposed in Part A.
 - `real_entry` is the highest-fidelity real entry point (not pytest/helpers); for user-visible changes at least one entry's `real_entry` is the repo's e2e/UI command or a manual app run.
-- `negative_control` + `expected_fail` are **mandatory for human-confirm / high-risk entries** — a test that cannot be shown to fail proves nothing. A purely mechanical low-risk entry may instead name a discriminating gate.
-- `critical_value_source`, `must_cross`, `forbidden_bypasses`, `fresh_state_probe`, and `final_tree_evidence` are mandatory for every executable entry. Apply the evidence-integrity reference loaded by Phase 3.5.
+- **Evidence depth follows the tier.** Provenance fields cost real authoring and collection time, so spend them where failure has blast radius:
+  - `R0` / `R1`: the always-required fields only. One assertion that genuinely discriminates *this* change's failure is the bar. Do not write a five-field provenance chain for a contained change.
+  - `R2`: add `critical_value_source`, `must_cross`, `forbidden_bypasses`, `fresh_state_probe`, `final_tree_evidence`. Apply the evidence-integrity reference loaded by Phase 3.5.
+  - `R3` and every human-confirm decision: add `negative_control` + `expected_fail` on top. A test that cannot be shown to fail proves nothing at this tier.
+  - An entry that omits `tier` is treated as `R3` and carries the full burden. The reduction is earned by declaring the risk, not by staying silent.
+- **Cap the full-chain entries.** A PRD carrying more than three `R2`/`R3` oracles is a scope signal, not a rigor signal — revisit the Phase 3.4 split assessment before adding a fourth.
+- **Never modify production code to make an oracle able to fail.** Do not add fault-injection switches, failure modes, test-only config keys, counters, or observation hooks to `src/` or a frontend app so that a `negative_control` becomes possible. Acceptable sources of red, in order: the oracle run from before the implementation existed; patching at the test boundary; a fake or subclass under `tests/`. If none work, record `negative_control: not feasible — <reason>` and omit `expected_fail`. "Not feasible" is an accepted, recorded outcome; reshaping the product for its own test is not.
 - `real_entry` / `negative_control` commands must be copy-paste executable from the documented working directory; prefer `rg`; any `grep` alternation uses `grep -E 'a|b'`.
 - Treat production / vendor / credential-dependent entries as `opt-in` / `post-merge`; document the no-credential fallback that still runs.
 - Add a short failure-triage note beneath the block (first config/path/boundary to inspect).

@@ -43,21 +43,38 @@ NO_EXECUTABLE_BEHAVIOR_MARKER = (
     "No executable behavior changes; realistic validation is limited to "
     "documentation/build checks."
 )
-REQUIRED_ORACLE_FIELDS = (
+INTERPRETATION_HEADING_RE = re.compile(r"^###\s+Interpretation\b")
+MARKDOWN_TABLE_ROW_RE = re.compile(r"^\s*\|.*\|\s*$")
+MARKDOWN_TABLE_SEPARATOR_RE = re.compile(r"^\s*\|[\s:|-]+\|\s*$")
+INTERPRETATION_REQUIRED_BLOCKS = ("我默默定了这些", "我理解为不做")
+MINIMUM_BEHAVIOR_EXAMPLE_ROWS = 3
+BASE_ORACLE_FIELDS = (
     "behavior",
     "real_entry",
     "expected",
     "mock_boundary",
+    "tier",
+    "test_layer",
+    "required_for_acceptance",
+)
+# Evidence-chain provenance is only worth its authoring and collection cost where
+# failure has real blast radius. R0/R1 entries need a discriminating assertion,
+# not a five-field provenance chain.
+DEEP_CHAIN_ORACLE_FIELDS = (
     "critical_value_source",
     "must_cross",
     "forbidden_bypasses",
     "fresh_state_probe",
     "final_tree_evidence",
-    "negative_control",
-    "expected_fail",
-    "test_layer",
-    "required_for_acceptance",
 )
+NEGATIVE_CONTROL_ORACLE_FIELDS = ("negative_control", "expected_fail")
+VALID_ORACLE_TIERS = ("R0", "R1", "R2", "R3")
+DEEP_CHAIN_TIERS = frozenset({"R2", "R3"})
+NEGATIVE_CONTROL_TIERS = frozenset({"R3"})
+# An oracle that omits its tier is treated as R3, so an unclassified entry keeps
+# the full burden and the reduction has to be earned by declaring low risk.
+DEFAULT_ORACLE_TIER = "R3"
+NEGATIVE_CONTROL_NOT_FEASIBLE_PREFIX = "not feasible"
 REQUIRED_RECONCILIATION_FIELDS = (
     "Interpretation",
     "Public behavior and contracts",
@@ -434,6 +451,70 @@ def _unchecked_items_in_acceptance_section(file_content: str) -> list[tuple[int,
     return unchecked_items
 
 
+def _interpretation_echo_issues(file_content: str) -> list[tuple[int, str]]:
+    """Return a correctable-interpretation issue list for the Section 1 echo.
+
+    The interpretation echo is the only gate that can catch a wrong reading of
+    the request: the oracles and the implementation are both derived from that
+    reading, so when it is wrong they agree with each other and every downstream
+    check passes on the wrong behavior. Prose is not correctable by a skimming
+    reviewer, so the echo must carry a concrete behavior-example table plus the
+    silently-resolved decisions and the scope read as excluded.
+    """
+
+    lines = file_content.splitlines()
+    heading_index = next(
+        (
+            line_index
+            for line_index, line in enumerate(lines)
+            if INTERPRETATION_HEADING_RE.match(line)
+        ),
+        None,
+    )
+    if heading_index is None:
+        return [(-1, "Missing Section 1 'Interpretation (解读回显)' subsection")]
+
+    end_index = next(
+        (
+            line_index
+            for line_index in range(heading_index + 1, len(lines))
+            if THIRD_LEVEL_HEADING_RE.match(lines[line_index])
+            or TOP_LEVEL_HEADING_RE.match(lines[line_index])
+        ),
+        len(lines),
+    )
+    section_lines = lines[heading_index + 1 : end_index]
+
+    example_row_count = 0
+    for offset, line in enumerate(section_lines):
+        if not MARKDOWN_TABLE_SEPARATOR_RE.match(line):
+            continue
+        row_count = 0
+        for row_line in section_lines[offset + 1 :]:
+            if not MARKDOWN_TABLE_ROW_RE.match(row_line):
+                break
+            row_count += 1
+        example_row_count = max(example_row_count, row_count)
+
+    issues: list[tuple[int, str]] = []
+    if example_row_count < MINIMUM_BEHAVIOR_EXAMPLE_ROWS:
+        issues.append(
+            (
+                heading_index + 1,
+                "Interpretation echo needs a behavior-example table with at least "
+                f"{MINIMUM_BEHAVIOR_EXAMPLE_ROWS} rows; found {example_row_count}",
+            )
+        )
+
+    section_text = "\n".join(section_lines)
+    issues.extend(
+        (heading_index + 1, f"Interpretation echo missing block: {block_marker}")
+        for block_marker in INTERPRETATION_REQUIRED_BLOCKS
+        if block_marker not in section_text
+    )
+    return issues
+
+
 def _meaningful_yaml_value(raw_value: str) -> str:
     """Return a scalar YAML value with simple comments and quotes removed."""
 
@@ -521,14 +602,42 @@ def _oracle_schema_issues(file_content: str) -> list[tuple[int, str]]:
 
     schema_issues: list[tuple[int, str]] = []
     for oracle_id, oracle_line_number, oracle_fields in oracle_entries:
-        missing_fields = [
-            field_name for field_name in REQUIRED_ORACLE_FIELDS if not oracle_fields.get(field_name)
-        ]
-        if missing_fields:
+        declared_tier = oracle_fields.get("tier", "").upper()
+        if declared_tier and declared_tier not in VALID_ORACLE_TIERS:
             schema_issues.append(
                 (
                     oracle_line_number,
-                    f"Oracle {oracle_id!r} missing non-empty field(s): "
+                    f"Oracle {oracle_id!r} has invalid tier {declared_tier!r}; "
+                    f"expected one of {', '.join(VALID_ORACLE_TIERS)}",
+                )
+            )
+            continue
+
+        effective_tier = declared_tier or DEFAULT_ORACLE_TIER
+        required_fields = list(BASE_ORACLE_FIELDS)
+        if effective_tier in DEEP_CHAIN_TIERS:
+            required_fields += DEEP_CHAIN_ORACLE_FIELDS
+        if effective_tier in NEGATIVE_CONTROL_TIERS:
+            required_fields += NEGATIVE_CONTROL_ORACLE_FIELDS
+
+        # A documented "not feasible" negative control is an accepted outcome and
+        # makes expected_fail meaningless; requiring it would push authors toward
+        # inventing a failure mode instead of recording the real limitation.
+        negative_control_value = oracle_fields.get("negative_control", "").lower()
+        if negative_control_value.startswith(NEGATIVE_CONTROL_NOT_FEASIBLE_PREFIX):
+            required_fields = [name for name in required_fields if name != "expected_fail"]
+
+        missing_fields = [
+            field_name
+            for field_name in dict.fromkeys(required_fields)
+            if not oracle_fields.get(field_name)
+        ]
+        if missing_fields:
+            tier_note = "" if declared_tier else f" (untiered, treated as {DEFAULT_ORACLE_TIER})"
+            schema_issues.append(
+                (
+                    oracle_line_number,
+                    f"Oracle {oracle_id!r}{tier_note} missing non-empty field(s): "
                     + ", ".join(missing_fields),
                 )
             )
@@ -545,6 +654,7 @@ def _validate_file(
     issues = (
         _required_section_issues(file_content)
         + _part_a_metadata_issues(file_content)
+        + _interpretation_echo_issues(file_content)
         + _functional_requirement_issues(file_content)
         + _unchecked_items_in_acceptance_section(file_content)
         + _oracle_schema_issues(file_content)

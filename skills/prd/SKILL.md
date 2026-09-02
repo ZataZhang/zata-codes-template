@@ -27,7 +27,7 @@ The default recommendation must be the smallest change that cleanly solves the p
 11. **Two-Altitude Output:** Structure every PRD as **Part A · Review Layer** (problem, user-facing value, human review map, requirement shape) and **Part B · Build Layer** (mechanism, change tree, validation commands, dependency metadata). Part A must let a human accept or reject the work *without* reading implementation mechanism, file paths, commands, or scheduling metadata; all executor detail lives in Part B. Do not front-load Part A with mechanism — the historical failure mode was a first section so full of code/test/scheduling detail that human review was hard.
 12. **Decision-Oriented Human Review Map:** Internally classify every meaningful change point with the deterministic `R0`–`R3` model in Phase 3.6, recording the result in Part B. Do not expose the classification machinery as a menu or compliance table in Part A. Present only the concrete decisions that require **human confirmation**, written as questions a reviewer can answer. Summarize everything else under **executor + automated gates**. Keep the human-confirm set short and principled; over-flagging defeats the map.
 13. **Two-Touch Autonomy + Evidence Package:** The operating model is two batched human touches with autonomous execution between them — up front the human approves the Agent's interpretation (Section 1) and the human-facing decisions plus acceptance outcomes (Section 2); at the end the human reads a risk-ordered **Acceptance Evidence Package** (Section 9). There is no mid-flow human gate: the Agent self-verifies as deeply as needed (many rounds, adversarial checks — tokens are cheaper than human attention). So "human confirmation" means **high evidence burden** (the item tops the end package with an executable oracle), not an interruption; every human decision and automated gate must map to evidence in Part B that would fail if the change were wrong.
-14. **Evidence-Chain Integrity:** A passing nearby path is not delivery evidence. Every executable oracle must identify the exact critical-value source, runtime boundaries that must be crossed, forbidden bypasses, a fresh-state postcondition probe, and how evidence is tied to the final implementation tree. Read [references/validation-evidence-integrity.md](references/validation-evidence-integrity.md) whenever executable behavior changes or a PRD is prepared for archive.
+14. **Tiered Evidence-Chain Integrity:** A passing nearby path is not delivery evidence — but provenance rigor is a cost, so spend it by risk tier. `R2`/`R3` oracles must identify the exact critical-value source, runtime boundaries that must be crossed, forbidden bypasses, a fresh-state postcondition probe, and how evidence is tied to the final implementation tree; `R0`/`R1` oracles need one assertion that genuinely discriminates their own failure and nothing more. More than three `R2`/`R3` oracles in one PRD is a scope signal — revisit Phase 3.4 before adding a fourth. Never modify production code to make an oracle able to fail. Read [references/validation-evidence-integrity.md](references/validation-evidence-integrity.md) whenever `R2`/`R3` executable behavior changes or a PRD is prepared for archive.
 15. **Information-Preserving Plain Language:** Part A must reduce the background knowledge needed to understand the PRD without weakening its meaning. Translate technical constraints; do not delete them. Preserve anything that changes required processing order, supported modes, forbidden legacy or bypass paths, required data completeness, failure or unresolved behavior, compatibility promises, or acceptance conclusions. Introduce a necessary internal term as `plain-language meaning (internal name)`, then prefer the plain-language term afterward.
 
 ---
@@ -45,7 +45,15 @@ When repository evidence is available, record at least one concrete current-stat
 
 If you cannot rewrite the request concretely, call that out before generating a PRD.
 
-This restatement is the **Interpretation Echo** recorded in Section 1 and is the human's first of two touches — they approve it (and the Section 2 acceptance oracles) before autonomous implementation begins. A wrong-but-unconfirmed interpretation is the one failure downstream evidence cannot catch, so make the reading explicit and falsifiable ("I read this as X, not Y").
+This restatement is the **Interpretation Echo** recorded in Section 1 and is the human's first of two touches — they approve it (and the Section 2 acceptance oracles) before autonomous implementation begins. A wrong-but-unconfirmed interpretation is the one failure downstream evidence cannot catch: the oracles and the implementation are both products of this reading, so if the reading is wrong they agree with each other and every check goes green on the wrong behavior. No amount of verification rigor downstream detects that. This phase is the only place it can be caught.
+
+Prose cannot be red-lined. A reader skims a dense paragraph, finds it plausible, and approves. So the echo must be **concrete enough to correct one cell of**, in three blocks:
+
+1. **Behavior examples** — a table of 3-7 rows: a concrete input/action in the reader's own domain language, and the exact observable result expected. Include at least one edge case and one failure case. These rows are transcribed verbatim into the Section 7.6 oracles, so correcting a cell corrects the acceptance criteria; say so in the PRD, because it is what makes reviewing the table worth the reader's time.
+2. **Decisions taken silently** — every ambiguity resolved without asking, one line each, with the answer chosen. Phase 2 deliberately does not ask about these; that is exactly why they must be visible. Expectation gaps live in the decisions the Agent judged obvious, and a reader spots the wrong one in seconds when it is a scannable list rather than buried in a paragraph.
+3. **Read as out of scope** — 2-3 things the reader might plausibly have wanted that this PRD reads as excluded. Scope read too narrowly is the other half of the expectation gap, and it is invisible in a description of what *will* be built.
+
+Then the falsifiable prose reading ("read as X, not Y"), covering boundaries whose omission would permit a materially different implementation, and explicit non-goals.
 
 ### Phase 1: Repository Context And Architecture Gate
 
@@ -143,7 +151,7 @@ List the independently approvable decisions discovered for Part A. If three or m
 
 Identify the highest-fidelity validation that proves the behavior through a real project entry point, and record it in the Section 7 **Realistic Validation Plan** (content rule F defines the table columns, mock boundary, opt-in live, and fallback rules). Mirror the relevant outcome in plain language as the short **验收** line under each human-facing decision; keep commands and `rv-id` references in Part B.
 
-For executable behavior, read [references/validation-evidence-integrity.md](references/validation-evidence-integrity.md) and lock the full evidence chain before handoff. Values displayed or copied by a UI must be extracted from that UI and used unchanged; successful writes must be observed from a fresh consumer after the durability boundary; frontend flows must assert their actual canonical request path and reject known compatibility/duplicate paths.
+Assign each oracle the `R0`–`R3` tier of its change point, and let the tier set the evidence depth (content rule F defines the field split). For `R2`/`R3` behavior, read [references/validation-evidence-integrity.md](references/validation-evidence-integrity.md) and lock the full evidence chain before handoff: values displayed or copied by a UI must be extracted from that UI and used unchanged; successful writes must be observed from a fresh consumer after the durability boundary; frontend flows must assert their actual canonical request path and reject known compatibility/duplicate paths. For `R0`/`R1` behavior, stop at one failure-discriminating assertion — a provenance chain on a contained change buys nothing and costs authoring and collection time on every run.
 
 **Hard rule:** if the PRD introduces or changes executable behavior (CLI, API, jobs, file output, external integrations, or user-visible frontend), the plan MUST contain at least one row exercising a real entry point; user-visible changes need at least one real frontend entry point (the repo's e2e/UI test command or a manual app run), not only a unit test. "Unit tests are sufficient" is acceptable only for pure internal refactoring with no executable surface. Do not require live external services by default — gate them behind opt-in env vars and document the no-credential fallback.
 
@@ -201,6 +209,8 @@ Always flag these for human confirmation regardless of where the code lands:
 A concise decision must still retain every material forbidden behavior, failure behavior, compatibility boundary, data-completeness requirement, and supported-mode distinction. If the rewrite would let an executor restore a forbidden legacy path or change failure semantics while still claiming compliance, it is too vague.
 
 **Acceptance Oracle Lock (up front):** For every human-confirm decision, define the executable oracle that locks its correct behavior — characterization/golden test for core logic; round-trip + migration up/down for schema; an actual unauthorized-access test for auth; contract/snapshot test for an external API. Keep the oracle ID, commands, boundary detail, and negative controls in Section 7.6; Part A states only what observable result will prove the decision. For executor + automated-gate work, name a gate that genuinely discriminates *this* change's failure (a generic `build`/`lint` that would pass even if the change were wrong is not valid). These oracles are agreed up front, run continuously during autonomous implementation, and presented as the Section 9 Acceptance Evidence Package. A high-risk decision with no definable oracle is flagged, not marked done.
+
+Oracles are written before the implementation and run red first — the red run is the honest negative control, and writing them first keeps harness failures (wrong response shape, missing fixture, collection markers, colliding test data) cheap instead of paying for them under end-of-flow pressure. Never buy a `negative_control` by adding a fault-injection switch, failure mode, test-only config key, counter, or observation hook to production code; if no legitimate route to red exists, record `negative_control: not feasible — <reason>`.
 
 ### Phase 4: Conditional Web Research
 
@@ -269,7 +279,21 @@ The PRD opens with `# PRD: <descriptive feature title>` as the very first headin
 
 Review-altitude only. Must include, in order:
 - `### Problem Statement` — the pain, who feels it, why the current behavior is insufficient, and at least one concrete repository-observable current-state fact when available. Problem only; no solution, mechanism, files, or commands.
-- `### Interpretation (解读回显)` — the Agent's plain-language restatement of how it read the request (from Phase 0), kept falsifiable ("read as X, not Y"); state the target behavior, key boundaries whose omission would permit a materially different implementation, and explicit non-goals. Preserve formal mode/config names only when the human is approving them. This is the human's up-front approval target, the first of the two human touches.
+- `### Interpretation (解读回显)` — the Agent's reading of the request (from Phase 0), in a form the human can correct rather than merely nod at. This is the up-front approval target, the first of the two human touches, and the only gate that can catch a wrong interpretation. It must contain, in order:
+
+  1. a **行为样例** table of 3-7 rows, including at least one edge case and one failure case:
+
+     ```markdown
+     | 输入 / 操作 | 期望观察到的结果 |
+     |---|---|
+     | [concrete action in the reader's domain language] | [exact observable result] |
+     ```
+
+     Follow the table with one line stating that these rows become the acceptance oracles verbatim, so correcting a cell corrects the acceptance criteria.
+
+  2. **我默默定了这些** — a scannable list of every ambiguity resolved without asking, one line each, each naming the answer chosen.
+  3. **我理解为不做** — 2-3 things the reader might plausibly have wanted that this PRD reads as excluded.
+  4. the falsifiable prose reading ("read as X, not Y"): target behavior, key boundaries whose omission would permit a materially different implementation, and explicit non-goals. Preserve formal mode/config names only when the human is approving them.
 - `### What The User Gets` — plain-language description of the capability/behavior the consumer (end user / caller / operator) receives, from the consumer's point of view. No implementation mechanism or module paths — mechanism belongs in Section 6.
 - `### Measurable Objectives` — success criteria with an obvious pass/fail oracle through a test, runtime observation, static boundary check, or human-visible result. Do not use unqualified goals such as "clearer responsibilities", "more maintainable", "better extensibility", or "can be described as".
 
@@ -447,7 +471,8 @@ Read [references/prd-content-rules.md](references/prd-content-rules.md) before g
 * [ ] Assessed whether independently approvable decisions should be split; documented why the remaining scope is one cohesive target state
 * [ ] **BLOCKER:** The PRD starts with `# PRD: <descriptive feature title>` as its first Markdown H1 heading; the title describes the feature and is not the literal Part A/Part B heading text
 * [ ] **BLOCKER:** Structured as Part A (Review Layer, Sections 1-4) and Part B (Build Layer, Sections 5-13); Part A contains no implementation mechanism, file paths, commands, or scheduling metadata
-* [ ] Section 1 stays review-altitude: Problem Statement, an `Interpretation (解读回显)` of how the request was read (the up-front approval target), What The User Gets, and Measurable Objectives only — no proposed solution summary, validation commands, or delivery-dependency metadata
+* [ ] Section 1 stays review-altitude: Problem Statement, `Interpretation (解读回显)`, What The User Gets, and Measurable Objectives only — no proposed solution summary, validation commands, or delivery-dependency metadata
+* [ ] **BLOCKER:** The `Interpretation (解读回显)` is correctable, not just readable — a behavior-example table of ≥3 rows (with an edge case and a failure case) whose rows become the Section 7.6 oracles verbatim, a `我默默定了这些` list of ambiguities resolved without asking, a `我理解为不做` list of plausibly-wanted excluded scope, and the falsifiable prose reading. Enforced by `scripts/check_prd_acceptance_checklist.py`
 * [ ] Problem Statement includes a concrete repository-observable current-state fact when available; Measurable Objectives are pass/fail outcomes rather than unqualified maintainability claims
 * [ ] **BLOCKER:** Section 2 Human Review Map presents only concrete human decisions, each with a plain-language recommendation/risk explanation, an explicit `请确认：` question, and a short observable `验收：` statement; it does not expose the fixed-zone menu, hit/miss bookkeeping, classification tables, commands, file paths, or `rv-id` values
 * [ ] Section 2 ends with a compact automated-gate summary and explicit non-scope; schema changes surface the relevant ER diagram with the decision that approves them
@@ -468,7 +493,7 @@ Read [references/prd-content-rules.md](references/prd-content-rules.md) before g
 * [ ] Included at least one flow or architecture diagram
 * [ ] Implementation Guide includes the required living implementation guide statement
 * [ ] Included an Executor Drift Guard when hidden references, moved paths, config rewires, or repository-wide updates are likely
-* [ ] **BLOCKER:** Included a Realistic Validation Plan as a structured YAML oracle block (`id` / `real_entry` / `expected` / `mock_boundary` / `critical_value_source` / `must_cross` / `forbidden_bypasses` / `fresh_state_probe` / `final_tree_evidence` / `negative_control` / `expected_fail`) parseable by deterministic tooling; human-confirm / high-risk entries carry a `negative_control` + `expected_fail`
+* [ ] **BLOCKER:** Included a Realistic Validation Plan as a structured YAML oracle block parseable by deterministic tooling, with `id` / `behavior` / `real_entry` / `expected` / `mock_boundary` / `tier` / `test_layer` / `required_for_acceptance` on every entry; `R2`/`R3` entries add the provenance chain (`critical_value_source` / `must_cross` / `forbidden_bypasses` / `fresh_state_probe` / `final_tree_evidence`) and `R3` / human-confirm entries add `negative_control` + `expected_fail`; no `negative_control` was bought by adding a failure switch to production code
 * [ ] Added low-fidelity prototype only when actually needed
 * [ ] Added ER diagram only when data model changes are present
 * [ ] Used web research only when external facts were required

@@ -39,6 +39,24 @@ def _complete_prd(*, include_reconciliation: bool = False) -> str:
 
 ## 1. Introduction & Goals
 
+### Interpretation (解读回显)
+
+| 输入 / 操作 | 期望观察到的结果 |
+|---|---|
+| 执行最小操作 | 观察到最小结果 |
+| 重复执行同一操作 | 结果保持一致 |
+| 输入越界值 | 明确报错而不是静默通过 |
+
+以上每一行会被逐字转成验收 oracle。
+
+**我默默定了这些**
+
+- 沿用现有默认配置，不新增开关。
+
+**我理解为不做**
+
+- 不改动对外契约。
+
 ## 2. Human Review Map (介入与风险地图)
 
 ## 3. Usage And Impact After Implementation
@@ -114,6 +132,7 @@ def test_executable_oracle_accepts_complete_evidence_chain() -> None:
   real_entry: just e2e share
   expected: 匿名浏览器看到分享内容
   mock_boundary: 仅 mock 邮件发送
+  tier: R3
   critical_value_source: 页面渲染的分享链接
   must_cross: browser -> proxy -> canonical API -> commit -> anonymous read
   forbidden_bypasses: 硬编码路由、直接 service 调用、writer session
@@ -127,6 +146,143 @@ def test_executable_oracle_accepts_complete_evidence_chain() -> None:
 """
 
     assert PRD_CHECKER._oracle_schema_issues(complete_prd) == []
+
+
+def test_low_tier_oracle_does_not_require_evidence_chain() -> None:
+    """R0/R1 条目只需可区分失败的断言，不必背完整证据链。"""
+
+    low_tier_prd = """### 7.6 Realistic Validation Plan (Oracle 块)
+
+```yaml
+- id: rv-1
+  behavior: 导航栏显示语言切换器
+  real_entry: pnpm --filter frontend-admin test:e2e -g language-switcher
+  expected: 切换后可见文案由中文变为英文
+  mock_boundary: 不 mock 前端渲染，仅 mock 后端列表接口
+  tier: R1
+  test_layer: e2e
+  required_for_acceptance: true
+```
+"""
+
+    assert PRD_CHECKER._oracle_schema_issues(low_tier_prd) == []
+
+
+def test_high_tier_oracle_still_requires_evidence_chain() -> None:
+    """显式声明 R2 时仍必须补齐证据链字段。"""
+
+    high_tier_prd = """### 7.6 Realistic Validation Plan (Oracle 块)
+
+```yaml
+- id: rv-1
+  behavior: 同步写入对新会话可见
+  real_entry: just e2e sync
+  expected: 新会话读到已提交记录
+  mock_boundary: 仅 mock 邮件发送
+  tier: R2
+  test_layer: e2e
+  required_for_acceptance: true
+```
+"""
+
+    oracle_issues = PRD_CHECKER._oracle_schema_issues(high_tier_prd)
+
+    assert len(oracle_issues) == 1
+    assert "must_cross" in oracle_issues[0][1]
+    assert "fresh_state_probe" in oracle_issues[0][1]
+
+
+def test_invalid_oracle_tier_is_rejected() -> None:
+    """tier 只接受 R0-R3，拼错必须报错而不是静默降级。"""
+
+    bad_tier_prd = """### 7.6 Realistic Validation Plan (Oracle 块)
+
+```yaml
+- id: rv-1
+  behavior: 导航栏显示语言切换器
+  real_entry: pnpm --filter frontend-admin test:e2e
+  expected: 切换后文案变化
+  mock_boundary: 不 mock 前端渲染
+  tier: low
+  test_layer: e2e
+  required_for_acceptance: true
+```
+"""
+
+    oracle_issues = PRD_CHECKER._oracle_schema_issues(bad_tier_prd)
+
+    assert len(oracle_issues) == 1
+    assert "invalid tier" in oracle_issues[0][1]
+
+
+def test_not_feasible_negative_control_waives_expected_fail() -> None:
+    """负控不可行时记录原因即可，不逼作者为可测性造失败开关。"""
+
+    documented_prd = """### 7.6 Realistic Validation Plan (Oracle 块)
+
+```yaml
+- id: rv-1
+  behavior: 供应商超时时同步标记为失败
+  real_entry: just e2e sync
+  expected: attempt 状态为 failed 且无 remote_reference
+  mock_boundary: 供应商 HTTP 边界由测试 fake 替换
+  tier: R3
+  critical_value_source: 真实上传接口返回的 run id
+  must_cross: API -> connector 边界 -> commit -> fresh read
+  forbidden_bypasses: 直接构造 attempt、复用 writer session
+  fresh_state_probe: 新 DB session 读取 attempt 状态
+  final_tree_evidence: 最后相关 diff 后重跑并记录 tree hash
+  negative_control: not feasible — 制造该失败需要在生产 connector 注入故障开关
+  test_layer: e2e
+  required_for_acceptance: true
+```
+"""
+
+    assert PRD_CHECKER._oracle_schema_issues(documented_prd) == []
+
+
+def test_interpretation_echo_requires_correctable_blocks() -> None:
+    """只有散文的解读回显必须拒绝：读者无法逐条否证。"""
+
+    prose_only_prd = """### Interpretation (解读回显)
+
+本次需求被理解为在现有列表页补充双语切换能力，不改动后端契约。
+"""
+
+    echo_issues = PRD_CHECKER._interpretation_echo_issues(prose_only_prd)
+    issue_messages = " ".join(message for _, message in echo_issues)
+
+    assert "behavior-example table" in issue_messages
+    assert "我默默定了这些" in issue_messages
+    assert "我理解为不做" in issue_messages
+
+
+def test_interpretation_echo_accepts_example_table_and_blocks() -> None:
+    """样例表加上默认决策与排除范围时通过。"""
+
+    correctable_prd = """### Interpretation (解读回显)
+
+| 输入 / 操作 | 期望观察到的结果 |
+|---|---|
+| 在后台顶栏切到 English | 当前页可见文案全部变英文 |
+| 切换后刷新页面 | 仍保持 English |
+| 浏览器语言为 ja | 回落到 English 而不是报错 |
+
+以上每一行会被逐字转成验收 oracle，改一格就等于改验收标准。
+
+**我默默定了这些**
+
+- 未迁移页面保留中文硬编码，不视为缺陷。
+
+**我理解为不做**
+
+- 不做 URL 语言前缀路由。
+- 不做后端返回文案的多语言化。
+
+解读为「前端展示层双语」，不是「全链路国际化」。
+"""
+
+    assert PRD_CHECKER._interpretation_echo_issues(correctable_prd) == []
 
 
 def test_non_executable_prd_keeps_documentation_build_exception() -> None:
