@@ -48,10 +48,14 @@ RUN groupadd -r appgroup && useradd -r -g appgroup appuser
 COPY alembic.ini ./
 COPY alembic ./alembic
 
-# Ensure the log directory exists so Docker named volumes inherit the
-# correct ownership when mounted at runtime. The application writes to
-# /app/logs/app.log (see infrastructure/config/settings.py).
-RUN mkdir -p /app/logs
+# Ensure the runtime mount points exist so Docker named volumes inherit the
+# correct ownership when mounted at runtime. Both paths derive from
+# ``base_dir`` (= /app, because the code lives in /app/src): the application
+# writes /app/logs/app.log (see infrastructure/config/settings.py) and /app/data
+# is the convention for persisted runtime state. A mount point missing from the
+# image is created by the Docker daemon as root:root, which the non-root
+# appuser cannot write to — the volume then silently stays empty.
+RUN mkdir -p /app/logs /app/data
 
 # Set ownership
 RUN chown -R appuser:appgroup /app

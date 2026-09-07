@@ -41,8 +41,8 @@ services:
       retries: 3
       start_period: 10s
     volumes:
-      - zata-codes-template-backend-logs:/app/backend/logs
-      - zata-codes-template-backend-data:/app/backend/data
+      - zata-codes-template-backend-logs:/app/logs
+      - zata-codes-template-backend-data:/app/data
     networks:
       - traefik
     labels:

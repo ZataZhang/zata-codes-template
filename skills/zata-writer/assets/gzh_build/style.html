@@ -1,0 +1,56 @@
+<style>
+body { max-width: 677px; margin: 0 auto; padding: 32px 16px; font-family: -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; font-size: 16px; line-height: 1.9; letter-spacing: 0.5px; color: #3f3f3f; word-break: break-word; }
+
+/* 标题区（装饰均为真实元素，由 decorate.py 注入，保证粘贴进公众号后不丢） */
+header { margin-bottom: 2em; }
+h1.title { font-size: 23px; font-weight: 800; color: #1a1a1a; line-height: 1.5; margin: 0 0 14px; }
+.title-bar { width: 56px; height: 5px; border-radius: 3px; margin-top: 14px; background: linear-gradient(90deg, #07c160, #34d17b); }
+
+/* 二级标题：居中 + 两侧菱形，主题绿 */
+h2 { text-align: center; font-size: 19px; font-weight: 800; color: #07c160; margin: 2em 0 1.2em; line-height: 1.6; }
+.h2-deco { color: #07c160; font-size: 15px; }
+
+/* 三级标题：小方块（文本符号，空 span 容易被编辑器剥掉） */
+h3 { font-size: 16.5px; font-weight: 700; color: #1a1a1a; margin: 1.8em 0 0.9em; }
+.h3-deco { color: #07c160; font-size: 12px; margin-right: 8px; vertical-align: 1px; }
+
+p { margin: 0 0 1.3em; }
+strong { color: #1a1a1a; font-weight: 700; }
+
+/* 关键句高亮（==文字==） */
+mark { background: linear-gradient(transparent 58%, rgba(255,214,0,0.55) 58%, rgba(255,214,0,0.55) 94%, transparent 94%); color: #1a1a1a; padding: 0 1px; }
+
+/* 引用卡片 */
+blockquote { margin: 0 0 1.4em; padding: 14px 18px; background: #f6f8f7; border-radius: 10px; border-left: 4px solid #07c160; color: #6b6b6b; font-size: 14px; line-height: 1.8; }
+blockquote p { margin: 0 0 0.4em; }
+blockquote p:last-child { margin-bottom: 0; }
+
+/* 图片 */
+figure { margin: 0 0 1.6em; text-align: center; }
+img { max-width: 100%; border-radius: 10px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+figcaption { font-size: 13px; color: #999; margin-top: 8px; letter-spacing: 0; }
+
+/* 表格 */
+table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 14px; margin: 0 0 1.6em; border: 1px solid #e8e8e8; border-radius: 10px; overflow: hidden; letter-spacing: 0; }
+th { background: #07c160; color: #fff; font-weight: 700; padding: 10px 12px; text-align: left; line-height: 1.6; }
+td { border-top: 1px solid #efefef; padding: 9px 12px; line-height: 1.7; vertical-align: top; }
+tr:nth-child(even) td { background: #fafcfa; }
+
+/* 列表 */
+ol, ul { margin: 0 0 1.3em; padding-left: 1.5em; }
+li { margin-bottom: 0.5em; }
+ol li::marker { color: #07c160; font-weight: 700; }
+ul li::marker { color: #07c160; }
+
+/* 图注：整段斜体且以 ▲ 开头的段落（写在图片下一行的 *▲ ...* 约定） */
+p:has(> em:only-child) { font-size: 13px; color: #999; text-align: center; margin-top: 6px; letter-spacing: 0; }
+
+/* 正文外链：正常字号、微信蓝；内联链接由 decorate.py 转成上标编号，列表逐条拆段 */
+a { color: #576b95; text-decoration: none; }
+.ref-sup { font-size: 11px; color: #07c160; vertical-align: super; }
+.refs-title { margin: 2em 0 0.8em; font-size: 15px; font-weight: 700; color: #1a1a1a; }
+.srcline { margin: 0 0 4px; text-align: left; font-size: 13px; color: #8a97a5; line-height: 1.8; word-break: break-all; letter-spacing: 0; }
+
+code { font-size: 14px; background: #f3f4f3; padding: 2px 6px; border-radius: 5px; color: #c0341d; }
+hr { border: none; border-top: 1px dashed #d8d8d8; margin: 2em 0; }
+</style>
