@@ -50,7 +50,7 @@ AI 代理默认不会设置该变量，因此会被 hook 拦下——这是"指�
 | `test_prd_skill_checker.py` | PRD 归档 checker 的证据链约束（缺关键值来源/必经边界/fresh-state probe 必须拒收） |
 | `test_composition_boundaries.py` | composition root 公开入口，以及四层反向导入 composition 必须被架构检查拒绝 |
 | `test_dokploy_environment.py` | 部署环境模板（env/compose 一致性） |
-| `test_runtime_dependency_declaration.py` | 后端模块级 import 必须由 `[project.dependencies]` 覆盖，裸 `uv sync` 即可装齐 |
+| `test_runtime_dependency_declaration.py` | 模块级 import 必须由依赖声明覆盖：`src/backend/` 对齐裸 `uv sync`（`[project.dependencies]`），`tests/` 对齐 CI 的 `uv sync --all-extras --all-groups --frozen`（含 `[dependency-groups] dev` 与 extras） |
 | `test_database_connection_pool.py` | 非 SQLite 后端不得使用 `StaticPool`（共用单连接会让事务互相覆盖、静默丢数据） |
 | `test_alembic_logging_isolation.py` | 进程内 alembic 迁移不得摧毁宿主进程 logging 配置（`fileConfig` 清空 root handler、禁用已有 logger，会让 `caplog` 断言静默恒为空） |
 | `test_realdb_marker_required.py` | 写真实数据库的测试必须打 `realdb` 标记（`docs/ai-standards/testing.md`） |
