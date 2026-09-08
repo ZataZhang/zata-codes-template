@@ -1,6 +1,6 @@
 ---
 name: zata-writer
-description: "[Updated 2026-09-08] 撰写或重构结构清晰、证据充分、保留个人判断且有叙事吸引力的中文长文，默认配图，并可将成稿排版为可直接粘贴的公众号文章。适用于技术博客、方法论、产品分析、现象解读和研究型文章；不用于短社交媒体文案、纯摘要或仅生成标题。"
+description: "[Updated 2026-09-09] 撰写或重构结构清晰、证据充分、保留个人判断且有叙事吸引力的中文长文，默认配图，并可将成稿排版为可直接粘贴的公众号文章。适用于技术博客、方法论、产品分析、现象解读和研究型文章；不用于短社交媒体文案、纯摘要或仅生成标题。"
 ---
 
 # Zata Writer
@@ -106,10 +106,21 @@ description: "[Updated 2026-09-08] 撰写或重构结构清晰、证据充分、
 本 Skill 的上游模板仓库是 `~/code/zata_code_template/skills/zata-writer`。对 Skill 本体做任何修改（SKILL.md、references/、assets/ 的新增或改动）后，必须完成两件事：
 
 1. **更新 description 里的时间戳**：front matter 的 `description` 以 `[Updated YYYY-MM-DD]` 开头，每次修改都把它改成当天日期（与 code-reviewer、idea-inbox 等 Skill 的约定一致），方便在 Skill 列表里一眼看出新旧。
-2. **同步上游**：把整个目录同步到模板仓库，保持两处一致：
+2. **同步上游**：用 `assets/sync_upstream.sh` 把当前副本同步回模板仓库，保持两处一致：
 
 ```bash
-rsync -a --delete /Users/zata/.qoder-cn/skills/zata-writer/ ~/code/zata_code_template/skills/zata-writer/
+assets/sync_upstream.sh ~/code/<模板仓库>/skills/zata-writer
 ```
+
+路径也可以放进环境变量 `ZATA_WRITER_UPSTREAM`，之后直接跑 `assets/sync_upstream.sh` 即可。
+
+**不要手写 `rsync -a --delete`。** 那条命令让一份无版本控制的本机副本单向覆盖 Git
+仓库：本副本一旦落后，仓库里的新内容会被静默删掉，且 rsync 照样返回 0。2026-09-09
+已实际发生——`references/gongzhong-publish.md` 被抹掉 121 行刚补的实测结论，差一步
+就提交进历史。脚本会在同步前要求上游工作区干净、先 dry-run，并在计划出现任何删除时
+直接中止（复核后可加 `--allow-delete`），同步完打印 `git status`/`diff --stat` 供复核。
+
+反方向（模板仓库 → 本机各 AI 助手的 skills 目录）用仓库自带的 `just sync-local-skills`，
+它会逐项列出差异并带 diff 交互选择，不要另写 rsync。
 
 交付时向用户确认时间戳已更新、同步已执行。
