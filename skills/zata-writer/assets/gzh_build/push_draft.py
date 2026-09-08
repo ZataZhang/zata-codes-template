@@ -25,15 +25,10 @@ LINK_INDEX = {}  # url -> 编号（去重）
 
 
 class El:
-    """HTML 解析树里的元素节点，children 中的字符串代表文本节点。"""
+    """轻量 DOM 节点，保存标签、属性和子节点。"""
 
     def __init__(self, tag, attrs):
-        """初始化元素节点。
-
-        Args:
-            tag (str): 标签名。
-            attrs (list[tuple[str, str | None]]): HTMLParser 给出的属性列表。
-        """
+        """初始化标签、属性映射和空的子节点列表。"""
         self.tag = tag
         self.attrs = dict(attrs)
         self.children = []
@@ -41,47 +36,35 @@ class El:
 
 
 class TreeBuilder(HTMLParser):
-    """基于 HTMLParser 的极简 DOM 树构建器，输出 El 树。"""
+    """把标准 HTML 解析成树结构。"""
 
     def __init__(self):
-        """初始化根节点与节点栈。"""
+        """创建根节点并从根节点开始维护解析栈。"""
         super().__init__(convert_charrefs=True)
         self.root = El("root", [])
         self.stack = [self.root]
 
     def _append(self, node):
+        """把节点挂到当前栈顶元素下。"""
         node.parent = self.stack[-1]
         self.stack[-1].children.append(node)
 
     def handle_starttag(self, tag, attrs):
-        """开始标签：创建 El 挂到栈顶，非 void 标签再压栈。
-
-        Args:
-            tag (str): 标签名。
-            attrs (list[tuple[str, str | None]]): 原始属性列表。
-        """
+        """记录起始标签；非 void 标签继续压入解析栈。"""
         el = El(tag, attrs)
         self._append(el)
         if tag not in VOID_TAGS:
             self.stack.append(el)
 
     def handle_endtag(self, tag):
-        """结束标签：把栈回退到最近一层同名元素，容忍未闭合标签。
-
-        Args:
-            tag (str): 标签名。
-        """
+        """遇到闭合标签时弹出对应的解析栈节点。"""
         for i in range(len(self.stack) - 1, 0, -1):
             if self.stack[i].tag == tag:
                 del self.stack[i:]
                 return
 
     def handle_data(self, data):
-        """文本片段：作为字符串子节点挂到栈顶元素。
-
-        Args:
-            data (str): 文本内容。
-        """
+        """把文本内容追加到当前栈顶元素。"""
         self.stack[-1].children.append(data)
 
 
@@ -100,15 +83,7 @@ def parse_css(css_text):
 
 
 def match_simple(el, simple):
-    """判断元素是否命中单个「tag.class:伪类」选择器片段。
-
-    Args:
-        el (El): 待匹配的元素。
-        simple (str): 不含空格的选择器片段，可带 :last-child / :nth-child(even)。
-
-    Returns:
-        bool: 命中返回 True。
-    """
+    """判断单个简单选择器是否命中元素。"""
     pseudo = None
     m = re.search(r":(last-child|nth-child\(even\))", simple)
     if m:
@@ -129,15 +104,7 @@ def match_simple(el, simple):
 
 
 def match_selector(el, selector):
-    """判断元素是否命中空格分隔的层级选择器（末段匹配自身，其余匹配祖先链）。
-
-    Args:
-        el (El): 待匹配的元素。
-        selector (str): 空格分隔的层级选择器。
-
-    Returns:
-        bool: 命中返回 True。
-    """
+    """判断完整的后代选择器是否命中元素。"""
     parts = selector.split()
     if not match_simple(el, parts[-1]):
         return False
@@ -152,12 +119,7 @@ def match_selector(el, selector):
 
 
 def inline_styles(node, rules):
-    """递归遍历节点树，把命中的 CSS 规则声明合并进元素的 style 属性。
-
-    Args:
-        node (El | str): 当前节点（文本节点直接跳过）。
-        rules (list[tuple[str, str]]): parse_css 输出的 (选择器, 声明) 列表。
-    """
+    """把命中的 CSS 规则合并进节点的内联样式。"""
     if isinstance(node, El):
         matched = [decls for sel, decls in rules if match_selector(node, sel)]
         if matched:
@@ -200,15 +162,7 @@ def flatten_figures(node):
 
 
 def collect_elements(node, tag):
-    """深度优先收集树里指定标签名的全部元素。
-
-    Args:
-        node (El | str): 起始节点。
-        tag (str): 目标标签名。
-
-    Returns:
-        list[El]: 按文档顺序命中的元素列表。
-    """
+    """递归收集指定标签的所有元素节点。"""
     found = []
     if isinstance(node, El):
         if node.tag == tag:
@@ -219,14 +173,7 @@ def collect_elements(node, tag):
 
 
 def serialize(node):
-    """把 El 树序列化回 HTML 字符串。
-
-    Args:
-        node (El | str): 元素或文本节点。
-
-    Returns:
-        str: 序列化后的 HTML 片段；void 标签自闭合，文本内容已转义。
-    """
+    """把节点序列化为微信可接受的 HTML 字符串。"""
     if isinstance(node, str):
         return escape(node)
     attrs = "".join(f' {k}="{escape(str(v), quote=True)}"' for k, v in node.attrs.items())
@@ -273,11 +220,11 @@ def wechat_compat(node):
     elif node.tag == "p" and text_of(node).strip().startswith("▲"):
         # 图注约定：整段以 ▲ 开头 → 小字居中灰（md 里写在图片下一行的斜体段）
         existing = node.attrs.get("style", "").rstrip(";")
-        caption_style = (
-            "text-align:center;font-size:13px;color:#999;"
-            "line-height:1.6;margin:6px 0 1.4em;letter-spacing:0;"
+        node.attrs["style"] = (
+            ((existing + ";") if existing else "")
+            + "text-align:center;font-size:13px;color:#999;line-height:1.6;"
+            "margin:6px 0 1.4em;letter-spacing:0;"
         )
-        node.attrs["style"] = ((existing + ";") if existing else "") + caption_style
     elif node.tag == "img":
         node.attrs["style"] = "max-width:100%;"
     new_children = []
@@ -304,46 +251,21 @@ def wechat_compat(node):
 
 
 def text_of(node):
-    """拼接节点自身的全部纯文本（含后代）。
-
-    Args:
-        node (El | str): 元素或文本节点。
-
-    Returns:
-        str: 节点内文本，未做 HTML 转义。
-    """
+    """递归提取节点内所有纯文本内容。"""
     if isinstance(node, str):
         return node
     return "".join(text_of(c) for c in node.children)
 
 
 def curl(args):
-    """以子进程方式调 curl 执行 HTTP 请求。
-
-    Args:
-        args (list[str]): 传给 curl 的参数（URL、-F、-X 等）。
-
-    Returns:
-        str: curl 的 stdout，按 UTF-8 解码。
-    """
+    """执行 curl 命令并返回 UTF-8 响应文本。"""
     return subprocess.run(
         ["curl", "-s", "--max-time", "60"] + args, capture_output=True, check=True
     ).stdout.decode("utf-8")
 
 
 def get_token(appid, secret):
-    """用 AppID / AppSecret 换取接口 access_token。
-
-    Args:
-        appid (str): 公众号 AppID。
-        secret (str): 公众号 AppSecret。
-
-    Returns:
-        str: access_token。
-
-    Raises:
-        SystemExit: 接口未返回 access_token 时打印错误码并退出进程。
-    """
+    """通过公众号接口获取访问 token。"""
     resp = json.loads(
         curl([f"{BASE}/token?grant_type=client_credential&appid={appid}&secret={secret}"])
     )
@@ -353,18 +275,7 @@ def get_token(appid, secret):
 
 
 def upload_image(url, path):
-    """上传本地图片到微信接口。
-
-    Args:
-        url (str): 上传接口的完整 URL（含 access_token）。
-        path (Path): 本地图片路径。
-
-    Returns:
-        dict: 接口返回的 JSON，正文图含 url，素材含 media_id。
-
-    Raises:
-        SystemExit: 接口返回错误码时打印错误信息并退出进程。
-    """
+    """上传图片到公众号接口并返回响应结果。"""
     resp = json.loads(curl(["-F", f"media=@{path}", url]))
     if "errcode" in resp and resp["errcode"] != 0:
         sys.exit(f"图片上传失败 {path}: {resp.get('errcode')} {resp.get('errmsg')}")
@@ -372,7 +283,7 @@ def upload_image(url, path):
 
 
 def main():
-    """主流程：内联样式、公众号兼容改写、收口外链，上传图片后创建草稿。"""
+    """读取文章与凭证，生成草稿并推送到公众号。"""
     LINKS.clear()
     LINK_INDEX.clear()
     html_path = Path(sys.argv[1]).resolve()
@@ -422,13 +333,18 @@ def main():
         sep.children.append("参考资料")
         body.children.append(sep)
         for i, (label, href) in enumerate(LINKS, 1):
-            ref_style = (
-                "font-size:13px;color:#8a97a5;line-height:1.8;"
-                "word-break:break-all;margin:0 0 4px;text-align:left;"
+            item = El(
+                "p",
+                [
+                    (
+                        "style",
+                        "font-size:13px;color:#8a97a5;line-height:1.8;"
+                        "word-break:break-all;margin:0 0 4px;text-align:left;",
+                    )
+                ],
             )
-            ref_line = El("p", [("style", ref_style)])
-            ref_line.children.append(f"[{i}] {label}：{href}")
-            body.children.append(ref_line)
+            item.children.append(f"[{i}] {label}：{href}")
+            body.children.append(item)
 
     token = get_token(appid, appsecret)
 

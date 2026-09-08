@@ -5,7 +5,10 @@ from __future__ import annotations
 import uuid
 from typing import Callable
 
+import pytest
 from fastapi.testclient import TestClient
+
+pytestmark = pytest.mark.realdb
 
 
 def test_public_register_without_user_id_then_me(

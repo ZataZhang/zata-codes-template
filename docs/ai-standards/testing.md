@@ -66,6 +66,47 @@
 - `uv run python hooks/shared/check_guidelines_consistency.py`
 - `uv run mkdocs build`
 
+## 真实数据库测试（realdb）
+
+部分 integration 测试（跨连接会话失效、两域物理隔离等）经
+``TestClient(create_app())`` 或 ``SessionLocal`` 直接写入 ``DATABASE_URL``
+指向的真实数据库，SQLite / 内存替身无法复现这些语义。这类测试必须打
+``@pytest.mark.realdb``，并接受三层防线的约束：
+
+1. **哨兵（sentinel）**：``tests/conftest.py`` 的 ``_realdb_residue_sentinel``
+   autouse fixture 对 realdb 测试做前后主键快照对比（覆盖
+   ``admin_user`` / ``public_user`` 两张表），任何净新增/净删除直接 fail
+   并列出泄漏行。
+2. **自动登记清理**：``tests/backend/conftest.py`` 的 ``build_client`` 对
+   realdb 测试返回 ``TrackedTestClient``，自动登记 ``/auth/register`` 创建的
+   用户 ID；``seed_admin`` 种入的管理员 ID 也自动登记。``entity_registry``
+   fixture 在 teardown 按精确 ID 删除（见 ``tests/realdb_test_support.py``）。
+3. **守卫测试**：
+   - ``tests/guards/test_realdb_marker_required.py``：请求 ``build_client`` /
+     ``seed_admin`` 的测试必须打 realdb 标记。
+   - ``tests/guards/test_realdb_xdist_manifest.py``：静态声明的
+     ``_REALDB_TEST_FILES`` 清单必须与实际的模块级 realdb 标记一致。
+
+### 判定 realdb 标记的陷阱
+
+pytest 9 起 ``Mark.__eq__`` 不再与字符串相等、且 ``Mark`` 不可哈希，所以
+``"realdb" in request.node.iter_markers()`` 恒为假。必须用
+``tests.realdb_test_support.has_realdb_marker``（内部比较 ``mark.name``）。
+哨兵、registry、build_client 都已统一走这个辅助函数。
+
+### xdist 并行调度
+
+pytest.ini 用 ``--dist=loadgroup``。xdist 自带的 ``LoadGroupScheduling`` 只按
+nodeid 里的 ``@<组名>`` 后缀分组，不读 marker。realdb 测试写真实库，哨兵快照
+在跨 worker 并行时会把其他 worker 的写入误判为残留。因此
+``tests/conftest.py`` 的 ``pytest_xdist_make_scheduler`` 用自定义调度器把
+``_REALDB_TEST_FILES`` 里的测试收进同一 scope（同一 worker 串行），其余测试
+回退到文件级分组保住并行度。
+
+新增写真实数据库的测试文件时，必须：打模块级 ``pytestmark = pytest.mark.realdb``
+、经 ``build_client`` / ``seed_admin``（自动登记清理）、并同步更新
+``tests/conftest.py`` 的 ``_REALDB_TEST_FILES``（否则 manifest 守卫测试会失败）。
+
 ## Guard Tests
 
 `tests/guards/` 下的测试是**守卫测试**：它们断言仓库自身的约定、hook 行为、

@@ -39,7 +39,13 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      # 启动窗口必须覆盖真实启动耗时，否则下方 admin / public 的 depends_on:
+      # service_healthy 会在 backend 就绪前判定失败，整组发布中断，而回滚同样
+      # 撞这面墙。10s + 3×30s 只有约 70s 预算，对需要跑 alembic 迁移、seed 数据
+      # 或连接远程/跨境数据库的部署明显不够（派生项目实测启动耗时 71~95s）。
+      # start_period 内的失败不计入 retries，容器保持 starting，因此放宽它不会
+      # 掩盖真正的启动失败，只是把发现时间从 70s 推迟到 180s。
+      start_period: 180s
     volumes:
       - zata-codes-template-backend-logs:/app/logs
       - zata-codes-template-backend-data:/app/data

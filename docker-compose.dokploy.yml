@@ -43,7 +43,10 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      # 与 deploy/vps-traefik/docker-compose.yml 保持一致：Dokploy 路径同样有
+      # 两个服务用 depends_on: service_healthy 等这个 backend，10s 窗口（实际
+      # 预算约 70s）小于跑迁移 + seed 的真实启动耗时。
+      start_period: 180s
     volumes:
       - zata-codes-template-backend-logs:/app/logs
       - zata-codes-template-backend-data:/app/data

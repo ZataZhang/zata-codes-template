@@ -22,14 +22,7 @@ LINK_RE = re.compile(r'<a\s+href="([^"]+)">(.*?)</a>', re.S)
 
 
 def decorate_headings(html):
-    """把 h1/h2/h3 的伪元素装饰实体化为真实节点，粘贴进编辑器才不会丢。
-
-    Args:
-        html (str): 公众号版 HTML 全文。
-
-    Returns:
-        str: 替换后的 HTML。
-    """
+    """给 h1 标题追加装饰线，并把伪元素替换成真实 div。"""
     # h1 标题下的渐变装饰线：伪元素 -> 真实 div
     html = re.sub(
         r'(<h1 class="title">.*?</h1>)',
@@ -93,7 +86,7 @@ def inline_refs(html):
 
 
 def main():
-    """入口：标题装饰 → 来源拆分 → 内链收口，顺序原地改写 HTML 文件。"""
+    """读取 HTML 文件、注入标题装饰并回写文件。"""
     path = Path(sys.argv[1])
     html = path.read_text(encoding="utf-8")
     html = decorate_headings(html)
