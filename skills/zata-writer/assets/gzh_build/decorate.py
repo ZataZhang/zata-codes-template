@@ -55,8 +55,10 @@ def split_source_list(html):
             f'<p class="srcline">{label.strip()}（{href}）</p>' for href, label in items
         )
 
+    # 锚文本用 [^<]* 而不是 .*?：re.S 下 .*? 会回溯跨越标签，
+    # 段落以链接开头时会把整篇正文吞进「资料来源列表」匹配
     return re.sub(
-        r'<p>((?:\s*<a\s+href="[^"]+">.*?</a>(?:<br\s*/?>)?)+)\s*</p>',
+        r'<p>((?:\s*<a\s+href="[^"]+">[^<]*</a>(?:<br\s*/?>)?)+)\s*</p>',
         repl,
         html,
         flags=re.S,

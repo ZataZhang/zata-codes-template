@@ -109,7 +109,7 @@ description: "[Updated 2026-09-08] 撰写或重构结构清晰、证据充分、
 2. **同步上游**：把整个目录同步到模板仓库，保持两处一致：
 
 ```bash
-rsync -a --delete /Users/zata/.kimi-code/skills/zata-writer/ ~/code/zata_code_template/skills/zata-writer/
+rsync -a --delete /Users/zata/.qoder-cn/skills/zata-writer/ ~/code/zata_code_template/skills/zata-writer/
 ```
 
 交付时向用户确认时间戳已更新、同步已执行。

@@ -29,6 +29,12 @@ where = ["src"]
 [dependency-groups]
 dev = [
     "fakeredis>=2.21.0",
+    # starlette.testclient / fastapi.testclient 在 import 阶段就硬性要求 httpx，
+    # tests/ 下还直接用 httpx 的 ASGITransport / AsyncClient / Response。它曾经
+    # 只作为已摘除的 LLM 依赖的传递依赖被装进来，声明缺口被开发机 .venv 残留掩盖，
+    # 裸 `uv sync --frozen` 的 CI 才在 collection 阶段全灭。socks extra 顺带提供
+    # socksio，因此不再单独声明后者。
+    "httpx[socks]>=0.27.0",
     "pre-commit>=4.5.1",
     "pylint>=3.2.0",
     "pytest>=8.3.0",
@@ -39,5 +45,4 @@ dev = [
     "mkdocstrings[python]>=0.30.0",
     "pymdown-extensions>=10.14",
     "ruff==0.7.4",
-    "socksio>=1.0.0",
 ]
