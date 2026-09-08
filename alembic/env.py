@@ -1,6 +1,7 @@
 """Alembic environment configuration."""
 
 import os
+import sys
 from logging.config import fileConfig
 
 from sqlalchemy import create_engine, pool
@@ -18,9 +19,34 @@ from backend.infrastructure.persistence.database import Base
 # this is the Alembic Config object
 alembic_config = context.config
 
+
+def _is_running_inside_test_process() -> bool:
+    """判断当前进程是否为 pytest 进程。
+
+    Returns:
+        bool: 运行在 pytest 进程内返回 ``True``，否则返回 ``False``。
+    """
+    return "PYTEST_CURRENT_TEST" in os.environ or "pytest" in sys.modules
+
+
 # Interpret the config file for Python logging.
-if alembic_config.config_file_name is not None:
-    fileConfig(alembic_config.config_file_name)
+# fileConfig 是"清场式"配置调用：它无条件清空 root logger 的 handler 列表、把
+# root level 重置成 alembic.ini 里的 WARNING，且 disable_existing_loggers 默认
+# 为 True——所有已存在且不属于 alembic.ini logger 层级的 logger 会被永久标记
+# disabled。
+#
+# 迁移并不总是独占一个进程：database.py 的 create_tables() / init_database()
+# 会在进程内调用 command.upgrade()，测试 fixture 也常在进程内跑 upgrade head。
+# 在 pytest 进程里这个破坏静默且严重：caplog 依赖挂在 root logger 上的 handler，
+# 会被摘掉；迁移之前 import 过的 backend.* logger 会永久 disabled。此后所有
+# 基于日志的断言都退化成"records 恒为空"，通过或失败都与被测行为无关。
+#
+# 所以 pytest 进程内完全跳过 fileConfig（日志由 pytest 自己接管）；CLI 与进程内
+# 应用路径仍需要 alembic 的迁移日志，但显式传 disable_existing_loggers=False，
+# 不去动宿主进程已经建好的 logger。
+# 守卫测试见 tests/guards/test_alembic_logging_isolation.py。
+if alembic_config.config_file_name is not None and not _is_running_inside_test_process():
+    fileConfig(alembic_config.config_file_name, disable_existing_loggers=False)
 
 # Target metadata for autogenerate support
 target_metadata = Base.metadata

@@ -31,7 +31,8 @@ img { max-width: 100%; border-radius: 10px; box-shadow: 0 2px 12px rgba(0,0,0,0.
 figcaption { font-size: 13px; color: #999; margin-top: 8px; letter-spacing: 0; }
 
 /* 表格 */
-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 14px; margin: 0 0 1.6em; border: 1px solid #e8e8e8; border-radius: 10px; overflow: hidden; letter-spacing: 0; }
+/* display:table 覆盖 pandoc 默认的 display:block：block 会让无 colgroup 的表格列宽缩成内容宽、表头不满宽 */
+table { width: 100%; display: table; border-collapse: separate; border-spacing: 0; font-size: 14px; margin: 0 0 1.6em; border: 1px solid #e8e8e8; border-radius: 10px; overflow: hidden; letter-spacing: 0; }
 th { background: #07c160; color: #fff; font-weight: 700; padding: 10px 12px; text-align: left; line-height: 1.6; }
 td { border-top: 1px solid #efefef; padding: 9px 12px; line-height: 1.7; vertical-align: top; }
 tr:nth-child(even) td { background: #fafcfa; }
