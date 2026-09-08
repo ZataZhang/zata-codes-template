@@ -46,7 +46,11 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      # 与 deploy/vps-traefik/docker-compose.yml 保持一致：admin 与 public 都用
+      # depends_on: service_healthy 等这个 backend，启动窗口小于真实启动耗时会
+      # 让整组 up 失败。start_period 内的失败不计入 retries，放宽它不掩盖真正的
+      # 启动失败，只推迟判定时间。
+      start_period: 180s
     labels:
       - "com.docker.compose.project=zata-codes-template"
       - "com.docker.compose.service=backend"

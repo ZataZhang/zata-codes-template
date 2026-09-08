@@ -36,15 +36,7 @@ text_y = H // 2 - 26
 
 
 def node_pos(k, frame):
-    """第 k 个节点在第 frame 帧的坐标：固定基准位置叠加正弦漂移。
-
-    Args:
-        k (int): 节点下标。
-        frame (int): 当前帧号。
-
-    Returns:
-        tuple[float, float]: 节点坐标 (x, y)。
-    """
+    """按帧号计算指定节点在动画中的坐标。"""
     bx, by = NODES[k]
     ax, ay = AMPS[k]
     return (bx + ax * math.sin(frame * 0.11 + k * 1.7), by + ay * math.cos(frame * 0.09 + k * 2.3))

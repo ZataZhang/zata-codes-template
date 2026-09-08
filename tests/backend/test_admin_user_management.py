@@ -5,7 +5,10 @@ from __future__ import annotations
 import uuid
 from typing import Callable
 
+import pytest
 from fastapi.testclient import TestClient
+
+pytestmark = pytest.mark.realdb
 
 
 def _login_admin(
