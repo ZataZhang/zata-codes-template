@@ -1,4 +1,10 @@
-"""验证 Worktree 专用数据库名称与连接配置。"""
+"""守护 Worktree 专用数据库派生与建库脚本契约的守卫测试（guard test）。
+
+本文件位于 ``tests/guards/``，失败意味着源代码、配置或脚本违反了仓库约定。
+正确做法是修复触发它的源代码或配置，而不是修改本文件让测试通过；仅当约定
+本身需要变更时才改本文件，并同步更新相关约定文档。详见
+``docs/ai-standards/testing.md`` 的 Guard Tests 小节。
+"""
 
 from __future__ import annotations
 
@@ -7,7 +13,9 @@ from pathlib import Path
 
 import pytest
 
-_SCRIPT_PATH = Path("scripts/shared/template/setup_copied_database.py")
+# 仓库根推导而非 CWD 相对路径：守卫必须与 pytest 的启动目录解耦。
+_PROJECT_ROOT_PATH = Path(__file__).resolve().parents[2]
+_SCRIPT_PATH = _PROJECT_ROOT_PATH / "scripts" / "shared" / "template" / "setup_copied_database.py"
 _SCRIPT_SPEC = importlib.util.spec_from_file_location(
     "setup_copied_database",
     _SCRIPT_PATH,

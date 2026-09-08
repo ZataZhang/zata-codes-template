@@ -46,6 +46,9 @@ AI 代理默认不会设置该变量，因此会被 hook 拦下——这是"指�
 | `test_openapi_schema.py` | 公开 HTTP 契约（OpenAPI schema） |
 | `test_release_script.py` | release 归档排除规则 |
 | `test_sync_template.py` | template sync 脚本 |
+| `test_setup_copied_database.py` | Worktree 专用数据库派生与建库脚本契约（严格模式不静默回退共享库、日志不吐凭据） |
+| `test_prd_skill_checker.py` | PRD 归档 checker 的证据链约束（缺关键值来源/必经边界/fresh-state probe 必须拒收） |
+| `test_composition_boundaries.py` | composition root 公开入口，以及四层反向导入 composition 必须被架构检查拒绝 |
 | `test_dokploy_environment.py` | 部署环境模板（env/compose 一致性） |
 | `test_runtime_dependency_declaration.py` | 后端模块级 import 必须由 `[project.dependencies]` 覆盖，裸 `uv sync` 即可装齐 |
 | `test_database_connection_pool.py` | 非 SQLite 后端不得使用 `StaticPool`（共用单连接会让事务互相覆盖、静默丢数据） |

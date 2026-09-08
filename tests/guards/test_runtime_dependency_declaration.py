@@ -1,4 +1,10 @@
-"""守卫：``src/backend/`` 的模块级 import 必须由 ``[project.dependencies]`` 覆盖。
+"""守护「``src/backend/`` 的模块级 import 必须由 ``[project.dependencies]`` 覆盖」
+的守卫测试（guard test）。
+
+本文件位于 ``tests/guards/``，失败意味着源代码、配置或脚本违反了仓库约定。
+正确做法是修复触发它的源代码或配置，而不是修改本文件让测试通过；仅当约定
+本身需要变更时才改本文件，并同步更新相关约定文档。详见
+``docs/ai-standards/testing.md`` 的 Guard Tests 小节。
 
 为什么需要这个守卫：这套模板与其下游项目已经被同一类缺陷咬过两次，形态都是
 "环境里恰好有、声明里根本没有"——

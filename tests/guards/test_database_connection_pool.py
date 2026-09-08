@@ -1,4 +1,9 @@
-"""守卫：非 SQLite 后端不得使用 ``StaticPool``。
+"""守护「非 SQLite 后端不得使用 ``StaticPool``」的守卫测试（guard test）。
+
+本文件位于 ``tests/guards/``，失败意味着源代码、配置或脚本违反了仓库约定。
+正确做法是修复触发它的源代码或配置，而不是修改本文件让测试通过；仅当约定
+本身需要变更时才改本文件，并同步更新相关约定文档。详见
+``docs/ai-standards/testing.md`` 的 Guard Tests 小节。
 
 为什么值得一条守卫：``StaticPool`` 让整个进程共用**一条**物理数据库连接。
 两个"独立"的 Session 会拿到同一条连接，于是事务互相覆盖——一个 Session 的
