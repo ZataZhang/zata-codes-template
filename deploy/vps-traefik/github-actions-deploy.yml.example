@@ -22,6 +22,9 @@ jobs:
   build-and-push:
     name: Build and Push Images
     runs-on: ubuntu-latest
+    # 镜像推送可能因 registry 或网络问题连接停滞且无默认超时，必须自动失败；
+    # 45 分钟 = 全新构建约 15 分钟 + 推送重试 3 次 × 8 分钟的最坏预算
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -53,20 +56,48 @@ jobs:
           username: ${{ secrets.REGISTRY_USERNAME }}
           password: ${{ secrets.REGISTRY_PASSWORD }}
 
-      - name: Build and push ${{ matrix.service }} image
+      - name: Build ${{ matrix.service }} image
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
-          push: true
+          # 只构建并载入本地镜像库，推送交给下一步的重试循环。
+          # gha 缓存依赖 build-push-action 注入的 ACTIONS_RUNTIME_TOKEN，
+          # 无法在 run: 步骤里直接使用 type=gha。
+          load: true
           tags: |
             ${{ env.REGISTRY_HOST }}/${{ env.REGISTRY_NAMESPACE }}/${{ matrix.image_name }}:${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,scope=${{ matrix.service }},mode=max
 
+      - name: Push ${{ matrix.service }} image
+        # registry 或网络链路异常时，docker push 可能静默停滞且不报错。
+        # 重试会跳过已上传的 blob，配合单次 timeout 兜住停滞的连接。
+        env:
+          IMAGE_REF: ${{ env.REGISTRY_HOST }}/${{ env.REGISTRY_NAMESPACE }}/${{ matrix.image_name }}:${{ github.sha }}
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            echo ">>> Push attempt ${attempt}/3 (per-attempt timeout 8m)"
+            if timeout 480 docker push "$IMAGE_REF"; then
+              echo ">>> Push succeeded"
+              exit 0
+            fi
+            push_exit=$?
+            if [ "$push_exit" -eq 124 ]; then
+              echo ">>> Push timed out, connection stalled, retrying"
+            else
+              echo ">>> Push failed (exit=${push_exit}), retrying"
+            fi
+            sleep 15
+          done
+          echo ">>> Push failed after 3 attempts" >&2
+          exit 1
+
   deploy-production:
     name: Deploy Production
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: build-and-push
     environment:
       name: production

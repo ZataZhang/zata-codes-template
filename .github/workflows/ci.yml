@@ -21,6 +21,8 @@ jobs:
   frontend-build:
     name: Frontend Build
     runs-on: ubuntu-latest
+    # 异常挂起时自动失败，避免吃满默认 6 小时上限并烧掉托管分钟配额
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: frontend-admin
@@ -63,6 +65,7 @@ jobs:
   validate-template:
     name: Validate Template
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       # 后端测试通过 settings 默认解析落到 localhost PostgreSQL（config.toml
       # [database]），用 service 容器提供真实数据库；trust 认证免密码。
@@ -146,6 +149,7 @@ jobs:
   e2e:
     name: Playwright E2E (no-auth)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
