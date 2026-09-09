@@ -138,6 +138,10 @@ jobs:
           name: template-release-${{ github.sha }}
           path: ${{ steps.release_archive.outputs.release_archive_path }}
           if-no-files-found: error
+          # 每次 push 都会生成一份纯冒烟产物，保留过久会吃满账户的
+          # Actions 存储配额；正式发布物走 cd.yml + GitHub Releases，
+          # 不受此处影响。
+          retention-days: 3
 
   e2e:
     name: Playwright E2E (no-auth)
@@ -217,3 +221,5 @@ jobs:
             tests/playwright-e2e/test-results/
             frontend-public/frontend.log
           if-no-files-found: ignore
+          # 失败诊断产物，排查窗口一周足够。
+          retention-days: 7
