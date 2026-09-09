@@ -8,6 +8,10 @@
 #   ./scripts/sync_template.sh --list     # print upstream-owned entries, no TUI, no apply
 #   ./scripts/sync_template.sh --list-all # print all entries (--list + --all)
 #   ./scripts/sync_template.sh --dry-run  # run TUI but don't write anything
+#   ./scripts/sync_template.sh --skill <name> [--dry-run]
+#                                         # non-interactive: redeploy one skill from this
+#                                         # repo checkout to every local tool dir that
+#                                         # already has it (first-time install: use TUI)
 
 set -euo pipefail
 
@@ -45,6 +49,8 @@ PROJECT_INCLUDE_PATH_COUNT=0
 
 SHOW_ALL=false
 LOCAL_SKILLS_MODE=false
+SKILL_FILTER_MODE=false
+SKILL_FILTER_NAME=""
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -69,9 +75,19 @@ while [ $# -gt 0 ]; do
             LOCAL_SKILLS_MODE=true
             shift
             ;;
+        --skill)
+            if [ $# -lt 2 ] || [ -z "$2" ]; then
+                echo "Error: --skill requires a skill name." >&2
+                exit 1
+            fi
+            LOCAL_SKILLS_MODE=true
+            SKILL_FILTER_MODE=true
+            SKILL_FILTER_NAME="$2"
+            shift 2
+            ;;
         *)
             echo "Unknown option: $1" >&2
-            echo "Usage: $0 [--all] [--list] [--list-all] [--dry-run] [--local-skills]" >&2
+            echo "Usage: $0 [--all] [--list] [--list-all] [--dry-run] [--local-skills] [--skill <name>]" >&2
             exit 1
             ;;
     esac
@@ -517,15 +533,20 @@ _resolve_skill_install_target_dirs() {
         SKILL_INSTALL_TARGET_DIRS+=("$HOME/.pi/agent/skills")
     fi
 
+    if [ -d "$HOME/.qoder-cn" ]; then
+        SKILL_INSTALL_TARGET_DIRS+=("$HOME/.qoder-cn/skills")
+    fi
+
     if [ "${#SKILL_INSTALL_TARGET_DIRS[@]}" -gt 0 ]; then
         return 0
     fi
 
-    echo "No ~/.cc-switch or ~/.pi directory found."
+    echo "No known skill directory (~/.cc-switch, ~/.pi, ~/.qoder-cn) found."
     echo "Choose a skill install target:"
     echo "  [1] Codex  -> $HOME/.codex/skills"
     echo "  [2] Claude -> $HOME/.claude/skills"
     echo "  [3] Pi     -> $HOME/.pi/agent/skills"
+    echo "  [4] Qoder  -> $HOME/.qoder-cn/skills"
     echo "  [q] Skip skill installation"
 
     while true; do
@@ -545,6 +566,10 @@ _resolve_skill_install_target_dirs() {
                 SKILL_INSTALL_TARGET_DIRS+=("$HOME/.pi/agent/skills")
                 return 0
                 ;;
+            4)
+                SKILL_INSTALL_TARGET_DIRS+=("$HOME/.qoder-cn/skills")
+                return 0
+                ;;
             q|Q|"")
                 return 1
                 ;;
@@ -553,6 +578,56 @@ _resolve_skill_install_target_dirs() {
                 ;;
         esac
     done
+}
+
+# --skill <name>：把本仓库 checkout 里的单个 Skill 重新部署到所有已安装它的本机
+# 工具目录。刻意只做「更新已有安装」、绝不创建新目录：这条路径由 agent 非交互
+# 驱动，不能往用户可能已弃用的工具里凭空造出安装目录；首次安装走交互 TUI。
+_install_one_skill_noninteractive() {
+    local template_root="$1"
+    local skill_name="$2"
+    local src_dir="$template_root/skills/$skill_name"
+
+    if [ ! -d "$src_dir" ]; then
+        echo "❌ Skill not found in this repo: $src_dir" >&2
+        exit 1
+    fi
+
+    local -a candidate_dirs=()
+    [ -n "$CC_SWITCH_SKILLS_DIR" ] && candidate_dirs+=("$CC_SWITCH_SKILLS_DIR")
+    [ -d "$HOME/.cc-switch/skills" ] && candidate_dirs+=("$HOME/.cc-switch/skills")
+    [ -d "$HOME/.pi/agent/skills" ] && candidate_dirs+=("$HOME/.pi/agent/skills")
+    [ -d "$HOME/.qoder-cn/skills" ] && candidate_dirs+=("$HOME/.qoder-cn/skills")
+    [ -d "$HOME/.claude/skills" ] && candidate_dirs+=("$HOME/.claude/skills")
+    [ -d "$HOME/.codex/skills" ] && candidate_dirs+=("$HOME/.codex/skills")
+    [ -d "$HOME/.kimi-code/skills" ] && candidate_dirs+=("$HOME/.kimi-code/skills")
+
+    if [ "${#candidate_dirs[@]}" -eq 0 ]; then
+        echo "❌ No local skills directory found (~/.cc-switch, ~/.pi, ~/.qoder-cn, ~/.claude, ~/.codex, ~/.kimi-code)." >&2
+        echo "   Set CC_SWITCH_SKILLS_DIR to your tool's skills directory and retry." >&2
+        exit 1
+    fi
+
+    local skills_base updated=0
+    for skills_base in "${candidate_dirs[@]}"; do
+        if [ ! -d "$skills_base/$skill_name" ]; then
+            echo "  ⏭ Not installed, skipped: $skills_base"
+            continue
+        fi
+        if $DRY_RUN_MODE; then
+            echo "  ⏭ Would update: $skills_base/$skill_name"
+        else
+            rsync -a --delete "$src_dir/" "$skills_base/$skill_name/"
+            echo "  ✅ Updated: $skills_base/$skill_name"
+        fi
+        updated=$((updated + 1))
+    done
+
+    if [ "$updated" -eq 0 ]; then
+        echo "❌ '$skill_name' is not installed in any known local skills directory; nothing to redeploy." >&2
+        echo "   First-time installation: interactive TUI or just sync-local-skills." >&2
+        exit 1
+    fi
 }
 
 _collect_template_skill_updates() {
@@ -859,6 +934,11 @@ else
     TEMPLATE_ROOT="$TEMP_DIR/template"
     echo "✅ Template fetched."
     echo ""
+fi
+
+if $SKILL_FILTER_MODE; then
+    _install_one_skill_noninteractive "$TEMPLATE_ROOT" "$SKILL_FILTER_NAME"
+    exit 0
 fi
 
 # ──────────────────────────────────────────────────────────────

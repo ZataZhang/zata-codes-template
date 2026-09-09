@@ -101,26 +101,23 @@ description: "[Updated 2026-09-09] 撰写或重构结构清晰、证据充分、
 
 用户要求把成稿发布或排版到公众号时，读取 [references/gongzhong-publish.md](references/gongzhong-publish.md) 并按其流程执行：用 `assets/gzh_build/` 中的构建脚本和主题样式，把 Markdown 转成可直接粘贴进公众号后台的 HTML，挑选金句做荧光高亮，用无头 Chrome 截图验证排版，并向用户说明图片需手动重传、正文外链不可点等平台限制。
 
-## 维护：同步上游
+## 维护：Skill 本体的修改与部署
 
-本 Skill 的上游模板仓库是 `~/code/zata_code_template/skills/zata-writer`。对 Skill 本体做任何修改（SKILL.md、references/、assets/ 的新增或改动）后，必须完成两件事：
+本 Skill 的源头是模板仓库 `~/code/zata_code_template/skills/zata-writer`（下称仓库副本）；各 AI 工具加载的 `~/.xxx/skills/zata-writer` 等目录（下称安装副本）只是部署产物，没有版本控制。
+
+**修改一律落在仓库副本，不要直接改安装副本。** 直接改安装副本会让两处分叉，之后任何方向的同步都可能把改动静默覆盖：2026-09-09 的两次事故（过期的安装副本把仓库刚补的 121 行实测结论抹掉；仓库里的旧措辞被抢在复核前提交进历史）都源于编辑面装反。
+
+对 Skill 本体做任何修改（SKILL.md、references/、assets/ 的新增或改动）后，完成两件事：
 
 1. **更新 description 里的时间戳**：front matter 的 `description` 以 `[Updated YYYY-MM-DD]` 开头，每次修改都把它改成当天日期（与 code-reviewer、idea-inbox 等 Skill 的约定一致），方便在 Skill 列表里一眼看出新旧。
-2. **同步上游**：用 `assets/sync_upstream.sh` 把当前副本同步回模板仓库，保持两处一致：
+2. **部署到各安装副本**。在模板仓库根目录执行：
 
-```bash
-assets/sync_upstream.sh ~/code/<模板仓库>/skills/zata-writer
-```
+   ```bash
+   ./scripts/sync_template.sh --skill zata-writer
+   ```
 
-路径也可以放进环境变量 `ZATA_WRITER_UPSTREAM`，之后直接跑 `assets/sync_upstream.sh` 即可。
+   非交互、只更新已安装该 Skill 的本机目录（~/.qoder-cn、~/.claude、~/.codex、~/.cc-switch、~/.pi、~/.kimi-code），不会在任何工具里凭空创建安装目录；首次装到新工具用交互式的 `just sync-local-skills`（fzf 逐项预览 diff）。提交前想先在安装副本上验证改动，可以提前部署，但仓库侧的提交始终由用户复核后决定。
 
-**不要手写 `rsync -a --delete`。** 那条命令让一份无版本控制的本机副本单向覆盖 Git
-仓库：本副本一旦落后，仓库里的新内容会被静默删掉，且 rsync 照样返回 0。2026-09-09
-已实际发生——`references/gongzhong-publish.md` 被抹掉 121 行刚补的实测结论，差一步
-就提交进历史。脚本会在同步前要求上游工作区干净、先 dry-run，并在计划出现任何删除时
-直接中止（复核后可加 `--allow-delete`），同步完打印 `git status`/`diff --stat` 供复核。
+**不要把安装副本同步回仓库。** `assets/sync_upstream.sh` 仅作急救保留：只有安装副本被直接改过、需要把改动抢救回仓库时才用它。它把无版本控制的副本单向覆盖进 Git 仓库——脚本守卫能挡住文件删除，挡不住仓库已提交内容被旧副本盖回，用完必须人工逐行复核 diff 再决定提交。
 
-反方向（模板仓库 → 本机各 AI 助手的 skills 目录）用仓库自带的 `just sync-local-skills`，
-它会逐项列出差异并带 diff 交互选择，不要另写 rsync。
-
-交付时向用户确认时间戳已更新、同步已执行。
+交付时向用户确认时间戳已更新、部署已执行。
