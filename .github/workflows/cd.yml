@@ -74,6 +74,10 @@ jobs:
           name: template-release-${{ github.run_id }}
           path: ${{ steps.release_archive.outputs.release_archive_path }}
           if-no-files-found: error
+          # 正式发布物已挂在 GitHub Releases（附件存储不计入 Actions
+          # 配额且永久保留），这份 artifact 只是工作流视图的重复副本，
+          # 短保留即可。
+          retention-days: 7
 
       - name: Publish GitHub release
         if: ${{ github.event_name == 'push' }}
