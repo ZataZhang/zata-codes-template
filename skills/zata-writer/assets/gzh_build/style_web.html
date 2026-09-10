@@ -255,9 +255,10 @@ figcaption::before {
   color: var(--border-strong);
 }
 
-/* 表格：只有横发丝线 */
+/* 表格：只有横发丝线。display:table 覆盖 pandoc 默认的 display:block，否则无 colgroup 的表格列宽缩成内容宽 */
 table {
   width: 100%;
+  display: table;
   border-collapse: collapse;
   font-size: 15px;
   line-height: 1.7;
