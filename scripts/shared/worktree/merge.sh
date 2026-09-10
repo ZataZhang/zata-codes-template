@@ -179,6 +179,32 @@ run_worktree_doctor() {
     fi
 }
 
+run_worktree_database_gc() {
+    # 盘点（以及可选删除）worktree 孤儿数据库。
+    # 默认 dry run 只列出候选孤儿库；传入 "true" 作为第一个参数时附加
+    # --gc 进入删除流程（仍逐个确认，auto_yes 为 "true" 时跳过确认）。
+    local gc_enabled="$1"
+    local auto_yes="$2"
+
+    if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        echo "❌ Current directory is not inside a Git repository."
+        exit 1
+    fi
+
+    local repo_root=""
+    repo_root="$(git rev-parse --show-toplevel)"
+
+    local gc_arguments=("$repo_root")
+    if [[ "$gc_enabled" == "true" ]]; then
+        gc_arguments+=("--gc")
+    fi
+    if [[ "$auto_yes" == "true" ]]; then
+        gc_arguments+=("--yes")
+    fi
+
+    uv run python "$repo_root/scripts/shared/worktree/gc_worktree_databases.py" "${gc_arguments[@]}"
+}
+
 usage() {
     cat <<'EOF'
 Usage:
@@ -202,6 +228,8 @@ Options:
   --doctor               Doctor / cleanup-check mode. Without arguments, scans all registered worktrees
                          for missing directories. With <feature_branch>, inspects the state of the
                          expected worktree path and its metadata under .git/worktrees.
+                         Additionally scans for orphan worktree databases; add --gc to
+                         interactively drop them (--yes skips per-database confirmation).
   -h, --help             Show this help message.
 
 Checks before merge:
@@ -219,6 +247,8 @@ Examples:
   ./scripts/shared/worktree/merge.sh feature-login main --cleanup --delete-remote
   ./scripts/shared/worktree/merge.sh --doctor
   ./scripts/shared/worktree/merge.sh --doctor feature-login
+  ./scripts/shared/worktree/merge.sh --doctor --gc
+  ./scripts/shared/worktree/merge.sh --doctor --gc --yes
 EOF
 }
 
@@ -229,7 +259,29 @@ fi
 
 if [[ $# -ge 1 && ( "$1" == "--doctor" || "$1" == "--cleanup-check" ) ]]; then
     shift
-    run_worktree_doctor "${1:-}"
+    doctor_feature_branch=""
+    doctor_gc_enabled="false"
+    doctor_auto_yes="false"
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --gc)
+                doctor_gc_enabled="true"
+                ;;
+            --yes)
+                doctor_auto_yes="true"
+                ;;
+            -h|--help)
+                usage
+                exit 0
+                ;;
+            *)
+                doctor_feature_branch="$1"
+                ;;
+        esac
+        shift
+    done
+    run_worktree_doctor "$doctor_feature_branch"
+    run_worktree_database_gc "$doctor_gc_enabled" "$doctor_auto_yes"
     exit 0
 fi
 

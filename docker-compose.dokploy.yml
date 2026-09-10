@@ -25,6 +25,16 @@ services:
       dockerfile: src/backend/Dockerfile
     expose:
       - "8000"
+    # Dokploy writes its Environment panel to a `.env` file next to this compose
+    # file but does NOT inject it into containers. Load it wholesale so a new
+    # setting only needs the Environment panel, not another edit here.
+    # Keep the `environment` list below for documented defaults: an explicit
+    # entry outranks env_file and would shadow the value from .env.
+    # `required: false` keeps `docker compose config` working in a fresh
+    # checkout, where .env is gitignored and absent.
+    env_file:
+      - path: .env
+        required: false
     environment:
       - HOST=0.0.0.0
       - PORT=8000

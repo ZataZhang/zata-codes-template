@@ -91,7 +91,11 @@ just ops-dashboard --mock     # 终端状态看板
 DOMAIN=app.example.com
 ```
 
-`DOMAIN` 只填写域名，不要包含 `http://`、`https://` 或路径。本地 `.env.dokploy.example` 只是模板文件；如果 Dokploy 的部署命令没有显式使用 `--env-file`，就需要把变量复制到 Dokploy UI 的 Environment 中。
+`DOMAIN` 只填写域名，不要包含 `http://`、`https://` 或路径。本地 `.env.dokploy.example` 只是模板文件，实际值填进 Dokploy UI 的 Environment。
+
+Dokploy 会把 Environment 面板的变量写成 compose **同目录的 `.env`**（[官方说明](https://docs.dokploy.com/docs/core/docker-compose)：写入 `.env`，但不会自动注入容器）。backend 服务因此声明了 `env_file: - .env`：**在面板里新增的变量会自动进容器，不需要再同步修改 `docker-compose.dokploy.yml` 的 `environment` 白名单**。白名单只保留文档与显式默认的作用，且 `environment:` 的优先级高于 `env_file`，需要覆盖时仍写显式条目。
+
+引入这一层的背景：白名单是手工同步的，新开关漏加进去就等于「面板里配了但不生效」，且往往到线上才发现——`LOG_LEVEL` 就是先例，它只出现在 `.env.dokploy.example` 而从未进入 compose。`deploy/vps-traefik/` 那条路径用 `env_file: app.env`，一直没有这个问题，现在两条路径的注入方式一致。因此只在 VPS compose 里显式列出的键（例如 `OBSERVABILITY_*`）现在也能在 Dokploy 的 Environment 面板中覆盖。
 
 DNS 需要把 `${DOMAIN}` 与 `admin.${DOMAIN}` 都解析到 Dokploy 服务器。部署后访问 404 时，优先检查：
 

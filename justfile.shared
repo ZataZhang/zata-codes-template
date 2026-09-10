@@ -318,7 +318,7 @@ staged_changes:
 #   just worktree -o <branch> [--cmd trae]            # open existing worktree
 #   just worktree -d <branch>                         # delete worktree
 #   just worktree -m [<feature>] [base=main] [flags]  # merge worktree (current branch if omitted)
-#   just worktree --doctor [branch]                   # doctor / cleanup-check
+#   just worktree --doctor [branch] [--gc] [--yes]    # doctor / 孤儿库盘点与回收
 worktree arg1 arg2="" arg3="" arg4="" arg5="":
     #!/usr/bin/env bash
     set -euo pipefail
@@ -393,13 +393,15 @@ worktree arg1 arg2="" arg3="" arg4="" arg5="":
         exit 0
     fi
 
-    # --doctor: cleanup-check
+    # --doctor: cleanup-check；--gc 附加孤儿数据库删除流程（--yes 跳过确认）
     if [ "{{arg1}}" = "--doctor" ]; then
-        if [ -n "{{arg2}}" ]; then
-            ./scripts/shared/worktree/merge.sh --doctor "{{arg2}}"
-        else
-            ./scripts/shared/worktree/merge.sh --doctor
-        fi
+        doctor_args=(./scripts/shared/worktree/merge.sh --doctor)
+        for raw_arg in "{{arg2}}" "{{arg3}}" "{{arg4}}" "{{arg5}}"; do
+            if [ -n "$raw_arg" ]; then
+                doctor_args+=("$raw_arg")
+            fi
+        done
+        "${doctor_args[@]}"
         exit 0
     fi
 
@@ -495,7 +497,7 @@ worktree arg1 arg2="" arg3="" arg4="" arg5="":
                 echo "  just worktree -o <branch> [--cmd editor]"
                 echo "  just worktree -d <branch>"
                 echo "  just worktree -m [<feature>] [base=main] [flags]"
-                echo "  just worktree --doctor [branch]"
+                echo "  just worktree --doctor [branch] [--gc] [--yes]"
                 exit 1
                 ;;
         esac
