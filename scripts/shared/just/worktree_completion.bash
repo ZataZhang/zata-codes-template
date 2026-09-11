@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # `just worktree` recipe 的 Bash 补全扩展。
-# `-o`、`-d` 和 `-D` 补全本地分支名。
+# `-o`、`-d`、`-D` 和 `-m` 补全本地分支名。
 
 _just_worktree_branch_candidates() {
     if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
@@ -23,7 +23,7 @@ _just_worktree_completion() {
 
     case "$recipe_name" in
         worktree)
-            if [[ "$COMP_CWORD" -eq 3 && "${COMP_WORDS[2]}" =~ ^-(o|d|D)$ ]]; then
+            if [[ "$COMP_CWORD" -eq 3 && "${COMP_WORDS[2]}" =~ ^-(o|d|D|m)$ ]]; then
                 COMPREPLY=( $(compgen -W "$branch_candidates" -- "$cur") )
                 return 0
             fi
