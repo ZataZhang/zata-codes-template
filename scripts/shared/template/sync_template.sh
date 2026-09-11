@@ -330,7 +330,7 @@ _is_always_skipped() {
         # always-skipped below, so importing the test would guarantee a
         # collection-time FileNotFoundError downstream. Keep these tests
         # template-internal by listing them here.
-        tests/test_prd_skill_checker.py) return 0 ;;
+        tests/guards/test_prd_skill_checker.py) return 0 ;;
     esac
     case "$p" in
         # Local state, build output, runtime artifacts
@@ -403,6 +403,12 @@ _is_upstream_owned() {
         # hooks must live directly under hooks/ and must not be placed in
         # hooks/shared/.
         hooks/shared/*) return 0 ;;
+        # 守卫测试的所有权边界与 hooks/shared 同构：tests/guards/shared/ 守护
+        # 上面这些 upstream-owned 代码（hooks/shared、scripts/shared、
+        # scripts/build 等），必须随 sync 一起走同一条分发生命周期，否则
+        # shared 代码升级后派生项目的守卫会静默漂移。根目录的守卫测试守护
+        # 项目自有对象（src/、alembic/、compose 等），不进分发面。
+        tests/guards/shared/*) return 0 ;;
         # Pre-commit configuration is maintained by the template. Hook scripts
         # auto-detect project conventions (e.g. alembic filename separator) so
         # the config can stay generic and syncable.

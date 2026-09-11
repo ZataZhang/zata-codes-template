@@ -1,6 +1,6 @@
 """守护 template sync 脚本的守卫测试（guard test）。
 
-本文件位于 ``tests/guards/``，失败意味着源代码、配置或脚本违反了仓库约定。
+本文件位于 ``tests/guards/shared/``，失败意味着源代码、配置或脚本违反了仓库约定。
 正确做法是修复触发它的源代码或配置，而不是修改本文件让测试通过；仅当约定
 本身需要变更时才改本文件，并同步更新相关约定文档。详见
 ``docs/ai-standards/testing.md`` 的 Guard Tests 小节。
@@ -12,7 +12,7 @@ import os
 import subprocess
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 SYNC_TEMPLATE_SCRIPT_PATH = REPO_ROOT / "scripts" / "shared" / "template" / "sync_template.sh"
 
 
@@ -497,6 +497,104 @@ def test_sync_template_all_mode_includes_e2e_infrastructure_but_skips_specs(
     assert "tests/playwright-e2e/support/env.ts" not in completed_process.stdout
     assert "tests/playwright-e2e/tests/smoke/home.spec.ts" not in completed_process.stdout
     assert "tests/backend/test_auth.py" not in completed_process.stdout
+
+
+def test_sync_template_default_mode_includes_guard_shared_but_not_project_guards(
+    tmp_path: Path,
+) -> None:
+    """Default sync listing surfaces tests/guards/shared/ but not root guard tests.
+
+    tests/guards/shared/ guards upstream-owned code (hooks/shared,
+    scripts/shared, scripts/build) and must follow the same distribution
+    lifecycle; root-level guard tests guard project-owned objects and stay
+    project-local.
+    """
+
+    template_repo_path = tmp_path / "template-repo"
+    project_repo_path = tmp_path / "project-repo"
+
+    template_files = {
+        "tests/guards/shared/test_check_max_file_lines.py": "# template shared guard\n",
+        "tests/guards/test_openapi_schema.py": "# template root guard\n",
+    }
+    project_files = {
+        "tests/guards/shared/test_check_max_file_lines.py": "# project shared guard\n",
+        "tests/guards/test_openapi_schema.py": "# project root guard\n",
+    }
+
+    create_repo(template_repo_path, template_files, commit_all=True)
+    create_repo(project_repo_path, project_files, commit_all=False)
+
+    completed_process = run_sync_template(project_repo_path, template_repo_path)
+
+    assert completed_process.returncode == 0, completed_process.stderr
+    assert "Found 1 changed + 0 new entry/entries." in completed_process.stdout
+    assert "CHANGED\ttests/guards/shared/test_check_max_file_lines.py" in completed_process.stdout
+    assert "tests/guards/test_openapi_schema.py" not in completed_process.stdout
+
+
+def test_sync_template_all_mode_includes_guard_shared_but_skips_root_guards(
+    tmp_path: Path,
+) -> None:
+    """--all mode surfaces tests/guards/shared/ despite the tests/ project skip."""
+
+    template_repo_path = tmp_path / "template-repo"
+    project_repo_path = tmp_path / "project-repo"
+
+    template_files = {
+        "tests/guards/shared/test_check_max_file_lines.py": "# template shared guard\n",
+        "tests/guards/test_openapi_schema.py": "# template root guard\n",
+    }
+    project_files = {
+        "config.toml": (
+            "[template_sync]\n" 'project_skip_paths = ["tests/"]\n' "project_include_paths = []\n"
+        ),
+        "tests/guards/shared/test_check_max_file_lines.py": "# project shared guard\n",
+        "tests/guards/test_openapi_schema.py": "# project root guard\n",
+    }
+
+    create_repo(template_repo_path, template_files, commit_all=True)
+    create_repo(project_repo_path, project_files, commit_all=False)
+
+    completed_process = run_sync_template(
+        project_repo_path,
+        template_repo_path,
+        "--all",
+    )
+
+    assert completed_process.returncode == 0, completed_process.stderr
+    assert "Found 1 changed + 0 new entry/entries." in completed_process.stdout
+    assert "CHANGED\ttests/guards/shared/test_check_max_file_lines.py" in completed_process.stdout
+    assert "tests/guards/test_openapi_schema.py" not in completed_process.stdout
+
+
+def test_sync_template_always_skips_template_internal_guard(
+    tmp_path: Path,
+) -> None:
+    """Guards exercising template-only artifacts (skills/) are never synced."""
+
+    template_repo_path = tmp_path / "template-repo"
+    project_repo_path = tmp_path / "project-repo"
+
+    template_files = {
+        "tests/guards/test_prd_skill_checker.py": "# template-internal guard\n",
+    }
+    project_files = {
+        "tests/guards/test_prd_skill_checker.py": "# project-internal guard\n",
+    }
+
+    create_repo(template_repo_path, template_files, commit_all=True)
+    create_repo(project_repo_path, project_files, commit_all=False)
+
+    completed_process = run_sync_template(
+        project_repo_path,
+        template_repo_path,
+        "--all",
+    )
+
+    assert completed_process.returncode == 0, completed_process.stderr
+    assert "Everything is up to date with the template." in completed_process.stdout
+    assert "tests/guards/test_prd_skill_checker.py" not in completed_process.stdout
 
 
 def test_sync_template_skips_e2e_runtime_artifacts(

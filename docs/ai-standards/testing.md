@@ -148,6 +148,24 @@ guard test，是为了让代理第一眼识别"这是规则本身，不是被规
 每个守卫测试的 module docstring 都以"守护 X 的守卫测试（guard test）"开头，
 并指向本节。守卫测试清单见 `tests/guards/README.md`。
 
+### 所有权划分：shared/ 与根目录
+
+本仓库是会被分发（sync）到派生项目的模板源，因此 `tests/guards/` 按**被测
+对象的所有权**划分子目录，与 `hooks/shared/`、`scripts/shared/` 的 shared
+前缀约定同构：
+
+- `tests/guards/shared/`：守护 upstream-owned 代码（`hooks/shared/*`、
+  `scripts/shared/*`、`scripts/build/*` 等）的守卫测试，在
+  `sync_template.sh` 的 `_is_upstream_owned()` 清单中，随 sync 一起分发，
+  与被守护的 shared 代码走同一条分发生命周期。
+- `tests/guards/` 根目录：守护项目自有对象（`src/`、`alembic/`、根目录
+  compose/env 模板、`pyproject.toml`、`skills/` 等）的守卫测试，不进 sync
+  分发面。
+
+新增守卫测试时按被测对象归位；混合体（同一文件既测 upstream-owned hook 又
+测项目自有配置）应拆开。两个目录的守卫测试同等生效，划分只影响 sync 分发
+范围。
+
 ### 提交保护
 
 修改 `tests/guards/**` 会触发 pre-commit hook `check-guard-test-modification`：

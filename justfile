@@ -834,7 +834,7 @@ copy name force='':
     # 下列文件**必须排除**，它们引用的是上游模板本身，替换会破坏功能：
     #   scripts/shared/template/sync_template.sh   TEMPLATE_REPO 与产物排除规则
     #   docs/guides/deployment.md                  正文在解释占位符机制本身
-    #   tests/guards/repo/test_runtime_port_state.py  docstring 解释同一机制
+    #   tests/guards/test_runtime_port_state.py  docstring 解释同一机制
     #
     # 新增 observability/ 与 docker-compose.monitoring.yml 后必须同步登记到
     # 这里：这些是运行时事实而非文档措辞，漏掉会让 overlay 里的 volume/
