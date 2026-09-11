@@ -35,13 +35,13 @@ class AuthComponents:
 
 
 def build_auth_components(
-    database_session: Any,
+    session_factory: Any,
     redis_client_factory: Callable[[str], Any],
 ) -> AuthComponents:
     """创建两套隔离的认证域。
 
     Args:
-        database_session: SQLAlchemy 数据库会话。
+        session_factory: SQLAlchemy 会话工厂；账户仓库每个操作使用独立短事务。
         redis_client_factory: Redis 客户端工厂。
 
     Returns:
@@ -51,12 +51,12 @@ def build_auth_components(
     redis_client = redis_client_factory(config.redis.url)
     password_hasher = BcryptPasswordHasher()
     public_user_repository = SqlAlchemyUserAccountRepository(
-        session=database_session,
+        session_factory=session_factory,
         model_class=PublicUserModel,
         identifier_attr="email",
     )
     admin_user_repository = SqlAlchemyUserAccountRepository(
-        session=database_session,
+        session_factory=session_factory,
         model_class=AdminUserModel,
         identifier_attr="username",
     )

@@ -52,9 +52,9 @@ def create_app(
 
     run_migrations()
     fastapi_app = FastAPI(title=config.app_name, version=_load_project_version())
-    database_session = SessionLocal()
+    session_factory = SessionLocal
     auth_components = build_auth_components(
-        database_session,
+        session_factory,
         redis_client_factory,
     )
 
