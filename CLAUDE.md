@@ -50,7 +50,7 @@
 - PRD 必须包含 Realistic Validation Plan，验收清单需覆盖最高可行保真度的真实入口验证，或说明无可执行行为变更
 - 前端截图必须标注验证层级；临时预览页、直接渲染组件或手工注入状态仅属于 `component preview`，不得称为真实验证。涉及 Dialog、Portal、父级布局或用户流程时，验收证据必须保留对应生产边界；无法走真实入口时必须披露限制
 - 变更代码时同步更新 `docs/` 与 `mkdocs.yml`
-- 守卫测试（`tests/guards/`，文件头标注"守卫测试（guard test）"）失败时，修复触发它的源代码或配置，不要修改守卫测试本身让测试通过；仅当约定本身变更时才改守卫测试，并同步更新对应文档。修改 `tests/guards/**` 需 `GUARD_UPDATE_ACK=1 git commit`
+- 守卫测试（`tests/guards/`，文件头标注"守卫测试（guard test）"）失败时，修复触发它的源代码或配置，不要修改守卫测试本身让测试通过；仅当约定本身变更时才改守卫测试，并同步更新对应文档。修改 `tests/guards/**` 需 `GUARD_UPDATE_ACK=1 git commit`。新增守卫测试按被测对象归位：守护 upstream-owned 代码（`hooks/shared`、`scripts/shared` 等）的放 `tests/guards/shared/`（随 sync 分发），守护项目自有对象的放根目录
 - `tests/playwright-e2e/` 是独立 TypeScript/Node 包，使用 `npm`，不强制套用 Python SSA 命名规范
 
 ## Claude Notes

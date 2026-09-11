@@ -26,7 +26,7 @@ from typing import Any
 import pytest
 import yaml
 
-_PROJECT_ROOT_PATH = Path(__file__).resolve().parents[3]
+_PROJECT_ROOT_PATH = Path(__file__).resolve().parents[2]
 _LOCAL_COMPOSE_PATH = _PROJECT_ROOT_PATH / "docker-compose.yml"
 _DOKPLOY_COMPOSE_PATH = _PROJECT_ROOT_PATH / "docker-compose.dokploy.yml"
 

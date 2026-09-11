@@ -25,7 +25,7 @@ from alembic import command
 from alembic.config import Config as AlembicConfig
 from backend.infrastructure.persistence.database import Base
 
-_PROJECT_ROOT_PATH = Path(__file__).resolve().parents[3]
+_PROJECT_ROOT_PATH = Path(__file__).resolve().parents[2]
 
 
 def _alembic_config() -> AlembicConfig:
