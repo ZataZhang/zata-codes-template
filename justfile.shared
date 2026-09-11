@@ -318,6 +318,7 @@ staged_changes:
 #   just worktree -o <branch> [--cmd trae]            # open existing worktree
 #   just worktree -d <branch>                         # delete worktree
 #   just worktree -m [<feature>] [base=main] [flags]  # merge worktree (current branch if omitted)
+#   just worktree -r [<feature>] [base=main] [flags]  # rebase-merge（线性历史，无 merge commit）
 #   just worktree --doctor [branch] [--gc] [--yes]    # doctor / 孤儿库盘点与回收
 worktree arg1 arg2="" arg3="" arg4="" arg5="":
     #!/usr/bin/env bash
@@ -390,6 +391,40 @@ worktree arg1 arg2="" arg3="" arg4="" arg5="":
         fi
 
         ./scripts/shared/worktree/merge.sh "${merge_args[@]}"
+        exit 0
+    fi
+
+    # -r: rebase-merge worktree（rebase 到 base 后 --ff-only，线性历史）
+    if [ "{{arg1}}" = "-r" ]; then
+        raw_arg2="{{arg2}}"
+        declare -a merge_args=()
+
+        if [ -z "$raw_arg2" ] || [[ "$raw_arg2" == -* ]]; then
+            current_branch="$(git symbolic-ref --short HEAD 2>/dev/null || true)"
+            if [ -z "$current_branch" ]; then
+                echo "ERROR: Could not determine current branch."
+                echo "Usage: just worktree -r [<feature_branch>] [base_branch=main] [flags]"
+                exit 1
+            fi
+            merge_args+=("$current_branch")
+            if [ -n "$raw_arg2" ]; then
+                merge_args+=("$raw_arg2")
+            fi
+            for raw_arg in "{{arg3}}" "{{arg4}}" "{{arg5}}"; do
+                if [ -n "$raw_arg" ]; then
+                    merge_args+=("$raw_arg")
+                fi
+            done
+        else
+            merge_args+=("$raw_arg2")
+            for raw_arg in "{{arg3}}" "{{arg4}}" "{{arg5}}"; do
+                if [ -n "$raw_arg" ]; then
+                    merge_args+=("$raw_arg")
+                fi
+            done
+        fi
+
+        ./scripts/shared/worktree/merge.sh "${merge_args[@]}" -r
         exit 0
     fi
 
@@ -497,6 +532,7 @@ worktree arg1 arg2="" arg3="" arg4="" arg5="":
                 echo "  just worktree -o <branch> [--cmd editor]"
                 echo "  just worktree -d <branch>"
                 echo "  just worktree -m [<feature>] [base=main] [flags]"
+                echo "  just worktree -r [<feature>] [base=main] [flags]"
                 echo "  just worktree --doctor [branch] [--gc] [--yes]"
                 exit 1
                 ;;
