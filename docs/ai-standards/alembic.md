@@ -1,6 +1,6 @@
 # Alembic Migration Standards
 
-本页定义本仓库 Alembic 迁移脚本的命名与生成约束。
+本页定义本仓库 Alembic 迁移脚本的命名、生成约束与 docstring 写法。
 
 ## File Name Format
 
@@ -32,6 +32,52 @@ uv run alembic heads
 ```
 
 输出必须只有一个 head，且应为新迁移的 revision。
+
+## Script Template & Docstring 写法（总分结构）
+
+脚本模板（与 `alembic/script.py.mako` 生成结果一致，占位符 `<...>` 由编写者替换填充）：
+
+```python
+"""<slug> — <总分首句：一句话总结本次迁移改了什么（表 / 列 / 索引），及目的>
+
+Revision ID: 20260625_145402
+Revises: 20260627_000000
+Create Date: 2026-06-25 14:54:02.000000
+
+背景：<为什么需要这个变更；行为语义指向权威实现>
+
+设计要点：<字段 / 索引 / 约束的分工与理由、锚点名称、方言差异>
+"""
+from typing import Sequence, Union
+
+import sqlalchemy as sa
+
+from alembic import op
+
+# revision identifiers, used by Alembic.
+revision: str = "20260625_145402"
+down_revision: Union[str, Sequence[str], None] = "20260627_000000"
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+```
+
+模块 docstring 采用**总分结构**，读者扫迁移文件时第一需求是"这个文件动了什么"，
+答案必须出现在首行；`upgrade()` / `downgrade()` 内部用编号注释说明步骤顺序理由
+（如先删索引再删列的依赖顺序）。具体规则：
+
+- **总（首行）**：`<slug> — 一句话总结变更内容（新增 / 修改 / 删除了哪些表、列、
+  索引）+ 目的`。让读者不看正文就能知道迁移做了什么
+- **分（正文）**：依次展开背景与动机、字段 / 索引 / 约束的分工与理由。容易产生的
+  歧义（如"为什么需要两个语义相近的字段"）在正文里主动解释
+- **行为语义不内联**：描述其他模块行为的内容（如"某服务写入时会带什么状态"、
+  "某 API 的放行逻辑"）不要展开成细节清单——那些语义将来变化时没人会回来改迁移
+  注释。压缩成一句，并指向权威实现的文件路径（如 use case 服务、模型定义）
+- **写锚点**：索引名、约束名等在 docstring 里写明，让读者能把 docstring 与
+  `upgrade()` 代码直接对应
+- **方言差异写明**：部分索引、`server_default` 回填等在不同数据库间行为有差异
+  的设计，说明兼容性理由
+- **不写快照标注**：`Revises:` 行不要附 `(head)` 之类标注——迁移链推进后即失效
+  （`new_migration.sh` 已在生成时剥掉该标注）
 
 ## Backfill Idempotency
 
