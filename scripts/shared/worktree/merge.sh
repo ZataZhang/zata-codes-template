@@ -221,6 +221,11 @@ Options:
                         Skip merge/push and only run cleanup for the feature branch.
   -D, --force-delete     Force delete: skip merge/push, force-remove worktree and force-delete
                         local branch (bypasses dirty/unmerged checks).
+  -r, --rebase           Rebase-merge: rebase <feature_branch> onto the latest [base_branch], then
+                        fast-forward merge (--ff-only) for linear history without a merge commit.
+                        Requires the feature branch to be checked out in a worktree. On rebase
+                        conflict the rebase is aborted and the branch is left untouched.
+                        Worktree and branch are preserved unless --cleanup is also passed.
   --cleanup              Remove worktree and delete local feature branch after merge succeeds.
   --delete-remote        Delete <remote>/<feature_branch> (works with --cleanup/-d/--delete/--delete-only).
   --worktree-path <path> Explicit worktree path to remove during cleanup.
@@ -241,6 +246,7 @@ Checks before merge:
 Examples:
   ./scripts/shared/worktree/merge.sh feature-login
   ./scripts/shared/worktree/merge.sh feature-login main --cleanup
+  ./scripts/shared/worktree/merge.sh feature-login main -r
   ./scripts/shared/worktree/merge.sh feature-login -d
   ./scripts/shared/worktree/merge.sh feature-login --delete
   ./scripts/shared/worktree/merge.sh feature-login main --remote zata --cleanup
@@ -296,6 +302,7 @@ base_branch="main"
 remote_name="zata"
 delete_only_mode="false"
 force_delete_mode="false"
+rebase_mode="false"
 cleanup_mode="false"
 delete_remote_branch="false"
 worktree_path=""
@@ -318,6 +325,9 @@ while [[ $# -gt 0 ]]; do
             force_delete_mode="true"
             delete_only_mode="true"
             cleanup_mode="true"
+            ;;
+        -r|--rebase)
+            rebase_mode="true"
             ;;
         --remote)
             if [[ $# -lt 2 ]]; then
@@ -641,9 +651,33 @@ fi
 enter_base_worktree_for_merge "$base_worktree_path"
 ensure_worktree_clean "$(pwd)" "Base branch '$base_branch'"
 git pull --ff-only "$remote_name" "$base_branch"
+merge_dir="$(pwd)"
 
-echo "🔀 Merging $feature_branch into $base_branch..."
-git merge "$feature_branch"
+if [[ "$rebase_mode" == "true" ]]; then
+    if [[ -z "$feature_worktree_path" ]]; then
+        echo "❌ Rebase mode requires the feature branch to be checked out in a worktree:"
+        echo "   $feature_branch"
+        echo "   Create one with: just worktree $feature_branch"
+        echo "   Or use a plain merge: just worktree -m $feature_branch $base_branch"
+        exit 1
+    fi
+    echo "🔁 Rebasing $feature_branch onto $base_branch..."
+    echo "   $feature_worktree_path"
+    cd "$feature_worktree_path"
+    if ! git rebase "$base_branch"; then
+        echo "❌ Rebase hit a conflict. Aborting to keep the branch untouched."
+        git rebase --abort
+        echo "   Resolve the conflict manually in the worktree above, then rerun:"
+        echo "   git -C \"$feature_worktree_path\" rebase $base_branch && just worktree -r $feature_branch $base_branch"
+        exit 1
+    fi
+    cd "$merge_dir"
+    echo "🔀 Fast-forward merging $feature_branch into $base_branch..."
+    git merge --ff-only "$feature_branch"
+else
+    echo "🔀 Merging $feature_branch into $base_branch..."
+    git merge "$feature_branch"
+fi
 
 echo "📤 Pushing $base_branch to $remote_name..."
 git push "$remote_name" "$base_branch"
