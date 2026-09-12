@@ -254,4 +254,5 @@ Reconcile at least:
 - public API/UI/CLI fields and real entry points;
 - supported modes, forbidden paths, and failure semantics;
 - related PRD state and dependency statements;
-- Functional Requirements, Risks, and the Decision Log.
+- Functional Requirements, Risks, and the Decision Log;
+- the `Feature Overview (功能一览)` projection — every `FR-n` still anchored by a bullet, and every bullet still true of the delivered behavior.
