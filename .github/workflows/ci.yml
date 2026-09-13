@@ -154,8 +154,21 @@ jobs:
           if-no-files-found: error
           # 每次 push 都会生成一份纯冒烟产物，保留过久会吃满账户的
           # Actions 存储配额；正式发布物走 cd.yml + GitHub Releases，
-          # 不受此处影响。
+          # 不受此处影响。retention-days 仅作 prune 步骤失败时的兜底。
           retention-days: 3
+
+      - name: Prune old template-release artifacts (keep latest 3)
+        # 数量封顶：无论 CI 频率多高，同前缀制品只保留最新 3 份。
+        # 按天数保留在高频 CI 下仍会累积吃满账户存储配额，故上传后
+        # 立即按数量裁剪；本步骤失败不影响 CI 结论。
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${{ github.repository }}/actions/artifacts?per_page=100" --paginate \
+            --jq '.artifacts[] | select(.expired==false) | select(.name | startswith("template-release-")) | "\(.created_at)\t\(.id)"' \
+            | sort -r | tail -n +4 | cut -f2 \
+            | xargs -r -I{} gh api -X DELETE "repos/${{ github.repository }}/actions/artifacts/{}"
 
   e2e:
     name: Playwright E2E (no-auth)
