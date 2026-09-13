@@ -775,7 +775,7 @@ copy name force='':
 
     # 内容目录的排除必须以 / 锚定根目录：未锚定的 'skills' 会同时删掉
     # src/backend/engines/skills/，曾导致派生项目后端 import 链整体断裂。
-    # tests/test_prd_skill_checker.py 依赖模板专属的 skills/prd/scripts，
+    # tests/guards/test_prd_skill_checker.py 依赖模板专属的 skills/prd/scripts，
     # 与 sync_template.sh 的跳过名单保持一致，不复制到派生项目。
     #
     # 模板仓库专属，不随模板分发：.iar.toml 是模板自身的 IAR 工具配置
@@ -802,7 +802,7 @@ copy name force='':
         --exclude='__pycache__' \
         --exclude='/prompt' \
         --exclude='/skills' \
-        --exclude='/tests/test_prd_skill_checker.py' \
+        --exclude='/tests/guards/test_prd_skill_checker.py' \
         --exclude='tasks/archive/*.md' \
         --exclude='tasks/pending/*.md' \
         --exclude='tasks/inbox/*.md' \
