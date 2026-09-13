@@ -27,6 +27,9 @@ YAML_FENCE_END_RE = re.compile(r"^\s*```\s*$")
 ORACLE_ENTRY_RE = re.compile(r"^\s*-\s+id:\s*(?P<value>.*)$")
 ORACLE_FIELD_RE = re.compile(r"^\s+(?P<key>[a-z_]+):\s*(?P<value>.*)$")
 PART_A_HEADING_RE = re.compile(r"^#\s+Part A\b")
+DELIVERY_DEPENDENCIES_HEADING_RE = re.compile(
+    r"^#{2,4}\s+(?:\d+\.\s+)?Delivery Dependencies\s*$", re.IGNORECASE
+)
 PART_B_HEADING_RE = re.compile(r"^#\s+Part B\b")
 PART_A_EXECUTOR_METADATA_RE = re.compile(
     r"\brv-\d+\b|critical_value_source:|must_cross:|forbidden_bypasses:|"
@@ -645,6 +648,126 @@ def _oracle_schema_issues(file_content: str) -> list[tuple[int, str]]:
     return schema_issues
 
 
+DELIVERY_GATE_BANNER_RE = re.compile(r"^>\s*.*?(?:交付前置|Delivery Gate)", re.IGNORECASE)
+DELIVERY_NO_DEPENDENCY_TOKENS = ("无", "none", "no upstream")
+
+
+def _delivery_gate_banner_issues(file_content: str) -> list[tuple[int, str]]:
+    """Return issues where the top banner is missing or contradicts Section 8.
+
+    The banner is a projection of the Delivery Dependencies block, so the only
+    thing worth checking is that it exists, sits above Part A, and agrees with
+    the block on the one bit that matters: blocked or not, and by what.
+    """
+
+    lines = file_content.splitlines()
+    part_a_index = next(
+        (index for index, line in enumerate(lines) if PART_A_HEADING_RE.match(line)),
+        None,
+    )
+    if part_a_index is None:
+        # Missing Part A is already reported by the Part A metadata check.
+        return []
+
+    banner_indexes = [
+        index for index in range(part_a_index) if DELIVERY_GATE_BANNER_RE.match(lines[index])
+    ]
+    if not banner_indexes:
+        return [
+            (
+                1,
+                "Missing Delivery Gate Banner under the title: every PRD must state "
+                "上游依赖 up front, including when there is none. See 'Delivery Gate "
+                "Banner' in the PRD skill.",
+            )
+        ]
+
+    banner_index = banner_indexes[0]
+    # The banner may wrap across consecutive blockquote lines.
+    banner_end = banner_index
+    while banner_end + 1 < part_a_index and lines[banner_end + 1].lstrip().startswith(">"):
+        banner_end += 1
+    banner_text = " ".join(lines[banner_index : banner_end + 1])
+
+    declared_refs = _declared_delivery_dependency_refs(file_content)
+    if not declared_refs:
+        if not any(
+            token in banner_text.lower() or token in banner_text
+            for token in DELIVERY_NO_DEPENDENCY_TOKENS
+        ):
+            return [
+                (
+                    banner_index + 1,
+                    "Delivery Gate Banner must say there is no dependency (e.g. 无 / none) "
+                    "because Section 8 declares none.",
+                )
+            ]
+        return []
+
+    missing_refs = [ref for ref in declared_refs if ref not in banner_text]
+    if missing_refs:
+        return [
+            (
+                banner_index + 1,
+                "Delivery Gate Banner does not name every upstream declared in Section 8: "
+                f"missing {', '.join(sorted(missing_refs))}. Section 8 is the source of "
+                "truth; update the banner to match it.",
+            )
+        ]
+    return []
+
+
+def _declared_delivery_dependency_refs(file_content: str) -> set[str]:
+    """Return upstream refs declared under Section 8 'Depends on tasks/issues'.
+
+    Only the reference tokens are extracted; gate semantics stay in the
+    repository's own dependency parser. ``none`` placeholders yield an empty set.
+    """
+
+    lines = file_content.splitlines()
+    section_start = next(
+        (index for index, line in enumerate(lines) if DELIVERY_DEPENDENCIES_HEADING_RE.match(line)),
+        None,
+    )
+    if section_start is None:
+        return set()
+
+    refs: set[str] = set()
+    inside_depends_field = False
+    for line in lines[section_start + 1 :]:
+        if line.startswith("#"):
+            break
+        stripped = line.strip()
+        if re.match(r"^-\s*Depends on tasks/issues\s*:", stripped, re.IGNORECASE):
+            inside_depends_field = True
+            inline_value = stripped.split(":", 1)[1].strip()
+            if inline_value:
+                refs.update(_delivery_ref_tokens(inline_value))
+            continue
+        if re.match(r"^-\s*\w", stripped) and not stripped.startswith("- "):
+            inside_depends_field = False
+        elif re.match(r"^-\s*(Group|Gate type|Notes)\s*:", stripped, re.IGNORECASE):
+            inside_depends_field = False
+        elif inside_depends_field and stripped.startswith("-"):
+            refs.update(_delivery_ref_tokens(stripped.lstrip("- ").strip()))
+    return refs
+
+
+def _delivery_ref_tokens(raw_value: str) -> set[str]:
+    """Return meaningful upstream reference tokens from one declaration value."""
+
+    value = raw_value.strip().strip("`").strip()
+    # Authors commonly write ``none`` followed by a parenthetical rationale
+    # (`none（本 PRD 是善后，无未完成上游）`). The leading token is what declares
+    # the dependency; the rest is prose. Splitting on `-` is deliberately
+    # avoided — PRD slugs like `P1-FEAT-...` contain it.
+    leading_token = re.split(r"[（(,，;；\s]", value, maxsplit=1)[0].strip().strip("`")
+    if not leading_token or leading_token.lower() in ("none", "n/a", "无"):
+        return set()
+    # Use the filename stem so the banner may cite a path or a bare slug.
+    return {Path(value).name}
+
+
 def _validate_file(
     path: Path, *, require_archive_reconciliation: bool = False
 ) -> list[tuple[int, str]]:
@@ -658,6 +781,7 @@ def _validate_file(
         + _functional_requirement_issues(file_content)
         + _unchecked_items_in_acceptance_section(file_content)
         + _oracle_schema_issues(file_content)
+        + _delivery_gate_banner_issues(file_content)
     )
     if require_archive_reconciliation:
         issues += _archive_reconciliation_issues(file_content)
