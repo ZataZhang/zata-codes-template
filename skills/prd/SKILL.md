@@ -24,7 +24,7 @@ The default recommendation must be the smallest change that cleanly solves the p
 8. **Realistic Validation:** Every PRD must identify the highest-fidelity validation needed to prove the behavior works through real project entry points, not only isolated unit or integration tests.
 9. **Executor-Resilient Detail:** Write implementation detail for a less capable executor: be concrete, but prefer semantic anchors and repository searches over brittle coordinates such as line numbers.
 10. **Full-Stack Surface:** Treat the user-visible frontend as first-class. Discover the repo's actual frontend app(s) (don't assume a framework or directory) and plan any user-facing change with backend-level rigor; a genuinely backend-only PRD must state `No frontend impact` with a one-line reason rather than omit it silently. (Detailed gate: Phase 1.5.)
-11. **Two-Altitude Output:** Structure every PRD as **Part A · Review Layer** (problem, user-facing value, human review map, requirement shape) and **Part B · Build Layer** (mechanism, change tree, validation commands, dependency metadata). Part A must let a human accept or reject the work *without* reading implementation mechanism, file paths, commands, or scheduling metadata; all executor detail lives in Part B. Do not front-load Part A with mechanism — the historical failure mode was a first section so full of code/test/scheduling detail that human review was hard. The one block outside both altitudes is the `Feature Overview (功能一览)` that opens the document; it is a projection of the Functional Requirements for orientation, not a third place to define behavior.
+11. **Two-Altitude Output:** Structure every PRD as **Part A · Review Layer** (problem, user-facing value, human review map, requirement shape) and **Part B · Build Layer** (mechanism, change tree, validation commands, dependency metadata). Part A must let a human accept or reject the work *without* reading implementation mechanism, file paths, commands, or scheduling metadata; all executor detail lives in Part B. Do not front-load Part A with mechanism — the historical failure mode was a first section so full of code/test/scheduling detail that human review was hard. Two blocks sit outside both altitudes at the top of the document, and both are projections rather than sources of truth: the `Delivery Gate Banner` under the title projects Section 8 so a reader learns immediately whether the work is blocked, and the `Feature Overview (功能一览)` projects the Functional Requirements for orientation. Neither is a place to define behavior.
 12. **Decision-Oriented Human Review Map:** Internally classify every meaningful change point with the deterministic `R0`–`R3` model in Phase 3.6, recording the result in Part B. Do not expose the classification machinery as a menu or compliance table in Part A. Present only the concrete decisions that require **human confirmation**, written as questions a reviewer can answer. Summarize everything else under **executor + automated gates**. Keep the human-confirm set short and principled; over-flagging defeats the map.
 13. **Two-Touch Autonomy + Evidence Package:** The operating model is two batched human touches with autonomous execution between them — up front the human approves the Agent's interpretation (Section 1) and the human-facing decisions plus acceptance outcomes (Section 2); at the end the human reads a risk-ordered **Acceptance Evidence Package** (Section 9). There is no mid-flow human gate: the Agent self-verifies as deeply as needed (many rounds, adversarial checks — tokens are cheaper than human attention). So "human confirmation" means **high evidence burden** (the item tops the end package with an executable oracle), not an interruption; every human decision and automated gate must map to evidence in Part B that would fail if the change were wrong.
 14. **Tiered Evidence-Chain Integrity:** A passing nearby path is not delivery evidence — but provenance rigor is a cost, so spend it by risk tier. `R2`/`R3` oracles must identify the exact critical-value source, runtime boundaries that must be crossed, forbidden bypasses, a fresh-state postcondition probe, and how evidence is tied to the final implementation tree; `R0`/`R1` oracles need one assertion that genuinely discriminates their own failure and nothing more. More than three `R2`/`R3` oracles in one PRD is a scope signal — revisit Phase 3.4 before adding a fourth. Never modify production code to make an oracle able to fail. Read [references/validation-evidence-integrity.md](references/validation-evidence-integrity.md) whenever `R2`/`R3` executable behavior changes or a PRD is prepared for archive.
@@ -273,7 +273,35 @@ This structure is the output contract for generated and updated PRDs. PRDs are o
 - **Part A · Review Layer** (Sections 1-4): what a human reads to accept or reject the work and to see where they must personally confirm. No implementation mechanism, file paths, commands, or scheduling metadata.
 - **Part B · Build Layer** (Sections 5-13): what the executor (human or Agent) reads to implement. The human drills in only where the Part A Human Review Map points.
 
-The PRD opens with `# PRD: <descriptive feature title>` as the very first heading, followed by a short two-altitude orientation note, then `## Feature Overview (功能一览)`, then the heading `# Part A · 人审层 (Review Layer)`. The `<title>` must be a human-readable feature name, not the literal text "Part A · 人审层 (Review Layer)".
+The PRD opens with `# PRD: <descriptive feature title>` as the very first heading, followed by the **Delivery Gate Banner**, then a short two-altitude orientation note, then `## Feature Overview (功能一览)`, then the heading `# Part A · 人审层 (Review Layer)`. The `<title>` must be a human-readable feature name, not the literal text "Part A · 人审层 (Review Layer)".
+
+### Delivery Gate Banner (交付前置提示)
+
+A one-to-three line blockquote placed immediately under the `# PRD:` title, before the orientation note. Like `Feature Overview`, it sits outside both altitudes — but unlike it, this block exists for a scheduling question, so it must state the answer and nothing more.
+
+It exists because "is this blocked, and by what?" is the first thing a reader needs in order to decide whether to read on at all, while the structured declaration lives in Section 8 — typically several hundred lines down, past the entire review layer. A reader who has to scroll to find out they cannot start yet has already paid for the whole document.
+
+Rules:
+
+- Required in every PRD, including PRDs with no dependency. Absence is ambiguous: the reader cannot tell "no dependency" from "author forgot".
+- It is a **projection of Section 8 Delivery Dependencies, never a second source of truth.** State that in the banner itself and point at Section 8.
+- Use `⛔` when Section 8 declares any dependency, `✅` when it declares none. Start the line with `> ` and carry the literal marker `交付前置` (or `Delivery Gate` for English PRDs) so it is grep-able and machine-checkable.
+- When blocked, name every upstream PRD/task exactly as Section 8 names it, and add one clause on **why the order matters** — the consequence of doing this PRD first. A bare "blocked by X" tells the reader nothing they can weigh.
+- When the dependency is a delivery-order dependency rather than a build dependency, say so explicitly. "It builds fine on its own, but shipping it first yields <degraded outcome>" is the sentence that stops someone from re-ordering the work on the grounds that it compiles.
+- Keep it to the gate. Scope, value, and mechanism belong to `Feature Overview` and Part A.
+- Regenerate it whenever Section 8 changes, including during Final Reconciliation before archive.
+
+Two shapes:
+
+```markdown
+> ⛔ **交付前置**：排在 `<upstream-prd>` 之后开工。<为什么顺序重要，一句话>
+> 结构化声明见 §8 Delivery Dependencies，**那里是唯一事实源**。
+```
+
+```markdown
+> ✅ **交付前置**：无，可立即开工。
+> 结构化声明见 §8 Delivery Dependencies，**那里是唯一事实源**。
+```
 
 ### Feature Overview (功能一览)
 
@@ -422,6 +450,7 @@ Rules:
 - `hard` means an execution tool may treat the dependency as a blocking gate when that repository has a deterministic adapter.
 - `soft` documents sequencing context but must not be treated as a blocking gate unless a repository-specific PRD explicitly defines that behavior.
 - Do not place tool-specific hidden markers, labels, or queue syntax in this block. Repository-specific publish tooling may translate the block into its own markers or labels.
+- This block is the **single source of truth** for sequencing. The Delivery Gate Banner under the title mirrors it for discoverability; when the two disagree, this block wins and the banner is the defect. Change them together.
 
 ### 9. Acceptance Checklist
 

@@ -41,6 +41,9 @@ def _complete_prd(*, include_reconciliation: bool = False) -> str:
 
     return f"""# PRD: 测试任务
 
+> ✅ **交付前置**：无，可立即开工。
+> 结构化声明见 §8 Delivery Dependencies，**那里是唯一事实源**。
+
 # Part A · 人审层 (Review Layer)
 
 ## 1. Introduction & Goals
@@ -374,3 +377,70 @@ def test_archive_validation_requires_complete_final_reconciliation() -> None:
     assert (
         PRD_CHECKER._archive_reconciliation_issues(_complete_prd(include_reconciliation=True)) == []
     )
+
+
+def _with_delivery_dependencies(prd_text: str, depends_on_line: str) -> str:
+    """把结构化依赖字段填进夹具里空着的 §8。
+
+    夹具的 §8 只有标题没有字段，直接对字段做字符串替换不会命中——那样写出来的
+    测试会因为 §8 依旧为空而假通过。
+    """
+
+    return prd_text.replace(
+        "## 8. Delivery Dependencies\n",
+        "## 8. Delivery Dependencies\n\n"
+        "- Group: none\n"
+        "- Depends on tasks/issues:\n"
+        f"  - {depends_on_line}\n"
+        "- Gate type: none\n"
+        "- Notes: none\n",
+        1,
+    )
+
+
+def test_delivery_gate_banner_is_required() -> None:
+    """缺少交付前置提示时必须报错——空白分不清没有依赖和忘了写。"""
+
+    without_banner = "\n".join(
+        line for line in _complete_prd().splitlines() if "交付前置" not in line
+    )
+    issues = PRD_CHECKER._delivery_gate_banner_issues(without_banner)
+
+    assert any("Missing Delivery Gate Banner" in message for _, message in issues)
+
+
+def test_delivery_gate_banner_must_name_every_declared_upstream() -> None:
+    """banner 与 §8 矛盾时必须报错：§8 是唯一事实源，banner 漂了就是缺陷。"""
+
+    blocked_prd = _with_delivery_dependencies(
+        _complete_prd(), "`P1-FEAT-20260101-000000-upstream.md`"
+    )
+    issues = PRD_CHECKER._delivery_gate_banner_issues(blocked_prd)
+
+    assert any(
+        "P1-FEAT-20260101-000000-upstream.md" in message for _, message in issues
+    ), "banner 仍写着「无」，却声明了上游，应当判负"
+
+
+def test_delivery_gate_banner_accepts_matching_upstream() -> None:
+    """banner 点全了 §8 声明的上游即通过。"""
+
+    blocked_prd = _with_delivery_dependencies(
+        _complete_prd(), "`P1-FEAT-20260101-000000-upstream.md`"
+    ).replace(
+        "> ✅ **交付前置**：无，可立即开工。",
+        "> ⛔ **交付前置**：排在 `P1-FEAT-20260101-000000-upstream.md` 之后开工。",
+        1,
+    )
+
+    assert PRD_CHECKER._delivery_gate_banner_issues(blocked_prd) == []
+
+
+def test_delivery_gate_banner_tolerates_none_with_rationale() -> None:
+    """`none（中文括号说明）` 是常见写法，不得被当成一个上游依赖名。"""
+
+    with_rationale = _with_delivery_dependencies(
+        _complete_prd(), "none（本 PRD 是善后，无未完成上游）"
+    )
+
+    assert PRD_CHECKER._delivery_gate_banner_issues(with_rationale) == []
