@@ -55,6 +55,7 @@ Thumbs.db
 
 # Local SQLite databases
 *.db
+*.db-journal
 
 # Claude planning session archives (local state, not for VCS)
 
