@@ -1309,13 +1309,30 @@ test type="local": _check-completion
         pytest_verbosity_flag="-q"
     fi
 
+    # 全量档（all / real）附加的 pytest 参数。默认 `-n auto` 走 xdist 并行，但
+    # 这个默认值并非对所有项目成立：用 pytest-testmon 做增量的项目与 xdist 互斥
+    # 且通常不声明 pytest-xdist，硬编码 `-n auto` 会让它们的 `just test all` 直接
+    # 报错——而 `just test all` 往往是 agent runner 的 verification command。这类
+    # 项目设 `JUST_FULL_TEST_FLAGS="--no-testmon"` 即可；设为空串表示不附加任何
+    # 参数。和 JUST_LOCAL_TEST_TARGET 同理用环境变量而非 just 变量：`import` 进来
+    # 的变量不允许被导入方重定义（just 1.53 报 "multiple definitions"）。
+    # 本地档不在此列——它的参数由各项目自己的 pytest 配置（addopts）决定。
+    if [ -n "${JUST_FULL_TEST_FLAGS+x}" ]; then
+        read -r -a full_test_flags <<< "$JUST_FULL_TEST_FLAGS"
+    else
+        full_test_flags=(-n auto)
+    fi
+    # macOS 自带 bash 3.2 下，`set -u` 中裸展开空数组会报 unbound variable，
+    # 故统一用 ${arr[@]+"${arr[@]}"} 形式，允许该数组为空。
     pytest_exit_code=0
     if [ "{{type}}" = "all" ]; then
         "${with_timeout[@]}" "$pytest_timeout_seconds" \
-            uv run pytest tests/ -v -m '' -n auto || pytest_exit_code=$?
+            uv run pytest tests/ -v -m '' \
+            ${full_test_flags[@]+"${full_test_flags[@]}"} || pytest_exit_code=$?
     elif [ "{{type}}" = "real" ]; then
         "${with_timeout[@]}" "$pytest_timeout_seconds" \
-            uv run pytest tests/ -v -m 'real_api' -n auto || pytest_exit_code=$?
+            uv run pytest tests/ -v -m 'real_api' \
+            ${full_test_flags[@]+"${full_test_flags[@]}"} || pytest_exit_code=$?
         if [ "$pytest_exit_code" -eq 5 ]; then
             echo "ℹ️  No real_api tests collected; treating as success."
             pytest_exit_code=0
