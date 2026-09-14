@@ -1316,14 +1316,25 @@ test type="local": _check-completion
     # 项目设 `JUST_FULL_TEST_FLAGS="--no-testmon"` 即可；设为空串表示不附加任何
     # 参数。和 JUST_LOCAL_TEST_TARGET 同理用环境变量而非 just 变量：`import` 进来
     # 的变量不允许被导入方重定义（just 1.53 报 "multiple definitions"）。
-    # 本地档不在此列——它的参数由各项目自己的 pytest 配置（addopts）决定。
     if [ -n "${JUST_FULL_TEST_FLAGS+x}" ]; then
         read -r -a full_test_flags <<< "$JUST_FULL_TEST_FLAGS"
     else
         full_test_flags=(-n auto)
     fi
+
+    # 本地档附加的 pytest 参数，同样按项目可配（JUST_LOCAL_TEST_FLAGS）。默认省掉
+    # 输出头并禁用 cacheprovider 以压低启动开销，但 `-p no:cacheprovider` 同样不是
+    # 对所有项目成立：pytest-testmon 在 configure 阶段会读 cacheprovider 提供的
+    # `lf` 选项，禁用后直接 `INTERNALERROR ... KeyError: 'lf'`，整个本地档跑不起来。
+    # 用 testmon 的项目设 `JUST_LOCAL_TEST_FLAGS="--no-header"` 即可。
+    if [ -n "${JUST_LOCAL_TEST_FLAGS+x}" ]; then
+        read -r -a local_test_flags <<< "$JUST_LOCAL_TEST_FLAGS"
+    else
+        local_test_flags=(--no-header -p no:cacheprovider)
+    fi
+
     # macOS 自带 bash 3.2 下，`set -u` 中裸展开空数组会报 unbound variable，
-    # 故统一用 ${arr[@]+"${arr[@]}"} 形式，允许该数组为空。
+    # 故上面两个数组统一用 ${arr[@]+"${arr[@]}"} 形式展开，允许它们为空。
     pytest_exit_code=0
     if [ "{{type}}" = "all" ]; then
         "${with_timeout[@]}" "$pytest_timeout_seconds" \
@@ -1350,7 +1361,7 @@ test type="local": _check-completion
         local_test_target="${JUST_LOCAL_TEST_TARGET:-tests/}"
         "${with_timeout[@]}" "$pytest_timeout_seconds" \
             uv run pytest "$local_test_target" "$pytest_verbosity_flag" \
-            --no-header -p no:cacheprovider || pytest_exit_code=$?
+            ${local_test_flags[@]+"${local_test_flags[@]}"} || pytest_exit_code=$?
     fi
 
     if [ "$pytest_exit_code" -ne 0 ]; then
