@@ -232,14 +232,20 @@ uv run pre-commit run --all-files
 
 | 环境变量 | 默认值 | 作用域 |
 |---|---|---|
-| `JUST_FULL_TEST_FLAGS` | `-n auto` | `just test all` / `just test real` 附加的参数；设为空串表示不附加 |
+| `JUST_FULL_TEST_FLAGS` | `-n auto` | `just test all` / `just test real` 附加的参数 |
+| `JUST_LOCAL_TEST_FLAGS` | `--no-header -p no:cacheprovider` | 本地档附加的参数 |
 | `JUST_LOCAL_TEST_TARGET` | `tests/` | 本地档的测试目标，用于在超大套件里收窄范围 |
 
-`JUST_FULL_TEST_FLAGS` 的默认值 `-n auto` 走 pytest-xdist 并行，但**这个默认值并非对所有项目成立**：用 `pytest-testmon` 做增量的项目与 xdist 互斥、通常也不声明 `pytest-xdist`，此时默认值会让 `just test all` 直接报错——而 `just test all` 往往是 agent runner 的 verification command，一旦报错整条验证链都会断。这类项目在自己的 `.env` 或 shell 里设 `JUST_FULL_TEST_FLAGS="--no-testmon"` 即可。
+两个 `*_FLAGS` 都可以设为空串表示不附加任何参数。
 
-本地档不受这个变量影响，它的参数由各项目自己的 pytest 配置（`pytest.ini` 或 `pyproject.toml` 的 `addopts`）决定。
+**两个默认值都不是对所有项目成立的**，用 `pytest-testmon` 做增量的项目两条都会踩：
 
-两个变量都用环境变量而非 just 变量：`import` 进来的 just 变量不允许被导入方重定义（just 1.53 报 `multiple definitions`）。
+- `-n auto` 走 pytest-xdist 并行，而 testmon 与 xdist 互斥、这类项目通常也不声明 `pytest-xdist`，于是 `just test all` 直接报错——而 `just test all` 往往是 agent runner 的 verification command，一旦报错整条验证链都会断。改设 `JUST_FULL_TEST_FLAGS="--no-testmon"`，顺带满足"全量档必须无视 `.testmondata` 强制全跑"。
+- `-p no:cacheprovider` 用来省掉 `.pytest_cache` 写盘，但 testmon 在 configure 阶段会读 cacheprovider 提供的 `lf` 选项，禁用后直接 `INTERNALERROR ... KeyError: 'lf'`，本地档根本跑不起来。改设 `JUST_LOCAL_TEST_FLAGS="--no-header"`。
+
+`-q` / `-v` 不在这两个变量里：本地档默认 `-q`、CI 下自动回退 `-v`。
+
+三个变量都用环境变量而非 just 变量：`import` 进来的 just 变量不允许被导入方重定义（just 1.53 报 `multiple definitions`）。派生项目可以在自己的 `justfile` 里用 `export JUST_FULL_TEST_FLAGS := "..."` 声明——项目私有的 `justfile` 不会被 `just sync-template` 覆盖。
 
 `just lint --full` 的快速路径仍会执行轻量的 `check-test-flag`，除非调用方显式设置 `SKIP=check-test-flag`。如果 `SKIP` 跳过了除 `check-test-flag` 以外的 hook，本次 full lint 不会写入 `.last_linted_commit`。
 
