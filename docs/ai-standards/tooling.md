@@ -210,6 +210,22 @@ uv run pre-commit run --all-files
 
 `just test` 在入口处先读 `.last_tested_commit`：若分支、HEAD 和 test 有效 tree 均未变化，则直接打印提示并退出，避免重复 pytest。如果 test 标记不命中，则进一步读 `.last_linted_commit`：命中时跳过 lint 前置直接进入 pytest，未命中时才执行 `SKIP=check-test-flag just lint --full`。这种"两级快路径"是 warm tree 上 `just test` 能稳定低于 30s 的关键。CI 环境（`CI` 非空）下会禁用这两条快路径，强制走完整 lint + pytest，避免跨 job/host 的 flag 文件泄漏掩盖回归。测试成功后会同时刷新 test 标记和 full lint 标记，避免刚跑完 `just test` 后再次执行完整 full lint。本地 pytest 默认使用 `-q`，CI 下回退到 `-v`。
 
+### `just test` 的超时兜底
+
+`just test` 里的两个重活——`just lint --full` 前置和 `uv run pytest`——都经 `scripts/shared/just/with_timeout.py` 执行。它与 `timeout(1)` 的区别是**按进程组收尸**：无论超时还是正常退出，都会确认被包装命令的整个进程组已清空，有残留就 SIGTERM → 宽限 → SIGKILL。之所以自带一个而不直接用 `timeout`，是因为 macOS 既没有 `timeout` 也没有 `gtimeout`，写进共享 recipe 会出现"CI 正常、本地全挂"。
+
+这么做是因为 `just test` 的真实死法不是跑得慢，而是**顶层进程退出后 lint / pytest 子树还活着**——曾出现手敲的三次 `just test` 在 14 小时后仍常驻内存，只杀顶层进程对这种情况完全无效。
+
+| 环境变量 | 默认值 | 作用域 |
+|---|---|---|
+| `JUST_LINT_TIMEOUT_SECONDS` | `1800` | `just test` 内的 `just lint --full` 前置 |
+| `JUST_TEST_TIMEOUT_SECONDS` | `3600` | `just test` 内的 `uv run pytest` |
+| `WITH_TIMEOUT_GRACE` | `10` | SIGTERM 到 SIGKILL 的宽限秒数 |
+
+默认值只用来把"挂死"和"跑得慢"区分开，取值刻意宽松，健康的运行不可能碰到；测试套件特别慢的项目在自己的 `.env` 或 shell 里调高即可。**超时触发时 `just test` 以退出码 124 结束**（沿用 GNU `timeout` 约定），这表示被回收而非测试失败，排查时应先看是什么卡住了。
+
+`killpg` 前必须排除 0 号组（语义是"调用者自身所在的组"）和 1 号组（init）——两者都不可能是子进程独立建出来的组（那个组 id 恒等于子进程 pid），而误伤它们会直接打死 runner 自己。这条不变量由 `tests/guards/shared/test_with_timeout.py` 守卫。
+
 `just lint --full` 的快速路径仍会执行轻量的 `check-test-flag`，除非调用方显式设置 `SKIP=check-test-flag`。如果 `SKIP` 跳过了除 `check-test-flag` 以外的 hook，本次 full lint 不会写入 `.last_linted_commit`。
 
 当 Git index 中存在新增、复制或重命名进入 `tasks/archive/` 的 PRD 时，`just lint --full` 不使用快速路径，而是强制运行完整 `pre-commit`。这是因为 archive PRD 验收检查依赖 staged 状态，需要和提交阶段保持一致。
