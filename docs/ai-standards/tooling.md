@@ -226,6 +226,21 @@ uv run pre-commit run --all-files
 
 `killpg` 前必须排除 0 号组（语义是"调用者自身所在的组"）和 1 号组（init）——两者都不可能是子进程独立建出来的组（那个组 id 恒等于子进程 pid），而误伤它们会直接打死 runner 自己。这条不变量由 `tests/guards/shared/test_with_timeout.py` 守卫。
 
+### `just test` 的 pytest 参数
+
+各项目的测试策略差异很大，因此 `just test` 不硬编码 pytest 参数：
+
+| 环境变量 | 默认值 | 作用域 |
+|---|---|---|
+| `JUST_FULL_TEST_FLAGS` | `-n auto` | `just test all` / `just test real` 附加的参数；设为空串表示不附加 |
+| `JUST_LOCAL_TEST_TARGET` | `tests/` | 本地档的测试目标，用于在超大套件里收窄范围 |
+
+`JUST_FULL_TEST_FLAGS` 的默认值 `-n auto` 走 pytest-xdist 并行，但**这个默认值并非对所有项目成立**：用 `pytest-testmon` 做增量的项目与 xdist 互斥、通常也不声明 `pytest-xdist`，此时默认值会让 `just test all` 直接报错——而 `just test all` 往往是 agent runner 的 verification command，一旦报错整条验证链都会断。这类项目在自己的 `.env` 或 shell 里设 `JUST_FULL_TEST_FLAGS="--no-testmon"` 即可。
+
+本地档不受这个变量影响，它的参数由各项目自己的 pytest 配置（`pytest.ini` 或 `pyproject.toml` 的 `addopts`）决定。
+
+两个变量都用环境变量而非 just 变量：`import` 进来的 just 变量不允许被导入方重定义（just 1.53 报 `multiple definitions`）。
+
 `just lint --full` 的快速路径仍会执行轻量的 `check-test-flag`，除非调用方显式设置 `SKIP=check-test-flag`。如果 `SKIP` 跳过了除 `check-test-flag` 以外的 hook，本次 full lint 不会写入 `.last_linted_commit`。
 
 当 Git index 中存在新增、复制或重命名进入 `tasks/archive/` 的 PRD 时，`just lint --full` 不使用快速路径，而是强制运行完整 `pre-commit`。这是因为 archive PRD 验收检查依赖 staged 状态，需要和提交阶段保持一致。
