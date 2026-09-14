@@ -32,6 +32,13 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="" arg7="" arg8="" arg9="": _ch
     # 避免它们被 reparent 到 launchd 成为残留孤儿进程。
     set -m
 
+    # 进程数上限守护，兜住构建工具 fork 失控（背景与开关见脚本内注释）
+    process_guard_script="{{justfile_directory()}}/scripts/shared/just/process_guard.sh"
+    if [ -f "$process_guard_script" ]; then
+        source "$process_guard_script"
+        apply_process_limit_guard
+    fi
+
     target="all"
     frontend_dir="frontend-admin"
     frontend_public_dir="frontend-public"
