@@ -1,6 +1,6 @@
 ---
 name: prd
-description: "[Updated 2026-09-12] Generate an architecture-aware technical PRD split into two altitudes — a human review layer (Part A) and an executor build layer (Part B) — with a decision-oriented human review map, a front-loaded interpretation lock, and a risk-ordered acceptance evidence package for a single end-of-flow human review. Triggers on: create a prd, write prd for, plan this feature. Prioritizes reuse, minimal-change plans, evidence-chain integrity, required output compliance, realistic validation, and conditional web research."
+description: "[Updated 2026-09-14] Generate an architecture-aware technical PRD split into two altitudes — a human review layer (Part A) and an executor build layer (Part B) — with a decision-oriented human review map, a front-loaded interpretation lock, and a risk-ordered acceptance evidence package for a single end-of-flow human review. Triggers on: create a prd, write prd for, plan this feature. Prioritizes reuse, minimal-change plans, evidence-chain integrity, required output compliance, realistic validation, and conditional web research."
 ---
 
 # PRD Generator (Architecture-First)
@@ -24,7 +24,7 @@ The default recommendation must be the smallest change that cleanly solves the p
 8. **Realistic Validation:** Every PRD must identify the highest-fidelity validation needed to prove the behavior works through real project entry points, not only isolated unit or integration tests.
 9. **Executor-Resilient Detail:** Write implementation detail for a less capable executor: be concrete, but prefer semantic anchors and repository searches over brittle coordinates such as line numbers.
 10. **Full-Stack Surface:** Treat the user-visible frontend as first-class. Discover the repo's actual frontend app(s) (don't assume a framework or directory) and plan any user-facing change with backend-level rigor; a genuinely backend-only PRD must state `No frontend impact` with a one-line reason rather than omit it silently. (Detailed gate: Phase 1.5.)
-11. **Two-Altitude Output:** Structure every PRD as **Part A · Review Layer** (problem, user-facing value, human review map, requirement shape) and **Part B · Build Layer** (mechanism, change tree, validation commands, dependency metadata). Part A must let a human accept or reject the work *without* reading implementation mechanism, file paths, commands, or scheduling metadata; all executor detail lives in Part B. Do not front-load Part A with mechanism — the historical failure mode was a first section so full of code/test/scheduling detail that human review was hard. Two blocks sit outside both altitudes at the top of the document, and both are projections rather than sources of truth: the `Delivery Gate Banner` under the title projects Section 8 so a reader learns immediately whether the work is blocked, and the `Feature Overview (功能一览)` projects the Functional Requirements for orientation. Neither is a place to define behavior.
+11. **Two-Altitude Output:** Structure every PRD as **Part A · Review Layer** (problem, user-facing value, human review map, requirement shape) and **Part B · Build Layer** (mechanism, change tree, validation commands, dependency metadata). Part A must let a human accept or reject the work *without* reading implementation mechanism, file paths, commands, or scheduling metadata; all executor detail lives in Part B. Do not front-load Part A with mechanism — the historical failure mode was a first section so full of code/test/scheduling detail that human review was hard. Three blocks sit outside both altitudes at the top of the document, and all are projections rather than sources of truth: the `Delivery Gate Banner` under the title projects Section 8 so a reader learns immediately whether the work is blocked, the `Acceptance Status Banner (验收状态横幅)` right after it projects Section 9 so a reader learns immediately whether the work awaits human acceptance or is archive-ready, and the `Feature Overview (功能一览)` projects the Functional Requirements for orientation. None of them is a place to define behavior.
 12. **Decision-Oriented Human Review Map:** Internally classify every meaningful change point with the deterministic `R0`–`R3` model in Phase 3.6, recording the result in Part B. Do not expose the classification machinery as a menu or compliance table in Part A. Present only the concrete decisions that require **human confirmation**, written as questions a reviewer can answer. Summarize everything else under **executor + automated gates**. Keep the human-confirm set short and principled; over-flagging defeats the map.
 13. **Two-Touch Autonomy + Evidence Package:** The operating model is two batched human touches with autonomous execution between them — up front the human approves the Agent's interpretation (Section 1) and the human-facing decisions plus acceptance outcomes (Section 2); at the end the human reads a risk-ordered **Acceptance Evidence Package** (Section 9). There is no mid-flow human gate: the Agent self-verifies as deeply as needed (many rounds, adversarial checks — tokens are cheaper than human attention). So "human confirmation" means **high evidence burden** (the item tops the end package with an executable oracle), not an interruption; every human decision and automated gate must map to evidence in Part B that would fail if the change were wrong.
 14. **Tiered Evidence-Chain Integrity:** A passing nearby path is not delivery evidence — but provenance rigor is a cost, so spend it by risk tier. `R2`/`R3` oracles must identify the exact critical-value source, runtime boundaries that must be crossed, forbidden bypasses, a fresh-state postcondition probe, and how evidence is tied to the final implementation tree; `R0`/`R1` oracles need one assertion that genuinely discriminates their own failure and nothing more. More than three `R2`/`R3` oracles in one PRD is a scope signal — revisit Phase 3.4 before adding a fourth. Never modify production code to make an oracle able to fail. Read [references/validation-evidence-integrity.md](references/validation-evidence-integrity.md) whenever `R2`/`R3` executable behavior changes or a PRD is prepared for archive.
@@ -163,7 +163,7 @@ python scripts/check_prd_acceptance_checklist.py --repo-root <repo-root> --all
 
 Pending PRDs may keep unchecked acceptance items, so this completion checker is not a blocker for a normal newly generated PRD; for a pending PRD about to be archived, validate it with `--check-provided --archive-ready tasks/pending/<prd-file>.md`. The checker also rejects executable oracle entries missing the evidence-chain fields defined below.
 
-Before archive, perform a **Final Narrative Reconciliation** against the final implementation and fresh evidence. Correct earlier sections when implementation disproved an assumption; do not leave a false statement in the body merely because a later validation record explains it. Reconcile at least Part A interpretation and compatibility claims, public API/UI/CLI fields and entry points, supported modes and failure semantics, related PRD status, Functional Requirements, Risks, the Decision Log, and the `Feature Overview (功能一览)` projection (every FR still anchored by a bullet, every bullet still true). Record the outcome in Section 13 under `Final Reconciliation`.
+Before archive, perform a **Final Narrative Reconciliation** against the final implementation and fresh evidence. Correct earlier sections when implementation disproved an assumption; do not leave a false statement in the body merely because a later validation record explains it. Reconcile at least Part A interpretation and compatibility claims, public API/UI/CLI fields and entry points, supported modes and failure semantics, related PRD status, Functional Requirements, Risks, the Decision Log, the `Feature Overview (功能一览)` projection (every FR still anchored by a bullet, every bullet still true), and the `Acceptance Status Banner (验收状态横幅)` projection (state matches the final §9 checklist). Record the outcome in Section 13 under `Final Reconciliation`.
 
 ### Phase 3.6: Human Review Map Gate
 
@@ -273,7 +273,7 @@ This structure is the output contract for generated and updated PRDs. PRDs are o
 - **Part A · Review Layer** (Sections 1-4): what a human reads to accept or reject the work and to see where they must personally confirm. No implementation mechanism, file paths, commands, or scheduling metadata.
 - **Part B · Build Layer** (Sections 5-13): what the executor (human or Agent) reads to implement. The human drills in only where the Part A Human Review Map points.
 
-The PRD opens with `# PRD: <descriptive feature title>` as the very first heading, followed by the **Delivery Gate Banner**, then a short two-altitude orientation note, then `## Feature Overview (功能一览)`, then the heading `# Part A · 人审层 (Review Layer)`. The `<title>` must be a human-readable feature name, not the literal text "Part A · 人审层 (Review Layer)".
+The PRD opens with `# PRD: <descriptive feature title>` as the very first heading, followed by the **Delivery Gate Banner**, then the **Acceptance Status Banner**, then a short two-altitude orientation note, then `## Feature Overview (功能一览)`, then the heading `# Part A · 人审层 (Review Layer)`. The `<title>` must be a human-readable feature name, not the literal text "Part A · 人审层 (Review Layer)".
 
 ### Delivery Gate Banner (交付前置提示)
 
@@ -301,6 +301,36 @@ Two shapes:
 ```markdown
 > ✅ **交付前置**：无，可立即开工。
 > 结构化声明见 §8 Delivery Dependencies，**那里是唯一事实源**。
+```
+
+### Acceptance Status Banner (验收状态横幅)
+
+A one-to-two line blockquote placed immediately after the Delivery Gate Banner, answering one first-glance question: "这个 PRD 做完没有？是不是在等我验收？" Completion is otherwise invisible — the filename never changes and §9 sits hundreds of lines down, so a finished PRD awaiting human review looks exactly like an untouched one.
+
+Rules:
+
+- Required in every PRD. It is a **projection of Section 9 Acceptance Checklist, never a second source of truth** — say so in the banner and point at §9. Keep it to the status; evidence belongs to §9.
+- Exactly three states, each with its marker; start the line with `> ` and carry the literal marker `验收状态` (or `Acceptance Status`) so it is grep-able:
+  - `⬜ 未开工` — default at creation; also covers in-progress work (the banner does not track intermediate progress).
+  - `🧍 待人工验收` — every §9 checkbox is checked **except** `Human-Confirmed` items; name the remaining count. This is the signal that the end-of-flow human review is due.
+  - `✅ 可归档` — every §9 checkbox is checked; only this state may move to `tasks/archive/`.
+- Flip it at exactly two moments: when only `Human-Confirmed` items remain (→ `🧍`), and when the human review completes and all items are checked (→ `✅`). A PRD with no human-confirm items goes directly `⬜` → `✅`. Regenerate during Final Reconciliation before archive.
+
+Three shapes:
+
+```markdown
+> ⬜ **验收状态**：未开工。
+> 本行是 §9 Acceptance Checklist 的投影，**那里是唯一事实源**。
+```
+
+```markdown
+> 🧍 **验收状态**：待人工验收 — 仅剩 <N> 项 Human-Confirmed 未确认，证据包见 §9。
+> 本行是 §9 Acceptance Checklist 的投影，**那里是唯一事实源**。
+```
+
+```markdown
+> ✅ **验收状态**：可归档 — 验收清单已全部完成。
+> 本行是 §9 Acceptance Checklist 的投影，**那里是唯一事实源**。
 ```
 
 ### Feature Overview (功能一览)
@@ -516,6 +546,8 @@ Read [references/prd-content-rules.md](references/prd-content-rules.md) before g
 * [ ] **BLOCKER:** The PRD starts with `# PRD: <descriptive feature title>` as its first Markdown H1 heading; the title describes the feature and is not the literal Part A/Part B heading text
 * [ ] **BLOCKER:** Structured as Part A (Review Layer, Sections 1-4) and Part B (Build Layer, Sections 5-13); Part A contains no implementation mechanism, file paths, commands, or scheduling metadata
 * [ ] Opened with an unnumbered `## Feature Overview (功能一览)` between the orientation note and `# Part A`; every bullet anchors the FR id(s) (or section) it projects, and every `FR-n` is anchored by at least one bullet
+* [ ] **BLOCKER:** Included an `Acceptance Status Banner (验收状态横幅)` immediately after the Delivery Gate Banner, using exactly one of the three defined states (`⬜ 未开工` / `🧍 待人工验收` / `✅ 可归档`), marked as a projection of §9; a freshly generated PRD starts at `⬜ 未开工`
+* [ ] Before archive, flipped the Acceptance Status Banner to `✅ 可归档` only after every §9 checkbox was checked; `🧍 待人工验收` was used exactly when only `Human-Confirmed` items remained unchecked
 * [ ] Section 1 stays review-altitude: Problem Statement, `Interpretation (解读回显)`, What The User Gets, and Measurable Objectives only — no proposed solution summary, validation commands, or delivery-dependency metadata
 * [ ] **BLOCKER:** The `Interpretation (解读回显)` is correctable, not just readable — a behavior-example table of ≥3 rows (with an edge case and a failure case) whose rows become the Section 7.6 oracles verbatim, a `我默默定了这些` list of ambiguities resolved without asking, a `我理解为不做` list of plausibly-wanted excluded scope, and the falsifiable prose reading. Enforced by `scripts/check_prd_acceptance_checklist.py`
 * [ ] Problem Statement includes a concrete repository-observable current-state fact when available; Measurable Objectives are pass/fail outcomes rather than unqualified maintainability claims
