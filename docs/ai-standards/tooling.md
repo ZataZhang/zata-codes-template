@@ -139,11 +139,11 @@ python scripts/check_prd_acceptance_checklist.py --repo-root "$PWD" --all
 执行 `tasks/pending/` 下的 PRD 前必须先领锁：`just prd start <prd-file>`（知道工具名就 `--tool` 自报）。锁语义：
 
 - 锁是主仓库 `tasks/evidence/<prd-stem>/active.lock` 的本机 JSON 文件，被 gitignore 覆盖、不进版本库；在任意 linked worktree 内运行时经 `git rev-parse --git-common-dir` 反推主仓库根，各 worktree 共享同一份锁视图。
-- 领锁原子化（排他创建）；他人**新鲜锁**硬拒绝并输出持锁者工具 / 分支 / worktree / 开始时间 / 最后心跳，想接手只能显式 `just prd release` 后重试；**过期锁**（心跳超 30 分钟）自动接管并把旧锁留档为 `active.lock.<时间戳>.stale`；同归属（worktree 相对路径一致）重复领锁幂等刷新。过期判定只看心跳、不做 pid 探测——锁脚本与 agent 工具调用的会话都是短命的，pid 死亡不代表持锁会话已死。
-- 两个机械入口自动领锁：`just implement` 在校验 PRD 后、创建 worktree 前领锁（透传 `--tool` / `--branch`）；`just worktree`（`create.sh`）在分支名匹配 pending PRD slug 时先领锁，冲突即拒绝创建。
-- 执行过程中每个主要步骤后运行 `just prd heartbeat <prd-file>` 续期；锁丢失或归属不符时 heartbeat 非零退出，便于 executor 发现锁已被接管。
+- 领锁原子化（排他创建）；他人**新鲜锁**硬拒绝并输出持锁者工具 / 分支 / worktree / 开始时间 / 最后心跳，想接手只能显式 `just prd release` 后重试；**过期锁**（心跳超 30 分钟）自动接管并把旧锁留档为 `active.lock.<时间戳>.stale`；同归属（worktree 相对路径一致）重复领锁幂等刷新。过期判定看心跳 + worktree 活性、不做 pid 探测——锁脚本与 agent 工具调用的会话都是短命的，pid 死亡不代表持锁会话已死；反过来，心跳过期但归属 worktree 在过期窗口内仍有文件改动时视为存活会话、拒绝接管，心跳只是无活性佐证时的兜底信号。
+- 三个机械入口自动领锁：`just implement` 在校验 PRD 后、创建 worktree 前领锁（透传 `--tool` / `--branch`）；`just worktree`（`create.sh`）在分支名匹配 pending PRD 时先领锁、冲突即拒绝创建，创建成功后锁归属自动移交到新 worktree；`just worktree -o`（`open.sh`）打开已有 worktree 时同样尝试领锁（冲突仅提示持锁者、不阻塞打开）。分支名 ↔ PRD 匹配规则的唯一事实源在 `scripts/shared/worktree/prd_branch_match.sh`（slug 与分支全名或分支最后一段相等即命中），与看板的文件名解析保持一致。
+- 执行过程中每个主要步骤后运行 `just prd heartbeat <prd-file>` 续期；锁丢失或归属不符时 heartbeat 非零退出，便于 executor 发现锁已被接管。锁归属 worktree 有持续文件改动时活性探测会阻止误接管，心跳是兜底；主仓库持有的锁没有活性佐证，仍完全依赖心跳。
 - 宽松兜底：提交时 `check_prd_lock_conflict` 钩子发现 staged 变更触及他人新鲜锁 PRD 的 `tasks/pending` / `tasks/evidence` 路径会输出警告，但永不阻断提交。
-- 看板 ACTIVITY 列：新鲜锁显示 `RUNNING <tool> <时长> @<branch>`（branch 缺失回退 worktree）；过期锁显示 `STALE <最后心跳>`；无锁但 PRD 文件或证据目录 15 分钟内有改动显示暗色 `⚡ active <n>m ago`；其余 `-`。
+- 看板 ACTIVITY 列：新鲜锁显示 `RUNNING <tool> <时长> @<branch>`（branch 缺失回退 worktree）；过期锁但归属 worktree 仍有近期改动同样显示 `RUNNING`（活性佐证优先于心跳）；过期且无活性佐证显示 `STALE <最后心跳>`；无锁但存在分支名匹配的 worktree 显示黄色 `⚠ unlocked @<branch>`（互斥未生效，需进 worktree 补领锁）；无锁但 PRD 文件或证据目录 15 分钟内有改动显示暗色 `⚡ active <n>m ago`；其余 `-`。
 
 ## Platform Notes
 
