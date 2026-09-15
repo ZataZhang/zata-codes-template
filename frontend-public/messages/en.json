@@ -1,0 +1,219 @@
+{
+  "html": {
+    "title": "My App - Project Template",
+    "description": "A Python project template with a four-layer backend skeleton, dual auth domains, two frontends, and observability. Ships with no business domain."
+  },
+  "common": {
+    "appName": "My App",
+    "loading": "Loading…",
+    "language": "Language",
+    "english": "English",
+    "chinese": "中文"
+  },
+  "nav": {
+    "features": "Features",
+    "pricing": "Pricing",
+    "about": "About",
+    "dashboard": "Dashboard",
+    "settings": "Settings",
+    "signIn": "Sign in",
+    "getStarted": "Start free"
+  },
+  "marketing": {
+    "hero": {
+      "badge": "A project template built for long-term evolution",
+      "titleLine1": "A clean skeleton,",
+      "titleAccent": "engineering only",
+      "subtitle": "A four-layer modular monolith with dual auth domains and observability. No business domain inside, so every derived project starts its own from scratch.",
+      "ctaPrimary": "Start for free",
+      "ctaSecondary": "Explore the skeleton",
+      "highlightNoDomain": "No business domain residue",
+      "highlightAuth": "Auth works out of the box",
+      "highlightTooling": "Complete engineering setup"
+    },
+    "stats": {
+      "backendLayers": "Backend layers",
+      "authDomains": "Auth domains",
+      "frontendSkeletons": "Frontend skeletons"
+    },
+    "features": {
+      "sectionTitle": "Core skeleton",
+      "sectionSubtitle": "The template only promises engineering capabilities; business boundaries are yours",
+      "architecture": {
+        "title": "Four-layer backend architecture",
+        "description": "api / core / engines / infrastructure depend inwards and collaborate through abstract interfaces, keeping business logic decoupled from infrastructure."
+      },
+      "authDomains": {
+        "title": "Dual auth domains",
+        "description": "The public self-service registration domain and the admin seed-created domain are physically isolated, each with its own cookies, session namespace, and user table."
+      },
+      "frontends": {
+        "title": "Dual frontend skeletons",
+        "description": "An admin console (Vite + React) and a public site (Next.js) work out of the box, talking to the backend only over /api/* HTTP."
+      },
+      "observability": {
+        "title": "Observability",
+        "description": "Request IDs, structured logging, and Prometheus metrics are wired behind switches, with platform-agnostic log and metric formats."
+      },
+      "config": {
+        "title": "Unified configuration",
+        "description": "pydantic-settings with three layers: environment variables, config.toml, and code defaults. Secrets only ever live in .env."
+      },
+      "teamwork": {
+        "title": "Team engineering",
+        "description": "just task runner, pre-commit + Ruff, Alembic migration chain guards, and a template sync script, all ready to use."
+      }
+    },
+    "steps": {
+      "sectionTitle": "Start in three steps",
+      "sectionSubtitle": "Copy the template, configure the environment, start the services",
+      "copy": {
+        "title": "Copy the template",
+        "description": "Run just copy <name> to create a new project without dependencies or build artifacts."
+      },
+      "configure": {
+        "title": "Configure the environment",
+        "description": "Fill in the database, Redis, and initial admin following .env.example."
+      },
+      "run": {
+        "title": "Start the services",
+        "description": "Run just sync dev to install dependencies, then just run to boot the backend and both frontends."
+      }
+    },
+    "faq": {
+      "sectionTitle": "Frequently asked questions",
+      "sectionSubtitle": "Things you may want to know about this template",
+      "audience": {
+        "question": "What kind of project is this template for?",
+        "answer": "Long-lived Python web projects: a clear layered skeleton and engineering facilities first, then business modules on top."
+      },
+      "businessCode": {
+        "question": "Does the template ship business code?",
+        "answer": "No business domain is included. Auth, configuration, observability, and persistence are the only skeleton; derived projects add their own business modules."
+      },
+      "createProject": {
+        "question": "How do I create a new project from the template?",
+        "answer": "Use just copy <name> to copy it into a standalone project, then configure environment variables and the database as described in the README."
+      }
+    },
+    "cta": {
+      "title": "Ready to get started?",
+      "body": "Create an account, enter the protected area, and build your business on a clean backend skeleton.",
+      "button": "Register for free"
+    },
+    "aboutPage": {
+      "title": "About this template",
+      "description": "A Python template for starting new projects: a four-layer backend skeleton, dual auth domains, and complete engineering facilities. It deliberately ships no business domain, so every derived project builds its own from a clean starting point.",
+      "principles": {
+        "simple": {
+          "title": "Simplicity first",
+          "description": "Strip the unnecessary complexity and keep only what is genuinely reusable."
+        },
+        "security": {
+          "title": "Security first",
+          "description": "From authentication to data storage, security is always the top priority."
+        },
+        "evolution": {
+          "title": "Continuous evolution",
+          "description": "The skeleton keeps improving while business boundaries stay with derived projects."
+        }
+      }
+    },
+    "featuresPage": {
+      "title": "Template capabilities",
+      "subtitle": "Engineering skeleton only — no business domain included",
+      "items": {
+        "architecture": {
+          "title": "Four-layer architecture",
+          "description": "api / core / engines / infrastructure depend inwards, with cross-layer interfaces decoupled."
+        },
+        "authDomains": {
+          "title": "Dual auth domains",
+          "description": "public and admin are physically isolated, using HttpOnly sessions backed by Redis."
+        },
+        "frontends": {
+          "title": "Dual frontend skeletons",
+          "description": "An admin console (Vite + React) and a public site (Next.js), ready to use out of the box."
+        },
+        "config": {
+          "title": "Unified configuration",
+          "description": "Three configuration layers — environment variables, config.toml, and code defaults — with secrets only in .env."
+        },
+        "observability": {
+          "title": "Observability",
+          "description": "Request IDs, structured logging, and Prometheus metrics, wired behind switches."
+        },
+        "tooling": {
+          "title": "Complete engineering setup",
+          "description": "just tasks, pre-commit + Ruff, Alembic migration guards, and template sync."
+        }
+      }
+    },
+    "pricingPage": {
+      "title": "Open-source license",
+      "description": "This template is provided as an open-source project. Derived projects are entirely free of commercial restrictions.",
+      "cardTitle": "You may",
+      "cardDescription": "Start any project from the template, and the business code is yours.",
+      "items": {
+        "copy": "Copy it into a standalone project and develop it freely",
+        "deploy": "Deploy privately or on the cloud — no obligation to open-source",
+        "modify": "Modify the skeleton code and configuration as needed",
+        "license": "Keep the original copyright and license notices"
+      },
+      "cta": "Start for free"
+    }
+  },
+  "auth": {
+    "loginTitle": "Welcome back",
+    "loginSubtitle": "Enter your account details to sign in",
+    "registerTitle": "Create an account",
+    "registerSubtitle": "Create an account and start your free trial",
+    "identifierLabel": "Username / Email",
+    "passwordLabel": "Password",
+    "displayNameLabel": "Display name",
+    "displayNamePlaceholder": "Your name",
+    "emailLabel": "Email",
+    "emailPlaceholder": "you@example.com",
+    "confirmPasswordLabel": "Confirm password",
+    "forgotPassword": "Forgot password?",
+    "forgotPasswordHint": "Please contact an administrator to reset your password",
+    "loginSubmit": "Sign in",
+    "registerSubmit": "Register",
+    "noAccount": "Don't have an account?",
+    "signUpNow": "Sign up now",
+    "haveAccount": "Already have an account?",
+    "signInNow": "Sign in now"
+  },
+  "dashboard": {
+    "title": "Workspace",
+    "signedIn": "Signed in",
+    "gettingStartedTitle": "Start building your business",
+    "gettingStartedBody": "This template keeps only auth and infrastructure, with no business domain included. Add your own modules on the four-layer architecture: define use cases and domain contracts under src/backend/core/, implement platform capabilities under src/backend/engines/, and expose HTTP entrypoints under src/backend/api/.",
+    "accountSettings": "Account settings"
+  },
+  "settings": {
+    "title": "Settings",
+    "aboutTitle": "About this template",
+    "aboutBody": "This template keeps only auth and infrastructure, with no business domain included. Build your own business on top of it.",
+    "signOut": "Sign out"
+  },
+  "footer": {
+    "copyright": "© {year}. All rights reserved."
+  },
+  "toast": {
+    "loginSuccess": "Signed in successfully",
+    "loginFailed": "Sign-in failed",
+    "registerSuccess": "Registration successful",
+    "registerFailed": "Registration failed"
+  },
+  "errors": {
+    "identifierRequired": "Please enter your username or email",
+    "passwordRequired": "Please enter your password",
+    "displayNameRequired": "Please enter a display name",
+    "emailRequired": "Please enter your email",
+    "emailInvalid": "Please enter a valid email",
+    "passwordTooShort": "Password must be at least 6 characters",
+    "confirmPasswordRequired": "Please confirm your password",
+    "passwordMismatch": "The two passwords do not match"
+  }
+}

@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useEffect, useState } from "react"
+import { useTranslations } from "next-intl"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { getCurrentSession, type UserSession } from "@/lib/api/auth"
@@ -9,6 +10,8 @@ import { Settings } from "lucide-react"
 
 /** Render the dashboard page. */
 export default function DashboardPage() {
+  const t = useTranslations("dashboard")
+  const tCommon = useTranslations("common")
   const [user, setUser] = useState<UserSession | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -22,7 +25,7 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center text-muted-foreground">
-        加载中…
+        {tCommon("loading")}
       </div>
     )
   }
@@ -30,9 +33,9 @@ export default function DashboardPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-3xl font-bold">工作区</h1>
+        <h1 className="text-3xl font-bold">{t("title")}</h1>
         <p className="text-muted-foreground">
-          {user ? `${user.display_name} · ${user.email}` : "已登录"}
+          {user ? `${user.display_name} · ${user.email}` : t("signedIn")}
         </p>
       </div>
 
@@ -40,20 +43,17 @@ export default function DashboardPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Settings className="size-5 text-primary" />
-            开始搭建你的业务
+            {t("gettingStartedTitle")}
           </CardTitle>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
-          本模板仅保留认证与基础设施骨架，不内置任何业务域。请根据你的项目在四层架构
-          上添加业务模块，例如在 <code>src/backend/core/</code> 定义用例与领域契约、
-          在 <code>src/backend/engines/</code> 实现平台能力、在
-          <code>src/backend/api/</code> 暴露 HTTP 入口。
+          {t("gettingStartedBody")}
         </CardContent>
       </Card>
 
       <div>
         <Button asChild variant="outline" size="sm">
-          <Link href="/app/settings">账户设置</Link>
+          <Link href="/app/settings">{t("accountSettings")}</Link>
         </Button>
       </div>
     </div>

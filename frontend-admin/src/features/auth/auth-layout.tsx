@@ -1,11 +1,20 @@
+import { useTranslation } from 'react-i18next'
 import { Logo } from '@/assets/logo'
+import { LanguageSwitcher } from '@/components/language-switcher'
 
 type AuthLayoutProps = {
   children: React.ReactNode
 }
 
-/** Root layout for the auth section. */
+/**
+ * Root layout for the auth section.
+ *
+ * 登录页不经过受保护布局的顶栏，因此语言切换器在这里单独挂载，保证未登录访客
+ * 也能切换语言。
+ */
 export function AuthLayout({ children }: AuthLayoutProps) {
+  const { t } = useTranslation()
+
   return (
     <div className='grid min-h-svh lg:grid-cols-2'>
       {/* Left brand panel */}
@@ -20,38 +29,39 @@ export function AuthLayout({ children }: AuthLayoutProps) {
 
         <div className='relative z-10 max-w-md'>
           <h2 className='text-3xl font-bold tracking-tight'>
-            构建下一代管理平台
+            {t('auth.brandHeadline')}
           </h2>
-          <p className='mt-4 text-zinc-400'>
-            统一项目、任务与团队协作，让复杂流程变得简单可追踪。
-          </p>
+          <p className='mt-4 text-zinc-400'>{t('auth.brandDescription')}</p>
           <ul className='mt-8 space-y-3 text-sm text-zinc-300'>
             <li className='flex items-center gap-2'>
               <span className='inline-block size-1.5 rounded-full bg-indigo-400' />
-              项目与任务一站式管理
+              {t('auth.brandPoint1')}
             </li>
             <li className='flex items-center gap-2'>
               <span className='inline-block size-1.5 rounded-full bg-indigo-400' />
-              实时会话与权限控制
+              {t('auth.brandPoint2')}
             </li>
             <li className='flex items-center gap-2'>
               <span className='inline-block size-1.5 rounded-full bg-indigo-400' />
-              现代化 React + FastAPI 架构
+              {t('auth.brandPoint3')}
             </li>
           </ul>
         </div>
 
-        <div className='relative z-10 text-sm text-zinc-500'>
-          © {new Date().getFullYear()} Zata. All rights reserved.
+        <div className='relative z-10 text-sm text-zinc-500' data-testid='admin-auth-copyright'>
+          {t('auth.copyright', { year: new Date().getFullYear() })}
         </div>
       </div>
 
       {/* Right form panel */}
       <div className='flex flex-col items-center justify-center p-6 lg:p-10'>
         <div className='flex w-full max-w-sm flex-col gap-6'>
-          <div className='flex items-center gap-2 lg:hidden'>
-            <Logo className='size-6' />
-            <span className='text-lg font-semibold tracking-tight'>Zata</span>
+          <div className='flex items-center justify-between gap-2'>
+            <div className='flex items-center gap-2 lg:hidden'>
+              <Logo className='size-6' />
+              <span className='text-lg font-semibold tracking-tight'>Zata</span>
+            </div>
+            <LanguageSwitcher className='ms-auto flex items-center gap-1' />
           </div>
           {children}
         </div>

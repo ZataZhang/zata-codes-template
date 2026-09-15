@@ -1,9 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, type RenderResult } from 'vitest-browser-react'
 import { userEvent } from 'vitest/browser'
+import i18n from '@/i18n/init'
 import { SearchProvider } from '@/context/search-provider'
 
 const COMMAND_MENU_PLACEHOLDER = 'Type a command or search...'
+
+// 命令面板文案与导航标题都来自 i18next，先初始化 i18n 并固定语言，
+// 否则 t() 只会回显 key，占位符与标签断言都会失败。
+const TEST_LOCALE = 'en'
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
@@ -57,8 +62,9 @@ async function openCommandPalette(
 }
 
 describe('SearchProvider and CommandMenu', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks()
+    await i18n.changeLanguage(TEST_LOCALE)
   })
 
   it('renders the command palette when the palette is open', async () => {

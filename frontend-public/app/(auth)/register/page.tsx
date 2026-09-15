@@ -2,7 +2,8 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useMemo, useState } from "react"
+import { useTranslations } from "next-intl"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -28,24 +29,50 @@ import { Input } from "@/components/ui/input"
 import { PasswordInput } from "@/components/ui/password-input"
 import { register } from "@/lib/api/auth"
 
-const formSchema = z
-  .object({
-    displayName: z.string().min(1, "请输入显示名称"),
-    email: z.string().min(1, "请输入邮箱").email("请输入有效的邮箱"),
-    password: z.string().min(6, "密码长度至少 6 位"),
-    confirmPassword: z.string().min(1, "请确认密码"),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "两次输入的密码不一致",
-    path: ["confirmPassword"],
-  })
+/** 注册表单字段类型，与 `buildFormSchema` 产出的 schema 保持一致。 */
+type RegisterFormValues = {
+  displayName: string
+  email: string
+  password: string
+  confirmPassword: string
+}
+
+/** 注册密码的最短长度。 */
+const PASSWORD_MIN_LENGTH = 6
+
+/**
+ * 构造注册表单校验 schema。
+ *
+ * 与登录表单同理：校验消息随 locale 变化，schema 必须在组件内基于当前 `t` 构造。
+ *
+ * @param t - `errors` 命名空间的翻译函数。
+ * @returns 含"两次密码一致"校验的 zod schema。
+ */
+function buildFormSchema(t: (key: string) => string) {
+  return z
+    .object({
+      displayName: z.string().min(1, t("displayNameRequired")),
+      email: z.string().min(1, t("emailRequired")).email(t("emailInvalid")),
+      password: z.string().min(PASSWORD_MIN_LENGTH, t("passwordTooShort")),
+      confirmPassword: z.string().min(1, t("confirmPasswordRequired")),
+    })
+    .refine((data) => data.password === data.confirmPassword, {
+      message: t("passwordMismatch"),
+      path: ["confirmPassword"],
+    })
+}
 
 /** Render the register page. */
 export default function RegisterPage() {
   const router = useRouter()
+  const t = useTranslations("auth")
+  const tErrors = useTranslations("errors")
+  const tToast = useTranslations("toast")
   const [isLoading, setIsLoading] = useState(false)
 
-  const form = useForm<z.infer<typeof formSchema>>({
+  const formSchema = useMemo(() => buildFormSchema(tErrors), [tErrors])
+
+  const form = useForm<RegisterFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       displayName: "",
@@ -56,7 +83,7 @@ export default function RegisterPage() {
   })
 
   /** Submit the registration form. */
-  async function onSubmit(data: z.infer<typeof formSchema>) {
+  async function onSubmit(data: RegisterFormValues) {
     setIsLoading(true)
     try {
       await register({
@@ -64,10 +91,11 @@ export default function RegisterPage() {
         email: data.email,
         password: data.password,
       })
-      toast.success("注册成功")
+      toast.success(tToast("registerSuccess"))
       router.replace("/app/dashboard")
     } catch (error) {
-      const message = error instanceof Error ? error.message : "注册失败"
+      const message =
+        error instanceof Error ? error.message : tToast("registerFailed")
       toast.error(message)
     } finally {
       setIsLoading(false)
@@ -82,23 +110,20 @@ export default function RegisterPage() {
   return (
     <Card className="border shadow-lg">
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl">注册账号</CardTitle>
-        <CardDescription>创建账号，开始免费试用</CardDescription>
+        <CardTitle className="text-2xl">{t("registerTitle")}</CardTitle>
+        <CardDescription>{t("registerSubtitle")}</CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
-          <form
-            onSubmit={handleFormSubmit}
-            className="grid gap-4"
-          >
+          <form onSubmit={handleFormSubmit} className="grid gap-4">
             <FormField
               control={form.control}
               name="displayName"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>显示名称</FormLabel>
+                  <FormLabel>{t("displayNameLabel")}</FormLabel>
                   <FormControl>
-                    <Input placeholder="你的名字" {...field} />
+                    <Input placeholder={t("displayNamePlaceholder")} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -109,9 +134,9 @@ export default function RegisterPage() {
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>邮箱</FormLabel>
+                  <FormLabel>{t("emailLabel")}</FormLabel>
                   <FormControl>
-                    <Input placeholder="you@example.com" {...field} />
+                    <Input placeholder={t("emailPlaceholder")} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -122,12 +147,9 @@ export default function RegisterPage() {
               name="password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>密码</FormLabel>
+                  <FormLabel>{t("passwordLabel")}</FormLabel>
                   <FormControl>
-                    <PasswordInput
-                      placeholder="********"
-                      {...field}
-                    />
+                    <PasswordInput placeholder="********" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -138,12 +160,9 @@ export default function RegisterPage() {
               name="confirmPassword"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>确认密码</FormLabel>
+                  <FormLabel>{t("confirmPasswordLabel")}</FormLabel>
                   <FormControl>
-                    <PasswordInput
-                      placeholder="********"
-                      {...field}
-                    />
+                    <PasswordInput placeholder="********" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -155,17 +174,17 @@ export default function RegisterPage() {
               ) : (
                 <UserPlus className="mr-2 size-4" />
               )}
-              注册
+              {t("registerSubmit")}
             </Button>
           </form>
         </Form>
         <p className="mt-6 text-center text-sm text-muted-foreground">
-          已有账号？{" "}
+          {t("haveAccount")}{" "}
           <Link
             href="/login"
             className="text-primary underline-offset-4 hover:underline"
           >
-            立即登录
+            {t("signInNow")}
           </Link>
         </p>
       </CardContent>
