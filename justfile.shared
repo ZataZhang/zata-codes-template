@@ -899,6 +899,36 @@ ai subcommand arg1="" arg2="" arg3="" :
             ;;
     esac
 
+# PRD 状态看板。
+# 扫描 tasks/pending 与 tasks/archive，汇总每条 PRD 的优先级、类型、创建时间、
+# 验收清单勾选进度与证据包状态。清单进度与 verifier 结论均为从文件内容推断的
+# 启发式结果，看板只用于快速定位，最终判断以 PRD 正文与证据文件原文为准。
+# Usage:
+#   just prd status            # pending 逐条列出，archive 按月折叠
+#   just prd status all        # 展开 archive 每条
+#   just prd status pending    # 只看 pending
+#   just prd status archive    # 只看 archive（按月折叠）
+prd subcommand scope="" :
+    #!/usr/bin/env bash
+    set -euo pipefail
+    case "{{subcommand}}" in
+        status)
+            if [ -z "{{scope}}" ]; then
+                python3 ./scripts/shared/just/prd_status.py
+            else
+                python3 ./scripts/shared/just/prd_status.py "{{scope}}"
+            fi
+            ;;
+        *)
+            echo "Usage:"
+            echo "  just prd status          # dashboard: pending rows + archive grouped by month"
+            echo "  just prd status all      # expand every archived PRD"
+            echo "  just prd status pending  # only tasks/pending"
+            echo "  just prd status archive  # only tasks/archive"
+            exit 1
+            ;;
+    esac
+
 # Internal: review a single file against project standards, then stay interactive.
 # Output is a structured report; the AI does NOT modify the file, and the
 # REPL stays open so the caller can drill into findings or request targeted

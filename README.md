@@ -34,7 +34,7 @@ just run        # 同时启动后端 + 管理平台前端 + 前台官网
 |------|------|
 | `just sync` | 同步 dev 依赖（默认） |
 | `just sync prod` | 仅同步生产依赖，不含 dev |
-| `just sync all` | 全部 extras + 安装 worktree bash 补全 |
+| `just sync all` | 全部 extras + 安装 just shell 补全 |
 | `just sync dev` | 全部 extras + 安装 pre-commit hooks |
 
 ### 开发
