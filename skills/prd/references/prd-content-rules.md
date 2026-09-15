@@ -107,12 +107,15 @@ Each entry:
 - id: rv-1
   # --- always required ---
   behavior: <user-visible behavior this proves, plain language>
+  reviewer: human|verifier   # who the result is for — see the audience rules below
   real_entry: "<exact command / URL / entry point the real user runs>"   # not a unit test or helper
   expected: "<observable that proves it works>"
   mock_boundary: "<what may be mocked vs must be real>"   # the under-test boundary must NOT be mocked
   tier: R0|R1|R2|R3          # the Section 7 Risk Classification Register tier for this change point
   test_layer: unit|integration|e2e|smoke|sandbox|manual
   required_for_acceptance: true
+  # --- required for reviewer: human only ---
+  presentation: "<human-consumable artifact: real-entry screenshot/recording path, a URL to open, or the artifact file itself — plus an optional ~10-second self-check the human can run>"
   # --- required for R2 / R3 only ---
   critical_value_source: "<exact producer/UI response/clipboard source of URLs, tokens, IDs, commands, or payloads>"
   must_cross: "<ordered real boundaries: UI -> proxy -> canonical API -> commit -> fresh read>"
@@ -127,6 +130,10 @@ Each entry:
 Rules:
 
 - One entry per real observable behavior; every Section 2 human decision has at least one corresponding oracle, with the mapping recorded in Part B and Section 9 rather than exposed in Part A.
+- **Every oracle declares its audience via `reviewer`.** Classify by *who gains from looking at the result*, not by risk tier — the test is "would the human open this artifact if handed to them?":
+  - `reviewer: human` — the outcome is user-perceivable: a screen, an interaction, a generated artifact or document the human could meaningfully look at. The entry must add `presentation`, and its result lands in the Section 9.1 Human Review Surface. An R1 copy change on a visible page belongs here.
+  - `reviewer: verifier` — eyeballing adds nothing: build results, exit codes, static checks, logs. The Agent self-verifies and the verifier reviews; the result stays out of Section 9.1 and reaches the human only on failure. An R3 migration whose proof is a log still belongs here. Section 9.1 must name these groups explicitly so their absence reads as a decision, not an omission.
+- A `presentation` never substitutes for the oracle passing — it is shown **in addition**, and the oracle's own evidence-chain rules still apply. Screenshots come from the real entry point named in `real_entry`, at the repo's declared verification level; a component preview is not a substitute when the flow crosses dialogs, portals, or parent layouts.
 - `real_entry` is the highest-fidelity real entry point (not pytest/helpers); for user-visible changes at least one entry's `real_entry` is the repo's e2e/UI command or a manual app run.
 - **Evidence depth follows the tier.** Provenance fields cost real authoring and collection time, so spend them where failure has blast radius:
   - `R0` / `R1`: the always-required fields only. One assertion that genuinely discriminates *this* change's failure is the bar. Do not write a five-field provenance chain for a contained change.
@@ -184,6 +191,14 @@ Rules:
 
 This section is required even when Functional Requirements already include acceptance criteria.
 It is the single completion artifact and also serves as the overall delivery-readiness gate (the former Definition Of Done); there is no separate Definition Of Done section.
+
+**Two audiences, two layers.** Section 9 opens with `### 9.1 人读呈递区（Human Review Surface）` — the only layer the human is expected to read, sized for a single pass of a few minutes:
+
+- One table row per `reviewer: human` oracle: the plain-language outcome to look at, the presentation artifact (path filled in at delivery), and an optional ~10-second self-check (a URL to open, or one command the human can run themselves).
+- One explicit note naming the `reviewer: verifier` groups that are deliberately not shown.
+- The presentation rule: the Agent's completion message must carry the surface table's contents verbatim, artifacts included. Filing screenshots in an evidence directory without showing them counts as not delivered.
+
+The machine-facing package follows as `### 9.2 Acceptance Evidence Package` — risk-ordered and evidence-chain-bearing. The grouped subsections below follow 9.2. The `Human-Confirmed` group covers the Section 2 decisions and the 9.1 surface review only; "oracle X ran green" is a machine-layer prerequisite verified by the Agent and the verifier, and never appears as a human checkbox.
 
 Use grouped subsections. For architecture-heavy or refactor work, prefer:
 

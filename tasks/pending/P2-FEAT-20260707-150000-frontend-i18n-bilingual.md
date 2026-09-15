@@ -38,7 +38,7 @@
 
 本次需求被理解为：**参考 `freshai` 的前端 i18n 体系，为本仓库的两个前端应用建立中英文双语能力**。
 
-**行为样例**（这些行会被逐字抄进 §7.6 的验收 oracle——改其中一格，就是在改验收标准）：
+**行为样例**（这些行会被逐字抄进 §7.7 的验收 oracle——改其中一格，就是在改验收标准）：
 
 | 输入 / 操作 | 期望观察到的结果 |
 |---|---|
@@ -305,7 +305,22 @@ This section is a living implementation guide based on current repository analys
         [新增] 记录两前端 i18n 架构、cookie/localStorage 约定、新增文案规范；同步 mkdocs.yml
 ```
 
-### 7.3 Executor Drift Guard
+### 7.3 Risk Classification Register
+
+| 改动点 | tier | 决定维度 / override | 介入 | oracle / gate |
+|---|---|---|---|---|
+| 默认 locale 决策（D1） | R1 | 可逆单点配置；前置产品决策 | 人工确认（前置触点） | rv-1 |
+| 交付范围决策（D2） | R0 | 纯排期边界 | 人工确认（前置触点） | §9.1 呈递范围 |
+| 文案 key 命名规范（D3） | R1 | 影响后续迁移一致性，可重构 | 人工确认（验收时扫产物） | rv-7 + §9.1 第 6 行 |
+| next-intl 接入公开站 | R1 | 单前端、可回滚、无持久态 | 执行器 + 门禁 | rv-1 / rv-3 / rv-4 |
+| react-i18next 接入后台 | R1 | 单前端、可回滚 | 执行器 + 门禁 | rv-5 |
+| 核心页面文案迁移 | R1 | 外观层，漏翻可被肉眼/脚本捕获 | 执行器 + 门禁 | rv-2 / rv-6 |
+| 缺 key 校验脚本 | R0 | 机械校验 | 执行器 + 门禁 | rv-7 |
+| 未迁移页面兼容 | R1 | 既有行为回归面 | 执行器 + 门禁 | rv-8 |
+
+固定区域与横切触发器对照：不涉及 core 业务逻辑、数据库 schema、鉴权 / 信任边界、对外 API 契约、资金、不可逆操作、并发事务。
+
+### 7.4 Executor Drift Guard
 
 | Check | Command | Expected Result | If It Fails, Inspect First |
 |---|---|---|---|
@@ -316,7 +331,7 @@ This section is a living implementation guide based on current repository analys
 | 文案 key 对齐 | `node/pnpm scripts/check-i18n-keys`（或等价命令） | en/zh 顶层与叶子 key 集合相等 | messages/*.json、locales/*.json |
 | 未迁移页面未坏 | `pnpm build`（两前端） | 构建通过；未迁移页面保留中文、不报缺 key | 该页面是否误用 t() 但未加 key |
 
-### 7.4 Flow Or Architecture Diagram
+### 7.5 Flow Or Architecture Diagram
 
 ```mermaid
 flowchart TD
@@ -347,11 +362,11 @@ flowchart TD
     ASW -- 缓存 localStorage --> RENDER
 ```
 
-### 7.5 ER Diagram (Only When Data Model Changes)
+### 7.6 ER Diagram (Only When Data Model Changes)
 
 No data model changes in this PRD.（纯前端，无数据库改动。）
 
-### 7.6 Realistic Validation Plan (Oracle 块)
+### 7.7 Realistic Validation Plan (Oracle 块)
 
 机读 + 人读的**单一 oracle 源**：§2 的验收声明、§9 证据包、以及任何确定性抽取器都引用 / 解析这里的 `id`。
 
@@ -385,6 +400,7 @@ No data model changes in this PRD.（纯前端，无数据库改动。）
   negative_control: "把 DEFAULT_LOCALE 改成另一个值，curl 输出的 lang 与之同步变化"
   expected_fail: "curl 输出 lang=\"zh-CN\"（旧硬编码）或 lang 不随 DEFAULT_LOCALE 变"
   test_layer: smoke
+  tier: R1
   required_for_acceptance: true
 
 - id: rv-2
@@ -409,6 +425,7 @@ No data model changes in this PRD.（纯前端，无数据库改动。）
   negative_control: "故意在某核心页面留一处硬编码中文（如 <h1>仪表盘</h1>），rg 命中且 en 下 Playwright 断言失败"
   expected_fail: "rg 命中硬编码中文，或 en 下页面仍显示中文"
   test_layer: e2e
+  tier: R1
   required_for_acceptance: true
 
 - id: rv-3
@@ -429,6 +446,7 @@ No data model changes in this PRD.（纯前端，无数据库改动。）
   negative_control: "不带 cookie curl 应回退到 rv-1 的默认 locale（对比可见差异）"
   expected_fail: "zh cookie 下 lang 仍为 en / 无中文文案（说明 cookie 未被 request.ts 读取）"
   test_layer: integration
+  tier: R1
   required_for_acceptance: true
 
 - id: rv-4
@@ -446,6 +464,7 @@ No data model changes in this PRD.（纯前端，无数据库改动。）
   negative_control: "删 negotiate.ts 里 zh 分支，zh 偏好应回退默认而非 zh"
   expected_fail: "三种 header 下 lang 都相同（说明协商未生效）"
   test_layer: integration
+  tier: R1
   required_for_acceptance: true
 
 - id: rv-5
@@ -462,6 +481,7 @@ No data model changes in this PRD.（纯前端，无数据库改动。）
   negative_control: "清 localStorage 后 reload，应回退到 navigator/默认 locale（英文）"
   expected_fail: "reload 后变回英文（说明 localStorage 未被 LanguageDetector 缓存）"
   test_layer: e2e
+  tier: R1
   required_for_acceptance: true
 
 - id: rv-6
@@ -478,6 +498,7 @@ No data model changes in this PRD.（纯前端，无数据库改动。）
   negative_control: "把切换器 disabled，用例应因找不到可点击项而失败"
   expected_fail: "切换器不存在 / 点击后文案不变（lang 不变）"
   test_layer: e2e
+  tier: R1
   required_for_acceptance: true
 
 - id: rv-7
@@ -493,6 +514,7 @@ No data model changes in this PRD.（纯前端，无数据库改动。）
   negative_control: "在 zh.json 删一个 key 后重跑，退出码 1 且 missing-in-zh 列出该 key"
   expected_fail: "退出码 1，打印缺/多 key 列表"
   test_layer: unit
+  tier: R1
   required_for_acceptance: true
 
 - id: rv-8
@@ -509,6 +531,7 @@ No data model changes in this PRD.（纯前端，无数据库改动。）
   negative_control: "误把未迁移页面文案改成 t('x.y') 但不加 key → build 可过但页面显示 'x.y' 字面量，smoke 断言失败"
   expected_fail: "build 报错 / 页面 500 / 显示 t() 的 key 字符串"
   test_layer: smoke
+  tier: R1
   required_for_acceptance: true
 ```
 
@@ -518,7 +541,7 @@ Failure triage:
 - rv-5 跑挂先查 `i18n/init.ts` 的 detection order 与 `LOCALE_STORAGE_KEY` 是否与切换器写入一致。
 - rv-7 脚本失败时，按报出的缺失 key 在对应文案文件补齐。
 
-### 7.7 Low-Fidelity Prototype (Only When Required)
+### 7.8 Low-Fidelity Prototype (Only When Required)
 
 ```text
 +----------------------------------------------------------+
@@ -532,11 +555,11 @@ Failure triage:
 
 切换器形态：公开站用图标+下拉（DropdownMenu），后台用按钮组或下拉。具体形态实现时跟随各端现有导航风格。
 
-### 7.8 Interactive Prototype Change Log (Only When Files Actually Changed)
+### 7.9 Interactive Prototype Change Log (Only When Files Actually Changed)
 
 No interactive prototype file changes in this PRD.（若 `docs/prototypes/` 有相关原型页被改动，实现时补本表。）
 
-### 7.9 External Validation (Only When Web Research Was Used)
+### 7.10 External Validation (Only When Web Research Was Used)
 
 No external validation required; repository evidence was sufficient.（实现参考本机 `freshai` 仓库的 `frontend-public/i18n/`、`frontend-public/messages/`、`frontend-admin/src/i18n/init.ts`、`frontend-admin/src/locales/`，未联网查证。）
 
@@ -581,7 +604,7 @@ No external validation required; repository evidence was sufficient.（实现参
 
 ### 9.2 Acceptance Evidence Package（机器证据 · verifier 入口，人默认跳过）
 
-按 §7.6 oracle 的 `reviewer` 与风险排序组织，每项必须带证据（命令输出 / 观察 / 工件引用），不是裸勾：
+按 §7.7 oracle 的 `reviewer` 与风险排序组织，每项必须带证据（命令输出 / 观察 / 工件引用），不是裸勾：
 
 1. **人审项的 oracle 跑绿证据**（对应 §9.1 各行，截图之外另附命令证据）：rv-1 / rv-2 / rv-3 / rv-5 / rv-6 的命令输出与 Playwright 结果。
 2. **verifier-only 项结果**：rv-4（三种 Accept-Language 的 curl 输出）、rv-7（缺 key 脚本退出码 0）、rv-8（两前端 build + smoke 全绿）。

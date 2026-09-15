@@ -311,21 +311,37 @@ If no external validation was needed:
 
 ## 9. Acceptance Checklist
 
-这是「人只看一次」的交付物。按 Part A 风险地图排序组织成**验收证据包**，每项必须带证据（命令输出 / 观察 / 工件引用），不是裸勾。Use task-relevant groups; validate the final target state, not only an interim first phase.
+本节分两层读者：**9.1 是给人看的**——验收时只看这一层，目标是几分钟内看完；**9.2 起是给 verifier 和未来回溯用的机器证据**，默认不用打开，出问题再下钻。每项必须带证据（命令输出 / 观察 / 工件引用），不是裸勾。Use task-relevant groups; validate the final target state, not only an interim first phase.
 
-### Acceptance Evidence Package（证据包 · 按风险地图排序，终点人审入口）
+### 9.1 人读呈递区（Human Review Surface）
 
-1. **高风险 oracle 结果**（§2 每个人工确认决策的 oracle 跑绿证据，置顶）：[oracle → 通过证据]
-2. **风险地图对账 Predicted → Reconciled**：[实现中有无未预测到的高风险面被触发，如何处理]
-3. **对抗自检**：[对自动门禁、明确非范围和关键断言的反方检查结论]
-4. **对锁定契约的 diff**：[高风险改动 vs 前置约定的 API 契约 / schema / 行为]
-5. **低风险门禁结果（折叠）**：[通用 build / lint / 架构 / 类型检查]
+规则：
+
+- 交付时本表必须填上**实际呈递物路径**；agent 的完成回复必须原样带上本表内容（截图路径 + 自验方式），不允许只甩一句"证据在 tasks/evidence/ 里"。
+- 截图落在 `tasks/evidence/<prd-slug>/`，并标注验证层级（real user flow / component preview）；涉及 Dialog、Portal、父级布局或用户流程时保留生产边界。
+- "想自己复核？"列是可选项：呈递物可信就不用做；不信就花十几秒自己点。
+
+| # | 你要看什么（对应 oracle） | 呈递物（交付时填实际路径） | 想自己复核？ |
+|---|---|---|---|
+| 1 | [reviewer: human oracle 的白话结果] | [截图 / 录屏 / URL / 产物文件路径] | [一条十几秒可完成的自助复核动作] |
+
+**以下项不需要你看**（`reviewer: verifier`，agent 自验 + verifier 复核，挂了会自己红）：[列出 verifier-only 的 oracle / 门禁组]。它们的证据在 §9.2。
+
+### 9.2 Acceptance Evidence Package（机器证据 · verifier 入口，人默认跳过）
+
+1. **人审项的 oracle 跑绿证据**（对应 §9.1 各行，呈递物之外另附命令证据）：[oracle → 通过证据]
+2. **verifier-only 项结果**：[reviewer: verifier 的 oracle 输出]
+3. **风险地图对账 Predicted → Reconciled**：[实现中有无未预测到的高风险面被触发，如何处理]
+4. **对抗自检**：[对自动门禁、明确非范围和关键断言的反方检查结论]
+5. **对锁定契约的 diff**：[高风险改动 vs 前置约定的 API 契约 / schema / 行为]
+6. **低风险门禁结果（折叠）**：[通用 build / lint / 架构 / 类型检查]
 
 ### Human-Confirmed (来自 Part A 风险地图)
 
-> Part A 第 2 节每个"必须人工确认"的改动点，这里都要有对应的已确认验收项。
+> Part A 第 2 节每个"必须人工确认"的决策点，这里都有对应的确认项；oracle 跑绿是机器层前提，**不是**人工勾选对象。
 
 - [ ] [Part A 中需要人确认的业务规则、schema、安全或对外契约决策已逐条确认]
+- [ ] §9.1 呈递区各项已亲眼看过（截图 / 自验，二选一或都做）
 
 ### Architecture Acceptance
 
@@ -367,6 +383,7 @@ If no external validation was needed:
 
 - [ ] Recommended approach fully implemented; no unapproved parallel abstraction introduced
 - [ ] No open regression or rollout blocker remains
+- [ ] §9.1 呈递区的呈递物路径已全部回填，且完成回复已原样带上呈递表内容（只给 evidence 目录链接不算交付）
 
 ---
 

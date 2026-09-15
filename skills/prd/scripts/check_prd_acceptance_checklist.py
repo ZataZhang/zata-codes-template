@@ -53,6 +53,7 @@ INTERPRETATION_REQUIRED_BLOCKS = ("我默默定了这些", "我理解为不做")
 MINIMUM_BEHAVIOR_EXAMPLE_ROWS = 3
 BASE_ORACLE_FIELDS = (
     "behavior",
+    "reviewer",
     "real_entry",
     "expected",
     "mock_boundary",
@@ -60,6 +61,11 @@ BASE_ORACLE_FIELDS = (
     "test_layer",
     "required_for_acceptance",
 )
+# Every oracle declares its audience: human (user-perceivable outcome, needs a
+# presentation artifact for the Section 9.1 Human Review Surface) or verifier
+# (machine-checked, reaches the human only on failure).
+VALID_ORACLE_REVIEWERS = ("human", "verifier")
+HUMAN_REVIEWER_ORACLE_FIELDS = ("presentation",)
 # Evidence-chain provenance is only worth its authoring and collection cost where
 # failure has real blast radius. R0/R1 entries need a discriminating assertion,
 # not a five-field provenance chain.
@@ -616,8 +622,21 @@ def _oracle_schema_issues(file_content: str) -> list[tuple[int, str]]:
             )
             continue
 
+        declared_reviewer = oracle_fields.get("reviewer", "").lower()
+        if declared_reviewer and declared_reviewer not in VALID_ORACLE_REVIEWERS:
+            schema_issues.append(
+                (
+                    oracle_line_number,
+                    f"Oracle {oracle_id!r} has invalid reviewer {declared_reviewer!r}; "
+                    f"expected one of {', '.join(VALID_ORACLE_REVIEWERS)}",
+                )
+            )
+            continue
+
         effective_tier = declared_tier or DEFAULT_ORACLE_TIER
         required_fields = list(BASE_ORACLE_FIELDS)
+        if declared_reviewer == "human":
+            required_fields += HUMAN_REVIEWER_ORACLE_FIELDS
         if effective_tier in DEEP_CHAIN_TIERS:
             required_fields += DEEP_CHAIN_ORACLE_FIELDS
         if effective_tier in NEGATIVE_CONTROL_TIERS:
