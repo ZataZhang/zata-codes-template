@@ -77,7 +77,7 @@ AI 代理默认不会设置该变量，因此会被 hook 拦下——这是"指�
 | `test_dokploy_environment.py` | 部署环境模板（env/compose 一致性） |
 | `test_migrations.py` | Alembic 迁移链完整性 |
 | `test_openapi_schema.py` | 公开 HTTP 契约（OpenAPI schema） |
-| `test_prd_skill_checker.py` | PRD 归档 checker 的证据链约束（缺关键值来源/必经边界/fresh-state probe 必须拒收）；被测对象是模板内部 skill 产物 |
+| `test_prd_skill_checker.py` | PRD 归档 checker 的证据链约束（缺关键值来源/必经边界/fresh-state probe 必须拒收）与证据受众分流（oracle 必填 `reviewer`，`reviewer: human` 必填 `presentation`）；被测对象是模板内部 skill 产物 |
 | `test_realdb_marker_required.py` | 写真实数据库的测试必须打 `realdb` 标记（`docs/ai-standards/testing.md`） |
 | `test_realdb_xdist_manifest.py` | `_REALDB_TEST_FILES` 清单必须与模块级 realdb 标记一致（`docs/ai-standards/testing.md`） |
 | `test_runtime_dependency_declaration.py` | 模块级 import 必须由依赖声明覆盖：`src/backend/` 对齐裸 `uv sync`（`[project.dependencies]`），`tests/` 对齐 CI 的 `uv sync --all-extras --all-groups --frozen`（含 `[dependency-groups] dev` 与 extras） |

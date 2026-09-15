@@ -112,6 +112,7 @@ def test_executable_oracle_requires_complete_evidence_chain() -> None:
 ```yaml
 - id: rv-1
   behavior: 分享链接可由匿名用户打开
+  reviewer: verifier
   real_entry: just e2e share
   expected: 匿名浏览器看到分享内容
   mock_boundary: 仅 mock 邮件发送
@@ -138,6 +139,8 @@ def test_executable_oracle_accepts_complete_evidence_chain() -> None:
 ```yaml
 - id: rv-1
   behavior: 分享链接可由匿名用户打开
+  reviewer: human
+  presentation: 真实入口截图 share-anon-open.png + 无痕窗口自验 URL
   real_entry: just e2e share
   expected: 匿名浏览器看到分享内容
   mock_boundary: 仅 mock 邮件发送
@@ -165,6 +168,8 @@ def test_low_tier_oracle_does_not_require_evidence_chain() -> None:
 ```yaml
 - id: rv-1
   behavior: 导航栏显示语言切换器
+  reviewer: human
+  presentation: 切换前后截图 switch-before.png / switch-after.png
   real_entry: pnpm --filter frontend-admin test:e2e -g language-switcher
   expected: 切换后可见文案由中文变为英文
   mock_boundary: 不 mock 前端渲染，仅 mock 后端列表接口
@@ -185,6 +190,7 @@ def test_high_tier_oracle_still_requires_evidence_chain() -> None:
 ```yaml
 - id: rv-1
   behavior: 同步写入对新会话可见
+  reviewer: verifier
   real_entry: just e2e sync
   expected: 新会话读到已提交记录
   mock_boundary: 仅 mock 邮件发送
@@ -209,6 +215,7 @@ def test_invalid_oracle_tier_is_rejected() -> None:
 ```yaml
 - id: rv-1
   behavior: 导航栏显示语言切换器
+  reviewer: verifier
   real_entry: pnpm --filter frontend-admin test:e2e
   expected: 切换后文案变化
   mock_boundary: 不 mock 前端渲染
@@ -232,6 +239,7 @@ def test_not_feasible_negative_control_waives_expected_fail() -> None:
 ```yaml
 - id: rv-1
   behavior: 供应商超时时同步标记为失败
+  reviewer: verifier
   real_entry: just e2e sync
   expected: attempt 状态为 failed 且无 remote_reference
   mock_boundary: 供应商 HTTP 边界由测试 fake 替换
@@ -444,3 +452,95 @@ def test_delivery_gate_banner_tolerates_none_with_rationale() -> None:
     )
 
     assert PRD_CHECKER._delivery_gate_banner_issues(with_rationale) == []
+
+
+def test_oracle_reviewer_is_required() -> None:
+    """oracle 必须声明证据受众；缺失时按缺少必填字段拒绝。"""
+
+    no_reviewer_prd = """### 7.6 Realistic Validation Plan (Oracle 块)
+
+```yaml
+- id: rv-1
+  behavior: 构建通过
+  real_entry: pnpm build
+  expected: 退出码 0
+  mock_boundary: 无 mock
+  tier: R1
+  test_layer: smoke
+  required_for_acceptance: true
+```
+"""
+
+    oracle_issues = PRD_CHECKER._oracle_schema_issues(no_reviewer_prd)
+
+    assert len(oracle_issues) == 1
+    assert "reviewer" in oracle_issues[0][1]
+
+
+def test_invalid_oracle_reviewer_is_rejected() -> None:
+    """reviewer 只接受 human / verifier，拼错必须报错而不是静默放过。"""
+
+    bad_reviewer_prd = """### 7.6 Realistic Validation Plan (Oracle 块)
+
+```yaml
+- id: rv-1
+  behavior: 构建通过
+  reviewer: robot
+  real_entry: pnpm build
+  expected: 退出码 0
+  mock_boundary: 无 mock
+  tier: R1
+  test_layer: smoke
+  required_for_acceptance: true
+```
+"""
+
+    oracle_issues = PRD_CHECKER._oracle_schema_issues(bad_reviewer_prd)
+
+    assert len(oracle_issues) == 1
+    assert "invalid reviewer" in oracle_issues[0][1]
+
+
+def test_human_reviewer_requires_presentation() -> None:
+    """结果可被人感知的 oracle 必须给出人形态呈递物，否则验收清单无物可呈。"""
+
+    no_presentation_prd = """### 7.6 Realistic Validation Plan (Oracle 块)
+
+```yaml
+- id: rv-1
+  behavior: 导航栏显示语言切换器
+  reviewer: human
+  real_entry: pnpm --filter frontend-admin test:e2e -g language-switcher
+  expected: 切换后可见文案由中文变为英文
+  mock_boundary: 不 mock 前端渲染
+  tier: R1
+  test_layer: e2e
+  required_for_acceptance: true
+```
+"""
+
+    oracle_issues = PRD_CHECKER._oracle_schema_issues(no_presentation_prd)
+
+    assert len(oracle_issues) == 1
+    assert "presentation" in oracle_issues[0][1]
+
+
+def test_verifier_reviewer_does_not_require_presentation() -> None:
+    """纯机器验收的 oracle 不背呈递物字段，避免形式主义。"""
+
+    verifier_prd = """### 7.6 Realistic Validation Plan (Oracle 块)
+
+```yaml
+- id: rv-1
+  behavior: 构建通过
+  reviewer: verifier
+  real_entry: pnpm build
+  expected: 退出码 0
+  mock_boundary: 无 mock
+  tier: R1
+  test_layer: smoke
+  required_for_acceptance: true
+```
+"""
+
+    assert PRD_CHECKER._oracle_schema_issues(verifier_prd) == []
