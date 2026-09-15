@@ -111,7 +111,9 @@ just worktree feature-branch --base develop
 
 执行一次 `just sync all` 并重新打开终端后，Bash 和 Zsh 会为
 `just worktree -o <Tab>`、`just worktree -d <Tab>` 与
-`just worktree -D <Tab>` 补全本地分支名。
+`just worktree -D <Tab>` 补全本地分支名，并为 `just prd <Tab>` 补全
+子命令（`status`）、为 `just prd status <Tab>` 补全 scope
+（`all`、`pending`、`archive`）。
 
 `just worktree`（底层实现位于 `scripts/shared/worktree/create.sh`）在创建 worktree 后会自动执行两类依赖准备：
 

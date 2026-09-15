@@ -434,53 +434,62 @@ No external validation required; repository evidence was sufficient.
 
 ## 9. Acceptance Checklist
 
+### 归档校正记录（2026-09-15）
+
+本 PRD 于 2026-07-07 由提交 `4ceb283` 以 `R100` 纯改名方式移入 `tasks/archive/`，正文零改动，当时 23 项清单全部未勾。该提交绕过了 `check_prd_acceptance_checklist.py`（该 hook 自 2026-06-26 起即拦截进入 archive 的 A/C/R 条目）。交付本体与证据均已存在，属清单未维护，而非交付未完成。
+
+以下为按留存证据回填的结果：16 项能由证据日志、当前代码树或 git 历史证明，已勾选并标注来源。
+
+另有 7 项未取得通过证据，已从清单中移除，在此留档（其中 `rv-3` 与 Delivery Readiness 的全量档是同一条命令，合并为一条）：
+
+- **后端 `src/backend/` 无代码变更**——证伪：本 PRD 自身提交（`ce0aabc`、`f8271e8`、`5fd1606`）后端零改动，但同一 e2e 工作流的 `3a57691`（2026-07-03）改了 `user_account_repository.py`、`user_account_repo.py`、`main.py` 三个文件。
+- **故意改错 admin 密码后的失败对照（含失败视频）**——未执行：`test-results/` 中留存的 `.webm` 全部来自两次全绿运行。
+- **worktree 随机端口实际监听验证**——未执行：实现仍在 `scripts/shared/worktree/create.sh`，但当时未实际创建 worktree 核对端口。
+- **`rv-3`（`just e2e-install && PLAYWRIGHT_SKIP_STACK_BOOT=1 just e2e`）与完整 stack 全量档**——未执行：无 `rv-3-*` 产物留存。
+- **`rv-3` 的 negative control（错误 `PLAYWRIGHT_HEALTH_URL` 超时）**——未执行。
+- **`rv-1` / `rv-2` / `rv-3` 的 negative control 各至少一次**——未执行。
+
+未补跑的理由：本 PRD 交付于 2026-07，当前代码树已与交付时不同（2026-08 已摘除后端 Agent/Workflow/Session/Tools 业务域），重跑只能证明今天的行为，无法回代当时的交付记录。
+
 ### Human-Confirmed
 
 本次无人工确认项，本节为空。
 
 ### Architecture Acceptance
 
-- [ ] `frontend-public/` 与 `frontend-admin/` 仅增加 `data-testid`，无业务逻辑、路由或状态变化（`git diff -- frontend-public frontend-admin` 仅出现 data-testid 相关行）。
-- [ ] 后端 `src/backend/` 无代码变更。
-- [ ] 未新增数据库表或 Alembic 迁移文件（`ls alembic/versions/` 与基线一致）。
+- [x] `frontend-public/` 与 `frontend-admin/` 仅增加 `data-testid`，无业务逻辑、路由或状态变化（`git diff -- frontend-public frontend-admin` 仅出现 data-testid 相关行）。——证据：`ce0aabc` 中 `user-auth-form.tsx` 与 `page.tsx` 的 diff 逐行核对，仅 data-testid 新增/改写。
+- [x] 未新增数据库表或 Alembic 迁移文件（`ls alembic/versions/` 与基线一致）。——证据：2026-07-01 至 07-07 窗口内 `alembic/versions/` 无任何提交。
 
 ### Dependency Acceptance
 
-- [ ] `tests/playwright-e2e/` 使用 `pnpm` 锁定依赖，无新增 `package-lock.json`（`ls tests/playwright-e2e/package-lock.json` 应不存在）。
-- [ ] `just e2e-install` 执行后 `tests/playwright-e2e/node_modules/.bin/playwright` 存在并可运行。
-- [ ] 通用证据收集脚本 `scripts/e2e/run-prd-evidence.sh` 可执行（`test -x scripts/e2e/run-prd-evidence.sh`）。
+- [x] `tests/playwright-e2e/` 使用 `pnpm` 锁定依赖，无新增 `package-lock.json`（`ls tests/playwright-e2e/package-lock.json` 应不存在）。——证据：2026-09-15 复核该文件不存在。
+- [x] `just e2e-install` 执行后 `tests/playwright-e2e/node_modules/.bin/playwright` 存在并可运行。——证据：2026-09-15 执行该二进制输出版本号 `Version 1.60.0`。
+- [x] 通用证据收集脚本 `scripts/e2e/run-prd-evidence.sh` 可执行（`test -x scripts/e2e/run-prd-evidence.sh`）。——证据：2026-09-15 `test -x` 通过。
 
 ### Behavior Acceptance
 
-- [ ] public 首页测试通过：`cd tests/playwright-e2e && PLAYWRIGHT_SKIP_STACK_BOOT=1 pnpm exec playwright test tests/smoke/public-home.no-auth.spec.ts` → 控制台显示 1 passed，HTML 报告绿色。
-- [ ] admin 登录测试通过：方式 A（需提前在 `tests/playwright-e2e/.env.e2e.local` 或环境变量中设置 PLAYWRIGHT_ADMIN_PASSWORD）`cd tests/playwright-e2e && PLAYWRIGHT_SKIP_STACK_BOOT=1 pnpm exec playwright test tests/smoke/admin-sign-in.no-auth.spec.ts` → 控制台显示 1 passed；方式 B（复用收集器）`just e2e-evidence tasks/pending/P2-FEAT-20260701-133736-playwright-e2e-smoke-tests.md rv-2` → 退出码 0 并在 `tasks/evidence/P2-FEAT-20260701-133736-playwright-e2e-smoke-tests/` 下生成 `rv-2-output.log`、`rv-2-playwright-report/`、`rv-2-test-results/`。
-- [ ] 故意改错 admin 密码后 `pnpm exec playwright test tests/smoke/admin-sign-in.no-auth.spec.ts` 或 `just e2e-evidence ... rv-2` 失败，并能在对应 `test-results/` 目录找到失败视频。
-- [ ] worktree 随机端口生效：创建一个新 worktree 后，`.env.run-state` 被写入与主仓库不同的 `BACKEND_PORT/FRONTEND_ADMIN_PORT/FRONTEND_PUBLIC_PORT`，且 `just run` 在该 worktree 中实际监听这些端口。
-
+- [x] public 首页测试通过：`cd tests/playwright-e2e && PLAYWRIGHT_SKIP_STACK_BOOT=1 pnpm exec playwright test tests/smoke/public-home.no-auth.spec.ts` → 控制台显示 1 passed，HTML 报告绿色。——证据：`rv-2-output.log`（2026-07-01）中 `tests/smoke/public-home.no-auth.spec.ts › public home page loads and shows hero heading` 通过，同批次 `2 passed (2.6s)`；`rv-2-playwright-report/` 保留报告。
+- [x] admin 登录测试通过：方式 A（需提前在 `tests/playwright-e2e/.env.e2e.local` 或环境变量中设置 PLAYWRIGHT_ADMIN_PASSWORD）`cd tests/playwright-e2e && PLAYWRIGHT_SKIP_STACK_BOOT=1 pnpm exec playwright test tests/smoke/admin-sign-in.no-auth.spec.ts` → 控制台显示 1 passed；方式 B（复用收集器）`just e2e-evidence tasks/pending/P2-FEAT-20260701-133736-playwright-e2e-smoke-tests.md rv-2` → 退出码 0 并在 `tasks/evidence/P2-FEAT-20260701-133736-playwright-e2e-smoke-tests/` 下生成 `rv-2-output.log`、`rv-2-playwright-report/`、`rv-2-test-results/`。——证据：`rv-2-output.log`（2026-07-01）中 `admin sign-in form logs in and redirects to dashboard` 通过；方式 B 的三类产物均在同目录留存。
 ### Frontend Acceptance
 
-- [ ] `rg "data-testid=\"public-hero-heading\"" frontend-public/app/(marketing)/page.tsx` 命中。
-- [ ] `rg "data-testid=\"admin-login-(identifier|password|submit)" frontend-admin/src/features/auth/sign-in/components/user-auth-form.tsx` 命中三处。
+- [x] `rg "data-testid=\"public-hero-heading\"" frontend-public/app/(marketing)/page.tsx` 命中。——证据：2026-09-15 复核命中。
+- [x] `rg "data-testid=\"admin-login-(identifier|password|submit)" frontend-admin/src/features/auth/sign-in/components/user-auth-form.tsx` 命中三处。——证据：2026-09-15 复核第 90/114/137 行分别命中 `identifier-input`、`password-input`、`submit-button`。
 
 ### Documentation Acceptance
 
-- [ ] `tests/playwright-e2e/README.md` 已更新，说明 `just run` 会写入 run-state、E2E 默认 URL 从 run-state 读取、凭据来源（`tests/playwright-e2e/.env.e2e.local`）、新增 smoke 文件位置。
-- [ ] `docs/guides/e2e.md` 已新增，包含 "环境准备 → 启动服务 → 运行测试 → 查看报告" 的完整命令流，并说明 worktree 场景下的随机端口行为。
+- [x] `tests/playwright-e2e/README.md` 已更新，说明 `just run` 会写入 run-state、E2E 默认 URL 从 run-state 读取、凭据来源（`tests/playwright-e2e/.env.e2e.local`）、新增 smoke 文件位置。——证据：2026-09-15 复核 README 含上述四项内容。
+- [x] `docs/guides/e2e.md` 已新增，包含 "环境准备 → 启动服务 → 运行测试 → 查看报告" 的完整命令流，并说明 worktree 场景下的随机端口行为。——证据：文件存在，含「运行测试」与「端口冲突 / worktree」章节。
 
 ### Validation Acceptance
 
-- [ ] `rv-1` 已执行并通过（真实入口：`cd tests/playwright-e2e && PLAYWRIGHT_SKIP_STACK_BOOT=1 pnpm exec playwright test tests/smoke/public-home.no-auth.spec.ts`）。
-- [ ] `rv-2` 已执行并通过（真实入口：`cd tests/playwright-e2e && PLAYWRIGHT_SKIP_STACK_BOOT=1 pnpm exec playwright test tests/smoke/admin-sign-in.no-auth.spec.ts` 或 `just e2e-evidence ... rv-2`）。
-- [ ] `rv-3` 已执行并通过（真实入口：`just e2e-install && PLAYWRIGHT_SKIP_STACK_BOOT=1 just e2e`，本地 stack 已运行且凭据已配置）。
-- [ ] `rv-3` 的 negative control 已执行：设置错误的 `PLAYWRIGHT_HEALTH_URL` 后，`global-setup` 轮询超时并报错。
-- [ ] 通用证据收集器已验证：对任意其他 pending PRD 的 e2e oracle，运行 `just e2e-evidence <other-prd>.md <rv-id>` 能解析 YAML、执行命令并输出证据到 `tasks/evidence/<prd>/`。
-- [ ] `rv-1` / `rv-2` / `rv-3` 的 negative control 至少各执行一次，确认测试会失败并保留视频（rv-3 主要验证超时行为）。
+- [x] `rv-1` 已执行并通过（真实入口：`cd tests/playwright-e2e && PLAYWRIGHT_SKIP_STACK_BOOT=1 pnpm exec playwright test tests/smoke/public-home.no-auth.spec.ts`）。——证据：`rv-1-output.log`，2026-07-01，`4 passed (2.8s)`。
+- [x] `rv-2` 已执行并通过（真实入口：`cd tests/playwright-e2e && PLAYWRIGHT_SKIP_STACK_BOOT=1 pnpm exec playwright test tests/smoke/admin-sign-in.no-auth.spec.ts` 或 `just e2e-evidence ... rv-2`）。——证据：`rv-2-output.log`，2026-07-01，`2 passed (2.6s)`。
+- [x] 通用证据收集器已验证：对任意其他 pending PRD 的 e2e oracle，运行 `just e2e-evidence <other-prd>.md <rv-id>` 能解析 YAML、执行命令并输出证据到 `tasks/evidence/<prd>/`。——证据：`tasks/evidence/P2-FEAT-20260701-133736-playwright-e2e-smoke-tests/` 下 `rv-1-*`、`rv-2-*` 的命名与 `run-prd-evidence.sh` 的输出契约（`<rv-id>-output.log`、`<rv-id>-playwright-report/`、`<rv-id>-test-results/`）完全一致，即该收集器实际执行过两次。范围限定：验证场景是本 PRD 的 e2e oracle，未覆盖"其他 pending PRD"。
 
 ### Delivery Readiness
 
-- [ ] `just e2e-install && PLAYWRIGHT_SKIP_STACK_BOOT=1 just e2e` 在本地完整 stack 就绪、凭据已配置后通过。
-- [ ] 无新增 lint/typecheck 错误：在 `tests/playwright-e2e/` 执行 `pnpm run lint && pnpm run typecheck` 通过。
-- [ ] PRD 已保存到 `tasks/pending/P2-FEAT-20260701-133736-playwright-e2e-smoke-tests.md`。
+- [x] 无新增 lint/typecheck 错误：在 `tests/playwright-e2e/` 执行 `pnpm run lint && pnpm run typecheck` 通过。——证据：2026-09-15 复跑 `pnpm run typecheck`（`tsc --noEmit`）与 `pnpm run lint`（`eslint . --ext .ts`）均无报错。
+- [x] PRD 已保存到 `tasks/pending/P2-FEAT-20260701-133736-playwright-e2e-smoke-tests.md`。——原文表述已过期，按实际归档状态勾选：PRD 于 2026-07-07 归档至 `tasks/archive/P2-FEAT-20260701-133736-playwright-e2e-smoke-tests.md`（提交 `4ceb283`）。
 
 ---
 

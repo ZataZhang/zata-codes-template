@@ -33,6 +33,7 @@
 | `just ai fix [claude\|kimi]` | 用 AI 解决当前 git 冲突（rebase/merge/cherry-pick 等） |
 | `just ai commit [claude\|kimi]` | 先跑 `just test`，再用 AI 生成提交信息 |
 | `just ai implement <prd-file> [claude\|kimi]` | 按 PRD 实现功能 |
+| `just prd status [all\|pending\|archive]` | PRD 状态看板：pending 逐条列出、archive 按月折叠，展示验收清单勾选进度与证据包状态 |
 
 ## Justfile Layering
 
@@ -120,6 +121,15 @@
 ```bash
 python scripts/check_prd_acceptance_checklist.py --repo-root "$PWD" --all
 ```
+
+### PRD 状态看板
+
+`just prd status` 汇总上述状态，输出 `tasks/pending` 的逐条明细与 `tasks/archive` 的月份折叠概览（`all` 展开每条）：
+
+- 明细列：优先级与类型（取自文件名前缀）、创建日期、验收清单 `已勾/总数`、证据包 `plan` / `report` / `verifier` 三个槽位。
+- archive 概览：每月 PRD 条数、清单全完成的条数、有证据包的条数与 verifier `REJECT` 条数；月份下出现 `⚠ 有未勾完的清单` 时，会列出具体是哪几条。
+
+**看板是启发式视图，不是门禁**：清单进度按 `Acceptance Checklist` / `验收清单` 小节内的 `- [ ]` 计数；verifier 结论取报告中最后一次出现的显式结论行（`verdict:`、`结论：` 或整行独立的 `PASS`/`REJECT`），只能从散文推断时会加 `?` 标记。真正的把关仍由 `check_prd_acceptance_checklist.py` 与独立 verifier 完成，看板只用于快速定位。
 
 ## Platform Notes
 
