@@ -53,7 +53,12 @@ fi
 
 if (( CURRENT == 3 )) && [[ "${words[2]:-}" == prd ]]; then
   local -a prd_subcommand_candidates
-  prd_subcommand_candidates=('status:查看 PRD 状态看板')
+  prd_subcommand_candidates=(
+    'status:查看 PRD 状态看板'
+    'start:领取 PRD 执行锁（--tool/--branch 自报）'
+    'heartbeat:续期自己持有的执行锁'
+    'release:释放执行锁（--force 强制）'
+  )
   _describe 'prd subcommand' prd_subcommand_candidates
   return
 fi

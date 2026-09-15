@@ -3,7 +3,7 @@
 > ✅ **交付前置**：无，可立即开工。
 > 结构化声明见 §8 Delivery Dependencies，**那里是唯一事实源**。
 
-> ⬜ **验收状态**：未开工。
+> ✅ **验收状态**：可归档 — 验收清单已全部完成。
 > 本行是 §9 Acceptance Checklist 的投影，**那里是唯一事实源**。
 
 > 本 PRD 分两个 altitude：**Part A · 人审层**（决定该不该做、做得对不对，含介入与风险地图）；**Part B · 执行器层**（实现细节，人只在风险地图点名处下钻）。
@@ -53,7 +53,7 @@
 - 锁文件放在该 PRD 的证据目录下（与 verifier 轮次记录同级），**不**新建专门的锁目录——证据目录已被 git 忽略规则覆盖，锁文件天然不进版本库。
 - 锁的"归属"按所在 worktree 路径判定，不引入 token / 会话 UUID 机制。
 - 锁里额外记录 **agent 工具**与**分支**两个纯展示字段：工具名是**自由文本而非枚举**，谁领锁谁自报（`just implement` 路径由 recipe 透传实际工具名；ad-hoc agent 可用 `--tool <名字>` 自报，缺省 `unknown`）；分支在 ad-hoc 路径取当前 git 分支。这两个字段不参与归属与互斥判定。
-- 心跳过期的判定阈值默认 **30 分钟**；持锁进程（pid）已死时无论心跳多新都视为可接管。
+- 心跳过期的判定阈值默认 **30 分钟**。（实现期修订：原文另含"持锁 pid 已死即可接管"，因 CLI/agent 场景不存在稳定的长驻持锁进程而撤销，见 D-09。）
 - 接管语义分两档：过期锁**自动接管**（告示即可）；新鲜锁必须**显式释放后重试**，开工命令不提供"强制抢锁"一把梭。
 - 锁的释放由人（或归档动作）触发，executor 干活完不自动释放——锁同时也承担"这条已有人认领过"的语义。
 - 心跳不靠守护进程，由执行流程在关键步骤显式触发续期。
@@ -90,7 +90,7 @@
 
 开工入口（`just prd start` 与 `just implement`）遇到**别人持有的新鲜锁**时的行为是本 PRD 唯一真正影响工作流的决策。推荐做法是**直接拒绝开工**并展示持锁者信息；想接管只有两条路——等锁过期（30 分钟无心跳或进程已死）后由开工命令自动接管，或者人确认对方已停后显式运行释放命令再重新开工。开工命令**不**提供 `--force` 之类的就地强抢参数，因为"强抢"一旦顺手，重复开工的防护就形同虚设；而显式释放是一条独立命令，多一步、可留痕。
 
-风险在于误伤：如果阈值太短或心跳机制不可靠，活跃中的会话会被误判为"死锁"而被接管。缓解方式是阈值取 30 分钟（远超 agent 单个步骤的典型耗时）加上"持锁进程已死才立即判死"的双重条件，且自动接管仅限过期锁。
+风险在于误伤：如果阈值太短或心跳机制不可靠，活跃中的会话会被误判为"死锁"而被接管。缓解方式是阈值取 30 分钟（远超 agent 单个步骤的典型耗时），且自动接管仅限过期锁。（实现期修订：原设计另有"持锁进程已死立即判死"的加速条件，因 CLI/agent 场景无稳定长驻持锁进程而撤销，见 D-09。）
 
 **请确认：** 新鲜锁硬拒绝 + 接管必须显式（自动接管仅限过期锁，阈值 30 分钟），这个策略是否符合你的预期？
 
@@ -153,6 +153,11 @@
 
 核心机制是**主仓库证据目录下的本机 JSON 文件锁**（`tasks/evidence/<prd-stem>/active.lock`）。锁内容：`pid`、`hostname`、`worktree`（持锁 worktree 相对路径，主仓库为空）、`started_at`、`heartbeat_at`（ISO 时间），以及两个纯展示字段 `ai_tool`（自由文本，谁领锁谁自报，缺省 `unknown`）与 `branch`——后两者不参与归属与互斥判定，只为让看板和被拒方能直接看到"谁在跑、跑在哪条分支"。声明由开工入口显式提供（`just prd start <prd-file>` 或 `just implement` 内部调用），系统不猜测"当前在执行哪条 PRD"。
 
+> **实现期修订（2026-09-15，见 D-09 / D-10）**：
+> 1. ~~`pid` 记录会话首领 pid 参与"pid 已死"过期判定~~ → **过期判定只看心跳**（心跳超 30 分钟）。锁脚本命令结束即退出，且 agent 工具调用通常给每条命令开新会话：无论记自身 pid 还是会话首领 pid，"pid 已死"都在领锁返回后立刻成立，所有锁瞬间过期、互斥失效（首轮实现按原文双条件判定，并发测试红跑与真实仓库 dogfood 均实证该竞态——领锁数分钟后看板即显示 STALE）。`pid` / `hostname` 字段保留在锁 JSON 中仅供排查展示，不参与判定。
+> 2. 新增**开工移交**规则：锁归属为主仓库（`worktree` 为空）而 claim 来自其 linked worktree 时，视为 `just implement`（主仓库领锁）→ executor（worktree 自检）的合法移交，刷新心跳并把 `worktree` 更新为当前 worktree，退出 0。否则 `just implement` 开工后 executor 的第 0 步自检必然撞自己入口的锁，FR-4 与 FR-6 自相矛盾。
+> 3. 锁写入采用"临时文件 + `os.link`（排他）/ `os.replace`（刷新）"的整内容原子写入，消除 `O_EXCL` 创建后、JSON 写完前读者读到空文件误判过期的竞态；`O_EXCL` 语义由 `os.link` 的 `FileExistsError` 承担。
+
 关键设计：**锁的唯一事实源在主仓库**。锁脚本定位仓库根时，必须用 `git rev-parse --git-common-dir` 反推主仓库根（worktree 内该路径指向主仓库的 `.git`），使各 worktree 共享同一份锁视图；不能用 `--show-toplevel`（worktree 内会返回 worktree 自身路径，锁会被写进 worktree 而互相不可见）。
 
 接入点：现有 `prd` recipe（新子命令）、`implement` recipe（worktree 创建前）、executor 提示词（第 0 步）、pre-commit（warn-only）、`prd_status.py`（运行态列）。系统状态变化：证据目录新增 gitignored 锁文件；用户可见行为变化：看板运行态 + 开工冲突拒绝/接管提示。刻意避免的复杂度：新存储、token 机制、后台进程、状态机变更。
@@ -168,7 +173,7 @@
    - 展示元数据来源：claim 接受 `--tool <名称>`（自由文本，非枚举）与 `--branch <名称>`；`just implement` 调用时透传 recipe 的 `ai_tool` 与 `branch_name`；ad-hoc `just prd start` 可由 agent 自报工具名（`prd` recipe 增加可选参数透传），branch 缺省取 `git branch --show-current`，tool 缺省 `unknown`。
    - 用 `open(path, "x")`（O_EXCL）原子创建：
      - 创建成功 → 写入锁 JSON，输出持锁确认与该 PRD 当前清单进度（顺带提供开工上下文）。
-     - 已存在 → 读锁判定：归属相同（worktree 路径一致）→ 幂等刷新心跳，退出 0；心跳超阈值（默认 30 分钟）或（同 hostname 且 pid 已死，用 `os.kill(pid, 0)` 探测）→ 旧锁改名留档为 `active.lock.<时间戳>.stale`，接管写入新锁并输出告示，退出 0；否则（他人新鲜锁）→ 打印持锁者 `ai_tool` / `branch` / `worktree` / `started_at` / `heartbeat_at` 与"显式释放：`just prd release <prd-file>`"提示，退出 1。
+     - 已存在 → 读锁判定：归属相同（worktree 路径一致）→ 幂等刷新心跳（保留既有 `ai_tool` / `branch`，避免 `create.sh` 的兜底 claim 把 `implement` 透传的工具名覆盖回 `unknown`），退出 0；锁归属为主仓库（worktree 为空）而本次 claim 来自同一仓库的 linked worktree → 开工移交，刷新心跳并把 worktree 更新为当前 worktree（见 D-10），退出 0；心跳超阈值（默认 30 分钟）→ 旧锁改名留档为 `active.lock.<时间戳>.<pid>.stale`，随后**排他创建**新锁接管并输出告示（两段式原子接管：rename 后逐字节核对归档内容，不一致即放回重排；有界重试 5 次，见 D-11），退出 0（过期判定只看心跳，不做 pid 探测，见 D-09）；否则（他人新鲜锁）→ 打印持锁者 `ai_tool` / `branch` / `worktree` / `started_at` / `heartbeat_at` 与"显式释放：`just prd release <prd-file>`"提示，退出 1。
 2. **heartbeat**：更新自己锁的 `heartbeat_at`；锁不存在或归属不符 → 输出警告并非零退出（让 executor 能发现锁已丢）。
 3. **release**：删除锁；归属不符时需 `--force` 并输出告示。
 4. **状态查询**（供 `prd_status.py` import）：返回 `none / fresh / stale` 及锁元数据；`prd_status.py` 的 pending 表格新增 `ACTIVITY` 列——fresh → 黄色 `RUNNING <tool> <时长> @<branch>`（branch 缺失时回退显示 worktree 路径）；stale → 红色 `STALE <最后心跳时间>`；无锁但 PRD 文件或证据目录 15 分钟内有改动 → 暗色 `⚡ active <n>m ago`；其余 `-`。
@@ -186,7 +191,7 @@
 │   │   [新增]
 │   │   【总结】PRD 执行锁的 claim/heartbeat/release/查询实现，锁落主仓库证据目录
 │   │   ├── git-common-dir 反推主仓库根（worktree 共享锁视图）
-│   │   ├── O_EXCL 原子领锁；归属判定（worktree 路径）；stale 判定（30min 心跳 / pid 死亡）
+│   │   ├── 排他原子领锁；归属判定（worktree 路径）；stale 判定（30min 心跳）
 │   │   ├── 锁 JSON 含展示元数据 ai_tool / branch（implement 显式传入；ad-hoc 记 unknown / 当前分支）
 │   │   ├── 接管留档（active.lock.<ts>.stale）与持锁者信息输出
 │   │   └── 查询接口供 prd_status.py import
@@ -381,48 +386,48 @@ No external validation required; repository evidence was sufficient.
 
 ### Human-Confirmed
 
-- [ ] **新鲜锁策略确认**：实测会话 B 在 A 活跃期间开工被非零退出拒绝并看到 A 的持锁信息；backdate 心跳后 B 开工自动接管成功并看到 `.stale` 留档提示（证据：rv-2.log 两段命令输出原文）。
+- [x] **新鲜锁策略确认**：实测会话 B 在 A 活跃期间开工被非零退出拒绝并看到 A 的持锁信息；backdate 心跳后 B 开工自动接管成功并看到 `.stale` 留档提示（证据：rv-2.log 两段命令输出原文）。（2026-09-15 用户口头确认："确认，归档吧"）
 
 ### R2 证据
 
-- [ ] **并发开工唯一成功**（rv-2）：对同一 fixture PRD 并发执行两次 `just prd start`，证据日志显示恰一次退出 0、一次退出 1 且输出含持锁者 ai_tool / branch 与心跳时间；含实现前红跑记录与 tests/ 内去 O_EXCL 替身的负控结果。
+- [x] **并发开工唯一成功**（rv-2）：对同一 fixture PRD 并发执行两次 `just prd start`，证据日志显示恰一次退出 0、一次退出 1 且输出含持锁者 ai_tool / branch 与心跳时间；含实现前红跑记录与 tests/ 内去 O_EXCL 替身的负控结果。
 
 ### R1 / R0 门禁（折叠）
 
 ### Architecture Acceptance
 
-- [ ] 锁唯一事实源在主仓库：worktree 内执行领锁后，主仓库 `tasks/evidence/<stem>/active.lock` 存在而 worktree 内同名路径不存在（rv-1 用例断言）。
-- [ ] 锁文件不进 git：`git check-ignore tasks/evidence/<stem>/active.lock` 命中；`git status` 不出现锁文件。
-- [ ] 未新增任何第三方依赖：`rg -n "import" scripts/shared/just/prd_lock.py` 仅标准库。
+- [x] 锁唯一事实源在主仓库：worktree 内执行领锁后，主仓库 `tasks/evidence/<stem>/active.lock` 存在而 worktree 内同名路径不存在（rv-1 用例断言）。
+- [x] 锁文件不进 git：`git check-ignore tasks/evidence/<stem>/active.lock` 命中；`git status` 不出现锁文件。
+- [x] 未新增任何第三方依赖：`rg -n "import" scripts/shared/just/prd_lock.py` 仅标准库。
 
 ### Behavior Acceptance
 
-- [ ] `just prd start / heartbeat / release` 三个子命令可用且 usage 文本更新（rv-2、命令实测）。
-- [ ] 看板运行态三种标注（RUNNING 含工具与分支 / STALE / ⚡）实测各出现一次（rv-3）。
-- [ ] `just implement` 在新鲜锁下中止且不建 worktree（rv-4）。
-- [ ] `just worktree` 在分支名匹配 + 他人新鲜锁下拒绝创建且不落地目录（rv-7）。
-- [ ] 提交钩子警告但退出 0（rv-5）。
+- [x] `just prd start / heartbeat / release` 三个子命令可用且 usage 文本更新（rv-2、命令实测）。
+- [x] 看板运行态三种标注（RUNNING 含工具与分支 / STALE / ⚡）实测各出现一次（rv-3）。
+- [x] `just implement` 在新鲜锁下中止且不建 worktree（rv-4）。
+- [x] `just worktree` 在分支名匹配 + 他人新鲜锁下拒绝创建且不落地目录（rv-7）。
+- [x] 提交钩子警告但退出 0（rv-5）。
 
 ### Documentation Acceptance
 
-- [ ] `docs/ai-standards/tooling.md`、`AGENTS.md`、两个 shell 补全脚本的搜索断言全部命中（rv-6）。
-- [ ] `executor_prompt.txt` 第 0 步含开工自检与心跳约定，`<PRD_FILE>` 占位符由 `implement` recipe 正确替换。
+- [x] `docs/ai-standards/tooling.md`、`AGENTS.md`、两个 shell 补全脚本的搜索断言全部命中（rv-6）。
+- [x] `executor_prompt.txt` 第 0 步含开工自检与心跳约定，`<PRD_FILE>` 占位符由 `implement` recipe 正确替换。
 
 ### Validation Acceptance
 
-- [ ] 真实入口验证：`just prd start`、`just prd status pending`、`just implement`、`just worktree`、`hooks/shared/check_prd_lock_conflict.py` 均以真实命令跑通并留证（rv-2 至 rv-5、rv-7 日志），非仅单元测试。
-- [ ] `uv run pytest tests/guards/shared/test_prd_lock.py -v` 全绿（rv-1）。
-- [ ] 证据包落 `tasks/evidence/P2-FEAT-20260915-112126-prd-execution-lock/`，按 rv-id 命名。
+- [x] 真实入口验证：`just prd start`、`just prd status pending`、`just implement`、`just worktree`、`hooks/shared/check_prd_lock_conflict.py` 均以真实命令跑通并留证（rv-2 至 rv-5、rv-7 日志），非仅单元测试。
+- [x] `uv run pytest tests/guards/shared/test_prd_lock.py -v` 全绿（rv-1）。
+- [x] 证据包落 `tasks/evidence/P2-FEAT-20260915-112126-prd-execution-lock/`，按 rv-id 命名。
 
 ### Delivery Readiness
 
-- [ ] 推荐方案完整实现，无遗留临时兼容层；`just lint` 与既有测试套件无回归。
-- [ ] 与 ai-self-verify PRD 的 `executor_prompt.txt` 基线已对齐（后落地者已合并先落地者文本）。
+- [x] 推荐方案完整实现，无遗留临时兼容层；`just lint` 与既有测试套件无回归。（证据：guards-regression.log 110 passed、full-suite.log 212 passed；`just lint --full` 除 `check-guard-test-modification` 提交确认门（新增守卫测试需人工 `GUARD_UPDATE_ACK=1` 提交，属既定流程）外全部 Passed。）
+- [x] 与 ai-self-verify PRD 的 `executor_prompt.txt` 基线已对齐（后落地者已合并先落地者文本）。（N-6 结论：ai-self-verify PRD 仍在 `tasks/pending/` 未落地，executor_prompt.txt 的基线即当前提交文本，"基线对齐"实际无内容可对齐；若对方后落地，由对方以本 PRD 文本为基线合并。）
 
 ## 10. Functional Requirements
 
 - **FR-1**：PRD 执行锁以主仓库 `tasks/evidence/<prd-stem>/active.lock` 本机 JSON 文件实现，字段含 pid、hostname、worktree、started_at、heartbeat_at，以及纯展示字段 ai_tool（自由文本，自报或缺省 `unknown`，非枚举）与 branch；锁脚本在任何 worktree 内均解析到主仓库根；锁文件被 git 忽略。
-- **FR-2**：`just prd start <prd-file>` 原子领锁（O_EXCL）；他人新鲜锁拒绝并输出持锁者信息（退出 1）；过期锁（心跳超 30 分钟或持锁 pid 已死）自动接管并将旧锁留档；同归属重复领锁幂等刷新。
+- **FR-2**：`just prd start <prd-file>` 原子领锁（排他创建）；他人新鲜锁拒绝并输出持锁者信息（退出 1）；过期锁（心跳超 30 分钟）自动接管并将旧锁留档；同归属重复领锁幂等刷新。（实现期修订：过期判定撤销 pid 死亡路径，见 D-09。）
 - **FR-3**：`just prd heartbeat <prd-file>` 续期自己的锁（锁丢失时警告并非零退出）；`just prd release <prd-file>` 释放锁（归属不符需显式强制）。
 - **FR-4**：两个机械入口自动领锁——`just implement` 在校验 PRD 后、创建 worktree 前领锁（携带 ai_tool / branch 元数据）；`just worktree`（create.sh）在分支名匹配 pending PRD slug 时领锁（tool 缺省 `unknown`）。两者遇他人新鲜锁均中止：不建 worktree、不启动 executor、退出非零。
 - **FR-5**：`just prd status` pending 视图新增运行态列：新鲜锁显示 RUNNING 与 agent 工具、分支、时长（branch 缺失时回退 worktree 路径），过期锁显示 STALE 与最后心跳时间，无锁但 15 分钟内有文件改动显示弱信号；原有列与 scope 用法不变。
@@ -441,7 +446,7 @@ No external validation required; repository evidence was sufficient.
 
 ## 12. Risks And Follow-Ups
 
-- **心跳依赖 executor 自觉**：若 executor 长时间不触发心跳，活跃会话可能被误判过期而被接管（缓解：30 分钟阈值 + pid 存活双重判定；后续若误判频发，可评估在 `ai_run.sh` 包装层加自动心跳）。
+- **心跳依赖 executor 自觉**：若 executor 长时间不触发心跳，活跃会话可能被误判过期而被接管（缓解：30 分钟阈值远超 agent 单个步骤的典型耗时；后续若误判频发，可评估在 `ai_run.sh` 包装层加自动心跳）。
 - **自然语言入口覆盖不全**：分支名不符合"PRD slug"约定时 `just worktree` 不触发领锁；纯主仓库自然语言开工在编辑前无机械拦截点，靠 AGENTS.md 会话约定与 commit 钩子兜底（后续可选：用户级 PreToolUse 会话钩子，因不随模板分发未纳入本期）。
 - **归档后死锁残留**：PRD 归档而锁未释放时看板会持续显示 STALE（缓解：STALE 标注本身就是清理信号；可考虑后续在归档流程中联动 `release`）。
 - **与 ai-self-verify PRD 的提示词上下文漂移**：同改 `executor_prompt.txt`，后落地者需手工对齐基线。
@@ -458,3 +463,17 @@ No external validation required; repository evidence was sufficient.
 | D-06 | 兜底层强度 | 宽松版：executor 自检 + warn-only 提交钩子 | 硬阻断（deny 编辑 / 拒绝提交） | 用户明确选择宽松版；误报代价是噪音而非流程卡死 |
 | D-07 | 持锁者展示信息 | 锁 JSON 记录 ai_tool / branch 展示元数据，看板与冲突输出直接渲染 | 只记 worktree，运行时 `ps` 反查 pid 对应工具 | `just implement` 领锁时两个值现成，写入成本为零且准确；`ps` 反查依赖 pid 未复用还要人工多一步，"谁在跑"不闭环；两字段不参与归属判定，D-04 不变 |
 | D-08 | 自然语言入口的机械拦截 | `create.sh` 按"分支名 == pending PRD slug"匹配自动领锁，作为 `just implement` 之外的第二机械入口 | 只挂 `just implement`；或试图拦截任意自然语言开工 | 用户实际入口已迁移到自然语言 + `just worktree`；名称匹配能用低成本覆盖该路径，而任意自然语言在编辑前无机械拦截点，残余风险由 AGENTS.md 约定与 commit 钩子兜底（已披露） |
+| D-09 | 过期判定依据（实现期修订，两轮） | 只看心跳超时（30 分钟）；`pid` / `hostname` 保留在锁 JSON 仅供排查展示 | 原文：心跳超时或持锁 pid 已死；第一轮折中：记录会话首领 pid 参与判定 | 锁脚本命令结束即退出，agent 工具调用又给每条命令开新会话——无论记自身 pid 还是会话首领 pid，"pid 已死"都在领锁返回后立刻成立，任何锁都可被立即接管，互斥失效（并发测试红跑 + 真实仓库 dogfood 双实证）；CLI/agent 场景不存在可靠的"持锁进程"，心跳是唯一诚实信号 |
+| D-10 | 开工入口 → executor 的锁移交（实现期修订） | 主仓库持有的锁允许被同仓库 linked worktree 的 claim 移交（刷新心跳 + 更新 worktree/branch 字段） | 严格"路径不一致即冲突" | `just implement` 在主仓库领锁后 executor 进入 worktree，第 0 步自检若无移交规则必然撞自己入口的锁，FR-4 与 FR-6 自相矛盾；移交只发生在"主仓库 → 其 worktree"方向，不削弱不同 worktree 之间的互斥；branch 同步更新为 worktree 实际分支，否则看板误显示 @main |
+| D-11 | 过期锁接管的原子化（verifier 第 1 轮 BLOCKER B-1 修复） | 两段式接管：先把旧锁 rename 留档（文件名带时间戳 + pid 防同秒覆盖），再**排他创建**新锁；rename 后核对归档内容与此前判定的过期锁逐字节一致，不一致（抢到别人的新锁）立即放回并重新判定；整体包在有界重试循环（5 次）内 | 原实现 check-then-act：判过期 → rename 留档 → 无条件 `os.replace` 覆盖 | verifier 自建 fixture 实测 10 轮并发接管 5 轮双成功：两个进程同时通过 stale 判定后后者 rename 甚至归档前者刚写入的新锁，两个 replace 都成功；排他创建（`os.link` 的 `FileExistsError`）保证任何并发组合下恰一方接管成功，失败方重读锁后按他人新鲜锁拒绝 |
+
+### Final Reconciliation
+
+- Interpretation: confirmed — 解读回显的行为样例全部经 rv-1..rv-7 实证；实现期三处修订（D-09 撤销 pid 判定、D-10 开工移交、D-11 接管原子化）已在发生时同步回正文与决策日志，非事后追认。
+- Public behavior and contracts: confirmed — `just prd start/heartbeat/release/status`、`just implement` / `just worktree` 前置领锁、warn-only 提交钩子均按最终正文交付；过期判定以心跳 30 分钟为唯一依据（pid/hostname 仅展示）。
+- Related PRD status: confirmed — `P1-FEAT-20260629-ai-self-verify-evidence-package` 仍在 pending；executor_prompt.txt 基线即当前文本，无内容可对齐（原 N-6），对方后落地时以本 PRD 文本为基线。
+- Requirements and risks: confirmed — FR-1..FR-8 全部落地；verifier 两轮审查 PASS，遗留 NON-BLOCKING（N-1 移交对抗面、N-5 弱信号来源、N-2.1 放回理论竞态、N-2.2 回归网偏弱）均为已知且接受的取舍，记录在 verifier-report.md。
+- Reconciled differences:
+  - D-09：过期判定由"心跳超时或 pid 死亡"修订为仅心跳超时（两轮实证：pid 路径使互斥失效）。
+  - D-10：新增主仓库 → linked worktree 的锁移交规则，消解 FR-4 与 FR-6 的自相矛盾；移交同步更新 branch 字段。
+  - D-11：过期锁接管由 check-then-act 修订为"留档 + 排他创建 + 有界重试"两段式原子接管（verifier 第 1 轮 BLOCKER B-1）。

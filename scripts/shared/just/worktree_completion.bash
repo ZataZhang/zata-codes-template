@@ -41,7 +41,7 @@ _just_worktree_completion() {
             fi
 
             if [[ "$COMP_CWORD" -eq 2 ]]; then
-                COMPREPLY=( $(compgen -W "status" -- "$cur") )
+                COMPREPLY=( $(compgen -W "status start heartbeat release" -- "$cur") )
                 return 0
             fi
             ;;

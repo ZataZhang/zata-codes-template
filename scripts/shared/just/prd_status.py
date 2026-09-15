@@ -2,7 +2,8 @@
 """PRD 状态看板。
 
 扫描 ``tasks/pending`` 与 ``tasks/archive``，汇总每条 PRD 的优先级、类型、
-创建时间、验收清单勾选进度与证据包状态，供开工前判断哪些尚未交付。
+创建时间、验收清单勾选进度、证据包状态与执行锁运行态（ACTIVITY 列），
+供开工前判断哪些尚未交付、哪些正被其他会话执行。
 
 用法::
 
@@ -20,7 +21,10 @@ import re
 import subprocess
 import sys
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
+
+import prd_lock
 
 PRD_FILENAME_PATTERN = re.compile(
     r"^(?:P(?P<priority>\d+)-)?(?:(?P<kind>[A-Z]+)-)?"
@@ -363,6 +367,106 @@ def format_evidence_cell(prd_record: PrdRecord, palette: Palette) -> str:
     return " ".join(raw_evidence_parts_list)
 
 
+RECENT_TOUCH_WINDOW_MINUTES = 15
+
+
+def format_duration_text(elapsed_seconds: float) -> str:
+    """把秒数渲染成紧凑时长文本，例如 ``12m`` / ``1h5m`` / ``2d3h``。
+
+    Args:
+        elapsed_seconds (float): 时长秒数，负数按 0 处理。
+
+    Returns:
+        str: 紧凑时长文本。
+    """
+    remaining_minutes = max(0, int(elapsed_seconds // 60))
+    days_count, remaining_minutes = divmod(remaining_minutes, 60 * 24)
+    hours_count, minutes_count = divmod(remaining_minutes, 60)
+    if days_count:
+        return f"{days_count}d{hours_count}h"
+    if hours_count:
+        return f"{hours_count}h{minutes_count}m"
+    return f"{minutes_count}m"
+
+
+def detect_recent_touch_minutes(prd_record: PrdRecord, evidence_root: Path) -> int | None:
+    """无锁弱信号：PRD 文件或证据目录在最近 15 分钟内有改动时返回距今分钟数。
+
+    Args:
+        prd_record (PrdRecord): 单条 PRD 记录。
+        evidence_root (Path): ``tasks/evidence`` 目录。
+
+    Returns:
+        int | None: 距今分钟数（向下取整）；无近期改动时返回 ``None``。
+    """
+    candidate_paths_list: list[Path] = [prd_record.prd_path]
+    evidence_dir_path = evidence_root / prd_record.prd_path.stem
+    if evidence_dir_path.is_dir():
+        candidate_paths_list.extend(
+            child_path for child_path in evidence_dir_path.rglob("*") if child_path.is_file()
+        )
+
+    now_timestamp = datetime.now(timezone.utc).timestamp()
+    newest_mtime_timestamp = 0.0
+    for candidate_path in candidate_paths_list:
+        try:
+            newest_mtime_timestamp = max(newest_mtime_timestamp, candidate_path.stat().st_mtime)
+        except OSError:
+            continue
+    if newest_mtime_timestamp <= 0:
+        return None
+
+    elapsed_minutes = int((now_timestamp - newest_mtime_timestamp) // 60)
+    if elapsed_minutes <= RECENT_TOUCH_WINDOW_MINUTES:
+        return elapsed_minutes
+    return None
+
+
+def format_activity_cell(
+    prd_record: PrdRecord, main_repo_root: Path, evidence_root: Path, palette: Palette
+) -> str:
+    """格式化运行态列（ACTIVITY）。
+
+    新鲜锁 → 黄色 ``RUNNING <tool> <时长> @<branch>``（branch 缺失回退 worktree）；
+    过期锁 → 红色 ``STALE <最后心跳>``；无锁但近期有改动 → 暗色 ``⚡ active <n>m ago``；
+    其余 ``-``。
+
+    Args:
+        prd_record (PrdRecord): 单条 PRD 记录。
+        main_repo_root (Path): 主仓库根目录。
+        evidence_root (Path): ``tasks/evidence`` 目录。
+        palette (Palette): 颜色包装器。
+
+    Returns:
+        str: 运行态单元格文本。
+    """
+    lock_snapshot = prd_lock.inspect_prd_lock(main_repo_root, prd_record.prd_path.stem)
+    if lock_snapshot.state == "fresh":
+        lock_metadata = lock_snapshot.metadata
+        raw_tool_text = str(lock_metadata.get("ai_tool") or "unknown")
+        raw_location_text = (
+            str(lock_metadata.get("branch") or "")
+            or str(lock_metadata.get("worktree") or "")
+            or "主仓库"
+        )
+        raw_started_text = lock_metadata.get("started_at")
+        started_moment = prd_lock.parse_lock_timestamp(raw_started_text)
+        if started_moment is not None:
+            elapsed_seconds = (datetime.now(timezone.utc) - started_moment).total_seconds()
+        else:
+            elapsed_seconds = 0.0
+        raw_duration_text = format_duration_text(elapsed_seconds)
+        return palette.yellow(f"RUNNING {raw_tool_text} {raw_duration_text} @{raw_location_text}")
+    if lock_snapshot.state == "stale":
+        raw_heartbeat_text = str(lock_snapshot.metadata.get("heartbeat_at") or "?")
+        return palette.red(f"STALE {raw_heartbeat_text}")
+
+    recent_touch_minutes = detect_recent_touch_minutes(prd_record, evidence_root)
+    if recent_touch_minutes is not None:
+        return palette.dim(f"⚡ active {recent_touch_minutes}m ago")
+    return palette.dim("-")
+
+
 ANSI_ESCAPE_PATTERN = re.compile(r"\033\[[0-9;]*m")
 
 
@@ -391,12 +495,19 @@ def pad_to_width(raw_text: str, target_width: int) -> str:
     return raw_text + " " * max(0, target_width - visible_width(raw_text))
 
 
-def render_prd_table(prd_records_list: list[PrdRecord], palette: Palette) -> None:
-    """输出逐条 PRD 的对齐表格。
+def render_prd_table(
+    prd_records_list: list[PrdRecord],
+    palette: Palette,
+    main_repo_root: Path,
+    evidence_root: Path,
+) -> None:
+    """输出逐条 PRD 的对齐表格（含 ACTIVITY 运行态列）。
 
     Args:
         prd_records_list (list[PrdRecord]): 待输出的 PRD 记录。
         palette (Palette): 颜色包装器。
+        main_repo_root (Path): 主仓库根目录，用于查询执行锁。
+        evidence_root (Path): ``tasks/evidence`` 目录，用于弱信号探测。
     """
     if not prd_records_list:
         print(palette.dim("  (无)"))
@@ -406,6 +517,10 @@ def render_prd_table(prd_records_list: list[PrdRecord], palette: Palette) -> Non
     raw_kind_cells_list = [prd_record.kind or "-" for prd_record in prd_records_list]
     raw_created_cells_list = [prd_record.created or "-" for prd_record in prd_records_list]
     raw_slug_cells_list = [prd_record.slug for prd_record in prd_records_list]
+    raw_activity_cells_list = [
+        format_activity_cell(prd_record, main_repo_root, evidence_root, palette)
+        for prd_record in prd_records_list
+    ]
 
     priority_column_width = max(len("PR"), *(len(cell) for cell in raw_priority_cells_list))
     kind_column_width = max(len("TYPE"), *(len(cell) for cell in raw_kind_cells_list))
@@ -420,16 +535,25 @@ def render_prd_table(prd_records_list: list[PrdRecord], palette: Palette) -> Non
             pad_to_width("PRD", slug_column_width),
             "CHECKLIST",
             "EVIDENCE",
+            "ACTIVITY",
         ]
     )
     print(palette.dim(raw_header_text))
 
-    for prd_record, raw_priority_cell, raw_kind_cell, raw_created_cell, raw_slug_cell in zip(
+    for (
+        prd_record,
+        raw_priority_cell,
+        raw_kind_cell,
+        raw_created_cell,
+        raw_slug_cell,
+        raw_activity_cell,
+    ) in zip(
         prd_records_list,
         raw_priority_cells_list,
         raw_kind_cells_list,
         raw_created_cells_list,
         raw_slug_cells_list,
+        raw_activity_cells_list,
     ):
         raw_row_text = "  " + "  ".join(
             [
@@ -439,6 +563,7 @@ def render_prd_table(prd_records_list: list[PrdRecord], palette: Palette) -> Non
                 pad_to_width(raw_slug_cell, slug_column_width),
                 pad_to_width(format_checklist_cell(prd_record, palette), 9),
                 format_evidence_cell(prd_record, palette),
+                raw_activity_cell,
             ]
         )
         print(raw_row_text.rstrip())
@@ -510,6 +635,8 @@ def print_bucket_section(
     raw_relative_dir_text: str,
     palette: Palette,
     collapsed_months: bool,
+    main_repo_root: Path,
+    evidence_root: Path,
 ) -> None:
     """输出单个分组的小标题与内容。
 
@@ -519,6 +646,8 @@ def print_bucket_section(
         raw_relative_dir_text (str): 该分组对应的目录，例如 ``tasks/pending``。
         palette (Palette): 颜色包装器。
         collapsed_months (bool): 为真时 archive 按月折叠，为假时逐条列出。
+        main_repo_root (Path): 主仓库根目录，用于查询执行锁。
+        evidence_root (Path): ``tasks/evidence`` 目录，用于弱信号探测。
     """
     print(
         palette.bold(f"{raw_title_text} ({len(bucket_records_list)})")
@@ -528,7 +657,7 @@ def print_bucket_section(
     if collapsed_months:
         render_archive_months(bucket_records_list, palette)
     else:
-        render_prd_table(bucket_records_list, palette)
+        render_prd_table(bucket_records_list, palette, main_repo_root, evidence_root)
     print()
 
 
@@ -554,6 +683,8 @@ def main() -> int:
     pending_dir_path = repo_root_path / "tasks" / "pending"
     archive_dir_path = repo_root_path / "tasks" / "archive"
     evidence_root_path = repo_root_path / "tasks" / "evidence"
+    # 锁的唯一事实源在主仓库：linked worktree 内查看看板时仍读主仓库的锁视图。
+    main_repo_root_path = prd_lock.resolve_main_repo_root()
 
     is_color_enabled = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
     palette = Palette(is_color_enabled)
@@ -571,7 +702,13 @@ def main() -> int:
     print()
     if raw_scope_text in ("status", "pending"):
         print_bucket_section(
-            "PENDING", pending_records_list, "tasks/pending", palette, collapsed_months=False
+            "PENDING",
+            pending_records_list,
+            "tasks/pending",
+            palette,
+            collapsed_months=False,
+            main_repo_root=main_repo_root_path,
+            evidence_root=evidence_root_path,
         )
     if raw_scope_text in ("status", "archive", "all"):
         print_bucket_section(
@@ -580,6 +717,8 @@ def main() -> int:
             "tasks/archive",
             palette,
             collapsed_months=raw_scope_text != "all",
+            main_repo_root=main_repo_root_path,
+            evidence_root=evidence_root_path,
         )
     return 0
 

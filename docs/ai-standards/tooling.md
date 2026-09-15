@@ -33,7 +33,10 @@
 | `just ai fix [claude\|kimi]` | 用 AI 解决当前 git 冲突（rebase/merge/cherry-pick 等） |
 | `just ai commit [claude\|kimi]` | 先跑 `just test`，再用 AI 生成提交信息 |
 | `just ai implement <prd-file> [claude\|kimi]` | 按 PRD 实现功能 |
-| `just prd status [all\|pending\|archive]` | PRD 状态看板：pending 逐条列出、archive 按月折叠，展示验收清单勾选进度与证据包状态 |
+| `just prd status [all\|pending\|archive]` | PRD 状态看板：pending 逐条列出、archive 按月折叠，展示验收清单勾选进度、证据包状态与运行态（ACTIVITY 列） |
+| `just prd start <prd-file> [--tool <名称>] [--branch <名称>]` | 领取 PRD 执行锁：他人新鲜锁拒绝开工（退出 1）并输出持锁者信息；过期锁自动接管并留档；同归属重复领锁幂等刷新 |
+| `just prd heartbeat <prd-file>` | 续期当前会话持有的执行锁；锁丢失或归属不符时警告并非零退出 |
+| `just prd release <prd-file> [--force]` | 释放执行锁；归属不符需显式 `--force` |
 
 ## Justfile Layering
 
@@ -130,6 +133,17 @@ python scripts/check_prd_acceptance_checklist.py --repo-root "$PWD" --all
 - archive 概览：每月 PRD 条数、清单全完成的条数、有证据包的条数与 verifier `REJECT` 条数；月份下出现 `⚠ 有未勾完的清单` 时，会列出具体是哪几条。
 
 **看板是启发式视图，不是门禁**：清单进度按 `Acceptance Checklist` / `验收清单` 小节内的 `- [ ]` 计数；verifier 结论取报告中最后一次出现的显式结论行（`verdict:`、`结论：` 或整行独立的 `PASS`/`REJECT`），只能从散文推断时会加 `?` 标记。真正的把关仍由 `check_prd_acceptance_checklist.py` 与独立 verifier 完成，看板只用于快速定位。
+
+### PRD 执行锁
+
+执行 `tasks/pending/` 下的 PRD 前必须先领锁：`just prd start <prd-file>`（知道工具名就 `--tool` 自报）。锁语义：
+
+- 锁是主仓库 `tasks/evidence/<prd-stem>/active.lock` 的本机 JSON 文件，被 gitignore 覆盖、不进版本库；在任意 linked worktree 内运行时经 `git rev-parse --git-common-dir` 反推主仓库根，各 worktree 共享同一份锁视图。
+- 领锁原子化（排他创建）；他人**新鲜锁**硬拒绝并输出持锁者工具 / 分支 / worktree / 开始时间 / 最后心跳，想接手只能显式 `just prd release` 后重试；**过期锁**（心跳超 30 分钟）自动接管并把旧锁留档为 `active.lock.<时间戳>.stale`；同归属（worktree 相对路径一致）重复领锁幂等刷新。过期判定只看心跳、不做 pid 探测——锁脚本与 agent 工具调用的会话都是短命的，pid 死亡不代表持锁会话已死。
+- 两个机械入口自动领锁：`just implement` 在校验 PRD 后、创建 worktree 前领锁（透传 `--tool` / `--branch`）；`just worktree`（`create.sh`）在分支名匹配 pending PRD slug 时先领锁，冲突即拒绝创建。
+- 执行过程中每个主要步骤后运行 `just prd heartbeat <prd-file>` 续期；锁丢失或归属不符时 heartbeat 非零退出，便于 executor 发现锁已被接管。
+- 宽松兜底：提交时 `check_prd_lock_conflict` 钩子发现 staged 变更触及他人新鲜锁 PRD 的 `tasks/pending` / `tasks/evidence` 路径会输出警告，但永不阻断提交。
+- 看板 ACTIVITY 列：新鲜锁显示 `RUNNING <tool> <时长> @<branch>`（branch 缺失回退 worktree）；过期锁显示 `STALE <最后心跳>`；无锁但 PRD 文件或证据目录 15 分钟内有改动显示暗色 `⚡ active <n>m ago`；其余 `-`。
 
 ## Platform Notes
 
