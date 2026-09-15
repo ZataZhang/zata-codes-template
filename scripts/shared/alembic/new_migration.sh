@@ -30,7 +30,9 @@ Behavior:
     rewrites the docstring header to match the file.
   - Leaves the `revision` variable as Alembic generated it, unless the
     repository's existing migrations consistently use the filename timestamp
-    prefix as the revision.
+    prefix as the revision; in that case the rewritten revision keeps the
+    separator style of the existing revisions ('-' and '_' are both seen in
+    the wild, including mixed with the filename separator).
   - Does NOT auto-fill upgrade() / downgrade(); the caller edits those by hand.
 EOF
 }
@@ -138,6 +140,7 @@ read_revision_value() {
 uses_timestamp_revision=0
 migration_total_count=0
 migration_timestamp_style_count=0
+revision_separator=""
 for existing_migration in "$versions_dir"/[0-9]*.py; do
     [ -e "$existing_migration" ] || continue
     migration_total_count=$(( migration_total_count + 1 ))
@@ -146,6 +149,10 @@ for existing_migration in "$versions_dir"/[0-9]*.py; do
     if [ -n "$existing_revision_value" ] &&
         [ "${existing_revision_value//-/_}" = "${existing_filename_prefix//-/_}" ]; then
         migration_timestamp_style_count=$(( migration_timestamp_style_count + 1 ))
+        # 记录存量时间戳风格 revision 实际使用的分隔符（第 9 个字符）：比较时
+        # 归一化是为了正确计数，写出时必须还原成项目自己的分隔符，否则文件名
+        # 用 '-' 而 revision 用 '_' 的仓库会拿到一个与全仓库不一致的 revision。
+        revision_separator="${existing_revision_value:8:1}"
     fi
 done
 if [ "$migration_timestamp_style_count" -gt 0 ] &&
@@ -183,10 +190,12 @@ mv "$generated_path" "$target_path"
 create_date="$(date '+%Y-%m-%d %H:%M:%S.000000')"
 
 # revision 用哪个值：项目若约定 revision == 时间戳前缀就改写成时间戳，否则保留
-# alembic 生成的 hex。Revision ID 文档串始终跟着实际的 revision 走——两者不一致
-# 时，排查的人会照文档串去 `alembic downgrade`，然后发现那个 revision 根本不存在。
+# alembic 生成的 hex。改写时用存量时间戳风格 revision 的分隔符（多数派探测时
+# 记录），而不是文件名分隔符。Revision ID 文档串始终跟着实际的 revision 走——
+# 两者不一致时，排查的人会照文档串去 `alembic downgrade`，然后发现那个 revision
+# 根本不存在。
 if [ "$uses_timestamp_revision" -eq 1 ]; then
-    revision_value="$timestamp"
+    revision_value="${timestamp:0:8}${revision_separator:-$separator}${timestamp:9:6}"
 else
     revision_value="$(read_revision_value "$target_path")"
 fi
