@@ -7,12 +7,15 @@
 新生成的迁移脚本必须使用：
 
 ```text
-YYYYMMDD_HHMMSS_<slug>.py
+YYYYMMDD-HHMMSS-<slug>.py
 ```
 
-- 时间戳取运行命令时本地 `date +%Y%m%d_%H%M%S`，必须精确到秒。
+- 日期与时间之间、时间与 `slug` 之间都用 `-` 分隔，与 `alembic.ini` 的
+  `file_template` 保持一致。底层时间戳取自运行命令时的本地时间，必须精确到秒。
 - `slug` 使用小写蛇形命名，并描述迁移目的。
-- `revision` 必须等于文件名去掉 `.py` 后的时间戳前缀。
+- `revision` 由 Alembic 自动生成（12 位 hex），不改成文件名的时间戳前缀——
+  时间戳前缀在每秒内不唯一。派生项目若确实采用"文件名时间戳前缀即 revision"，
+  需同步调整门禁参数，见 `docs/database/migrations.md`。
 - `down_revision` 必须指向创建时 `alembic heads` 的唯一 head。
 
 ## Required Generation Entry Point
@@ -23,7 +26,7 @@ YYYYMMDD_HHMMSS_<slug>.py
 just new-migration <slug>
 ```
 
-该入口调用 `scripts/shared/alembic/new_migration.sh`，会验证版本图只有一个 head、调用 Alembic 模板生成文件，并同步文件名、`revision` 与 `down_revision`。只在生成后用补丁填写 `upgrade()` 和 `downgrade()`。
+该入口调用 `scripts/shared/alembic/new_migration.sh`，会验证版本图只有一个 head、调用 Alembic 模板生成文件，并按既有迁移的约定命名文件、同步 docstring 头与 `down_revision`。只在生成后用补丁填写 `upgrade()` 和 `downgrade()`。
 
 交付前执行：
 
@@ -40,8 +43,8 @@ uv run alembic heads
 ```python
 """<slug> — <总分首句：一句话总结本次迁移改了什么（表 / 列 / 索引），及目的>
 
-Revision ID: 20260625_145402
-Revises: 20260627_000000
+Revision ID: a1b2c3d4e5f6
+Revises: 9f8e7d6c5b4a
 Create Date: 2026-06-25 14:54:02.000000
 
 背景：<为什么需要这个变更；行为语义指向权威实现>
@@ -55,8 +58,8 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "20260625_145402"
-down_revision: Union[str, Sequence[str], None] = "20260627_000000"
+revision: str = "a1b2c3d4e5f6"
+down_revision: Union[str, Sequence[str], None] = "9f8e7d6c5b4a"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 ```
