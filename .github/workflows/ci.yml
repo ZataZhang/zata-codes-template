@@ -63,10 +63,23 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Type check
+      # job 级 defaults 把 working-directory 固定成 frontend-admin，所以下面
+      # 两组步骤各自显式指定目录，避免"Frontend Build"实际只构建后台的歧义。
+      - name: Type check (frontend-admin)
         run: pnpm run typecheck
 
-      - name: Build
+      - name: Build (frontend-admin)
+        run: pnpm run build
+
+      # 公开站此前完全没有类型检查和构建门禁（Next.js 项目，Turbopack）。
+      # 11 条路由在构建期全部是 Dynamic（ƒ），不会预渲染时调后端，
+      # 因此这里不需要起后端即可安全构建。
+      - name: Type check (frontend-public)
+        working-directory: frontend-public
+        run: pnpm run typecheck
+
+      - name: Build (frontend-public)
+        working-directory: frontend-public
         run: pnpm run build
 
   validate-template:
