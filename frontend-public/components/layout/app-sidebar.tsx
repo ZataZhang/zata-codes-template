@@ -2,23 +2,30 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { useTranslations } from "next-intl"
 import { cn } from "@/lib/utils"
 import { LayoutDashboard, Settings } from "lucide-react"
+import { LanguageSwitcher } from "@/components/language-switcher"
 
+/** 侧边栏导航项：href 与 `nav` 命名空间下的文案 key 一一对应。 */
 const navItems = [
-  { href: "/app/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/app/settings", label: "Settings", icon: Settings },
-]
+  { href: "/app/dashboard", labelKey: "dashboard", icon: LayoutDashboard },
+  { href: "/app/settings", labelKey: "settings", icon: Settings },
+] as const
 
 /** Sidebar navigation for authenticated pages. */
 export function AppSidebar() {
   const pathname = usePathname()
+  const t = useTranslations("nav")
+  const tCommon = useTranslations("common")
 
   return (
     <aside className="flex w-64 flex-col border-r bg-sidebar">
       <div className="flex h-14 items-center gap-2 border-b px-4">
         <span className="size-6 rounded-md bg-primary" />
-        <span className="font-semibold text-sidebar-foreground">My App</span>
+        <span className="font-semibold text-sidebar-foreground">
+          {tCommon("appName")}
+        </span>
       </div>
       <nav className="flex-1 p-3">
         <ul className="space-y-1">
@@ -34,12 +41,15 @@ export function AppSidebar() {
                 )}
               >
                 <item.icon className="size-4" />
-                {item.label}
+                {t(item.labelKey)}
               </Link>
             </li>
           ))}
         </ul>
       </nav>
+      <div className="border-t p-3">
+        <LanguageSwitcher />
+      </div>
     </aside>
   )
 }

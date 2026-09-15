@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import {
   BadgeCheck,
   Bell,
@@ -39,6 +40,7 @@ type NavUserProps = {
 /** Render the NavUser component. */
 export function NavUser({ user }: NavUserProps) {
   const { isMobile } = useSidebar()
+  const { t } = useTranslation()
   const [open, setOpen] = useDialogState()
   const [build, setBuild] = useState<WhatsNewPayload | null>(null)
 
@@ -110,7 +112,7 @@ export function NavUser({ user }: NavUserProps) {
               <DropdownMenuGroup>
                 <DropdownMenuItem>
                   <Sparkles />
-                  Upgrade to Pro
+                  {t('userMenu.upgrade')}
                 </DropdownMenuItem>
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
@@ -118,19 +120,19 @@ export function NavUser({ user }: NavUserProps) {
                 <DropdownMenuItem asChild>
                   <Link to='/settings/account'>
                     <BadgeCheck />
-                    Account
+                    {t('nav.account')}
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link to='/settings'>
                     <CreditCard />
-                    Billing
+                    {t('userMenu.billing')}
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link to='/settings/notifications'>
                     <Bell />
-                    Notifications
+                    {t('nav.notifications')}
                   </Link>
                 </DropdownMenuItem>
               </DropdownMenuGroup>
@@ -140,7 +142,7 @@ export function NavUser({ user }: NavUserProps) {
                 onClick={() => setOpen(true)}
               >
                 <LogOut />
-                Sign out
+                {t('userMenu.signOut')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

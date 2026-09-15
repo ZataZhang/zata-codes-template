@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
+import { LanguageSwitcher } from '@/components/language-switcher'
 import { Separator } from '@/components/ui/separator'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 
@@ -8,7 +9,12 @@ type HeaderProps = React.HTMLAttributes<HTMLElement> & {
   ref?: React.Ref<HTMLElement>
 }
 
-/** Render the Header component. */
+/**
+ * Render the Header component.
+ *
+ * 顶栏是所有受保护页面的公共导航区，因此语言切换器在这里统一挂载一次，
+ * 各业务页无需各自引入。
+ */
 export function Header({ className, fixed, children, ...props }: HeaderProps) {
   const [offset, setOffset] = useState(0)
 
@@ -45,6 +51,7 @@ export function Header({ className, fixed, children, ...props }: HeaderProps) {
         <SidebarTrigger variant='outline' className='max-md:scale-125' />
         <Separator orientation='vertical' className='h-6' />
         {children}
+        <LanguageSwitcher className='ms-auto flex items-center gap-1' />
       </div>
     </header>
   )

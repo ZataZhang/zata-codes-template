@@ -1,0 +1,219 @@
+{
+  "html": {
+    "title": "My App - 项目模板",
+    "description": "四层后端骨架 + 双认证域 + 双前端 + 可观测性的 Python 项目模板，不内置业务域。"
+  },
+  "common": {
+    "appName": "My App",
+    "loading": "加载中…",
+    "language": "语言",
+    "english": "English",
+    "chinese": "中文"
+  },
+  "nav": {
+    "features": "功能",
+    "pricing": "授权",
+    "about": "关于",
+    "dashboard": "仪表盘",
+    "settings": "设置",
+    "signIn": "登录",
+    "getStarted": "免费试用"
+  },
+  "marketing": {
+    "hero": {
+      "badge": "面向长期演进的项目模板",
+      "titleLine1": "干净的骨架，",
+      "titleAccent": "只留工程化",
+      "subtitle": "四层模块化单体 + 双认证域 + 可观测性。不内置业务域，让每个派生项目从零开始搭建自己的业务。",
+      "ctaPrimary": "免费开始",
+      "ctaSecondary": "了解骨架",
+      "highlightNoDomain": "无业务域残留",
+      "highlightAuth": "认证开箱即用",
+      "highlightTooling": "工程化完整"
+    },
+    "stats": {
+      "backendLayers": "后端分层",
+      "authDomains": "认证域",
+      "frontendSkeletons": "前端骨架"
+    },
+    "features": {
+      "sectionTitle": "核心骨架",
+      "sectionSubtitle": "模板只承诺工程化能力，业务边界留给你",
+      "architecture": {
+        "title": "四层后端架构",
+        "description": "api / core / engines / infrastructure 依赖向内，跨层通过抽象接口协作，业务与基础设施解耦。"
+      },
+      "authDomains": {
+        "title": "双认证域",
+        "description": "public 自助注册域与 admin 种子创建域物理隔离，各自独立 Cookie、会话命名空间与用户表。"
+      },
+      "frontends": {
+        "title": "双前端骨架",
+        "description": "管理后台（Vite + React）与公开官网（Next.js）开箱即用，与后端仅通过 /api/* HTTP 通信。"
+      },
+      "observability": {
+        "title": "可观测性",
+        "description": "请求 ID、结构化日志与 Prometheus 指标按开关装配，日志与指标格式平台无关。"
+      },
+      "config": {
+        "title": "统一配置",
+        "description": "pydantic-settings 三层配置源：环境变量 / config.toml / 代码默认值，敏感值只进 .env。"
+      },
+      "teamwork": {
+        "title": "团队工程化",
+        "description": "just 任务驱动、pre-commit + Ruff、Alembic 迁移链守卫、模板同步脚本，开箱即用。"
+      }
+    },
+    "steps": {
+      "sectionTitle": "三步开始",
+      "sectionSubtitle": "复制模板、配置环境、启动服务",
+      "copy": {
+        "title": "复制模板",
+        "description": "just copy <name> 创建新项目，不包含依赖与构建产物。"
+      },
+      "configure": {
+        "title": "配置环境",
+        "description": "按 .env.example 填写数据库、Redis 与初始管理员。"
+      },
+      "run": {
+        "title": "启动服务",
+        "description": "just sync dev 安装依赖，just run 同时启动后端与两个前端。"
+      }
+    },
+    "faq": {
+      "sectionTitle": "常见问题",
+      "sectionSubtitle": "关于这个模板你可能想知道的事",
+      "audience": {
+        "question": "这个模板适合什么项目？",
+        "answer": "适合需要长期维护的 Python Web 项目：先有清晰的分层骨架与工程化设施，再按业务添加模块。"
+      },
+      "businessCode": {
+        "question": "模板内置业务代码吗？",
+        "answer": "不内置任何业务域。认证、配置、可观测性与持久化是唯一骨架，业务模块由派生项目自行添加。"
+      },
+      "createProject": {
+        "question": "如何用模板创建新项目？",
+        "answer": "使用 just copy <name> 复制为独立项目，再按 README 配置环境变量与数据库即可启动。"
+      }
+    },
+    "cta": {
+      "title": "准备好开始了吗？",
+      "body": "注册账号，进入受保护区域，从干净的后端骨架开始搭建你的业务。",
+      "button": "免费注册"
+    },
+    "aboutPage": {
+      "title": "关于本模板",
+      "description": "这是一个用于启动新项目的 Python 模板：提供四层后端骨架、双认证域与完整工程化设施，同时刻意不内置任何业务域，让每个派生项目从干净的起点开始搭建自己的业务。",
+      "principles": {
+        "simple": {
+          "title": "简洁至上",
+          "description": "去掉多余复杂度，只保留真正可复用的骨架。"
+        },
+        "security": {
+          "title": "安全优先",
+          "description": "从认证到数据存储，安全始终是第一优先级。"
+        },
+        "evolution": {
+          "title": "持续演进",
+          "description": "骨架能力持续打磨，业务边界始终留给派生项目。"
+        }
+      }
+    },
+    "featuresPage": {
+      "title": "模板能力",
+      "subtitle": "只提供工程化骨架，不内置任何业务域",
+      "items": {
+        "architecture": {
+          "title": "四层架构",
+          "description": "api / core / engines / infrastructure，依赖向内，跨层接口解耦。"
+        },
+        "authDomains": {
+          "title": "双认证域",
+          "description": "public 与 admin 物理隔离，HttpOnly Session + Redis 会话存储。"
+        },
+        "frontends": {
+          "title": "双前端骨架",
+          "description": "管理后台（Vite + React）与公开官网（Next.js），即开即用。"
+        },
+        "config": {
+          "title": "统一配置",
+          "description": "环境变量 / config.toml / 默认值三层配置源，敏感值只进 .env。"
+        },
+        "observability": {
+          "title": "可观测性",
+          "description": "请求 ID、结构化日志与 Prometheus 指标，按开关装配。"
+        },
+        "tooling": {
+          "title": "工程化完整",
+          "description": "just 任务、pre-commit + Ruff、Alembic 迁移守卫、模板同步。"
+        }
+      }
+    },
+    "pricingPage": {
+      "title": "开源授权",
+      "description": "本模板作为开源项目提供，派生项目完全自由，无商业限制。",
+      "cardTitle": "你可以",
+      "cardDescription": "使用模板启动任意项目，业务代码归你所有。",
+      "items": {
+        "copy": "复制为独立项目并自由开发",
+        "deploy": "私有部署或云托管，无强制开源要求",
+        "modify": "按需修改骨架代码与配置",
+        "license": "保留原始版权与许可声明"
+      },
+      "cta": "免费开始"
+    }
+  },
+  "auth": {
+    "loginTitle": "欢迎回来",
+    "loginSubtitle": "请输入账号信息登录",
+    "registerTitle": "注册账号",
+    "registerSubtitle": "创建账号，开始免费试用",
+    "identifierLabel": "用户名 / 邮箱",
+    "passwordLabel": "密码",
+    "displayNameLabel": "显示名称",
+    "displayNamePlaceholder": "你的名字",
+    "emailLabel": "邮箱",
+    "emailPlaceholder": "you@example.com",
+    "confirmPasswordLabel": "确认密码",
+    "forgotPassword": "忘记密码？",
+    "forgotPasswordHint": "请联系管理员重置密码",
+    "loginSubmit": "登录",
+    "registerSubmit": "注册",
+    "noAccount": "还没有账号？",
+    "signUpNow": "立即注册",
+    "haveAccount": "已有账号？",
+    "signInNow": "立即登录"
+  },
+  "dashboard": {
+    "title": "工作区",
+    "signedIn": "已登录",
+    "gettingStartedTitle": "开始搭建你的业务",
+    "gettingStartedBody": "本模板仅保留认证与基础设施骨架，不内置任何业务域。请根据你的项目在四层架构上添加业务模块，例如在 src/backend/core/ 定义用例与领域契约、在 src/backend/engines/ 实现平台能力、在 src/backend/api/ 暴露 HTTP 入口。",
+    "accountSettings": "账户设置"
+  },
+  "settings": {
+    "title": "设置",
+    "aboutTitle": "关于本模板",
+    "aboutBody": "本模板仅保留认证与基础设施骨架，不内置任何业务域。请在此基础上搭建你自己的业务。",
+    "signOut": "退出登录"
+  },
+  "footer": {
+    "copyright": "© {year}. 保留所有权利。"
+  },
+  "toast": {
+    "loginSuccess": "登录成功",
+    "loginFailed": "登录失败",
+    "registerSuccess": "注册成功",
+    "registerFailed": "注册失败"
+  },
+  "errors": {
+    "identifierRequired": "请输入用户名或邮箱",
+    "passwordRequired": "请输入密码",
+    "displayNameRequired": "请输入显示名称",
+    "emailRequired": "请输入邮箱",
+    "emailInvalid": "请输入有效的邮箱",
+    "passwordTooShort": "密码长度至少 6 位",
+    "confirmPasswordRequired": "请确认密码",
+    "passwordMismatch": "两次输入的密码不一致"
+  }
+}

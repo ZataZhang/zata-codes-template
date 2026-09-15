@@ -46,6 +46,13 @@ jobs:
           # 两个前端已合并为根目录 pnpm workspace，锁文件只有根目录这一份
           cache-dependency-path: pnpm-lock.yaml
 
+      # 纯静态 JSON 校验，不需要先装依赖；放在最前面让缺 key 秒级拦红。
+      # 覆盖 frontend-public/messages/{en,zh}.json 与
+      # frontend-admin/src/locales/{en,zh}.json 两对文案文件的 key 对齐。
+      - name: Check i18n message key alignment
+        working-directory: ${{ github.workspace }}
+        run: node scripts/check-i18n-keys.mjs
+
       - name: Set up uv
         uses: astral-sh/setup-uv@v4
 

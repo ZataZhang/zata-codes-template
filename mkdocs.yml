@@ -58,6 +58,7 @@ nav:
       - 工具与命令: ai-standards/tooling.md
   - 使用指南:
       - 配置说明: guides/configuration.md
+      - 前端 i18n（中英文双语）: guides/i18n.md
       - 部署指南: guides/deployment.md
       - 可观测性: guides/observability.md
       - 备份与恢复: guides/backup.md

@@ -3,7 +3,7 @@
 > ✅ **交付前置**：无，可立即开工。
 > 结构化声明见 §8 Delivery Dependencies，**那里是唯一事实源**。
 
-> ⬜ **验收状态**：未开工。
+> 🧍 **验收状态**：机器层已完成（rv-1~rv-8 全部跑绿，证据见 §9.2 与 `tasks/evidence/P2-FEAT-20260707-150000-frontend-i18n-bilingual/`）；**待人确认 §9 的 Human-Confirmed 四项**（D1/D2/D3 前置确认 + §9.1 呈递区第 1~6 行亲眼看过）。
 > 本行是 §9 Acceptance Checklist 的投影，**那里是唯一事实源**。
 
 > 本 PRD 分两个 altitude，分别服务不同读者，自上而下阅读：
@@ -593,12 +593,16 @@ No external validation required; repository evidence was sufficient.（实现参
 
 | # | 你要看什么（对应 oracle） | 呈递物（交付时填实际路径） | 想自己复核？ |
 |---|---|---|---|
-| 1 | 无语言偏好时首屏呈现 D1 选定的默认语言（rv-1） | 截图 `s1-first-visit-default.png` | 开全新无痕窗口访问 `http://localhost:3000` |
-| 2 | 点切换器整页立刻换语言（rv-3、rv-6） | 截图 `s2-switch-before.png` / `s2-switch-after.png` | `http://localhost:3000` 右上角切换器自己点 |
-| 3 | 切换后刷新/重开仍保持所选语言（rv-3） | 截图 `s3-after-reload.png` | 切完按 F5 |
-| 4 | 核心页面双语、无漏翻（rv-2） | 截图 `s4-core-en.png` / `s4-core-zh.png`（仪表盘+设置页） | 浏览器里切换语言后翻一遍仪表盘、设置页 |
-| 5 | 后台同样可切换、双语（rv-5、rv-6） | 截图 `s5-admin-zh.png` / `s5-admin-en.png` | `http://localhost:5173` 顶栏切换器 |
-| 6 | 文案 key 命名规范是否顺眼（D3） | 文件本体 `frontend-public/messages/zh.json` | 打开扫一眼 key 命名 |
+| 1 | 无语言偏好时首屏呈现 D1 选定的默认语言（rv-1） | `tasks/evidence/P2-FEAT-20260707-150000-frontend-i18n-bilingual/s1-first-visit-default.png` | 开全新无痕窗口访问 `http://localhost:3000` |
+| 2 | 点切换器整页立刻换语言（rv-3、rv-6） | `tasks/evidence/P2-FEAT-20260707-150000-frontend-i18n-bilingual/s2-switch-before.png` / `s2-switch-after.png` | `http://localhost:3000` 右上角切换器自己点 |
+| 3 | 切换后刷新/重开仍保持所选语言（rv-3） | `tasks/evidence/P2-FEAT-20260707-150000-frontend-i18n-bilingual/s3-after-reload.png` | 切完按 F5 |
+| 4 | 核心页面双语、无漏翻（rv-2） | `tasks/evidence/P2-FEAT-20260707-150000-frontend-i18n-bilingual/` 下 `s4-core-en.png` / `s4-core-zh.png`（仪表盘）、`s4-settings-en.png` / `s4-settings-zh.png`（设置页）、`s4-marketing-en.png` / `s4-marketing-zh.png`（`/features` 营销页） | 浏览器里切换语言后翻一遍仪表盘、设置页、功能页 |
+| 5 | 后台同样可切换、双语（rv-5、rv-6） | `tasks/evidence/P2-FEAT-20260707-150000-frontend-i18n-bilingual/s5-admin-zh.png` / `s5-admin-en.png` | `http://localhost:5173` 顶栏切换器 |
+| 6 | 文案 key 命名规范是否顺眼（D3） | 文件本体 `frontend-public/messages/zh.json`（另可对照 `frontend-admin/src/locales/zh.json`） | 打开扫一眼 key 命名 |
+
+> 实际采集端口：公开站 `3929`、后台 `5842`、后端 `8000`（worktree 分配的运行端口）。上表"想自己复核"列的 `3000` / `5173` 是 `just run` 的默认端口，按你本机实际端口访问即可。
+>
+> 第 4 行比原计划多出 `s4-settings-*` 与 `s4-marketing-*` 四张：设置页是 rv-2 点名的核心页面之一；`/features` 等营销页在实现中一并从硬编码迁移到 i18n（原因见证据报告 §3.4），因此一并呈递。
 
 **以下项不需要你看**（`reviewer: verifier`，agent 自验 + verifier 复核，挂了会自己红）：rv-4（Accept-Language 协商）、rv-7（key 对齐脚本）、rv-8（构建 + 未迁移页面 smoke）、两前端 lint / 类型检查。它们的证据在 §9.2。
 
@@ -624,43 +628,43 @@ No external validation required; repository evidence was sufficient.（实现参
 
 ### Architecture Acceptance
 
-- [ ] 公开站用 `next-intl` SSR cookie 模式；后台用 `react-i18next` 客户端 localStorage 模式；两前端库不混用。
-- [ ] 公开站 `<html lang>` 动态化；`generateMetadata` 走 i18n。
-- [ ] 后台 `main.tsx` 在组件前初始化 i18n。
-- [ ] 语言切换器挂载在两端的导航/顶栏。
+- [x] 公开站用 `next-intl` SSR cookie 模式；后台用 `react-i18next` 客户端 localStorage 模式；两前端库不混用。
+- [x] 公开站 `<html lang>` 动态化；`generateMetadata` 走 i18n。
+- [x] 后台 `main.tsx` 在组件前初始化 i18n。
+- [x] 语言切换器挂载在两端的导航/顶栏。
 
 ### Dependency Acceptance
 
-- [ ] 公开站新增依赖仅 `next-intl`；后台新增依赖仅 `i18next`/`react-i18next`/`i18next-browser-languagedetector`。
-- [ ] 不引入后端依赖、不改变后端 API、不改变数据库。
-- [ ] 不引入 URL 路由前缀中间件。
+- [x] 公开站新增依赖仅 `next-intl`；后台新增依赖仅 `i18next`/`react-i18next`/`i18next-browser-languagedetector`。
+- [x] 不引入后端依赖、不改变后端 API、不改变数据库。
+- [x] 不引入 URL 路由前缀中间件。
 
 ### Behavior Acceptance
 
-- [ ] 切换器切换后整页文案变化、刷新后保持（证据见 §9.2 第 1 组）。
-- [ ] 公开站 cookie 持久化 + SSR 跟随；后台 localStorage 持久化。
-- [ ] Accept-Language 协商生效（verifier-only，§9.2 第 2 组）。
-- [ ] 核心页面无硬编码可见文案；未迁移页面不坏。
-- [ ] en/zh 文案 key 一一对应、无缺 key（CI 拦截）。
+- [x] 切换器切换后整页文案变化、刷新后保持（证据见 §9.2 第 1 组）。
+- [x] 公开站 cookie 持久化 + SSR 跟随；后台 localStorage 持久化。
+- [x] Accept-Language 协商生效（verifier-only，§9.2 第 2 组）。
+- [x] 核心页面无硬编码可见文案；未迁移页面不坏。
+- [x] en/zh 文案 key 一一对应、无缺 key（CI 拦截）。
 
 ### Frontend Acceptance (When A Frontend App Changes)
 
-- [ ] `frontend-public/` 核心页面双语化、切换器可用、SSR 按 locale 输出。
-- [ ] `frontend-admin/` 核心路由双语化、切换器可用、localStorage 持久化。
-- [ ] 两前端 `pnpm build` 通过；类型检查通过。
+- [x] `frontend-public/` 核心页面双语化、切换器可用、SSR 按 locale 输出。
+- [x] `frontend-admin/` 核心路由双语化、切换器可用、localStorage 持久化。
+- [x] 两前端 `pnpm build` 通过；类型检查通过。
 
 ### Documentation Acceptance
 
-- [ ] 新增 `docs/guides/i18n.md` 记录两前端 i18n 架构、cookie/localStorage 约定、新增文案规范。
-- [ ] `mkdocs.yml` 导航同步新增 i18n 指南页。
-- [ ] `docs/ai-standards/` 若需补充前端命名/注释规范（如文案 key 命名）则同步更新。
-- [ ] PRD 与仓库文档最终架构方向一致。
+- [x] 新增 `docs/guides/i18n.md` 记录两前端 i18n 架构、cookie/localStorage 约定、新增文案规范。
+- [x] `mkdocs.yml` 导航同步新增 i18n 指南页。
+- [x] `docs/ai-standards/` 若需补充前端命名/注释规范（如文案 key 命名）则同步更新。→ 判定**不需要**改 `docs/ai-standards/`：该目录属 upstream-owned（会被 `scripts/shared/template/sync_template.sh` 覆盖），前端文案 key 命名规范（D3）写在项目自有的 `docs/guides/i18n.md` 中。
+- [x] PRD 与仓库文档最终架构方向一致。
 
 ### Delivery Readiness
 
-- [ ] §9.1 呈递区全部截图已落盘到 `tasks/evidence/P2-FEAT-20260707-150000-frontend-i18n-bilingual/` 且本表路径已回填。
-- [ ] agent 完成回复已原样带上 §9.1 表格内容。
-- [ ] 验收状态横幅已按 §9 实际勾选状态翻转（仅剩 Human-Confirmed 时翻 `🧍 待人工验收`）。
+- [x] §9.1 呈递区全部截图已落盘到 `tasks/evidence/P2-FEAT-20260707-150000-frontend-i18n-bilingual/` 且本表路径已回填。
+- [x] agent 完成回复已原样带上 §9.1 表格内容。
+- [x] 验收状态横幅已按 §9 实际勾选状态翻转（仅剩 Human-Confirmed 时翻 `🧍 待人工验收`）。
 
 ---
 

@@ -1,4 +1,5 @@
 import { Suspense } from "react"
+import { useTranslations } from "next-intl"
 import {
   Card,
   CardContent,
@@ -10,14 +11,23 @@ import { LoginForm } from "./login-form"
 
 /** Render the login page. */
 export default function LoginPage() {
+  const t = useTranslations("auth")
+  const tCommon = useTranslations("common")
+
   return (
     <Card className="border shadow-lg">
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl">欢迎回来</CardTitle>
-        <CardDescription>请输入账号信息登录</CardDescription>
+        <CardTitle className="text-2xl">{t("loginTitle")}</CardTitle>
+        <CardDescription>{t("loginSubtitle")}</CardDescription>
       </CardHeader>
       <CardContent>
-        <Suspense fallback={<div className="py-8 text-center text-sm text-muted-foreground">加载中…</div>}>
+        <Suspense
+          fallback={
+            <div className="py-8 text-center text-sm text-muted-foreground">
+              {tCommon("loading")}
+            </div>
+          }
+        >
           <LoginForm />
         </Suspense>
       </CardContent>

@@ -1,4 +1,5 @@
 import Link from "next/link"
+import { useTranslations } from "next-intl"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -18,71 +19,38 @@ import {
   Users,
 } from "lucide-react"
 
-const features = [
-  {
-    icon: Layers,
-    title: "四层后端架构",
-    description:
-      "api / core / engines / infrastructure 依赖向内，跨层通过抽象接口协作，业务与基础设施解耦。",
-  },
-  {
-    icon: Shield,
-    title: "双认证域",
-    description:
-      "public 自助注册域与 admin 种子创建域物理隔离，各自独立 Cookie、会话命名空间与用户表。",
-  },
-  {
-    icon: GitBranch,
-    title: "双前端骨架",
-    description:
-      "管理后台（Vite + React）与公开官网（Next.js）开箱即用，与后端仅通过 /api/* HTTP 通信。",
-  },
-  {
-    icon: Terminal,
-    title: "可观测性",
-    description:
-      "请求 ID、结构化日志与 Prometheus 指标按开关装配，日志与指标格式平台无关。",
-  },
-  {
-    icon: Cpu,
-    title: "统一配置",
-    description:
-      "pydantic-settings 三层配置源：环境变量 / config.toml / 代码默认值，敏感值只进 .env。",
-  },
-  {
-    icon: Users,
-    title: "团队工程化",
-    description:
-      "just 任务驱动、pre-commit + Ruff、Alembic 迁移链守卫、模板同步脚本，开箱即用。",
-  },
-]
+/** 特性卡片：图标与 `marketing.features` 下的文案 key 一一对应。 */
+const FEATURE_ITEMS = [
+  { icon: Layers, key: "architecture" },
+  { icon: Shield, key: "authDomains" },
+  { icon: GitBranch, key: "frontends" },
+  { icon: Terminal, key: "observability" },
+  { icon: Cpu, key: "config" },
+  { icon: Users, key: "teamwork" },
+] as const
 
-const stats = [
-  { value: "4", label: "后端分层" },
-  { value: "2", label: "认证域" },
-  { value: "2", label: "前端骨架" },
-]
+/** 数字指标：数值固定，标签走 i18n key。 */
+const STAT_ITEMS = [
+  { value: "4", key: "backendLayers" },
+  { value: "2", key: "authDomains" },
+  { value: "2", key: "frontendSkeletons" },
+] as const
 
-const faqs = [
-  {
-    question: "这个模板适合什么项目？",
-    answer:
-      "适合需要长期维护的 Python Web 项目：先有清晰的分层骨架与工程化设施，再按业务添加模块。",
-  },
-  {
-    question: "模板内置业务代码吗？",
-    answer:
-      "不内置任何业务域。认证、配置、可观测性与持久化是唯一骨架，业务模块由派生项目自行添加。",
-  },
-  {
-    question: "如何用模板创建新项目？",
-    answer:
-      "使用 just copy <name> 复制为独立项目，再按 README 配置环境变量与数据库即可启动。",
-  },
-]
+/** 三步开始：序号固定，标题与说明走 i18n key。 */
+const STEP_ITEMS = [
+  { step: "01", key: "copy" },
+  { step: "02", key: "configure" },
+  { step: "03", key: "run" },
+] as const
+
+/** 常见问题：问题与答案都走 `marketing.faq` 下的 i18n key。 */
+const FAQ_ITEMS = ["audience", "businessCode", "createProject"] as const
 
 /** Render the home page. */
 export default function HomePage() {
+  const t = useTranslations("marketing")
+  const tCommon = useTranslations("common")
+
   return (
     <div className="flex flex-col gap-20 pb-20">
       {/* Hero */}
@@ -91,42 +59,41 @@ export default function HomePage() {
           <div className="flex flex-col gap-6">
             <div className="inline-flex w-fit items-center gap-2 rounded-full border bg-muted/50 px-3 py-1 text-xs font-medium">
               <Sparkles className="size-4 text-primary" />
-              面向长期演进的项目模板
+              {t("hero.badge")}
             </div>
             <h1
               data-testid="public-hero-heading"
               className="text-4xl font-bold tracking-tight md:text-6xl"
             >
-              干净的骨架，
-              <span className="text-primary">只留工程化</span>
+              {t("hero.titleLine1")}
+              <span className="text-primary">{t("hero.titleAccent")}</span>
             </h1>
             <p className="text-lg text-muted-foreground md:text-xl">
-              四层模块化单体 + 双认证域 + 可观测性。不内置业务域，
-              让每个派生项目从零开始搭建自己的业务。
+              {t("hero.subtitle")}
             </p>
             <div className="flex flex-wrap gap-4">
               <Button size="lg" asChild>
                 <Link href="/register">
-                  免费开始
+                  {t("hero.ctaPrimary")}
                   <ArrowRight className="ml-2 size-4" />
                 </Link>
               </Button>
               <Button size="lg" variant="outline" asChild>
-                <Link href="/features">了解骨架</Link>
+                <Link href="/features">{t("hero.ctaSecondary")}</Link>
               </Button>
             </div>
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
               <div className="flex items-center gap-1">
                 <CheckCircle2 className="size-4 text-primary" />
-                无业务域残留
+                {t("hero.highlightNoDomain")}
               </div>
               <div className="flex items-center gap-1">
                 <CheckCircle2 className="size-4 text-primary" />
-                认证开箱即用
+                {t("hero.highlightAuth")}
               </div>
               <div className="flex items-center gap-1">
                 <CheckCircle2 className="size-4 text-primary" />
-                工程化完整
+                {t("hero.highlightTooling")}
               </div>
             </div>
           </div>
@@ -139,7 +106,9 @@ export default function HomePage() {
                   <div className="size-3 rounded-full bg-yellow-500" />
                   <div className="size-3 rounded-full bg-green-500" />
                 </div>
-                <span className="text-xs text-muted-foreground">My App</span>
+                <span className="text-xs text-muted-foreground">
+                  {tCommon("appName")}
+                </span>
               </div>
               <div className="space-y-3">
                 <div className="flex items-center gap-3 rounded-lg bg-muted p-4">
@@ -164,10 +133,14 @@ export default function HomePage() {
       <section className="container mx-auto">
         <div className="mx-auto max-w-5xl">
           <div className="grid gap-6 rounded-2xl border bg-muted/30 px-8 py-12 text-center md:grid-cols-3">
-            {stats.map((stat) => (
-              <div key={stat.label}>
-                <div className="text-4xl font-bold text-primary">{stat.value}</div>
-                <div className="mt-2 text-sm text-muted-foreground">{stat.label}</div>
+            {STAT_ITEMS.map((stat) => (
+              <div key={stat.key}>
+                <div className="text-4xl font-bold text-primary">
+                  {stat.value}
+                </div>
+                <div className="mt-2 text-sm text-muted-foreground">
+                  {t(`stats.${stat.key}`)}
+                </div>
               </div>
             ))}
           </div>
@@ -178,18 +151,24 @@ export default function HomePage() {
       <section className="container mx-auto">
         <div className="mx-auto max-w-5xl">
           <div className="mb-10 text-center">
-            <h2 className="text-3xl font-bold">核心骨架</h2>
+            <h2 className="text-3xl font-bold">
+              {t("features.sectionTitle")}
+            </h2>
             <p className="mt-3 text-muted-foreground">
-              模板只承诺工程化能力，业务边界留给你
+              {t("features.sectionSubtitle")}
             </p>
           </div>
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {features.map((item) => (
-              <Card key={item.title} className="bg-card/50">
+            {FEATURE_ITEMS.map((item) => (
+              <Card key={item.key} className="bg-card/50">
                 <CardHeader>
                   <item.icon className="size-8 text-primary" />
-                  <CardTitle className="mt-2">{item.title}</CardTitle>
-                  <CardDescription>{item.description}</CardDescription>
+                  <CardTitle className="mt-2">
+                    {t(`features.${item.key}.title`)}
+                  </CardTitle>
+                  <CardDescription>
+                    {t(`features.${item.key}.description`)}
+                  </CardDescription>
                 </CardHeader>
               </Card>
             ))}
@@ -201,36 +180,24 @@ export default function HomePage() {
       <section className="container mx-auto">
         <div className="mx-auto max-w-5xl">
           <div className="mb-10 text-center">
-            <h2 className="text-3xl font-bold">三步开始</h2>
+            <h2 className="text-3xl font-bold">{t("steps.sectionTitle")}</h2>
             <p className="mt-3 text-muted-foreground">
-              复制模板、配置环境、启动服务
+              {t("steps.sectionSubtitle")}
             </p>
           </div>
           <div className="grid gap-6 md:grid-cols-3">
-            {[
-              {
-                step: "01",
-                title: "复制模板",
-                description: "just copy <name> 创建新项目，不包含依赖与构建产物。",
-              },
-              {
-                step: "02",
-                title: "配置环境",
-                description: "按 .env.example 填写数据库、Redis 与初始管理员。",
-              },
-              {
-                step: "03",
-                title: "启动服务",
-                description: "just sync dev 安装依赖，just run 同时启动后端与两个前端。",
-              },
-            ].map((item) => (
+            {STEP_ITEMS.map((item) => (
               <Card key={item.step} className="relative overflow-hidden">
                 <CardHeader>
                   <span className="text-4xl font-bold text-muted-foreground/30">
                     {item.step}
                   </span>
-                  <CardTitle className="mt-2">{item.title}</CardTitle>
-                  <CardDescription>{item.description}</CardDescription>
+                  <CardTitle className="mt-2">
+                    {t(`steps.${item.key}.title`)}
+                  </CardTitle>
+                  <CardDescription>
+                    {t(`steps.${item.key}.description`)}
+                  </CardDescription>
                 </CardHeader>
               </Card>
             ))}
@@ -242,18 +209,20 @@ export default function HomePage() {
       <section className="container mx-auto">
         <div className="mx-auto max-w-3xl">
           <div className="mb-10 text-center">
-            <h2 className="text-3xl font-bold">常见问题</h2>
+            <h2 className="text-3xl font-bold">{t("faq.sectionTitle")}</h2>
             <p className="mt-3 text-muted-foreground">
-              关于这个模板你可能想知道的事
+              {t("faq.sectionSubtitle")}
             </p>
           </div>
           <div className="space-y-4">
-            {faqs.map((faq) => (
-              <Card key={faq.question}>
+            {FAQ_ITEMS.map((key) => (
+              <Card key={key}>
                 <CardHeader>
-                  <CardTitle className="text-base">{faq.question}</CardTitle>
+                  <CardTitle className="text-base">
+                    {t(`faq.${key}.question`)}
+                  </CardTitle>
                   <CardDescription className="text-sm leading-relaxed">
-                    {faq.answer}
+                    {t(`faq.${key}.answer`)}
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -265,17 +234,12 @@ export default function HomePage() {
       {/* CTA */}
       <section className="container mx-auto">
         <div className="mx-auto max-w-4xl rounded-2xl bg-primary px-6 py-16 text-center text-primary-foreground md:px-12">
-          <h2 className="text-3xl font-bold">准备好开始了吗？</h2>
+          <h2 className="text-3xl font-bold">{t("cta.title")}</h2>
           <p className="mx-auto mt-4 max-w-xl text-primary-foreground/80">
-            注册账号，进入受保护区域，从干净的后端骨架开始搭建你的业务。
+            {t("cta.body")}
           </p>
-          <Button
-            size="lg"
-            variant="secondary"
-            className="mt-8"
-            asChild
-          >
-            <Link href="/register">免费注册</Link>
+          <Button size="lg" variant="secondary" className="mt-8" asChild>
+            <Link href="/register">{t("cta.button")}</Link>
           </Button>
         </div>
       </section>
