@@ -1,9 +1,28 @@
 # PRD: 前端界面中英文 i18n 双语能力
 
+> ✅ **交付前置**：无，可立即开工。
+> 结构化声明见 §8 Delivery Dependencies，**那里是唯一事实源**。
+
+> ⬜ **验收状态**：未开工。
+> 本行是 §9 Acceptance Checklist 的投影，**那里是唯一事实源**。
+
 > 本 PRD 分两个 altitude，分别服务不同读者，自上而下阅读：
 >
 > - **Part A · 人审层 (Review Layer)** — 需求方 / 验收人读这部分，决定"该不该做、做得对不对"，并通过风险地图知道**哪些地方必须亲自确认**。Part A 不出现实现机制、文件路径、命令。
 > - **Part B · 执行器层 (Build Layer)** — 实现者（人或 Agent）读这部分动手。人只在 Part A 风险地图**点名处**下钻审查，其余默认交执行器 + 自动门禁（hook / 测试 / 架构检查）。
+
+## Feature Overview (功能一览)
+
+> 本块是 §10 Functional Requirements 的白话投影，**那里是唯一事实源**；行为验收以 §1 行为样例表为准。
+
+- **公开站自动说对语言**（FR-1）：首次访问按浏览器语言偏好出中/英文，服务端直出对应语言的首屏与 `<html lang>`。
+- **后台同样双语**（FR-2）：管理界面按上次选择或浏览器语言呈现中/英文。
+- **一键切换、换完记住**（FR-3）：两端导航区有语言切换器，点击整页立即换语言，刷新后保持。
+- **核心页面无漏翻**（FR-4）：根布局 metadata、导航、登录注册、仪表盘、设置页全部走文案 key，无硬编码文案。
+- **文案文件防缺漏**（FR-5）：`en`/`zh` 两份文案 key 一一对应，脚本校验接入 CI，缺 key 直接拦红。
+- **未迁移页面不受伤**（FR-6）：其余业务页面保留现有中文，接入 i18n 后照常渲染不报错。
+- **维护方式成文**（FR-7）：新增 i18n 指南页，记录两端架构、cookie/localStorage 约定与新增文案规范。
+- 范围边界（§11）：不做后端报错翻译、URL 语言前缀、RTL、机翻文案、文档站多语言、全量页面一次性迁移。
 
 ---
 
@@ -17,16 +36,33 @@
 
 ### Interpretation (解读回显)
 
-本次需求被理解为：**参考 `freshai` 的前端 i18n 体系，为本仓库的两个前端应用建立中英文双语能力**。具体含义与边界：
+本次需求被理解为：**参考 `freshai` 的前端 i18n 体系，为本仓库的两个前端应用建立中英文双语能力**。
 
-- "双语"指**界面文案的中英文切换**：用户可以通过语言切换器在中文与英文之间选择界面语言，选择被持久化（cookie / localStorage），下次访问自动恢复；服务端渲染的页面也能根据协商出的 locale 输出对应语言。
-- 两个前端采用各自框架最契合的 i18n 方案（与 `freshai` 对齐）：公开站（Next.js App Router）用 `next-intl` 的服务端 cookie 模式（无 URL 前缀，locale 来自 cookie/Accept-Language），后台（Vite + TanStack Router）用 `react-i18next` 的客户端 localStorage 模式。
-- 支持的 locale 集合为 `en` + `zh`；**默认 locale 建议为 `en`**（与 `freshai` 一致、符合国际化产品通用做法），但这是人工确认项（§2），若你希望默认 `zh` 请在批准前指出。
-- 交付策略为**分阶段**：本 PRD 交付 i18n 基础设施（库、配置、Provider、切换器、文案文件骨架）+ 核心页面的文案迁移（根布局、导航、登录注册、仪表盘、设置页、语言切换器自身）；其余业务页面（Agent/工作流/工具/聊天等）的文案迁移列为"后续迁移清单"，在本 PRD 验收后按同一模式推进，不阻塞本 PRD 验收。
-- 本 PRD **不包含**：后端 API 错误消息的 i18n、URL 路由前缀式 i18n（`/en/...` `/zh/...`）、RTL 布局、自动机器翻译文案、文档站点的多语言。
-- 不引入新的顶层业务概念；i18n 是横切基础设施。
+**行为样例**（这些行会被逐字抄进 §7.6 的验收 oracle——改其中一格，就是在改验收标准）：
 
-这是你**前置批准**的对象：批准这条 = 同意按这个解读自动实现（第一次人类触点）。三个关键确认点：① 默认 locale 是 `en` 还是 `zh`；② 交付范围是"基础设施+核心页面"还是"全量页面一次性迁移"；③ 是否需要后端 API 错误消息也做 i18n（本 PRD 默认不做）。
+| 输入 / 操作 | 期望观察到的结果 |
+|---|---|
+| 浏览器语言为英文的访客首次打开公开站 | 首屏直接是英文，页面源码 `<html lang="en">` |
+| 点语言切换器选"中文" | 整页文案立刻变中文，不需要手动刷新 |
+| 切换语言后按 F5 刷新、或关掉浏览器明天再来 | 界面仍是上次选的语言 |
+| 浏览器语言是法语（不支持的语言） | 回退到默认 locale，不报错、不出现空白文案 |
+| 某个文案 key 只在 `en.json` 加了、忘了加进 `zh.json` | 校验脚本报错并指出缺哪个 key，CI 拦红 |
+| 打开还没迁移的业务页面（如 Agent 列表） | 照常显示原有中文，页面不报错 |
+
+**我默默定了这些**：
+
+- 两个前端用各自框架的最佳拍档，不统一成同一个库：公开站 `next-intl`（服务端 cookie 模式）、后台 `react-i18next`（客户端 localStorage 模式）——与 `freshai` 对齐。
+- locale 集合只有 `en` + `zh`，不做 URL 前缀路由（`/en/...`），语言选择走 cookie / localStorage。
+- 交付分阶段：本次只做基础设施 + 核心页面（根布局、导航、登录注册、仪表盘、设置），其余业务页面列后续清单，不阻塞本次验收。
+- 未迁移页面保留现有中文硬编码，不强制一并改造。
+
+**我理解为不做**：
+
+- 后端 API 错误消息的 i18n（界面文案之外的报错文本本次不动）。
+- URL 路由前缀式 i18n、RTL 布局、自动机器翻译。
+- 文档站点（mkdocs）的多语言。
+
+**前置批准对象**（第一次人类触点）：批准本条 = 同意按这个解读自动实现。三个关键确认点：① 默认 locale 是 `en` 还是 `zh`（建议 `en`，与 `freshai` 一致）；② 交付范围是"基础设施+核心页面"还是"全量一次性迁移"（建议前者）；③ 后端 API 错误消息是否也要 i18n（建议不做）。
 
 ### What The User Gets
 
@@ -49,42 +85,35 @@
 
 ## 2. Human Review Map (介入与风险地图)
 
-本节决定注意力如何分配：哪些改动**必须人工确认**，哪些交给**执行器 + 自动门禁**。
+本节只列**需要你本人决定或亲眼看**的事；其余全部交执行器 + 自动门禁，挂了会自己红。
 
-判定菜单（逐项对照本次改动是否命中）：
+### 决策 D1：默认语言是英文还是中文（前置确认）
 
-- 固定区域：① Core 业务逻辑 / 编排规则 ② 数据库 schema ③ 安全 / 鉴权 / 信任边界 ④ 对外 API 契约
-- 横切触发器：⑤ 资金 / 计费 ⑥ 不可逆 / 破坏性数据操作 ⑦ 并发 / 事务
+首次访问、且浏览器语言无法判断时，界面用哪种语言。建议默认 `en`（与 `freshai` 一致、符合国际化产品惯例）；如果你的主要用户是中文环境，选 `zh` 也完全合理，改动成本相同。
 
-**命中的人审项**：
+**请确认：** 默认 locale 用 `en` 还是 `zh`？
 
-- 无 ①②③④⑤⑥⑦ 命中（纯前端 i18n 基础设施 + 文案迁移，不触碰后端 core/schema/鉴权/API 契约）。
-- **但有三处前置决策需人工确认**（非风险菜单项，而是 §1 解读回显的三个确认点，决定实现方向）：
-  - D1：默认 locale（`en` vs `zh`）—— 影响所有首次访问者的默认体验。
-  - D2：交付范围（基础设施+核心页面 vs 全量迁移）—— 影响工期与验收边界。
-  - D3：文案 key 命名空间规范 —— 影响长期维护性与后续迁移的一致性。
+**验收：** 用一个不带任何语言偏好的请求打开公开站，首屏语言就是你选的那个（截图证据，见 §9.1 第 1 行）。
 
-**未命中**（默认执行器 + 自动门禁）：
+### 决策 D2：本次做到哪（前置确认）
 
-- ①②③④⑤⑥⑦ 均不涉及。
-- 最坏自检：若 i18n 接入有遗漏导致某页面渲染时 `t(key)` 找不到 key，最坏是该处显示 key 字符串或 fallback 文案，不会损坏数据或鉴权；通过"缺 key 检测脚本"在 CI 拦截。
+建议本次只交付"基础设施 + 核心页面（导航/登录注册/仪表盘/设置）"，其余业务页面列后续清单按同一模式跟进。一次性全量迁移会把验收拖进几百条文案的泥沼，且核心模式没定下来前迁移越多返工越多。
 
-| 改动点 | 架构层 | 风险 | 介入方式 | 证据 / Oracle（指向 §7.6） |
-|---|---|---|---|---|
-| 默认 locale 决策（D1） | frontend | 高 | 人工确认（前置决策） | rv-1 |
-| 文案 key 命名空间规范（D3） | frontend | 中 | 人工确认（前置决策） | rv-2 |
-| next-intl 接入公开站（config/provider/协商） | frontend-public | 中 | 执行器+门禁 | rv-3, rv-4 |
-| react-i18next 接入后台（init/provider/切换器） | frontend-admin | 中 | 执行器+门禁 | rv-5 |
-| 核心页面文案迁移 | frontend | 低 | 执行器+门禁 | rv-2, rv-6 |
-| en/zh 文案文件缺 key 检测 | frontend | 低 | 执行器+门禁 | rv-7 |
+**请确认：** 同意分阶段，还是要求本次全量迁移？
 
-**如何证明它生效（真实入口，白话）**：
+**验收：** §9.1 呈递区只出现核心页面的双语截图；未迁移页面出现在"不回归"证据里（保留中文、正常渲染）。
 
-- 用浏览器打开公开站，首屏按浏览器语言呈现中或英文；点语言切换器切到另一语言，整页文案立刻变；刷新后仍是切换后的语言。后台同理。对核心页面逐项肉眼检查：导航、登录、仪表盘、设置页的所有文案都跟随语言变化。
+### 决策 D3：文案 key 的命名规范（验收时扫一眼即可）
 
-**数据库结构评审（schema 变化时必填）**：
+建议按功能模块分命名空间（`common`/`nav`/`auth`/`dashboard`/`settings`/`errors`），key 用语义化 camelCase（如 `nav.dashboard`、`auth.loginTitle`）。这影响后续所有页面迁移的一致性，但不需要前置讨论——交付时文案文件本身就是产物，验收时打开扫一眼，不顺眼当场改。
 
-- `本次无数据库结构变化。`（纯前端改动，不涉及后端与数据库。）
+**验收：** §9.1 第 6 行直接呈递 `messages/zh.json` 文件本体。
+
+### 自动门禁，不需要逐项人工审阅
+
+以下改动点全部交执行器 + 自动门禁（不触碰后端 core / 数据库 schema / 鉴权 / 对外 API 契约，无资金、不可逆、并发风险）：next-intl 与 react-i18next 的接入、核心页面文案迁移、缺 key 校验脚本、未迁移页面回归。最坏情形是某处文案漏翻、界面显示 key 字符串——可被肉眼和缺 key 脚本双重捕获，不损坏数据。
+
+**本次明确不涉及**：数据库结构变化（无）、后端 API 变化（无）、URL 路由前缀（不做）、RTL（不做）。
 
 ---
 
@@ -166,7 +195,7 @@
 - 在 `__root.tsx` 或顶栏挂载语言切换器。
 - 核心路由（sign-in、settings、dashboard、users 等核心页）把硬编码文案替换为 `t()` 调用。
 
-**文案 key 规范（D3 待确认，建议如下）**：
+**文案 key 规范（D3，验收时确认）**：
 - 命名空间按功能模块：`common`（通用动作/状态）、`nav`（导航）、`auth`（鉴权）、`dashboard`、`settings`、`errors`（错误提示）等。
 - key 用 camelCase，语义化、可追溯：`common.save`、`nav.dashboard`、`auth.loginTitle`。
 - 两份文案文件 key 严格一一对应；CI 脚本校验无缺 key。
@@ -324,7 +353,13 @@ No data model changes in this PRD.（纯前端，无数据库改动。）
 
 ### 7.6 Realistic Validation Plan (Oracle 块)
 
-机读 + 人读的**单一 oracle 源**：§2 的证据列、§9 证据包、以及任何确定性抽取器都引用 / 解析这里的 `id`。
+机读 + 人读的**单一 oracle 源**：§2 的验收声明、§9 证据包、以及任何确定性抽取器都引用 / 解析这里的 `id`。
+
+**`reviewer` 分流约定**（本 PRD 新增，每个 oracle 必填）：
+
+- `reviewer: human` — 结果是**用户可感知**的（界面、产物文件、可点开的东西）：必须产出 `presentation` 指定的人形态呈递物（真实入口截图 / 可自验的 URL / 产物本体），进入 §9.1 人读呈递区，验收时给人亲眼看。
+- `reviewer: verifier` — 结果人看没有增量价值（构建、静态校验、退出码）：agent 自验 + verifier 复核，**不进 §9.1**，默认不打扰人；只在失败时上报。
+- 禁止把人形态呈递物当验收的替代品：`presentation` 是在 oracle 跑绿**之外**额外呈递的，截图本身不证明 oracle 通过。
 
 ```yaml
 # 前置：先在一个终端起公开站与后台（另起后端按现有方式），以下命令假设二者已运行：
@@ -332,9 +367,14 @@ No data model changes in this PRD.（纯前端，无数据库改动。）
 #   cd frontend-admin && pnpm dev       # http://localhost:5173
 # Playwright e2e 工作目录：tests/playwright-e2e（pnpm exec playwright test ...）
 # 证据收集也可走仓库统一入口：just e2e-evidence tasks/pending/P2-FEAT-20260707-150000-frontend-i18n-bilingual.md <rv-id>
+# 截图统一落盘：tasks/evidence/P2-FEAT-20260707-150000-frontend-i18n-bilingual/
 
 - id: rv-1
   behavior: 默认 locale 决策生效（D1 确认后，公开站 SSR + 后台首屏）
+  reviewer: human
+  presentation: |
+    截图 s1-first-visit-default.png（无 cookie、无语言偏好时的公开站首屏，应呈现 D1 选定的默认语言）。
+    自验：开一个全新无痕窗口访问 http://localhost:3000 ，首屏语言应为 D1 选定值。
   real_entry: |
     # 公开站：无 cookie / 无 Accept-Language 时 SSR 输出默认 locale
     curl -s http://localhost:3000/login | grep -oE '<html[^>]*lang="[^"]*"'
@@ -349,6 +389,10 @@ No data model changes in this PRD.（纯前端，无数据库改动。）
 
 - id: rv-2
   behavior: 核心页面文案全部走 i18n key、无硬编码可见文案
+  reviewer: human
+  presentation: |
+    截图 s4-core-en.png + s4-core-zh.png（仪表盘/设置页 en、zh 各一张，人扫一眼有无漏翻）。
+    自验：浏览器切换语言后自己翻一遍仪表盘和设置页。
   real_entry: |
     # 静态：核心页面 JSX 文本节点无硬编码中文（注释除外，应无输出）
     rg -nP '[\x{4e00}-\x{9fff}]' \
@@ -369,6 +413,10 @@ No data model changes in this PRD.（纯前端，无数据库改动。）
 
 - id: rv-3
   behavior: 公开站 NEXT_LOCALE cookie 持久化 + SSR 跟随
+  reviewer: human
+  presentation: |
+    截图 s2-switch-before.png / s2-switch-after.png（点切换器前后同页对比）+ s3-after-reload.png（切换后按 F5 的状态）。
+    自验：http://localhost:3000 页面右上角切换器自己点一下，再按 F5。
   real_entry: |
     # 带 zh cookie：SSR 输出 lang=zh 且含中文文案
     curl -s -b 'NEXT_LOCALE=zh' http://localhost:3000/login | grep -oE '<html[^>]*lang="[^"]*"|登录'
@@ -385,6 +433,7 @@ No data model changes in this PRD.（纯前端，无数据库改动。）
 
 - id: rv-4
   behavior: 公开站 Accept-Language 协商
+  reviewer: verifier
   real_entry: |
     # 中文偏好 → SSR zh
     curl -s -H 'Accept-Language: zh-CN,zh;q=0.9' http://localhost:3000/login | grep -oE '<html[^>]*lang="[^"]*"'
@@ -401,6 +450,10 @@ No data model changes in this PRD.（纯前端，无数据库改动。）
 
 - id: rv-5
   behavior: 后台 react-i18next 接入 + localStorage 持久化
+  reviewer: human
+  presentation: |
+    截图 s5-admin-zh.png / s5-admin-en.png（后台同页双语各一张）。
+    自验：http://localhost:5173 顶栏切换器点一下再刷新。
   real_entry: |
     cd tests/playwright-e2e && pnpm exec playwright test tests/i18n/admin-locale.no-auth.spec.ts -g 'persists in localStorage'
     cd tests/playwright-e2e && pnpm exec playwright test tests/i18n/admin-locale.no-auth.spec.ts -g 'survives reload'
@@ -413,6 +466,8 @@ No data model changes in this PRD.（纯前端，无数据库改动。）
 
 - id: rv-6
   behavior: 语言切换器在两前端可见可操作、点击即整页切换
+  reviewer: human
+  presentation: "呈递物与 rv-3 / rv-5 的截图复用（切换器须在截图中可见），不单独出图。"
   real_entry: |
     # 公开站切换器（点 dropdown 选另一语言 → 整页文案变化）
     cd tests/playwright-e2e && pnpm exec playwright test tests/i18n/public-locale.no-auth.spec.ts -g 'switch'
@@ -427,6 +482,7 @@ No data model changes in this PRD.（纯前端，无数据库改动。）
 
 - id: rv-7
   behavior: en/zh 文案 key 对齐、无缺 key
+  reviewer: verifier
   real_entry: |
     # 缺 key 校验脚本（PRD §7.2 新增，接入 just lint / pre-commit）
     node scripts/check-i18n-keys.mjs
@@ -441,6 +497,7 @@ No data model changes in this PRD.（纯前端，无数据库改动。）
 
 - id: rv-8
   behavior: 未迁移业务页面不坏（i18n 接入后仍正常渲染）
+  reviewer: verifier
   real_entry: |
     # 两前端构建通过
     cd frontend-public && pnpm build && cd ../frontend-admin && pnpm build
@@ -489,9 +546,9 @@ No external validation required; repository evidence was sufficient.（实现参
 
 工具中立的排期元数据，不是工具专属队列语法。无依赖时显式写 `none`。
 
+### Delivery Dependencies
+
 - Group: frontend-i18n
-- Depends on groups:
-  - none
 - Depends on tasks/issues:
   - none
 - Gate type: none
@@ -501,30 +558,46 @@ No external validation required; repository evidence was sufficient.（实现参
 
 ## 9. Acceptance Checklist
 
-这是「人只看一次」的交付物。按 Part A 风险地图排序组织成**验收证据包**，每项必须带证据（命令输出 / 观察 / 工件引用），不是裸勾。
+本节分两层读者。**9.1 是给人看的**——验收时只看这一层，设计目标是 3 分钟内看完；**9.2 起是给 verifier 和未来回溯用的机器证据**，默认不用打开，出问题再下钻。
 
-### Acceptance Evidence Package（证据包 · 按风险地图排序，终点人审入口）
+### 9.1 人读呈递区（Human Review Surface）
 
-1. **高风险 oracle 结果**（§2 每个人工确认行的 oracle 跑绿证据，置顶）：
-   - rv-1（默认 locale）→ 清 cookie 后首屏语言截图匹配 D1 决策
-   - rv-2（核心页面无硬编码 + 双语切换）→ 切换前后截图对比 + rg 搜索结果
-   - rv-3（公开站 cookie+SSR）→ cookie 值 + HTML 源码 lang + 刷新后截图
-   - rv-4（Accept-Language 协商）→ 两种浏览器语言偏好下首屏截图
-   - rv-5（后台 localStorage 持久化）→ localStorage 值 + 刷新后截图
-   - rv-6（切换器可见可操作）→ 两端切换器截图
-   - rv-7（key 对齐）→ 缺 key 校验脚本通过输出
-   - rv-8（未迁移页面不坏）→ 未迁移页面访问截图无报错
-2. **风险地图对账 Predicted → Reconciled**：实现中有无未预测到的高风险面（如发现某些核心页面的动态文案/复数/插值需要额外处理、或 shadcn 组件内文案遗漏），如何处理。
-3. **对抗自检**：对"未命中"项的反方检查——确认未误改后端 API、未引入 URL 前缀路由、未破坏未迁移页面。
-4. **对锁定契约的 diff**：`messages/{en,zh}.json` 与 `src/locales/{en,zh}.json` 的 key 集合一致；命名空间与 D3 决策一致。
-5. **低风险门禁结果（折叠）**：`pnpm build`（两前端）/ `pnpm lint` / 缺 key 脚本 / 类型检查通过。
+规则：
+
+- 交付时本表必须填上**实际呈递物路径**；agent 的完成回复必须原样带上本表内容（截图路径 + 自验方式），不允许只甩一句"证据在 tasks/evidence/ 里"。
+- 截图统一在 `tasks/evidence/P2-FEAT-20260707-150000-frontend-i18n-bilingual/`，验证层级为 **real user flow**（真实 dev server、真实路由、真实切换器交互）。
+- "想自己复核？"列是可选项：呈递物你已经信了就不用做；不信就花 10 秒自己点。
+
+| # | 你要看什么（对应 oracle） | 呈递物（交付时填实际路径） | 想自己复核？ |
+|---|---|---|---|
+| 1 | 无语言偏好时首屏呈现 D1 选定的默认语言（rv-1） | 截图 `s1-first-visit-default.png` | 开全新无痕窗口访问 `http://localhost:3000` |
+| 2 | 点切换器整页立刻换语言（rv-3、rv-6） | 截图 `s2-switch-before.png` / `s2-switch-after.png` | `http://localhost:3000` 右上角切换器自己点 |
+| 3 | 切换后刷新/重开仍保持所选语言（rv-3） | 截图 `s3-after-reload.png` | 切完按 F5 |
+| 4 | 核心页面双语、无漏翻（rv-2） | 截图 `s4-core-en.png` / `s4-core-zh.png`（仪表盘+设置页） | 浏览器里切换语言后翻一遍仪表盘、设置页 |
+| 5 | 后台同样可切换、双语（rv-5、rv-6） | 截图 `s5-admin-zh.png` / `s5-admin-en.png` | `http://localhost:5173` 顶栏切换器 |
+| 6 | 文案 key 命名规范是否顺眼（D3） | 文件本体 `frontend-public/messages/zh.json` | 打开扫一眼 key 命名 |
+
+**以下项不需要你看**（`reviewer: verifier`，agent 自验 + verifier 复核，挂了会自己红）：rv-4（Accept-Language 协商）、rv-7（key 对齐脚本）、rv-8（构建 + 未迁移页面 smoke）、两前端 lint / 类型检查。它们的证据在 §9.2。
+
+### 9.2 Acceptance Evidence Package（机器证据 · verifier 入口，人默认跳过）
+
+按 §7.6 oracle 的 `reviewer` 与风险排序组织，每项必须带证据（命令输出 / 观察 / 工件引用），不是裸勾：
+
+1. **人审项的 oracle 跑绿证据**（对应 §9.1 各行，截图之外另附命令证据）：rv-1 / rv-2 / rv-3 / rv-5 / rv-6 的命令输出与 Playwright 结果。
+2. **verifier-only 项结果**：rv-4（三种 Accept-Language 的 curl 输出）、rv-7（缺 key 脚本退出码 0）、rv-8（两前端 build + smoke 全绿）。
+3. **风险对账 Predicted → Reconciled**：实现中有无未预测到的风险面（如某些核心页面的动态文案/复数/插值需额外处理、shadcn 组件内文案遗漏），如何处理。
+4. **对抗自检**：确认未误改后端 API、未引入 URL 前缀路由、未破坏未迁移页面。
+5. **对锁定契约的 diff**：`messages/{en,zh}.json` 与 `src/locales/{en,zh}.json` 的 key 集合一致；命名空间与 D3 决策一致。
+6. **低风险门禁结果（折叠）**：`pnpm build`（两前端）/ `pnpm lint` / 缺 key 脚本 / 类型检查通过。
 
 ### Human-Confirmed (来自 Part A 风险地图)
 
-- [ ] D1 默认 locale（en / zh）已确认
-- [ ] D2 交付范围（基础设施+核心页面）已确认
-- [ ] D3 文案 key 命名空间规范已确认
-- [ ] rv-1 ~ rv-8 oracle 已跑绿
+- [ ] D1 默认 locale（en / zh）已确认（前置触点）
+- [ ] D2 交付范围（基础设施+核心页面）已确认（前置触点）
+- [ ] D3 文案 key 命名规范已确认（验收时扫 §9.1 第 6 行的文案文件本体）
+- [ ] §9.1 呈递区第 1~6 行已亲眼看过（截图 / 自验，二选一或都做）
+
+> 注意：rv-1~rv-8 全部跑绿是**机器层完成的前提**（由执行器 + verifier 保证），不再是人逐项确认的对象——人只对呈递区的可感知结果负责。
 
 ### Architecture Acceptance
 
@@ -541,9 +614,9 @@ No external validation required; repository evidence was sufficient.（实现参
 
 ### Behavior Acceptance
 
-- [ ] 切换器切换后整页文案变化、刷新后保持。
+- [ ] 切换器切换后整页文案变化、刷新后保持（证据见 §9.2 第 1 组）。
 - [ ] 公开站 cookie 持久化 + SSR 跟随；后台 localStorage 持久化。
-- [ ] Accept-Language 协商生效。
+- [ ] Accept-Language 协商生效（verifier-only，§9.2 第 2 组）。
 - [ ] 核心页面无硬编码可见文案；未迁移页面不坏。
 - [ ] en/zh 文案 key 一一对应、无缺 key（CI 拦截）。
 
@@ -559,3 +632,45 @@ No external validation required; repository evidence was sufficient.（实现参
 - [ ] `mkdocs.yml` 导航同步新增 i18n 指南页。
 - [ ] `docs/ai-standards/` 若需补充前端命名/注释规范（如文案 key 命名）则同步更新。
 - [ ] PRD 与仓库文档最终架构方向一致。
+
+### Delivery Readiness
+
+- [ ] §9.1 呈递区全部截图已落盘到 `tasks/evidence/P2-FEAT-20260707-150000-frontend-i18n-bilingual/` 且本表路径已回填。
+- [ ] agent 完成回复已原样带上 §9.1 表格内容。
+- [ ] 验收状态横幅已按 §9 实际勾选状态翻转（仅剩 Human-Confirmed 时翻 `🧍 待人工验收`）。
+
+---
+
+## 10. Functional Requirements
+
+- FR-1: 公开站接入 `next-intl`（SSR cookie 模式）：请求时按 cookie > `Accept-Language` > 默认协商 locale，SSR 输出对应语言的文案与 `<html lang>`，metadata 由 i18n key 驱动。
+- FR-2: 后台接入 `react-i18next`（客户端模式）：启动时按 localStorage > navigator > 默认检测 locale，组件经 `t()` 渲染文案。
+- FR-3: 两端导航区提供语言切换器：点击后整页文案立即切换，选择持久化（公开站 cookie / 后台 localStorage），刷新与会话重开后保持。
+- FR-4: 核心页面文案双语化：根布局 metadata、导航、登录、注册、仪表盘、设置页的全部可见文案走 i18n key，无硬编码中/英文本。
+- FR-5: 新增 `en`/`zh` 双语文案文件（公开站 `messages/`、后台 `src/locales/`），key 一一对应；提供缺 key 校验脚本并接入 `just lint` / pre-commit。
+- FR-6: 未迁移业务页面兼容：i18n 接入后照常渲染原有中文，不报错、不显示 key 字面量。
+- FR-7: 新增 `docs/guides/i18n.md` 并同步 `mkdocs.yml`，记录两端 i18n 架构与新增文案规范。
+
+## 11. Non-Goals
+
+- 后端 API 错误消息的 i18n。
+- URL 路由前缀式 i18n（`/en/...` `/zh/...`）。
+- RTL 布局与阿拉伯语等右书语言支持。
+- 自动机器翻译文案。
+- 文档站点（mkdocs）的多语言。
+- 除核心页面外的业务页面一次性全量迁移（列入 §12 后续清单）。
+
+## 12. Risks And Follow-Ups
+
+- **后续迁移清单**（已批准的非阻塞跟进）：Agent / 工作流 / 工具 / 聊天等业务页面按本 PRD 建立的模式逐步迁移文案；迁移期间界面会存在"核心页面双语、业务页面中文"的混态，属预期。
+- **风险：混态长期残留**。若后续清单无人推进，英文用户会在核心路径之外撞上中文页面。缓解：后续迁移清单应尽快升级为独立 PRD 排期。
+- **风险：动态文案/复数/插值**。核心页面若存在插值或复数形式的文案，迁移时需在 key 设计上预留（i18n 库的 ICU 语法），实现中遇到时在 §9.2 风险对账中记录处理方式。
+
+## 13. Decision Log
+
+| ID | 决策问题 | Chosen | Rejected | Rationale |
+|---|---|---|---|---|
+| D-01 | 两前端用同一个 i18n 库还是各自选型 | 公开站 `next-intl` / 后台 `react-i18next` | 统一用 `react-i18next` | Next.js App Router 下 `react-i18next` 缺 SSR 一等支持，会首屏闪烁且 SEO metadata 无法按 locale 服务端生成 |
+| D-02 | locale 路由形态 | cookie / localStorage 协商，无 URL 前缀 | URL 前缀式（`/en/...`） | 前缀方案牵动全部路由与链接，工作量与风险远超本次范围，且 `freshai` 已用 cookie 模式可对齐 |
+| D-03 | 交付节奏 | 分阶段：基础设施+核心页面先行 | 全量页面一次性迁移 | 核心模式未定前迁移越多返工越多，且验收会被几百条文案拖死 |
+| D-04 | 验收证据形态 | 双层：§9.1 人读呈递区（截图/产物本体）+ §9.2 机器证据包；oracle 按 `reviewer: human/verifier` 分流 | 单层 CLI 证据（命令输出+退出码直接当验收清单） | 验收人实际不会读命令行证据；纯命令行形态使"待人工验收"沦为无人执行的剧场 |
