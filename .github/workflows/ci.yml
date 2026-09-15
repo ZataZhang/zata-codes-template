@@ -230,20 +230,47 @@ jobs:
           cat frontend-public/frontend.log
           exit 1
 
+      # 后台（frontend-admin）是独立的前端域：i18n 的 no-auth 用例要在后台登录页
+      # 上验证语言切换、localStorage 持久化与插值文案，因此这里也要把它跑起来。
+      # 登录页不依赖后端接口（`/api` 代理不可用时页面照常渲染），所以只起
+      # Vite dev server，不启动后端。
+      - name: Start frontend-admin dev server
+        working-directory: frontend-admin
+        run: |
+          pnpm run dev --host 127.0.0.1 --port 5173 > admin.log 2>&1 &
+          echo "ADMIN_PID=$!" >> "$GITHUB_ENV"
+
+      - name: Wait for frontend-admin dev server
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:5173/ >/dev/null 2>&1; then
+              echo "Frontend admin dev server is ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Frontend admin dev server failed to start"
+          cat frontend-admin/admin.log
+          exit 1
+
       - name: Run Playwright no-auth tests
         working-directory: tests/playwright-e2e
         env:
           PLAYWRIGHT_SKIP_STACK_BOOT: "1"
           PLAYWRIGHT_BASE_URL: "http://127.0.0.1:3000"
-          # The no-auth smoke tests only require frontend-public in this job;
+          # 后台 i18n 用例通过 PLAYWRIGHT_ADMIN_BASE_URL 定位后台；不设置时
+          # support/env.ts 会回退到 http://localhost:5173，与上面起的端口一致。
+          PLAYWRIGHT_ADMIN_BASE_URL: "http://127.0.0.1:5173"
+          # The no-auth smoke tests only require the two frontends in this job;
           # the backend is not started, so health-check the frontend root.
           PLAYWRIGHT_HEALTH_URL: "http://127.0.0.1:3000"
         run: pnpm exec playwright test --project=no-auth
 
-      - name: Stop frontend dev server
+      - name: Stop frontend dev servers
         if: always()
         run: |
           kill "$FRONTEND_PID" 2>/dev/null || true
+          kill "$ADMIN_PID" 2>/dev/null || true
           wait 2>/dev/null || true
 
       - name: Upload Playwright report
@@ -255,6 +282,7 @@ jobs:
             tests/playwright-e2e/playwright-report/
             tests/playwright-e2e/test-results/
             frontend-public/frontend.log
+            frontend-admin/admin.log
           if-no-files-found: ignore
           # 失败诊断产物，排查窗口一周足够。
           retention-days: 7
