@@ -435,7 +435,11 @@ _is_upstream_owned() {
         tests/playwright-e2e/.eslintrc.cjs) return 0 ;;
         tests/playwright-e2e/.gitignore) return 0 ;;
         tests/playwright-e2e/README.md) return 0 ;;
-        tests/playwright-e2e/demo/*) return 0 ;;
+        # demo/ 不在 upstream-owned 清单里：它是起始内容而非锁步基础设施，派生
+        # 项目会把它改成自己产品的演示脚本（freshai 已改成 CargoX 定制版）。留在
+        # 清单里会让 sync 反复要求用通用模板覆盖项目定制版本。新建项目从模板克隆
+        # 时仍会拿到 demo 初始副本；tests/ 在默认 project_skip_paths 里，所以
+        # --all 模式也不会再显示它。
     esac
     return 1
 }
