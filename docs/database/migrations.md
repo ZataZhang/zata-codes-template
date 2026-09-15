@@ -53,7 +53,7 @@ YYYYMMDD-HHMMSS-<slug>.py
 entry: uv run python hooks/shared/check_schema_conventions.py --filename-separator '_' --require-revision-equals-timestamp-prefix
 ```
 
-注意 `--require-revision-equals-timestamp-prefix` 按文件名分隔符做精确比对，只适用于 revision 与文件名同分隔符的项目；文件名用 `-` 而 revision 用 `_` 的混合项目（freshai 就是这种组合）会被误报，需改用项目自有的守卫测试来守护该约定。
+注意 `--require-revision-equals-timestamp-prefix` 的期望值按**文件名分隔符**拼接（`date_part + separator + time_part`），因此只适用于 revision 与文件名同分隔符的项目。文件名与 revision 分隔符不一致的项目不能用这个 flag——每个文件都会被报成不合规——需改用项目自有的守卫测试来守护该约定。
 
 ## TODO
 
