@@ -190,7 +190,9 @@ AI 代理默认不会设置该变量，因此会被 hook 拦下——这是"指�
 
 ### 模板同步边界
 
-E2E 基础设施（runner、配置、共享 fixtures/page-objects/scripts、README）是上游模板维护的共享层，`just sync-template` 会自动提示同步。`support/` 会承载项目 API 与环境解析，和项目特定的 `tests/` 用例一样归项目维护，默认被 `config.toml` 的 `project_skip_paths` 排除，不会被模板覆盖。运行时产物（`.auth/`、`node_modules/`、`playwright-report/`、`test-results/`、`.env.e2e.local`）永远不会出现在同步列表中。
+E2E 基础设施（runner、配置、共享 fixtures/scripts、README）是上游模板维护的共享层，`just sync-template` 会自动提示同步。`support/` 与 `page-objects/` 会承载项目 API、环境解析与项目 UI 形态，和项目特定的 `tests/` 用例一样归项目维护，默认被 `config.toml` 的 `project_skip_paths` 排除，不会被模板覆盖。运行时产物（`.auth/`、`node_modules/`、`playwright-report/`、`test-results/`、`.env.e2e.local`）永远不会出现在同步列表中。
+
+包内 `tests/playwright-e2e/.gitignore` 同样归上游维护，只覆盖包自身的通用产物。项目特有的忽略规则（自建 venv、自定义证据目录等）写在仓库根 `.gitignore` 里，用相对仓库根的路径声明——根 `.gitignore` 本就是项目所有，写在那里不会与 sync 争抢同一个文件。
 
 ### AI Agent 常用命令
 
