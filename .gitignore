@@ -80,3 +80,6 @@ tasks/evidence/**
 # IAR-managed git worktrees (host-local)
 .iar-worktrees/
 # <<< iar <<<
+
+# Agent tooling state (local)
+.workbuddy-ai/
