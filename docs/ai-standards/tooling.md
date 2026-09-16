@@ -143,7 +143,7 @@ python scripts/check_prd_acceptance_checklist.py --repo-root "$PWD" --all
 - 三个机械入口自动领锁：`just implement` 在校验 PRD 后、创建 worktree 前领锁（透传 `--tool` / `--branch`）；`just worktree`（`create.sh`）在分支名匹配 pending PRD 时先领锁、冲突即拒绝创建，创建成功后锁归属自动移交到新 worktree；`just worktree -o`（`open.sh`）打开已有 worktree 时同样尝试领锁（冲突仅提示持锁者、不阻塞打开）。分支名 ↔ PRD 匹配规则的唯一事实源在 `scripts/shared/worktree/prd_branch_match.sh`（slug 与分支全名或分支最后一段相等即命中），与看板的文件名解析保持一致。
 - 执行过程中每个主要步骤后运行 `just prd heartbeat <prd-file>` 续期；锁丢失或归属不符时 heartbeat 非零退出，便于 executor 发现锁已被接管。锁归属 worktree 有持续文件改动时活性探测会阻止误接管，心跳是兜底；主仓库持有的锁没有活性佐证，仍完全依赖心跳。
 - 宽松兜底：提交时 `check_prd_lock_conflict` 钩子发现 staged 变更触及他人新鲜锁 PRD 的 `tasks/pending` / `tasks/evidence` 路径会输出警告，但永不阻断提交。
-- 看板 ACTIVITY 列：新鲜锁显示 `RUNNING <tool> <时长> @<branch>`（branch 缺失回退 worktree）；过期锁但归属 worktree 仍有近期改动同样显示 `RUNNING`（活性佐证优先于心跳）；过期且无活性佐证显示 `STALE <最后心跳>`；无锁但存在分支名匹配的 worktree 时先看该 worktree 是否已把 PRD 归档：已归档显示绿色 `✔ branch-archived @<branch> · <n>/<m> · awaiting merge`（收尾已在分支完成，只差合并回主线，清单进度取归档副本的真实勾选，不再按互斥漏洞报警）；未归档显示黄色 `⚠ unlocked @<branch>`（互斥未生效，需进 worktree 补领锁）；无锁但 PRD 文件或证据目录 15 分钟内有改动显示暗色 `⚡ active <n>m ago`；其余 `-`。
+- 看板 ACTIVITY 列：**分支归档优先于一切锁信号**——存在分支名匹配的 worktree 且其中 `tasks/archive` 已有该 PRD 时，无论锁是新鲜还是过期（含带活性佐证的 RUNNING）一律显示绿色 `✔ branch-archived @<branch> · <n>/<m> · awaiting merge`（收尾已在分支完成，只差合并回主线，清单进度取归档副本的真实勾选；残留锁把已完成的 PRD 渲染成 RUNNING / STALE 会误导人重新执行一个已完成的任务）；其余按锁状态渲染：新鲜锁显示 `RUNNING <tool> <时长> @<branch>`（branch 缺失回退 worktree）；过期锁但归属 worktree 仍有近期改动同样显示 `RUNNING`（活性佐证优先于心跳）；过期且无活性佐证显示 `STALE <最后心跳>`；无锁但存在分支名匹配的 worktree 且其中未归档该 PRD 显示黄色 `⚠ unlocked @<branch>`（互斥未生效，需进 worktree 补领锁）；无锁但 PRD 文件或证据目录 15 分钟内有改动显示暗色 `⚡ active <n>m ago`；其余 `-`。
 
 ## Platform Notes
 
