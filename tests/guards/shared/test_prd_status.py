@@ -7,11 +7,17 @@
 
 被测对象：``scripts/shared/just/prd_status.py`` 的 ACTIVITY 列。核心不变量：
 
-1. **无锁但存在分支名匹配的 worktree 时必须亮 ``⚠ unlocked`` 警告。** 互斥依赖
-   执行锁；绕过 ``just prd start`` / ``just implement`` 直接拿 worktree 开工
-   （裸 ``git worktree add`` 或旧版脚本路径）不会产生锁，看板若静默显示 ``-``，
-   "同一条 PRD 两个会话撞车"的漏洞就被掩盖——必须把互斥未生效摆到台面上。
-2. **心跳过期不等于会话已死。** 锁归属 worktree 在过期窗口内仍有文件改动时，
+1. **无锁但存在分支名匹配的 worktree、且其中未归档该 PRD 时必须亮 ``⚠ unlocked``
+   警告。** 互斥依赖执行锁；绕过 ``just prd start`` / ``just implement`` 直接拿
+   worktree 开工（裸 ``git worktree add`` 或旧版脚本路径）不会产生锁，看板若
+   静默显示 ``-``，"同一条 PRD 两个会话撞车"的漏洞就被掩盖——必须把互斥未
+   生效摆到台面上。
+2. **分支上已归档的 PRD 不得继续按 ``⚠ unlocked`` 报警。** 匹配 worktree 的
+   ``tasks/archive`` 里已有该 PRD 时，说明收尾已在分支完成、只差合并回主线；
+   继续亮 ⚠ 会误导人重新执行一个已完成的 PRD。ACTIVITY 应显示绿色
+   ``✔ branch-archived @<branch> · <n>/<m> · awaiting merge``（清单进度取
+   归档副本的真实勾选）。
+3. **心跳过期不等于会话已死。** 锁归属 worktree 在过期窗口内仍有文件改动时，
    ACTIVITY 仍按 RUNNING 渲染；只有心跳过期且 worktree 无活性佐证时才显示
    STALE。否则长会话每 30 分钟翻红一次，看板可信度会被狼来了磨光。
 """
@@ -20,6 +26,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -108,7 +115,7 @@ def _render_activity_cell(repo_path: Path) -> str:
 
 
 def test_no_lock_with_matching_worktree_branch_shows_unlocked_warning(tmp_path: Path) -> None:
-    """无锁 + 分支最后一段匹配 slug 的 worktree：显示 ⚠ unlocked @<分支全名>。"""
+    """无锁 + 匹配 worktree 且其中未归档该 PRD：显示 ⚠ unlocked @<分支全名>。"""
     main_repo_path = _init_main_repo(tmp_path / "repo")
     _add_linked_worktree(main_repo_path, "feat/avatar-upload", "wt-avatar")
 
@@ -116,6 +123,42 @@ def test_no_lock_with_matching_worktree_branch_shows_unlocked_warning(tmp_path: 
 
     assert "unlocked" in raw_cell_text
     assert "@feat/avatar-upload" in raw_cell_text
+
+
+def test_no_lock_with_worktree_archived_prd_renders_branch_archived(tmp_path: Path) -> None:
+    """无锁 + PRD 已在匹配 worktree 内归档：显示 branch-archived 而非 ⚠ unlocked。"""
+    main_repo_path = _init_main_repo(tmp_path / "repo")
+    linked_worktree_path = _add_linked_worktree(main_repo_path, "feat/avatar-upload", "wt-done")
+    # worktree 内完成收尾：PRD 移入 tasks/archive 且清单全勾；主线 pending 副本
+    # 原样保留，看板仍会列出该 PRD——这正是要修的盲区场景。
+    archived_prd_path = linked_worktree_path / "tasks" / "archive" / f"{_FIXTURE_PRD_NAME}.md"
+    archived_prd_path.parent.mkdir(parents=True, exist_ok=True)
+    archived_prd_path.write_text(
+        "# fixture PRD\n\n## Acceptance Checklist\n\n- [x] item one\n- [x] item two\n",
+        encoding="utf-8",
+    )
+
+    raw_cell_text = _render_activity_cell(main_repo_path)
+
+    assert "✔ branch-archived @feat/avatar-upload" in raw_cell_text
+    assert "2/2" in raw_cell_text
+    assert "awaiting merge" in raw_cell_text
+    assert "unlocked" not in raw_cell_text
+
+
+def test_branch_archived_without_checklist_omits_progress(tmp_path: Path) -> None:
+    """归档副本没有清单小节时不显示 n/m 进度，branch-archived 与合并提示保留。"""
+    main_repo_path = _init_main_repo(tmp_path / "repo")
+    linked_worktree_path = _add_linked_worktree(main_repo_path, "feat/avatar-upload", "wt-plain")
+    archived_prd_path = linked_worktree_path / "tasks" / "archive" / f"{_FIXTURE_PRD_NAME}.md"
+    archived_prd_path.parent.mkdir(parents=True, exist_ok=True)
+    archived_prd_path.write_text("# fixture PRD\n\n无清单小节。\n", encoding="utf-8")
+
+    raw_cell_text = _render_activity_cell(main_repo_path)
+
+    assert "✔ branch-archived @feat/avatar-upload" in raw_cell_text
+    assert "awaiting merge" in raw_cell_text
+    assert not re.search(r"\d+/\d+", raw_cell_text)
 
 
 def test_no_lock_without_matching_worktree_falls_back_to_dash(tmp_path: Path) -> None:
