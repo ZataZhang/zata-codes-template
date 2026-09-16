@@ -65,11 +65,38 @@ overview
 
 - 同一功能的多个画面放进同一个状态模型，通过真实按钮、热点或导航直接切换；不要只把截图并排陈列。
 - 同一用户流程跨越多个原型时，在上一步的真实动作位置链接下一步，并提供返回路径。需要保留上下文时使用查询参数或 hash，例如 `?user=usr_8K2F#detail`。
-- 不同主题、无法组成单一业务流程的原型统一登记到可点击的 prototype hub。Hub 应能直接打开或嵌入原型，并显示原型类型、验证层级和主要流程。
+- 不同主题、无法组成单一业务流程的原型统一登记到可点击的 prototype hub。Hub 只管理原型资产及其入口，不承担 PRD、Issue、CI/CD、任务调度或运行监控职责。
 - 每个独立原型提供返回 Hub 的入口。遇到失效、空文件或缺少依赖的旧原型时，在 Hub 中标记不可用或暂不登记，不伪造可点击入口。
 - 更新仓库已有的原型索引和文档导航；不要建立第二份互相漂移的清单。
 
 具体连接方式见 [references/prototype-patterns.md](references/prototype-patterns.md) 的 Connected prototype system。
+
+需要实际创建或重构 Hub 时，读取 [references/prototype-hub-contract.md](references/prototype-hub-contract.md)；图片状态需要可点击热点时，读取 [references/image-hotspot-contract.md](references/image-hotspot-contract.md)；需要组件库时，读取 [references/component-library-contract.md](references/component-library-contract.md)。这些模式可从 `assets/prototype-system-template/` 复制最小骨架，但必须替换示例 registry、路径、文案和视觉变量，并服从目标仓库现有设计系统。
+
+### Prototype Hub Delivery Gate
+
+当仓库已经有两个或以上互不属于同一业务流程的原型，或已有 prototype hub / 原型总览入口时，Hub 登记是交付的一部分，不是可选文档整理：
+
+1. 先定位现有 Hub、registry、原型索引和文档导航，确认哪个文件是原型清单的唯一事实源；不得因为现有 Hub 不在 `docs/prototypes/index.md` 就另建第二套。
+2. 每个新增或实质修改的独立原型都必须同步登记 Hub。registry 至少包含标题、入口、所属项目、所属模块、原型形式（code-native / image-state / hybrid）、版本、更新时间、验证层级、主要流程、可用状态和 provenance sidecar；列表只展示便于扫描的字段，其余信息放到详情抽屉。
+3. 每个独立原型必须提供返回 Hub 的可见入口；纯图片资产由 Hub 卡片同时提供原图和说明页入口。
+4. AI 生成/编辑图片登记到 Hub 前，必须存在对应的 `.prompt.md`；浏览器截图或设计导出图必须存在 `.source.md`。缺少 provenance sidecar 的图片不得标成可继续维护的最终原型。
+5. 旧原型入口失效、文件为空或依赖缺失时，Hub 明确标记不可用，不能保留一个看似可点击但实际失败的卡片。
+6. 交付前从 Hub 真实入口打开新卡片，在桌面和至少一个窄屏宽度验证：缩略图加载、入口跳转、返回 Hub、验证层级标签和无横向溢出。只验证目标原型文件本身不算完成。
+
+若仓库还没有 Hub，但本次交付会形成两个或以上独立原型，创建最小 Hub 并把 registry 作为唯一清单；文档索引只链接 Hub 和正式说明页，不重复手写卡片清单。
+
+### Prototype Hub Default Information Architecture
+
+没有既有产品规范或用户另选风格时，Hub 默认采用“高密度目录 + 右侧预览详情”结构，视觉参考见 `assets/prototype-hub-catalog-reference.png`：
+
+- 左侧仅提供原型资产维度的导航，例如全部原型、按项目、按模块、按原型形式、按可用状态；不要复制主产品的业务导航。
+- 主区顶部提供搜索，以及项目、模块、原型形式、可用状态筛选。列表列优先使用预览、原型名称、项目、模块、原型形式、版本、更新时间和可用状态。
+- 选中列表项后打开右侧详情抽屉，展示较大预览、原型描述、验证层级、主要流程、来源/旁车、版本历史，以及“打开原型”和“返回目录”。
+- 默认保持目录高密度、可扫描；缩略图用于识别，不把每个条目做成占据大量空间的运营卡片。
+- Hub 只回答“有哪些原型、属于哪里、是什么形式、当前是否可打开、如何进入和追溯来源”。CI/CD、PRD 执行状态、Issue、仓库健康、Daemon、任务依赖、审核队列、运行监控和自动修复策略均不得进入 Hub。
+- 某个原型画面本身可以包含上述业务内容，但 Hub 只把它当作缩略图和原型入口，不抽取这些内容成为 Hub 字段或公共控制项。
+- Hub 的主导航只放原型资产分类。组件库和原型规范属于辅助入口，应独立分组；组件库不得作为普通原型写入 prototype registry。
 
 ## Preserve the Artifact
 
@@ -99,7 +126,8 @@ overview
 2. 在浏览器中逐条走完状态模型，验证点击、返回、关闭、键盘操作和窗口尺寸变化。
 3. 对图片状态原型，在桌面宽度和至少一个缩窄宽度下逐状态点击真实热点，确认每次点击发生在图片所画按钮内，并到达预期下一状态。不要只通过脚本直接调用状态切换函数。
 4. 截取至少一个默认态和关键结果态，检查文字、裁切、热点偏移、浮层层级和图片加载。
-5. 运行仓库要求的格式、构建或文档检查，以及 `git diff --check`。
-6. 用 `git status --short` 确认只触及授权范围。除非用户明确要求，不执行 `git add`、`git commit` 或 `git push`。
+5. 从 Prototype Hub 打开本次原型并走到关键状态，再验证返回 Hub；在窄屏复查 Hub 卡片与原型入口。
+6. 运行仓库要求的格式、构建或文档检查，以及 `git diff --check`。
+7. 用 `git status --short` 确认只触及授权范围。除非用户明确要求，不执行 `git add`、`git commit` 或 `git push`。
 
-交付时说明原型入口、覆盖的交互、采用哪种形式、图片与代码各自承担什么，以及尚未验证的生产行为。
+交付时说明 Hub 入口、原型入口、覆盖的交互、采用哪种形式、图片与代码各自承担什么、provenance sidecar，以及尚未验证的生产行为。没有完成适用的 Hub 登记、返回入口或旁车文件时，不得声称原型交付完成。
