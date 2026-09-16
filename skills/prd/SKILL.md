@@ -525,6 +525,86 @@ Rules:
 
 ---
 
+## Machine Contract (v1)
+
+Machine-Contract-Version: 1
+
+This section is a **versioned, stable contract** that execution tooling (daemon-style agent runners, delivery gates, verifier tooling) may depend on:
+
+- The contract is exactly the content of this section, identified by the standalone `Machine-Contract-Version: 1` marker line above (parse with `Machine-Contract-Version:\s*(\d+)`).
+- Any change to this section's content MUST bump the version number. Tooling pins a supported major version and fails loudly on mismatch instead of silently drifting.
+- Everything in this skill **outside** this section may evolve freely without a version bump.
+- These formats match what machine parsers actually accept. When prose elsewhere in this skill disagrees with this section on machine-checked behavior, this section wins.
+
+### 1. PRD Change Log Format
+
+Change Log entries are parsed mechanically (entry counting, per-field completeness), and only this one structure is recognized:
+
+- Section heading: `## Change Log`（或 `## 变更记录`；允许编号前缀如 `## 14. Change Log`，大小写不敏感）. The section ends at the next `##` heading.
+- Each entry is a `###` heading followed by six bullet fields, one per line:
+
+```markdown
+## Change Log
+
+### <short title of this change>
+- Type: <scope / evidence / test / doc / ...>
+- Before: <prior wording or state>
+- After: <new wording or state>
+- Reason: <why the PRD changed>
+- Impact: <effect on deliverables and requirements>
+- Review: <review status>
+```
+
+- Field labels accept Chinese or English — `类型/Type`、`原文/Before`、`变更后/After`、`原因/Reason`、`影响/Impact`、`审核/Review` — with `:` or `：`; the bullet marker may be `-`, `*`, or `+`. An entry missing any of the six fields counts as incomplete.
+- **Markdown tables are NOT parsed and count as zero entries.** Writing the Change Log as a table is treated as "no entry appended" — this is the #1 cause of repeated delivery-gate failures.
+
+### 2. Acceptance Checklist Checkbox Syntax
+
+- Checkboxes live in the `## Acceptance Checklist`（或 `## 验收清单`，允许编号前缀）section, which ends at the next `##` heading. Checkboxes inside fenced code blocks are ignored.
+- Only two marks are checkboxes: `- [ ]`（未完成）and `- [x]` / `- [X]`（已完成）。Bullet marker may be `-`, `*`, or `+`.
+- `[~]` is deliberately **not** a checkbox: the parser ignores the line, so the item counts as resolved rather than unchecked. Use it exclusively for runner-owned gates the executing agent can never tick — items waiting on the runner's independent verifier, PR creation/review, or archive, which run *after* the agent's own delivery gate. Rewrite such items as:
+  `- [~] <original text> — runner-owned gate: <which gate>`
+  and leave the gate itself to the runner. Never tick an item whose evidence you did not actually produce, and never delete an item to shrink the unchecked count (checked and deleted are distinguished).
+
+### 3. Evidence File Naming (rv-id)
+
+- One evidence file per Realistic Validation oracle, named `rv-<n>-<slug>.<ext>`, where `<n>` matches the oracle's `rv-<n>` id in the Section 7 Realistic Validation Plan.
+- 分工：UI 行为用 PNG 截图（标注验证层级）；CLI/命令行为用捕获的终端输出 `.txt`；其余按 oracle 声明的格式（pdf / csv / 录屏等）——条目点名格式时必须存在对应后缀的文件。
+- **Every RV script** — evidence capture, temporary setup, and reproducible oracles alike — belongs under `<evidence-dir>/scripts/`. No exception: no RV script may enter the code diff, whatever the PRD asks for. Inspect `git diff --name-only` and remove every RV script from the change set before requesting a commit.
+- Never capture secrets in evidence files or scripts.
+
+### 4. Evidence Directory Layout
+
+- Evidence root: `tasks/evidence/<prd-stem>/`（`<prd-stem>` 为 PRD 文件名去掉 `.md`）. Automated tasks with no associated PRD fall back to `tasks/evidence/issue-<编号>/`.
+- Exactly three text reports are committed to git, alongside the PRD:
+
+  - `tasks/evidence/<prd-stem>/<prd-stem>.verification-plan.md`
+  - `tasks/evidence/<prd-stem>/<prd-stem>.evidence-report.md`
+  - `tasks/evidence/<prd-stem>/<prd-stem>.verifier-report.md`
+
+- Raw artifacts (screenshots, recordings, logs, captured output) do **not** enter version control. The repository guarantees this with a `.gitignore` whitelist, so `git add -A` naturally stages only the `.md` reports:
+
+  ```gitignore
+  tasks/evidence/**
+  !tasks/evidence/**/
+  !tasks/evidence/**/*.md
+  ```
+
+### 5. Delivery Dependencies Block
+
+The Section 8 `Delivery Dependencies` syntax defined in **Required PRD Structure → 8. Delivery Dependencies** is part of this contract: the `Group` / `Depends on tasks/issues` / `Gate type` / `Notes` shape, the `none` / `soft` / `hard` gate-type vocabulary, and the rule that this block is the single source of truth for sequencing (the Delivery Gate Banner only mirrors it). An execution tool may treat the dependency as a blocking gate only when `Gate type: hard` and the repository has a deterministic adapter.
+
+### 6. Banner Markers
+
+The two banner blockquotes under the `# PRD:` title carry grep-able machine markers and are part of this contract:
+
+- `交付前置`（或 `Delivery Gate`）— the Delivery Gate Banner, a projection of Section 8: `⛔` blocked / `✅` none.
+- `验收状态`（或 `Acceptance Status`）— the Acceptance Status Banner, a projection of Section 9, with exactly three states: `⬜ 未开工` / `🧍 待人工验收` / `✅ 可归档`. Only `✅ 可归档` may move to `tasks/archive/`.
+
+Both banners are projections, never second sources of truth: when a banner disagrees with its section, the section wins and the banner is the defect.
+
+---
+
 ## PRD Content Rules
 
 Read [references/prd-content-rules.md](references/prd-content-rules.md) before generating the final PRD. It defines the required Change Impact Tree, diagrams/prototypes, structured validation oracle, external validation, post-implementation usage, and evidence-bearing Acceptance Checklist without duplicating those details in the main workflow.
