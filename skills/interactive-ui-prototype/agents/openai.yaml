@@ -1,0 +1,4 @@
+interface:
+  display_name: "Interactive UI Prototype"
+  short_description: "从真实项目代码生成可点击、可评审的高保真界面原型"
+  default_prompt: "Use $interactive-ui-prototype to inspect this project and build a reviewable interactive UI prototype."
