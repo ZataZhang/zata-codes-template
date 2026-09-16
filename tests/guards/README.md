@@ -59,7 +59,7 @@ AI 代理默认不会设置该变量，因此会被 hook 拦下——这是"指�
 | `shared/test_duplication_check_utils.py` | duplication-check 共享 git helper（`hooks/shared/duplication_check_utils.py`） |
 | `shared/test_gc_worktree_databases.py` | Worktree 数据库 GC 脚本（`scripts/shared/worktree/gc_worktree_databases.py`） |
 | `shared/test_prd_lock.py` | PRD 执行锁脚本（`scripts/shared/just/prd_lock.py`）：锁落主仓库、并发领锁唯一、过期接管留档、worktree 活性佐证的存活判定 |
-| `shared/test_prd_status.py` | PRD 状态看板（`scripts/shared/just/prd_status.py`）：无锁 worktree 的 `⚠ unlocked` 警告与活性 RUNNING / STALE 渲染 |
+| `shared/test_prd_status.py` | PRD 状态看板（`scripts/shared/just/prd_status.py`）：分支归档优先于锁信号（branch-archived）、无锁 worktree 的 `⚠ unlocked` 警告与活性 RUNNING / STALE 渲染 |
 | `shared/test_quality_flag_hooks.py` | quality / test flag hook 行为（`scripts/shared/hooks/`） |
 | `shared/test_release_script.py` | release 归档排除规则（`scripts/shared/release.py`） |
 | `shared/test_run_jscpd_duplication_check.py` | jscpd 增量重复检查 hook 逻辑（`hooks/shared/run_jscpd_duplication_check.py`） |

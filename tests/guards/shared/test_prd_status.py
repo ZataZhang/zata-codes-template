@@ -12,11 +12,11 @@
    worktree 开工（裸 ``git worktree add`` 或旧版脚本路径）不会产生锁，看板若
    静默显示 ``-``，"同一条 PRD 两个会话撞车"的漏洞就被掩盖——必须把互斥未
    生效摆到台面上。
-2. **分支上已归档的 PRD 不得继续按 ``⚠ unlocked`` 报警。** 匹配 worktree 的
-   ``tasks/archive`` 里已有该 PRD 时，说明收尾已在分支完成、只差合并回主线；
-   继续亮 ⚠ 会误导人重新执行一个已完成的 PRD。ACTIVITY 应显示绿色
-   ``✔ branch-archived @<branch> · <n>/<m> · awaiting merge``（清单进度取
-   归档副本的真实勾选）。
+2. **分支上已归档的 PRD 优先于一切锁信号。** 匹配 worktree 的 ``tasks/archive``
+   里已有该 PRD 时，说明收尾已在分支完成、只差合并回主线。ACTIVITY 必须显示绿色
+   ``✔ branch-archived @<branch> · <n>/<m> · awaiting merge``（清单进度取归档
+   副本的真实勾选），不得因残留锁渲染成 RUNNING / STALE，也不得按 ``⚠ unlocked``
+   报警——三种渲染都会误导人重新执行一个已完成的 PRD。
 3. **心跳过期不等于会话已死。** 锁归属 worktree 在过期窗口内仍有文件改动时，
    ACTIVITY 仍按 RUNNING 渲染；只有心跳过期且 worktree 无活性佐证时才显示
    STALE。否则长会话每 30 分钟翻红一次，看板可信度会被狼来了磨光。
@@ -216,6 +216,64 @@ def test_branch_archived_without_checklist_omits_progress(tmp_path: Path) -> Non
     assert "✔ branch-archived @feat/avatar-upload" in raw_cell_text
     assert "awaiting merge" in raw_cell_text
     assert not re.search(r"\d+/\d+", raw_cell_text)
+
+
+def test_stale_lock_with_archived_branch_renders_branch_archived(tmp_path: Path) -> None:
+    """过期锁（无活性佐证）遇到分支已归档：archive 优先，不得继续报 STALE。"""
+    main_repo_path = _init_main_repo(tmp_path / "repo")
+    linked_worktree_path = _add_linked_worktree(
+        main_repo_path, "feat/avatar-upload", "wt-done-idle"
+    )
+    _write_lock(
+        main_repo_path,
+        heartbeat_at=datetime.now(timezone.utc) - timedelta(hours=2),
+        holder_worktree=os.path.relpath(linked_worktree_path, main_repo_path),
+    )
+    archived_prd_path = linked_worktree_path / "tasks" / "archive" / f"{_FIXTURE_PRD_NAME}.md"
+    archived_prd_path.parent.mkdir(parents=True, exist_ok=True)
+    archived_prd_path.write_text(
+        "# fixture PRD\n\n## Acceptance Checklist\n\n- [x] item one\n",
+        encoding="utf-8",
+    )
+    # 归档动作本身会刷新 mtime；把 worktree 内文件全部拨到过期窗口外，确保锁真的
+    # 落在 STALE 分支（无活性佐证），证明是归档优先级压过 STALE 而非撞上 RUNNING。
+    idle_mtime_timestamp = (datetime.now(timezone.utc) - timedelta(hours=2)).timestamp()
+    for existing_file_path in linked_worktree_path.rglob("*"):
+        if existing_file_path.is_file():
+            os.utime(existing_file_path, (idle_mtime_timestamp, idle_mtime_timestamp))
+
+    raw_cell_text = _render_activity_cell(main_repo_path)
+
+    assert raw_cell_text.startswith("✔ branch-archived @feat/avatar-upload")
+    assert "awaiting merge" in raw_cell_text
+    assert "STALE" not in raw_cell_text
+    assert "RUNNING" not in raw_cell_text
+
+
+def test_fresh_lock_with_archived_branch_renders_branch_archived(tmp_path: Path) -> None:
+    """新鲜锁遇到分支已归档：archive 无条件优先，RUNNING 也不得盖住归档提示。"""
+    main_repo_path = _init_main_repo(tmp_path / "repo")
+    linked_worktree_path = _add_linked_worktree(
+        main_repo_path, "feat/avatar-upload", "wt-done-live"
+    )
+    _write_lock(
+        main_repo_path,
+        heartbeat_at=datetime.now(timezone.utc),
+        holder_worktree=os.path.relpath(linked_worktree_path, main_repo_path),
+    )
+    archived_prd_path = linked_worktree_path / "tasks" / "archive" / f"{_FIXTURE_PRD_NAME}.md"
+    archived_prd_path.parent.mkdir(parents=True, exist_ok=True)
+    archived_prd_path.write_text(
+        "# fixture PRD\n\n## Acceptance Checklist\n\n- [x] item one\n- [x] item two\n",
+        encoding="utf-8",
+    )
+
+    raw_cell_text = _render_activity_cell(main_repo_path)
+
+    assert raw_cell_text.startswith("✔ branch-archived @feat/avatar-upload")
+    assert "2/2" in raw_cell_text
+    assert "awaiting merge" in raw_cell_text
+    assert "RUNNING" not in raw_cell_text
 
 
 def test_no_lock_without_matching_worktree_falls_back_to_dash(tmp_path: Path) -> None:
