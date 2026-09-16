@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useLayout } from '@/context/layout-provider'
 import {
   Sidebar,
@@ -7,7 +8,7 @@ import {
   SidebarRail,
 } from '@/components/ui/sidebar'
 import { useAuthStore } from '@/stores/auth-store'
-import { sidebarData } from './data/sidebar-data'
+import { createNavGroups, sidebarTeams, sidebarUser } from './data/sidebar-data'
 import { NavGroup } from './nav-group'
 import { NavUser } from './nav-user'
 import { TeamSwitcher } from './team-switcher'
@@ -16,21 +17,24 @@ import { TeamSwitcher } from './team-switcher'
 export function AppSidebar() {
   const { collapsible, variant } = useLayout()
   const { auth } = useAuthStore()
+  const { t } = useTranslation()
 
   const user = auth.user
     ? {
         name: auth.user.display_name,
         email: auth.user.username,
       }
-    : sidebarData.user
+    : sidebarUser
+
+  const navGroups = createNavGroups(t)
 
   return (
     <Sidebar collapsible={collapsible} variant={variant}>
       <SidebarHeader>
-        <TeamSwitcher teams={sidebarData.teams} />
+        <TeamSwitcher teams={sidebarTeams} />
       </SidebarHeader>
       <SidebarContent>
-        {sidebarData.navGroups.map((props) => (
+        {navGroups.map((props) => (
           <NavGroup key={props.title} {...props} />
         ))}
       </SidebarContent>

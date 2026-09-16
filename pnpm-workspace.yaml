@@ -8,10 +8,16 @@ packages:
 # pnpm 11 要求用 allowBuilds 显式声明哪些依赖的 install/postinstall 脚本可以运行，
 # 否则会打印 ERR_PNPM_IGNORED_BUILDS 并以退出码 1 失败。
 #
-# esbuild         — Vite / Tailwind / @tanstack/router-plugin / vitest 都需要原生二进制
-# sharp           — Next.js 图像优化
-# unrs-resolver   — eslint-import-resolver-typescript 使用的解析器
+# esbuild           — Vite / Tailwind / @tanstack/router-plugin / vitest 都需要原生二进制
+# sharp             — Next.js 图像优化
+# unrs-resolver     — eslint-import-resolver-typescript 使用的解析器
+# @parcel/watcher   — next-intl 的直接依赖（用于 next-intl-swc-plugin-extractor）
+#                     其 install 脚本在预编译二进制缺失时从源码构建；各平台的
+#                     @parcel/watcher-<os>-<arch> 可选依赖已提供预编译产物，脚本会快速跳过
+# @swc/core         — next-intl 的直接依赖，postinstall 负责校验/落地平台原生二进制
 allowBuilds:
+  '@parcel/watcher': true
+  '@swc/core': true
   esbuild: true
   sharp: true
   unrs-resolver: true

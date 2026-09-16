@@ -1,4 +1,5 @@
 import { useSearch } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { Card, CardContent } from '@/components/ui/card'
 import { AuthLayout } from '../auth-layout'
 import { UserAuthForm } from './components/user-auth-form'
@@ -6,14 +7,20 @@ import { UserAuthForm } from './components/user-auth-form'
 /** Render the SignIn component. */
 export function SignIn() {
   const { redirect } = useSearch({ from: '/(auth)/sign-in' })
+  const { t } = useTranslation()
 
   return (
     <AuthLayout>
       <div className='flex flex-col gap-6'>
         <div className='flex flex-col gap-2 text-center'>
-          <h1 className='text-2xl font-semibold tracking-tight'>欢迎回来</h1>
+          <h1
+            data-testid='admin-sign-in-heading'
+            className='text-2xl font-semibold tracking-tight'
+          >
+            {t('auth.signInTitle')}
+          </h1>
           <p className='text-sm text-muted-foreground'>
-            请输入账号信息登录 Zata 管理系统
+            {t('auth.signInSubtitle')}
           </p>
         </div>
 
@@ -24,7 +31,7 @@ export function SignIn() {
         </Card>
 
         <p className='text-center text-xs text-muted-foreground'>
-          登录即表示您同意我们的服务条款与隐私政策
+          {t('auth.termsNotice')}
         </p>
       </div>
     </AuthLayout>

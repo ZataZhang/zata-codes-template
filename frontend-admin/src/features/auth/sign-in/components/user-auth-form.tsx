@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { z } from 'zod'
 import { useForm } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate } from '@tanstack/react-router'
 import { Loader2, LogIn } from 'lucide-react'
@@ -21,11 +22,28 @@ import {
 import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/password-input'
 
-const formSchema = z.object({
-  identifier: z.string().min(1, '请输入用户名或邮箱'),
-  password: z.string().min(1, '请输入密码'),
-  rememberMe: z.boolean().optional(),
-})
+/**
+ * 构造登录表单校验 schema。
+ *
+ * 校验消息依赖当前语言，因此 schema 必须在组件内基于当前 `t` 构造；放在模块顶层
+ * 会把首次渲染时的语言固化下来，切换语言后错误提示仍是旧语言。
+ *
+ * @param t - i18next 翻译函数。
+ * @returns 与表单字段对应的 zod schema。
+ */
+function buildFormSchema(t: (key: string) => string) {
+  return z.object({
+    identifier: z.string().min(1, t('errors.identifierRequired')),
+    password: z.string().min(1, t('errors.passwordRequired')),
+    rememberMe: z.boolean().optional(),
+  })
+}
+
+type UserAuthFormValues = {
+  identifier: string
+  password: string
+  rememberMe?: boolean
+}
 
 interface UserAuthFormProps extends React.HTMLAttributes<HTMLFormElement> {
   redirectTo?: string
@@ -40,8 +58,11 @@ export function UserAuthForm({
   const [isLoading, setIsLoading] = useState(false)
   const navigate = useNavigate()
   const { auth } = useAuthStore()
+  const { t } = useTranslation()
 
-  const form = useForm<z.infer<typeof formSchema>>({
+  const formSchema = useMemo(() => buildFormSchema(t), [t])
+
+  const form = useForm<UserAuthFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       identifier: '',
@@ -51,7 +72,7 @@ export function UserAuthForm({
   })
 
   /** Submit the sign-in form. */
-  async function onSubmit(data: z.infer<typeof formSchema>) {
+  async function onSubmit(data: UserAuthFormValues) {
     setIsLoading(true)
     try {
       const session = await login({
@@ -64,9 +85,9 @@ export function UserAuthForm({
       } else {
         navigate({ to: '/', replace: true })
       }
-      toast.success(`欢迎回来，${session.display_name}`)
+      toast.success(t('auth.welcomeBack', { name: session.display_name }))
     } catch (error) {
-      const message = error instanceof Error ? error.message : '登录失败'
+      const message = error instanceof Error ? error.message : t('auth.submit')
       toast.error(message)
     } finally {
       setIsLoading(false)
@@ -85,9 +106,13 @@ export function UserAuthForm({
           name='identifier'
           render={({ field }) => (
             <FormItem>
-              <FormLabel>用户名 / 邮箱</FormLabel>
+              <FormLabel>{t('auth.identifierLabel')}</FormLabel>
               <FormControl>
-                <Input data-testid='admin-login-identifier-input' placeholder='admin@example.com' {...field} />
+                <Input
+                  data-testid='admin-login-identifier-input'
+                  placeholder='admin@example.com'
+                  {...field}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -99,19 +124,21 @@ export function UserAuthForm({
           render={({ field }) => (
             <FormItem className='relative'>
               <div className='flex items-center justify-between'>
-                <FormLabel>密码</FormLabel>
+                <FormLabel>{t('auth.passwordLabel')}</FormLabel>
                 <button
                   type='button'
                   className='text-xs text-muted-foreground underline-offset-4 hover:text-primary hover:underline'
-                  onClick={() =>
-                    toast.info('请联系管理员重置密码')
-                  }
+                  onClick={() => toast.info(t('auth.forgotPasswordHint'))}
                 >
-                  忘记密码？
+                  {t('auth.forgotPassword')}
                 </button>
               </div>
               <FormControl>
-                <PasswordInput data-testid='admin-login-password-input' placeholder='********' {...field} />
+                <PasswordInput
+                  data-testid='admin-login-password-input'
+                  placeholder='********'
+                  {...field}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -129,18 +156,22 @@ export function UserAuthForm({
                 />
               </FormControl>
               <FormLabel className='text-xs font-normal text-muted-foreground'>
-                记住我
+                {t('auth.rememberMe')}
               </FormLabel>
             </FormItem>
           )}
         />
-        <Button data-testid='admin-login-submit-button' size='lg' disabled={isLoading}>
+        <Button
+          data-testid='admin-login-submit-button'
+          size='lg'
+          disabled={isLoading}
+        >
           {isLoading ? (
             <Loader2 className='mr-2 size-4 animate-spin' />
           ) : (
             <LogIn className='mr-2 size-4' />
           )}
-          登录
+          {t('auth.submit')}
         </Button>
       </form>
     </Form>

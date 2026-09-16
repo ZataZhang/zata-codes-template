@@ -1,4 +1,5 @@
 import { useNavigate, useLocation } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { logout } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth-store'
@@ -9,11 +10,17 @@ interface SignOutDialogProps {
   onOpenChange: (open: boolean) => void
 }
 
-/** Render the SignOutDialog component. */
+/**
+ * Render the SignOutDialog component.
+ *
+ * 退出确认弹窗从导航区的用户菜单进入，属于核心界面的一部分，因此标题、说明、
+ * 确认按钮与成功提示都走 i18n，避免中文界面下残留英文（或反之）。
+ */
 export function SignOutDialog({ open, onOpenChange }: SignOutDialogProps) {
   const navigate = useNavigate()
   const location = useLocation()
   const { auth } = useAuthStore()
+  const { t } = useTranslation()
 
   const handleSignOut = async () => {
     try {
@@ -28,16 +35,16 @@ export function SignOutDialog({ open, onOpenChange }: SignOutDialogProps) {
       search: { redirect: currentPath },
       replace: true,
     })
-    toast.success('已退出登录')
+    toast.success(t('userMenu.signOutSuccess'))
   }
 
   return (
     <ConfirmDialog
       open={!!open}
       onOpenChange={onOpenChange}
-      title='退出登录'
-      desc='确定要退出登录吗？退出后需要重新登录才能访问。'
-      confirmText='退出'
+      title={t('userMenu.signOutTitle')}
+      desc={t('userMenu.signOutDescription')}
+      confirmText={t('userMenu.signOutConfirm')}
       destructive
       handleConfirm={handleSignOut}
       className='sm:max-w-sm'

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import {
   AlertDialog,
@@ -27,8 +28,14 @@ type ConfirmDialogProps = {
   | { form?: undefined; handleConfirm: () => void }
 )
 
-/** Render the ConfirmDialog component. */
+/**
+ * Render the ConfirmDialog component.
+ *
+ * 按钮文案默认走 i18n：调用方未显式传入 `cancelBtnText` / `confirmText` 时使用
+ * `common.cancel` / `common.continue`，避免通用确认弹窗在中文界面里残留英文。
+ */
 export function ConfirmDialog(props: ConfirmDialogProps) {
+  const { t } = useTranslation()
   const {
     title,
     desc,
@@ -55,7 +62,7 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
         {children}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isLoading}>
-            {cancelBtnText ?? 'Cancel'}
+            {cancelBtnText ?? t('common.cancel')}
           </AlertDialogCancel>
           <Button
             type={form ? 'submit' : 'button'}
@@ -64,7 +71,7 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
             variant={destructive ? 'destructive' : 'default'}
             disabled={disabled || isLoading}
           >
-            {confirmText ?? 'Continue'}
+            {confirmText ?? t('common.continue')}
           </Button>
         </AlertDialogFooter>
       </AlertDialogContent>

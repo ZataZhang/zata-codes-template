@@ -1,5 +1,8 @@
 import { StrictMode } from 'react'
 import ReactDOM from 'react-dom/client'
+// i18n 初始化必须早于任何组件渲染：它会注册 i18next 实例并检测初始语言。
+// 该 import 带副作用，因此放在组件与 Provider 之前。
+import './i18n/init'
 import { AxiosError } from 'axios'
 import {
   QueryCache,

@@ -46,6 +46,13 @@ jobs:
           # 两个前端已合并为根目录 pnpm workspace，锁文件只有根目录这一份
           cache-dependency-path: pnpm-lock.yaml
 
+      # 纯静态 JSON 校验，不需要先装依赖；放在最前面让缺 key 秒级拦红。
+      # 覆盖 frontend-public/messages/{en,zh}.json 与
+      # frontend-admin/src/locales/{en,zh}.json 两对文案文件的 key 对齐。
+      - name: Check i18n message key alignment
+        working-directory: ${{ github.workspace }}
+        run: node scripts/check-i18n-keys.mjs
+
       - name: Set up uv
         uses: astral-sh/setup-uv@v4
 
@@ -56,10 +63,23 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Type check
+      # job 级 defaults 把 working-directory 固定成 frontend-admin，所以下面
+      # 两组步骤各自显式指定目录，避免"Frontend Build"实际只构建后台的歧义。
+      - name: Type check (frontend-admin)
         run: pnpm run typecheck
 
-      - name: Build
+      - name: Build (frontend-admin)
+        run: pnpm run build
+
+      # 公开站此前完全没有类型检查和构建门禁（Next.js 项目，Turbopack）。
+      # 11 条路由在构建期全部是 Dynamic（ƒ），不会预渲染时调后端，
+      # 因此这里不需要起后端即可安全构建。
+      - name: Type check (frontend-public)
+        working-directory: frontend-public
+        run: pnpm run typecheck
+
+      - name: Build (frontend-public)
+        working-directory: frontend-public
         run: pnpm run build
 
   validate-template:
@@ -223,20 +243,47 @@ jobs:
           cat frontend-public/frontend.log
           exit 1
 
+      # 后台（frontend-admin）是独立的前端域：i18n 的 no-auth 用例要在后台登录页
+      # 上验证语言切换、localStorage 持久化与插值文案，因此这里也要把它跑起来。
+      # 登录页不依赖后端接口（`/api` 代理不可用时页面照常渲染），所以只起
+      # Vite dev server，不启动后端。
+      - name: Start frontend-admin dev server
+        working-directory: frontend-admin
+        run: |
+          pnpm run dev --host 127.0.0.1 --port 5173 > admin.log 2>&1 &
+          echo "ADMIN_PID=$!" >> "$GITHUB_ENV"
+
+      - name: Wait for frontend-admin dev server
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:5173/ >/dev/null 2>&1; then
+              echo "Frontend admin dev server is ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Frontend admin dev server failed to start"
+          cat frontend-admin/admin.log
+          exit 1
+
       - name: Run Playwright no-auth tests
         working-directory: tests/playwright-e2e
         env:
           PLAYWRIGHT_SKIP_STACK_BOOT: "1"
           PLAYWRIGHT_BASE_URL: "http://127.0.0.1:3000"
-          # The no-auth smoke tests only require frontend-public in this job;
+          # 后台 i18n 用例通过 PLAYWRIGHT_ADMIN_BASE_URL 定位后台；不设置时
+          # support/env.ts 会回退到 http://localhost:5173，与上面起的端口一致。
+          PLAYWRIGHT_ADMIN_BASE_URL: "http://127.0.0.1:5173"
+          # The no-auth smoke tests only require the two frontends in this job;
           # the backend is not started, so health-check the frontend root.
           PLAYWRIGHT_HEALTH_URL: "http://127.0.0.1:3000"
         run: pnpm exec playwright test --project=no-auth
 
-      - name: Stop frontend dev server
+      - name: Stop frontend dev servers
         if: always()
         run: |
           kill "$FRONTEND_PID" 2>/dev/null || true
+          kill "$ADMIN_PID" 2>/dev/null || true
           wait 2>/dev/null || true
 
       - name: Upload Playwright report
@@ -248,6 +295,7 @@ jobs:
             tests/playwright-e2e/playwright-report/
             tests/playwright-e2e/test-results/
             frontend-public/frontend.log
+            frontend-admin/admin.log
           if-no-files-found: ignore
           # 失败诊断产物，排查窗口一周足够。
           retention-days: 7
