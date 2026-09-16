@@ -1,0 +1,702 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>用户管理 · 交互原型</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #172033;
+        --muted: #697386;
+        --line: #e7eaf0;
+        --soft: #f6f7f9;
+        --panel: #ffffff;
+        --accent: #6d5dfc;
+        --accent-soft: #eeecff;
+        --good: #148a67;
+        --good-soft: #e7f8f1;
+        --danger: #d94452;
+        --danger-soft: #fff0f1;
+        --shadow: 0 24px 70px rgba(28, 34, 55, 0.16);
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-width: 320px;
+        min-height: 100vh;
+        color: var(--ink);
+        background: #eef0f4;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      button, input { font: inherit; }
+      button { cursor: pointer; }
+      button:disabled { cursor: default; opacity: .46; }
+      button:focus-visible, input:focus-visible {
+        outline: 3px solid rgba(109, 93, 252, 0.2);
+        outline-offset: 2px;
+      }
+
+      .prototype-note {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 42px;
+        padding: 8px 20px;
+        color: #dfe3ee;
+        background: #171b27;
+        font-size: 12px;
+      }
+      .prototype-note strong { color: #fff; font-weight: 650; }
+      .prototype-note button {
+        border: 1px solid #444a5e;
+        border-radius: 7px;
+        padding: 5px 9px;
+        color: #fff;
+        background: #242a39;
+      }
+      .prototype-note .guide-button { border-color: #7d72e9; background: #5549c8; }
+      [data-interactive] { transition: outline-color .16s ease, box-shadow .16s ease, transform .16s ease; }
+      [data-interactive]:hover { outline: 2px solid rgba(109, 93, 252, .38); outline-offset: 2px; }
+      body.show-hotspots [data-interactive] {
+        outline: 2px solid #7567f5 !important;
+        outline-offset: 3px;
+        box-shadow: 0 0 0 5px rgba(117, 103, 245, .13) !important;
+      }
+      .interaction-legend {
+        position: fixed;
+        left: 50%;
+        bottom: 18px;
+        z-index: 100;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 13px;
+        border: 1px solid #cfcafc;
+        border-radius: 999px;
+        color: #493cb7;
+        background: rgba(248, 247, 255, .96);
+        box-shadow: 0 12px 30px rgba(57, 47, 145, .18);
+        font-size: 11px;
+        font-weight: 700;
+        opacity: 0;
+        pointer-events: none;
+        transform: translate(-50%, 12px);
+        transition: .2s ease;
+      }
+      body.show-hotspots .interaction-legend { opacity: 1; transform: translate(-50%, 0); }
+      .interaction-legend i { width: 9px; height: 9px; border-radius: 3px; background: #7567f5; box-shadow: 0 0 0 4px #e7e4ff; }
+
+      .app-shell {
+        display: grid;
+        grid-template-columns: 250px minmax(0, 1fr);
+        min-height: calc(100vh - 42px);
+        margin: 0 auto;
+        background: var(--panel);
+      }
+      .sidebar {
+        display: flex;
+        flex-direction: column;
+        padding: 18px 14px 14px;
+        border-right: 1px solid var(--line);
+        background: #fbfbfc;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        padding: 4px 10px 22px;
+        font-weight: 750;
+      }
+      .brand-mark {
+        display: grid;
+        width: 33px;
+        height: 33px;
+        place-items: center;
+        border-radius: 10px;
+        color: #fff;
+        background: linear-gradient(145deg, #8174ff, #5342ef);
+        box-shadow: 0 7px 16px rgba(83, 66, 239, 0.24);
+      }
+      .workspace {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 19px;
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #fff;
+      }
+      .workspace-icon {
+        display: grid;
+        width: 31px;
+        height: 31px;
+        place-items: center;
+        border-radius: 8px;
+        color: #fff;
+        background: #222838;
+      }
+      .workspace-copy { min-width: 0; flex: 1; }
+      .workspace-copy strong, .workspace-copy span { display: block; }
+      .workspace-copy strong { font-size: 13px; }
+      .workspace-copy span { margin-top: 2px; color: var(--muted); font-size: 11px; }
+      .nav-label {
+        padding: 8px 10px 6px;
+        color: #9aa1b1;
+        font-size: 10px;
+        font-weight: 750;
+        letter-spacing: .11em;
+        text-transform: uppercase;
+      }
+      .nav-item {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        width: 100%;
+        margin: 2px 0;
+        padding: 10px 11px;
+        border: 0;
+        border-radius: 9px;
+        color: #596174;
+        background: transparent;
+        text-align: left;
+      }
+      .nav-item svg { width: 18px; height: 18px; }
+      .nav-item.active { color: #4637d6; background: var(--accent-soft); font-weight: 650; }
+      .nav-item.active:disabled { opacity: 1; }
+      .sidebar-bottom { margin-top: auto; }
+      .profile {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 16px;
+        padding: 11px 9px 3px;
+        border-top: 1px solid var(--line);
+      }
+      .avatar {
+        display: grid;
+        width: 33px;
+        height: 33px;
+        flex: 0 0 auto;
+        place-items: center;
+        border-radius: 50%;
+        color: #3e4659;
+        background: #e8eaf0;
+        font-size: 12px;
+        font-weight: 750;
+      }
+      .profile-copy strong, .profile-copy span { display: block; }
+      .profile-copy strong { font-size: 12px; }
+      .profile-copy span { margin-top: 2px; color: var(--muted); font-size: 10px; }
+
+      .main { min-width: 0; background: #fff; }
+      .topbar {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        height: 66px;
+        padding: 0 34px;
+        border-bottom: 1px solid var(--line);
+      }
+      .quick-search {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #8a92a3;
+        font-size: 13px;
+      }
+      .quick-search kbd {
+        padding: 2px 6px;
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        background: var(--soft);
+        font-size: 10px;
+      }
+      .top-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+      .icon-button {
+        display: grid;
+        width: 34px;
+        height: 34px;
+        place-items: center;
+        border: 0;
+        border-radius: 9px;
+        color: #626b7e;
+        background: transparent;
+      }
+      .icon-button:hover { background: var(--soft); }
+      .icon-button svg { width: 18px; height: 18px; }
+
+      .content { padding: 32px 36px 48px; }
+      .heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+      h1 { margin: 0; font-size: 26px; letter-spacing: -.035em; }
+      .subtitle { margin: 7px 0 0; color: var(--muted); font-size: 13px; }
+      .primary-button, .secondary-button, .danger-button {
+        min-height: 38px;
+        border-radius: 9px;
+        padding: 0 14px;
+        font-size: 13px;
+        font-weight: 650;
+      }
+      .primary-button { border: 1px solid #1f2533; color: #fff; background: #252b39; }
+      .secondary-button { border: 1px solid var(--line); color: #4d5568; background: #fff; }
+      .danger-button { border: 1px solid var(--danger); color: #fff; background: var(--danger); }
+
+      .metrics {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 13px;
+        margin-top: 26px;
+      }
+      .metric {
+        position: relative;
+        overflow: hidden;
+        padding: 17px 18px;
+        border: 1px solid var(--line);
+        border-radius: 13px;
+        background: #fff;
+      }
+      .metric::after {
+        position: absolute;
+        top: -25px;
+        right: -20px;
+        width: 92px;
+        height: 92px;
+        border-radius: 50%;
+        background: var(--metric-color, #eee);
+        opacity: .55;
+        content: "";
+      }
+      .metric-label { color: var(--muted); font-size: 12px; }
+      .metric-value { display: block; margin-top: 8px; font-size: 25px; font-weight: 750; letter-spacing: -.03em; }
+      .metric-hint { margin-top: 4px; color: #9299a8; font-size: 11px; }
+
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+        margin-top: 26px;
+      }
+      .search-field {
+        display: flex;
+        align-items: center;
+        width: min(340px, 100%);
+        height: 39px;
+        padding: 0 12px;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        background: #fff;
+      }
+      .search-field svg { width: 17px; height: 17px; color: #959cab; }
+      .search-field input { min-width: 0; flex: 1; border: 0; outline: 0; padding: 0 9px; color: var(--ink); background: transparent; }
+      .search-field input::placeholder { color: #a1a8b5; }
+      .filters { display: flex; gap: 6px; margin-left: auto; padding: 4px; border-radius: 10px; background: var(--soft); }
+      .filter {
+        border: 0;
+        border-radius: 7px;
+        padding: 7px 12px;
+        color: var(--muted);
+        background: transparent;
+        font-size: 12px;
+      }
+      .filter.active { color: #343b4c; background: #fff; box-shadow: 0 1px 4px rgba(30, 37, 55, .09); font-weight: 650; }
+
+      .table-card { margin-top: 14px; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; }
+      table { width: 100%; border-collapse: collapse; }
+      th { padding: 12px 15px; color: #8a92a3; background: #fafafb; font-size: 11px; font-weight: 700; text-align: left; }
+      td { padding: 15px; border-top: 1px solid var(--line); font-size: 12px; vertical-align: middle; }
+      tr[data-user] { transition: background .15s ease; }
+      tr[data-user]:hover { background: #fafaff; }
+      .user-cell { display: flex; align-items: center; gap: 11px; }
+      .user-avatar { color: #4337b8; background: #e9e6ff; }
+      .user-copy strong, .user-copy span { display: block; }
+      .user-copy strong { font-size: 12px; }
+      .user-copy span { margin-top: 3px; color: var(--muted); font-size: 11px; }
+      .badge { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 5px 9px; font-size: 10px; font-weight: 700; }
+      .badge::before { width: 6px; height: 6px; border-radius: 50%; content: ""; }
+      .badge.active { color: var(--good); background: var(--good-soft); }
+      .badge.active::before { background: var(--good); }
+      .badge.disabled { color: var(--danger); background: var(--danger-soft); }
+      .badge.disabled::before { background: var(--danger); }
+      .row-action { border: 0; border-radius: 7px; padding: 7px 10px; color: #555f72; background: transparent; font-size: 12px; }
+      .row-action:hover { color: #4637d6; background: var(--accent-soft); }
+      .empty { padding: 45px; color: var(--muted); text-align: center; }
+      .table-footer { display: flex; justify-content: space-between; padding: 11px 15px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
+
+      .overlay {
+        position: fixed;
+        inset: 42px 0 0;
+        z-index: 20;
+        opacity: 0;
+        visibility: hidden;
+        background: rgba(24, 29, 43, .32);
+        transition: opacity .22s ease, visibility .22s ease;
+      }
+      .overlay.open { opacity: 1; visibility: visible; }
+      .drawer {
+        position: fixed;
+        top: 42px;
+        right: 0;
+        bottom: 0;
+        z-index: 30;
+        width: min(430px, 94vw);
+        padding: 25px;
+        overflow: auto;
+        border-left: 1px solid var(--line);
+        background: #fff;
+        box-shadow: var(--shadow);
+        transform: translateX(103%);
+        transition: transform .25s cubic-bezier(.2, .8, .2, 1);
+      }
+      .drawer.open { transform: translateX(0); }
+      .drawer-top { display: flex; align-items: center; justify-content: space-between; }
+      .eyebrow { color: #8e95a4; font-size: 10px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+      .drawer-identity { display: flex; align-items: center; gap: 14px; margin-top: 25px; }
+      .drawer-avatar { width: 50px; height: 50px; font-size: 15px; }
+      .drawer-identity h2 { margin: 0; font-size: 20px; }
+      .drawer-identity p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+      .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 25px; }
+      .detail { padding: 13px; border: 1px solid var(--line); border-radius: 10px; background: #fafafb; }
+      .detail span, .detail strong { display: block; }
+      .detail span { color: var(--muted); font-size: 10px; }
+      .detail strong { margin-top: 6px; font-size: 12px; }
+      .session-card { margin-top: 23px; padding: 16px; border: 1px solid var(--line); border-radius: 11px; }
+      .session-card h3 { margin: 0; font-size: 13px; }
+      .session-row { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
+      .session-dot { width: 9px; height: 9px; border: 2px solid #fff; border-radius: 50%; background: var(--good); box-shadow: 0 0 0 2px var(--good-soft); }
+      .session-copy strong, .session-copy span { display: block; }
+      .session-copy strong { font-size: 11px; }
+      .session-copy span { margin-top: 3px; color: var(--muted); font-size: 10px; }
+      .drawer-actions { display: flex; gap: 9px; margin-top: 25px; }
+      .drawer-actions button { flex: 1; }
+
+      .modal-wrap {
+        position: fixed;
+        inset: 0;
+        z-index: 50;
+        display: grid;
+        place-items: center;
+        padding: 20px;
+        opacity: 0;
+        visibility: hidden;
+        background: rgba(17, 21, 32, .52);
+        transition: opacity .2s ease, visibility .2s ease;
+      }
+      .modal-wrap.open { opacity: 1; visibility: visible; }
+      .modal {
+        width: min(450px, 100%);
+        padding: 23px;
+        border-radius: 15px;
+        background: #fff;
+        box-shadow: var(--shadow);
+        transform: translateY(10px) scale(.98);
+        transition: transform .2s ease;
+      }
+      .modal-wrap.open .modal { transform: none; }
+      .danger-icon { display: grid; width: 40px; height: 40px; place-items: center; border-radius: 12px; color: var(--danger); background: var(--danger-soft); font-weight: 800; }
+      .modal h2 { margin: 18px 0 0; font-size: 18px; }
+      .modal p { margin: 8px 0 0; color: var(--muted); font-size: 12px; line-height: 1.7; }
+      .modal-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 24px; }
+      .loading { pointer-events: none; opacity: .65; }
+
+      .toast {
+        position: fixed;
+        right: 22px;
+        bottom: 22px;
+        z-index: 80;
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        min-width: 290px;
+        padding: 13px 15px;
+        border: 1px solid #dbeee7;
+        border-radius: 11px;
+        color: #275f4d;
+        background: #f4fcf9;
+        box-shadow: 0 14px 36px rgba(30, 54, 47, .15);
+        transform: translateY(20px);
+        opacity: 0;
+        visibility: hidden;
+        transition: .25s ease;
+      }
+      .toast.show { transform: none; opacity: 1; visibility: visible; }
+      .toast-mark { display: grid; width: 27px; height: 27px; place-items: center; border-radius: 50%; color: #fff; background: var(--good); font-size: 13px; }
+      .toast strong, .toast span { display: block; }
+      .toast strong { font-size: 12px; }
+      .toast span { margin-top: 2px; color: #67877c; font-size: 10px; }
+
+      @media (max-width: 880px) {
+        .app-shell { grid-template-columns: 76px minmax(0, 1fr); }
+        .brand span, .workspace-copy, .nav-label, .nav-item span, .profile-copy, .workspace > span:last-child { display: none; }
+        .sidebar { align-items: center; padding-inline: 10px; }
+        .workspace { width: 48px; justify-content: center; padding: 8px; }
+        .nav-item { width: 48px; justify-content: center; }
+        .profile { padding-inline: 0; }
+        .content { padding-inline: 22px; }
+      }
+      @media (max-width: 680px) {
+        .prototype-note span { max-width: 250px; }
+        .app-shell { display: block; }
+        .sidebar { display: none; }
+        .topbar { padding-inline: 18px; }
+        .content { padding: 24px 16px 40px; }
+        .metrics { grid-template-columns: 1fr; }
+        .filters { width: 100%; margin-left: 0; }
+        .filter { flex: 1; }
+        th:nth-child(3), td:nth-child(3), th:nth-child(4), td:nth-child(4) { display: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="prototype-note">
+      <span><strong>Interactive prototype</strong> · 基于 frontend-admin 用户管理代码，不连接真实 API</span>
+      <span style="display:flex;gap:8px"><a data-interactive href="prototype-hub.html?prototype=admin-users" style="border:1px solid #444a5e;border-radius:7px;padding:5px 9px;color:#fff;background:#242a39;text-decoration:none">原型中心</a><button class="guide-button" data-interactive id="hotspotToggle" type="button" aria-pressed="true">隐藏可点击区域</button><button data-interactive id="resetButton" type="button">重置演示</button></span>
+    </div>
+
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand"><span class="brand-mark">Z</span><span>Zata Admin</span></div>
+        <div class="workspace">
+          <span class="workspace-icon">⌘</span>
+          <span class="workspace-copy"><strong>Zata Admin</strong><span>Vite + ShadcnUI</span></span>
+          <span>⌄</span>
+        </div>
+        <div class="nav-label">General</div>
+        <button class="nav-item" type="button" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Dashboard</span></button>
+        <button class="nav-item" type="button" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16v13H4z"/><path d="M8 7V4h8v3"/></svg><span>Projects</span></button>
+        <button class="nav-item" type="button" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 6h11M9 12h11M9 18h11"/><path d="m4 6 .8.8L6.5 5M4 12l.8.8L6.5 11M4 18l.8.8 1.7-1.8"/></svg><span>Tasks</span></button>
+        <button class="nav-item active" type="button" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3"/><path d="M3.5 19c.6-3 2.4-5 5.5-5s4.9 2 5.5 5"/><circle cx="17" cy="9" r="2"/><path d="M15 15c3-.7 5 .8 5.5 3.5"/></svg><span>Users</span></button>
+        <div class="sidebar-bottom">
+          <div class="nav-label">Other</div>
+          <button class="nav-item" type="button" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19 13.5v-3l2-1.5-2-3.4-2.5 1a9 9 0 0 0-2.5-1.4L13.5 3h-4L9 5.2a9 9 0 0 0-2.5 1.4l-2.5-1L2 9l2 1.5v3L2 15l2 3.4 2.5-1A9 9 0 0 0 9 18.8l.5 2.2h4l.5-2.2a9 9 0 0 0 2.5-1.4l2.5 1L21 15z"/></svg><span>Settings</span></button>
+          <div class="profile"><span class="avatar">ZA</span><span class="profile-copy"><strong>Zata Admin</strong><span>admin@example.com</span></span></div>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <span class="quick-search">⌕ 搜索功能 <kbd>⌘ K</kbd></span>
+          <div class="top-actions">
+            <button class="icon-button" type="button" aria-label="切换主题" disabled>☼</button>
+            <button class="icon-button" type="button" aria-label="通知" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg></button>
+            <span class="avatar">ZA</span>
+          </div>
+        </header>
+
+        <section class="content">
+          <div class="heading">
+            <div><h1>用户</h1><p class="subtitle">管理 C 端注册用户的访问状态与当前会话。</p></div>
+            <button class="secondary-button" type="button" disabled title="此原型未实现导出">导出列表</button>
+          </div>
+
+          <div class="metrics">
+            <article class="metric" style="--metric-color:#e8e5ff"><span class="metric-label">注册用户</span><strong class="metric-value" id="totalMetric">4</strong><div class="metric-hint">全部 C 端账号</div></article>
+            <article class="metric" style="--metric-color:#dff7ec"><span class="metric-label">正常账号</span><strong class="metric-value" id="activeMetric">3</strong><div class="metric-hint">当前允许登录</div></article>
+            <article class="metric" style="--metric-color:#ffe8eb"><span class="metric-label">已禁用</span><strong class="metric-value" id="disabledMetric">1</strong><div class="metric-hint">会话已失效</div></article>
+          </div>
+
+          <div class="toolbar">
+            <label class="search-field" data-interactive><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="searchInput" placeholder="按邮箱或显示名搜索…" /></label>
+            <div class="filters" role="group" aria-label="用户状态筛选">
+              <button class="filter active" data-filter="all" data-interactive type="button">全部</button>
+              <button class="filter" data-filter="active" data-interactive type="button">正常</button>
+              <button class="filter" data-filter="disabled" data-interactive type="button">已禁用</button>
+            </div>
+          </div>
+
+          <div class="table-card">
+            <table>
+              <thead><tr><th>用户</th><th>状态</th><th>注册时间</th><th>最后活跃</th><th></th></tr></thead>
+              <tbody id="userRows"></tbody>
+            </table>
+            <div class="table-footer"><span id="resultCount">显示 4 位用户</span><span>第 1 页，共 1 页</span></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="overlay" id="drawerOverlay"></div>
+    <aside class="drawer" id="userDrawer" aria-hidden="true" aria-label="用户详情">
+      <div class="drawer-top"><span class="eyebrow">User details</span><button class="icon-button" data-interactive id="closeDrawer" type="button" aria-label="关闭用户详情">✕</button></div>
+      <div class="drawer-identity"><span class="avatar drawer-avatar" id="drawerInitials"></span><div><h2 id="drawerName"></h2><p id="drawerEmail"></p></div></div>
+      <div style="margin-top:18px"><span class="badge" id="drawerBadge"></span></div>
+      <div class="detail-grid">
+        <div class="detail"><span>用户 ID</span><strong id="drawerId"></strong></div>
+        <div class="detail"><span>注册时间</span><strong id="drawerCreated"></strong></div>
+        <div class="detail"><span>最后活跃</span><strong id="drawerActive"></strong></div>
+        <div class="detail"><span>登录方式</span><strong>邮箱与密码</strong></div>
+      </div>
+      <div class="session-card"><h3>当前会话</h3><div class="session-row"><span class="session-dot"></span><span class="session-copy"><strong>Chrome · macOS</strong><span>上海 · 12 分钟前活跃</span></span></div></div>
+      <div class="drawer-actions"><button class="secondary-button" type="button" disabled title="此原型未实现邮件发送">发送重置邮件</button><button class="danger-button" data-interactive id="toggleUserButton" type="button"></button></div>
+    </aside>
+
+    <div class="modal-wrap" id="confirmModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal">
+        <div class="danger-icon" id="modalIcon">!</div>
+        <h2 id="modalTitle">禁用用户</h2>
+        <p id="modalDescription"></p>
+        <div class="modal-actions"><button class="secondary-button" data-interactive id="cancelToggle" type="button">取消</button><button class="danger-button" data-interactive id="confirmToggle" type="button">确认禁用</button></div>
+      </div>
+    </div>
+
+    <div class="interaction-legend"><i></i>紫色光圈表示可以点击或输入</div>
+    <div class="toast" id="toast"><span class="toast-mark">✓</span><span><strong id="toastTitle">操作成功</strong><span id="toastMessage"></span></span></div>
+
+    <script>
+      const initialUsers = [
+        { id: 'usr_8K2F', name: '林夏', email: 'linxia@example.com', status: 'active', created: '2026-08-28 10:32', active: '12 分钟前' },
+        { id: 'usr_4P9M', name: '周简', email: 'zhoujian@example.com', status: 'active', created: '2026-08-25 16:08', active: '2 小时前' },
+        { id: 'usr_7A1Q', name: '许知遥', email: 'xuzhiyao@example.com', status: 'disabled', created: '2026-08-19 09:41', active: '7 天前' },
+        { id: 'usr_3N6B', name: '陈默', email: 'chenmo@example.com', status: 'active', created: '2026-08-13 14:26', active: '昨天' },
+      ]
+
+      let users = structuredClone(initialUsers)
+      let selectedId = null
+      let currentFilter = 'all'
+
+      const rows = document.querySelector('#userRows')
+      const drawer = document.querySelector('#userDrawer')
+      const overlay = document.querySelector('#drawerOverlay')
+      const modal = document.querySelector('#confirmModal')
+      const searchInput = document.querySelector('#searchInput')
+
+      function initials(name) { return name.slice(0, 2).toUpperCase() }
+      function selectedUser() { return users.find((user) => user.id === selectedId) }
+
+      function render() {
+        const keyword = searchInput.value.trim().toLowerCase()
+        const visible = users.filter((user) => {
+          const matchesFilter = currentFilter === 'all' || user.status === currentFilter
+          const matchesKeyword = `${user.name} ${user.email}`.toLowerCase().includes(keyword)
+          return matchesFilter && matchesKeyword
+        })
+
+        rows.innerHTML = visible.length
+          ? visible.map((user) => `
+            <tr data-user="${user.id}">
+              <td><div class="user-cell"><span class="avatar user-avatar">${initials(user.name)}</span><span class="user-copy"><strong>${user.name}</strong><span>${user.email}</span></span></div></td>
+              <td><span class="badge ${user.status}">${user.status === 'active' ? '正常' : '已禁用'}</span></td>
+              <td>${user.created}</td><td>${user.active}</td>
+              <td style="text-align:right"><button class="row-action" data-open="${user.id}" data-interactive type="button">查看详情 →</button></td>
+            </tr>`).join('')
+          : '<tr><td colspan="5"><div class="empty">没有找到符合条件的用户</div></td></tr>'
+
+        document.querySelector('#resultCount').textContent = `显示 ${visible.length} 位用户`
+        document.querySelector('#totalMetric').textContent = users.length
+        document.querySelector('#activeMetric').textContent = users.filter((user) => user.status === 'active').length
+        document.querySelector('#disabledMetric').textContent = users.filter((user) => user.status === 'disabled').length
+        document.querySelectorAll('[data-open]').forEach((button) => button.addEventListener('click', () => openDrawer(button.dataset.open)))
+      }
+
+      function syncDrawer() {
+        const user = selectedUser()
+        if (!user) return
+        document.querySelector('#drawerInitials').textContent = initials(user.name)
+        document.querySelector('#drawerName').textContent = user.name
+        document.querySelector('#drawerEmail').textContent = user.email
+        document.querySelector('#drawerId').textContent = user.id
+        document.querySelector('#drawerCreated').textContent = user.created
+        document.querySelector('#drawerActive').textContent = user.active
+        const badge = document.querySelector('#drawerBadge')
+        badge.className = `badge ${user.status}`
+        badge.textContent = user.status === 'active' ? '正常账号' : '已禁用'
+        const toggleButton = document.querySelector('#toggleUserButton')
+        toggleButton.textContent = user.status === 'active' ? '禁用用户' : '启用用户'
+        toggleButton.className = user.status === 'active' ? 'danger-button' : 'primary-button'
+      }
+
+      function openDrawer(id) {
+        selectedId = id
+        syncDrawer()
+        drawer.classList.add('open')
+        overlay.classList.add('open')
+        drawer.setAttribute('aria-hidden', 'false')
+        document.querySelector('#closeDrawer').focus()
+      }
+
+      function closeDrawer() {
+        drawer.classList.remove('open')
+        overlay.classList.remove('open')
+        drawer.setAttribute('aria-hidden', 'true')
+      }
+
+      function openConfirm() {
+        const user = selectedUser()
+        if (!user) return
+        const disabling = user.status === 'active'
+        document.querySelector('#modalTitle').textContent = disabling ? '禁用用户' : '启用用户'
+        document.querySelector('#modalDescription').textContent = disabling
+          ? `禁用后，${user.name} 将无法登录，且当前会话会立即失效。这个操作可以随时撤销。`
+          : `启用后，${user.name} 可以重新登录，原有密码保持不变。`
+        const confirm = document.querySelector('#confirmToggle')
+        confirm.textContent = disabling ? '确认禁用' : '确认启用'
+        confirm.className = disabling ? 'danger-button' : 'primary-button'
+        modal.classList.add('open')
+        confirm.focus()
+      }
+
+      function closeConfirm() { modal.classList.remove('open') }
+
+      function confirmToggle() {
+        const user = selectedUser()
+        if (!user) return
+        const button = document.querySelector('#confirmToggle')
+        button.classList.add('loading')
+        button.textContent = '处理中…'
+        window.setTimeout(() => {
+          const wasActive = user.status === 'active'
+          user.status = wasActive ? 'disabled' : 'active'
+          if (wasActive) user.active = '会话已失效'
+          closeConfirm()
+          button.classList.remove('loading')
+          syncDrawer()
+          render()
+          showToast(wasActive ? '用户已禁用' : '用户已启用', `${user.name} 的访问状态已更新`)
+        }, 650)
+      }
+
+      function showToast(title, message) {
+        const toast = document.querySelector('#toast')
+        document.querySelector('#toastTitle').textContent = title
+        document.querySelector('#toastMessage').textContent = message
+        toast.classList.add('show')
+        window.setTimeout(() => toast.classList.remove('show'), 3000)
+      }
+
+      document.querySelectorAll('[data-filter]').forEach((button) => button.addEventListener('click', () => {
+        currentFilter = button.dataset.filter
+        document.querySelectorAll('[data-filter]').forEach((candidate) => candidate.classList.toggle('active', candidate === button))
+        render()
+      }))
+      searchInput.addEventListener('input', render)
+      document.querySelector('#closeDrawer').addEventListener('click', closeDrawer)
+      overlay.addEventListener('click', closeDrawer)
+      document.querySelector('#toggleUserButton').addEventListener('click', openConfirm)
+      document.querySelector('#cancelToggle').addEventListener('click', closeConfirm)
+      document.querySelector('#confirmToggle').addEventListener('click', confirmToggle)
+      document.querySelector('#hotspotToggle').addEventListener('click', () => {
+        const visible = document.body.classList.toggle('show-hotspots')
+        const toggle = document.querySelector('#hotspotToggle')
+        toggle.textContent = visible ? '隐藏可点击区域' : '显示可点击区域'
+        toggle.setAttribute('aria-pressed', String(visible))
+      })
+      document.querySelector('#resetButton').addEventListener('click', () => {
+        users = structuredClone(initialUsers)
+        currentFilter = 'all'
+        searchInput.value = ''
+        document.querySelectorAll('[data-filter]').forEach((button) => button.classList.toggle('active', button.dataset.filter === 'all'))
+        closeConfirm(); closeDrawer(); render(); showToast('演示已重置', '所有模拟数据已恢复')
+      })
+      document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape') return
+        if (modal.classList.contains('open')) closeConfirm()
+        else closeDrawer()
+      })
+      document.body.classList.add('show-hotspots')
+      render()
+    </script>
+  </body>
+</html>

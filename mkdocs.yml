@@ -67,6 +67,9 @@ nav:
       - Codex macOS 通知: guides/codex-notifications.md
   - 原型演示:
       - 概览: prototypes/index.md
+      - 可点击原型中心: prototypes/prototype-hub.html
+      - 后台用户管理: prototypes/admin-users-interactive.md
+      - AI 生成图片热点: prototypes/admin-users-ai-image-hotspot.md
       - PRD Demo UI: prototypes/prd-demo.html
       - Worktree 前端依赖策略: prototypes/worktree-frontend-demo.html
       - Assets 命名规范: prototypes/assets/README.md

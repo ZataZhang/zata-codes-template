@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>用户管理 · AI 生成图片热点原型</title>
+    <style>
+      * { box-sizing: border-box; }
+      :root { color-scheme:light; --ink:#1b2335; --muted:#6e7688; --accent:#6e5df5; --line:#e4e7ee; }
+      body { margin:0; min-width:320px; min-height:100vh; color:var(--ink); background:#e9ebf1; font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; }
+      button,a { font:inherit; }
+      button { cursor:pointer; }
+      .demo-toolbar { display:flex; align-items:center; gap:12px; min-height:58px; padding:9px 18px; border-bottom:1px solid #d9dce5; background:#fff; }
+      .demo-title strong,.demo-title span { display:block; }
+      .demo-title strong { font-size:13px; }
+      .demo-title span { margin-top:3px; color:var(--muted); font-size:10px; }
+      .state-steps { display:flex; gap:5px; margin-left:auto; padding:4px; border-radius:9px; background:#f3f4f7; }
+      .state-step { padding:6px 9px; border-radius:6px; color:#8a91a1; font-size:10px; font-weight:700; }
+      .state-step.active { color:#5043c5; background:#fff; box-shadow:0 1px 5px #292f4217; }
+      .toolbar-button,.hub-link { border:1px solid var(--line); border-radius:8px; padding:8px 10px; color:#50586a; background:#fff; font-size:11px; font-weight:650; text-decoration:none; }
+      .toolbar-button.active { border-color:#7a6cf5; color:#fff; background:#6758e8; }
+      .canvas-wrap { padding:18px; }
+      .canvas { position:relative; width:min(1440px,100%); margin:0 auto; overflow:hidden; border:1px solid #dce0e8; border-radius:13px; background:#fff; box-shadow:0 22px 70px #222a401f; }
+      .screen { display:block; width:100%; height:auto; user-select:none; }
+      .hotspot { position:absolute; z-index:3; border:0; border-radius:7px; color:transparent; background:transparent; }
+      .hotspot:hover,.hotspot:focus-visible { outline:3px solid rgba(110,93,245,.72); outline-offset:2px; background:rgba(110,93,245,.13); }
+      .hotspot:focus-visible { color:#fff; }
+      .show-hotspots .hotspot { border:2px dashed #6959ef; color:#fff; background:rgba(105,89,239,.17); box-shadow:0 0 0 4px rgba(105,89,239,.10); }
+      .hotspot-label { position:absolute; left:50%; bottom:calc(100% + 7px); min-width:max-content; transform:translateX(-50%); border-radius:6px; padding:5px 7px; color:#fff; background:#4d40ba; font-size:10px; font-weight:750; line-height:1; opacity:0; pointer-events:none; white-space:nowrap; }
+      .show-hotspots .hotspot-label,.hotspot:hover .hotspot-label,.hotspot:focus-visible .hotspot-label { opacity:1; }
+      .hotspot-label::after { position:absolute; top:100%; left:50%; border:4px solid transparent; border-top-color:#4d40ba; content:""; transform:translateX(-50%); }
+      .legend { display:flex; align-items:center; justify-content:center; gap:8px; padding:12px; color:#685ccf; font-size:11px; font-weight:700; }
+      .legend i { width:10px; height:10px; border:2px dashed #6959ef; border-radius:3px; background:#e8e5ff; }
+      @media(max-width:900px){ .state-steps{display:none}.demo-title span{display:none}.canvas-wrap{padding:8px}.hotspot-label{font-size:8px} }
+      @media(max-width:600px){ .demo-toolbar{flex-wrap:wrap}.demo-title{width:100%}.hub-link{margin-left:auto} }
+    </style>
+  </head>
+  <body>
+    <header class="demo-toolbar">
+      <div class="demo-title"><strong>AI 生成图片热点原型</strong><span>四张画面由 ImageGen 直接生成，HTML 只提供透明交互层</span></div>
+      <div class="state-steps" id="stateSteps"></div>
+      <button class="toolbar-button active" id="hotspotGuide" type="button" aria-pressed="true">隐藏热点</button>
+      <button class="toolbar-button" id="restart" type="button">重新开始</button>
+      <a class="hub-link" href="prototype-hub.html?prototype=ai-image-users">原型中心</a>
+    </header>
+    <main class="canvas-wrap">
+      <div class="canvas show-hotspots" id="canvas">
+        <img class="screen" id="screen" alt="用户管理图片原型当前状态" />
+        <div id="hotspotLayer"></div>
+      </div>
+      <div class="legend"><i></i>虚线区域来自透明热点；点击后整张图片切换到下一状态</div>
+    </main>
+    <script>
+      const states = {
+        list: {
+          title: '列表',
+          image: 'assets/ai-users-list.png',
+          actions: [
+            { label:'打开林夏详情', next:'detail', x:87.9, y:54.5, w:8.5, h:4.9 },
+          ],
+        },
+        detail: {
+          title: '详情',
+          image: 'assets/ai-users-detail.png',
+          actions: [
+            { label:'禁用用户', next:'confirm', x:84.0, y:87.9, w:13.7, h:6.7 },
+            { label:'关闭详情', next:'list', x:95.8, y:2.0, w:2.7, h:4.7 },
+          ],
+        },
+        confirm: {
+          title: '确认',
+          image: 'assets/ai-users-confirm.png',
+          actions: [
+            { label:'取消', next:'detail', x:48.4, y:58.1, w:8.3, h:6.2 },
+            { label:'确认禁用', next:'success', x:57.4, y:58.1, w:9.2, h:6.2 },
+          ],
+        },
+        success: {
+          title: '完成',
+          image: 'assets/ai-users-success.png',
+          actions: [
+            { label:'重新演示', next:'list', x:84.0, y:87.9, w:13.7, h:6.7 },
+            { label:'关闭详情', next:'list', x:95.8, y:2.0, w:2.7, h:4.7 },
+          ],
+        },
+      }
+
+      const stateOrder = ['list','detail','confirm','success']
+      const canvas = document.querySelector('#canvas')
+      const screen = document.querySelector('#screen')
+      const layer = document.querySelector('#hotspotLayer')
+      const guide = document.querySelector('#hotspotGuide')
+      let currentState = 'list'
+
+      function setGuide(visible) {
+        canvas.classList.toggle('show-hotspots', visible)
+        guide.classList.toggle('active', visible)
+        guide.textContent = visible ? '隐藏热点' : '显示热点'
+        guide.setAttribute('aria-pressed', String(visible))
+      }
+
+      function render(nextState) {
+        currentState = states[nextState] ? nextState : 'list'
+        const state = states[currentState]
+        screen.src = state.image
+        screen.alt = `用户管理图片原型：${state.title}状态`
+        layer.innerHTML = state.actions.map((action, index) => `<button class="hotspot" type="button" data-action="${index}" aria-label="${action.label}" style="left:${action.x}%;top:${action.y}%;width:${action.w}%;height:${action.h}%"><span class="hotspot-label">${action.label}</span></button>`).join('')
+        document.querySelector('#stateSteps').innerHTML = stateOrder.map((key) => `<span class="state-step ${key === currentState ? 'active' : ''}">${states[key].title}</span>`).join('')
+      }
+
+      layer.addEventListener('click', (event) => {
+        const target = event.target.closest('[data-action]')
+        if (!target) return
+        const action = states[currentState].actions[Number(target.dataset.action)]
+        if (action.href) window.location.href = action.href
+        else if (action.command === 'toggle-guide') setGuide(!canvas.classList.contains('show-hotspots'))
+        else render(action.next)
+      })
+      guide.addEventListener('click', () => setGuide(!canvas.classList.contains('show-hotspots')))
+      document.querySelector('#restart').addEventListener('click', () => render('list'))
+      render(new URL(window.location.href).searchParams.get('state') || 'list')
+    </script>
+  </body>
+</html>

@@ -2,6 +2,8 @@
 
 本目录用于承载 PRD 关联的可交互原型页面，目标是让评审和开发在文档站点内直接操作关键流程。
 
+![可点击原型中心](assets/prototype-hub.png)
+
 ## 使用方式
 
 1. 在对应 PRD 的 `Implementation Guide` 中写明原型文件路径。
@@ -11,6 +13,9 @@
 
 ## 示例入口
 
+- [可点击原型中心](prototype-hub.html)
+- [后台用户管理交互原型](admin-users-interactive.md)
+- [AI 生成图片热点原型](admin-users-ai-image-hotspot.md)
 - [PRD Demo 可交互原型](prd-demo.html)
 - [Worktree 前端依赖策略 Demo](worktree-frontend-demo.html)
 - [Assets 命名规范](assets/README.md)
