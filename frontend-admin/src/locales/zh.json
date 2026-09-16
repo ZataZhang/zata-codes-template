@@ -1,0 +1,113 @@
+{
+  "common": {
+    "language": "语言",
+    "english": "English",
+    "chinese": "中文",
+    "cancel": "取消",
+    "continue": "继续"
+  },
+  "nav": {
+    "general": "通用",
+    "other": "其他",
+    "dashboard": "仪表盘",
+    "projects": "项目",
+    "tasks": "任务",
+    "users": "用户",
+    "settings": "设置",
+    "profile": "个人资料",
+    "account": "账户",
+    "appearance": "外观",
+    "notifications": "通知",
+    "display": "显示",
+    "helpCenter": "帮助中心"
+  },
+  "auth": {
+    "signInTitle": "欢迎回来",
+    "signInSubtitle": "请输入账号信息登录 Zata 管理系统",
+    "termsNotice": "登录即表示您同意我们的服务条款与隐私政策",
+    "identifierLabel": "用户名 / 邮箱",
+    "passwordLabel": "密码",
+    "rememberMe": "记住我",
+    "forgotPassword": "忘记密码？",
+    "forgotPasswordHint": "请联系管理员重置密码",
+    "submit": "登录",
+    "welcomeBack": "欢迎回来，{{name}}",
+    "brandHeadline": "构建下一代管理平台",
+    "brandDescription": "统一项目、任务与团队协作，让复杂流程变得简单可追踪。",
+    "brandPoint1": "项目与任务一站式管理",
+    "brandPoint2": "实时会话与权限控制",
+    "brandPoint3": "现代化 React + FastAPI 架构",
+    "copyright": "© {{year}} Zata. 保留所有权利。"
+  },
+  "dashboard": {
+    "title": "仪表盘",
+    "download": "下载",
+    "tabOverview": "总览",
+    "tabAnalytics": "分析",
+    "tabReports": "报表",
+    "tabNotifications": "通知",
+    "navOverview": "总览",
+    "navCustomers": "客户",
+    "navProducts": "产品",
+    "navSettings": "设置",
+    "totalRevenue": "总收入",
+    "subscriptions": "订阅数",
+    "sales": "销售额",
+    "activeNow": "当前活跃",
+    "deltaFromLastMonth": "较上月 +{{percent}}%",
+    "deltaSinceLastHour": "较上一小时 +{{count}}",
+    "overviewCard": "概览",
+    "recentSales": "最近成交",
+    "recentSalesDescription": "本月你完成了 {{count}} 笔销售。"
+  },
+  "settings": {
+    "title": "设置",
+    "description": "管理你的账户设置并配置邮件偏好。",
+    "sections": {
+      "profile": {
+        "title": "个人资料",
+        "description": "其他人在站点上看到的你的信息。"
+      },
+      "account": {
+        "title": "账户",
+        "description": "更新账户设置，设置你偏好的语言与时区。"
+      },
+      "appearance": {
+        "title": "外观",
+        "description": "自定义应用外观，在日间与夜间主题之间自动切换。"
+      },
+      "notifications": {
+        "title": "通知",
+        "description": "配置你接收通知的方式。"
+      },
+      "display": {
+        "title": "显示",
+        "description": "开关各项内容，控制应用中显示什么。"
+      }
+    }
+  },
+  "userMenu": {
+    "profile": "个人资料",
+    "billing": "账单",
+    "settings": "设置",
+    "newTeam": "新建团队",
+    "upgrade": "升级到 Pro",
+    "signOut": "退出登录",
+    "signOutTitle": "退出登录",
+    "signOutDescription": "确定要退出登录吗？退出后需要重新登录才能访问。",
+    "signOutConfirm": "退出",
+    "signOutSuccess": "已退出登录"
+  },
+  "commandMenu": {
+    "placeholder": "输入命令或搜索…",
+    "empty": "没有匹配结果。",
+    "theme": "主题",
+    "light": "浅色",
+    "dark": "深色",
+    "system": "跟随系统"
+  },
+  "errors": {
+    "identifierRequired": "请输入用户名或邮箱",
+    "passwordRequired": "请输入密码"
+  }
+}

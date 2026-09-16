@@ -1,4 +1,5 @@
 import { Link } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import useDialogState from '@/hooks/use-dialog-state'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -17,6 +18,7 @@ import { SignOutDialog } from '@/components/sign-out-dialog'
 /** Render the ProfileDropdown component. */
 export function ProfileDropdown() {
   const [open, setOpen] = useDialogState()
+  const { t } = useTranslation()
 
   return (
     <>
@@ -42,27 +44,27 @@ export function ProfileDropdown() {
           <DropdownMenuGroup>
             <DropdownMenuItem asChild>
               <Link to='/settings'>
-                Profile
+                {t('userMenu.profile')}
                 <DropdownMenuShortcut>⇧⌘P</DropdownMenuShortcut>
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
               <Link to='/settings'>
-                Billing
+                {t('userMenu.billing')}
                 <DropdownMenuShortcut>⌘B</DropdownMenuShortcut>
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
               <Link to='/settings'>
-                Settings
+                {t('userMenu.settings')}
                 <DropdownMenuShortcut>⌘S</DropdownMenuShortcut>
               </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem>New Team</DropdownMenuItem>
+            <DropdownMenuItem>{t('userMenu.newTeam')}</DropdownMenuItem>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuItem variant='destructive' onClick={() => setOpen(true)}>
-            Sign out
+            {t('userMenu.signOut')}
             <DropdownMenuShortcut className='text-current'>
               ⇧⌘Q
             </DropdownMenuShortcut>

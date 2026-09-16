@@ -2,12 +2,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, type RenderResult } from 'vitest-browser-react'
 import { type Locator, userEvent } from 'vitest/browser'
 import { login, type UserSession } from '@/api/auth'
+// 表单文案与校验消息都来自 i18next，因此测试必须先初始化 i18n 并固定语言，
+// 否则断言会随运行环境（navigator / localStorage）漂移。
+import i18n from '@/i18n/init'
 import { UserAuthForm } from './user-auth-form'
 
 const FORM_MESSAGES = {
   identifierEmpty: '请输入用户名或邮箱',
   passwordEmpty: '请输入密码',
 } as const
+
+/** 本用例断言的文案取自中文语言包。 */
+const TEST_LOCALE = 'zh'
 
 const MOCK_SESSION: UserSession = {
   user_id: 'user-1',
@@ -48,6 +54,7 @@ describe('UserAuthForm', () => {
 
     beforeEach(async () => {
       vi.clearAllMocks()
+      await i18n.changeLanguage(TEST_LOCALE)
       screen = await render(<UserAuthForm />)
       identifierInput = screen.getByRole('textbox', { name: /用户名/ })
       passwordInput = screen.getByLabelText('密码')
@@ -97,6 +104,7 @@ describe('UserAuthForm', () => {
   it('navigates to redirectTo when provided', async () => {
     vi.clearAllMocks()
     vi.mocked(login).mockResolvedValue(MOCK_SESSION)
+    await i18n.changeLanguage(TEST_LOCALE)
 
     const { getByRole, getByLabelText } = await render(
       <UserAuthForm redirectTo='/settings' />

@@ -675,6 +675,31 @@ frontend-public action="dev":
     esac
 
 
+# 校验两个前端的 en/zh 文案 key 一一对应、无缺 key。
+#
+# 覆盖 frontend-public/messages/{en,zh}.json（next-intl）与
+# frontend-admin/src/locales/{en,zh}.json（react-i18next）两对文案文件；
+# 任一文案对出现 missing-in-zh / extra-in-zh 即以非零退出码失败。
+#
+# CI 的 frontend-build job 会直接执行 `node scripts/check-i18n-keys.mjs`，
+# 让缺 key 在 CI 被拦截（对应行为验收「en/zh 文案 key 一一对应、无缺 key」）。
+#
+# 为什么不接 pre-commit：`.pre-commit-config.yaml` 由模板上游维护
+# （见 `scripts/shared/template/sync_template.sh` 的 `_is_upstream_owned()`），
+# 手改会在下次 `just sync-template` 被覆盖；`docs/ai-standards/tooling.md`
+# 「项目私有 hook 放哪里」要求项目私有检查走独立脚本 + CI / justfile，
+# 而不是塞进 pre-commit 统一配置。
+#
+# 用法：just check-i18n-keys
+#
+# 校验两前端 en/zh 文案 key 一一对应、无缺 key（PRD FR-5）。
+check-i18n-keys:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{justfile_directory()}}"
+    node scripts/check-i18n-keys.mjs
+
+
 # ── Ops Toolkit (zata-ops) ────────────────────────────────────────────────────
 # Delegates to the standalone `zata-ops` CLI, which must be installed globally first:
 #   cd /path/to/zata-ops && uv tool install --force .
