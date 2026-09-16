@@ -3,7 +3,7 @@
 > ✅ **交付前置**：无，可立即开工。
 > 结构化声明见 §8 Delivery Dependencies，**那里是唯一事实源**。
 
-> 🧍 **验收状态**：机器层已完成（rv-1~rv-8 全部跑绿，证据见 §9.2 与 `tasks/evidence/P2-FEAT-20260707-150000-frontend-i18n-bilingual/`）；**待人确认 §9 的 Human-Confirmed 四项**（D1/D2/D3 前置确认 + §9.1 呈递区第 1~6 行亲眼看过）。
+> ✅ **验收状态**：已完成（rv-1~rv-8 全部跑绿；§9 Human-Confirmed 四项含 D1=en、D2 交付范围、D3 key 命名、§9.1 呈递区第 1~6 行均已由验收人确认）。证据见 §9.2 与 `tasks/evidence/P2-FEAT-20260707-150000-frontend-i18n-bilingual/`。
 > 本行是 §9 Acceptance Checklist 的投影，**那里是唯一事实源**。
 
 > 本 PRD 分两个 altitude，分别服务不同读者，自上而下阅读：
@@ -38,7 +38,7 @@
 
 本次需求被理解为：**参考 `freshai` 的前端 i18n 体系，为本仓库的两个前端应用建立中英文双语能力**。
 
-**行为样例**（这些行会被逐字抄进 §7.7 的验收 oracle——改其中一格，就是在改验收标准）：
+**行为样例**（这些行会被逐字抄进 §7 Realistic Validation Plan 的验收 oracle——改其中一格，就是在改验收标准）：
 
 | 输入 / 操作 | 期望观察到的结果 |
 |---|---|
@@ -366,7 +366,7 @@ flowchart TD
 
 No data model changes in this PRD.（纯前端，无数据库改动。）
 
-### 7.7 Realistic Validation Plan (Oracle 块)
+### Realistic Validation Plan (Oracle 块)
 
 机读 + 人读的**单一 oracle 源**：§2 的验收声明、§9 证据包、以及任何确定性抽取器都引用 / 解析这里的 `id`。
 
@@ -608,7 +608,7 @@ No external validation required; repository evidence was sufficient.（实现参
 
 ### 9.2 Acceptance Evidence Package（机器证据 · verifier 入口，人默认跳过）
 
-按 §7.7 oracle 的 `reviewer` 与风险排序组织，每项必须带证据（命令输出 / 观察 / 工件引用），不是裸勾：
+按 §7 Realistic Validation Plan oracle 的 `reviewer` 与风险排序组织，每项必须带证据（命令输出 / 观察 / 工件引用），不是裸勾：
 
 1. **人审项的 oracle 跑绿证据**（对应 §9.1 各行，截图之外另附命令证据）：rv-1 / rv-2 / rv-3 / rv-5 / rv-6 的命令输出与 Playwright 结果。
 2. **verifier-only 项结果**：rv-4（三种 Accept-Language 的 curl 输出）、rv-7（缺 key 脚本退出码 0）、rv-8（两前端 build + smoke 全绿）。
@@ -619,10 +619,10 @@ No external validation required; repository evidence was sufficient.（实现参
 
 ### Human-Confirmed (来自 Part A 风险地图)
 
-- [ ] D1 默认 locale（en / zh）已确认（前置触点）
-- [ ] D2 交付范围（基础设施+核心页面）已确认（前置触点）
-- [ ] D3 文案 key 命名规范已确认（验收时扫 §9.1 第 6 行的文案文件本体）
-- [ ] §9.1 呈递区第 1~6 行已亲眼看过（截图 / 自验，二选一或都做）
+- [x] D1 默认 locale（en / zh）已确认（前置触点）→ 确认 **en**（两端 `DEFAULT_LOCALE` 均为 `en`，`frontend-public/i18n/constants.ts`、`frontend-admin/src/i18n/init.ts`）
+- [x] D2 交付范围（基础设施+核心页面）已确认（前置触点）→ 确认；`(marketing)` 页一并迁移的扩张已接受（见 Final Reconciliation）
+- [x] D3 文案 key 命名规范已确认（验收时扫 §9.1 第 6 行的文案文件本体）→ 确认；`messages/zh.json` 实际命名空间 `html`/`common`/`nav`/`marketing`/`auth`/`dashboard`/`settings`/`footer`/`toast`/`errors`，key 为语义化 camelCase（marketing/footer/toast 为迁移 marketing 页时新增，见 Final Reconciliation）
+- [x] §9.1 呈递区第 1~6 行已亲眼看过（截图 / 自验，二选一或都做）→ 验收人在真实 dev server（公开站 31234 / 后台 13173）上逐行自验通过
 
 > 注意：rv-1~rv-8 全部跑绿是**机器层完成的前提**（由执行器 + verifier 保证），不再是人逐项确认的对象——人只对呈递区的可感知结果负责。
 
@@ -701,3 +701,15 @@ No external validation required; repository evidence was sufficient.（实现参
 | D-02 | locale 路由形态 | cookie / localStorage 协商，无 URL 前缀 | URL 前缀式（`/en/...`） | 前缀方案牵动全部路由与链接，工作量与风险远超本次范围，且 `freshai` 已用 cookie 模式可对齐 |
 | D-03 | 交付节奏 | 分阶段：基础设施+核心页面先行 | 全量页面一次性迁移 | 核心模式未定前迁移越多返工越多，且验收会被几百条文案拖死 |
 | D-04 | 验收证据形态 | 双层：§9.1 人读呈递区（截图/产物本体）+ §9.2 机器证据包；oracle 按 `reviewer: human/verifier` 分流 | 单层 CLI 证据（命令输出+退出码直接当验收清单） | 验收人实际不会读命令行证据；纯命令行形态使"待人工验收"沦为无人执行的剧场 |
+
+### Final Reconciliation
+
+- Interpretation: confirmed — §2 行为样例经 rv-1..rv-8 实证，证据落在 `tasks/evidence/P2-FEAT-20260707-150000-frontend-i18n-bilingual/`；实现期偏差（marketing 页迁移、后台插值语法修正、三处布局层遗漏）均在发生时补进证据报告 §3，非事后追认。
+- Public behavior and contracts: confirmed — 公开站 `next-intl` SSR cookie 模式、后台 `react-i18next` localStorage 模式，两端切换器可用、刷新保持，默认 locale `en`，`Accept-Language` 协商生效；无 URL 前缀中间件，后端 API / 数据库 / Python 依赖零改动（`git diff --name-only -- src/ alembic/ pyproject.toml uv.lock main.py` 为空）。
+- Related PRD status: confirmed — 本 PRD 纯前端，不依赖任何后端 PRD；后续迁移清单（Agent/工作流/工具/聊天等业务页面）不在本 PRD 范围，按同一模式另立推进。
+- Requirements and risks: confirmed — FR-1..FR-7 全部落地，rv-1..rv-8 全绿，verifier 裁定 PASS 无 BLOCKER；遗留 NON-BLOCKING（verifier 子代理 429 致裁定由执行器只读完成、marketing 页迁移超出 FR-4 枚举属范围扩张、§7.6→§7.7 重编号、worktree 首次 `just test` 因复用主库 venv 假失败）均为已知且接受的取舍，记录在 `verifier-report.md`。
+- Reconciled differences:
+  - §7.2 glob 与 FR-4 枚举不一致 → 一并迁移 `(marketing)` 全部页面（含 `/features`、`/about`、`/pricing`），消除歧义，新增 31 个 key，中文逐字保留。
+  - 后台 5 处插值由 i18next 兼容写法修正为 `{{var}}`（与 next-intl 的 `{year}` ICU 语法并存，两端不混用）。
+  - 证据采集端口为 worktree 分配的 3929 / 5842 / 8000，非 `just run` 的 3000 / 5173 默认端口，已在 §9.1 表下注明。
+  - `tasks/evidence/**` 受 `.gitignore` 忽略，12 张截图仅存在于采集时的 worktree 目录，主工作树只保留 plan / evidence-report / verifier-report 三份 markdown。

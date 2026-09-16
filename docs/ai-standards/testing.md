@@ -284,9 +284,10 @@ HTML 报告仍固定在 `tests/playwright-e2e/playwright-report/`，可用 `just
 6. **独立 verifier 审查**：`just ai implement` 自动启动一个 verifier Agent，默认使用与 executor 不同的 AI 工具；verifier 只读审查证据与 PRD 验收项的匹配度，输出 `<prd-basename>.verifier-report.md`，结论为 `PASS` 或 `REJECT`。
 7. **finding 分级**：verifier 的每条 finding 必须标 `BLOCKER` / `NON-BLOCKING` / `SECURITY`，判据只有一句——**这条补齐后，结论有可能从 PASS 翻成 FAIL 吗？** 只有 `BLOCKER` 才 REJECT。缺原始日志、命名不整齐、已通过测试的对称变体、没有验收项声明的额外覆盖，都是 `NON-BLOCKING`，记录后带走，不消耗轮次。多条 `NON-BLOCKING` 不能叠加成 `BLOCKER`。
 8. **轮次上限**：最多 2 轮。第 2 轮 verifier 只复查第 1 轮的 `BLOCKER` 和证据变更带来的新 `BLOCKER`，不对已接受的证据开新的 `NON-BLOCKING` 战线。2 轮后仍有 `BLOCKER` 时流程停止，在证据报告里写 `Open Items For Human Review` 交人决定——没有第 3 轮。轮次计数落在 `<evidence-dir>/.verifier-round`。
-9. **前端强制视觉证据**：如果 PRD 涉及 `frontend-admin/` 或 `frontend-public/` 改动，证据目录必须包含至少一个 `.png`、`.jpg` 或 `.webm` 文件。
-10. **最终校验**：verifier 通过后，`just ai implement` 运行 `scripts/shared/just/check_prd_evidence.sh` 再次确认前端视觉证据存在，缺少则阻止流程结束。
-11. **工具不可用**：verifier 默认工具不可用时，降级到与 executor 相同工具；相同工具也不可用时，流程暂停并提示人工，不自动回退到 executor 自检。
+9. **回填验收清单**：独立 verifier 返回 `PASS` 后，executor 必须把证据报告已建立对应关系、证据足以支持且没有相关 `BLOCKER` 的非人工验收项更新为 `[x]`，并在条目旁标注对应证据文件。不得因为等待人工终点审查而把这些机器可验证项留空；只有明确标记为 `Human-Confirmed` 的项目可以继续保持未勾选，并在人工确认后记录实际观察结果再勾选。证据文件仅仅存在但没有验收项映射、未获 verifier `PASS` 或仍有相关 `BLOCKER` 时，不得勾选。
+10. **前端强制视觉证据**：如果 PRD 涉及 `frontend-admin/` 或 `frontend-public/` 改动，证据目录必须包含至少一个 `.png`、`.jpg` 或 `.webm` 文件。
+11. **最终校验**：verifier 通过后，`just ai implement` 运行 `scripts/shared/just/check_prd_evidence.sh` 再次确认前端视觉证据存在，缺少则阻止流程结束。
+12. **工具不可用**：verifier 默认工具不可用时，降级到与 executor 相同工具；相同工具也不可用时，流程暂停并提示人工，不自动回退到 executor 自检。
 
 ### 证据链完整性（按风险分层）
 
