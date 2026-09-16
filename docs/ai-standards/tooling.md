@@ -191,12 +191,14 @@ uv run pre-commit run --show-diff-on-failure
 
 这些文件派生项目常会自定义（改入口指向、调整规范），默认覆盖会破坏项目定制，因此只在 `just sync-template --all` 模式才作为同步候选出现。实现见 `scripts/shared/template/sync_template.sh` 的 `_is_ai_adapter_file`。
 
-模板包含 Skill 更新时，`just sync-template` 与 `just sync-local-skills` 按本机目录选择安装目标：
+模板包含 Skill 更新时，`just sync-template` 与 `just sync-local-skills` 遵守以下稳定契约：
 
-1. 检测到 `~/.cc-switch` 时加入 `~/.cc-switch/skills`。
-2. 检测到 `~/.pi` 时加入 Pi 的 `~/.pi/agent/skills`；它与 cc-switch 不互斥。
-3. 同时检测到两者时，同一批选中的 Skill 会同步到两个目录。
-4. 两者均不存在时，交互选择 Codex、Claude 或 Pi 的 skills 目录。
+- 显式配置的目标与当前检测到的工具适配器可以同时生效；同一批选中的 Skill 会同步到全部目标。
+- `AI_SKILLS_DIRS` 接受以冒号分隔的任意 skills 目录，供新增、临时或未内置适配的 Agent 使用；`CC_SWITCH_SKILLS_DIR` 继续作为兼容入口。
+- 非交互的 `scripts/sync_template.sh --skill <name>` 只更新目标中**已存在**的同名 Skill，不会创建首次安装目录；没有可更新安装时明确失败。
+- 首次安装仍走交互式 `just sync-local-skills`；未检测到目标时才展示当前内置适配器供选择。
+
+内置适配器是随工具生命周期增删的便利清单，目前包含 Codex、Claude、Pi、Qoder、Kimi Code 与 CodeBuddy；它们不是永久支持承诺。交互安装与非交互更新必须共用 `scripts/shared/template/sync_template.sh` 中的同一份适配器注册表，守卫测试保护上述工具无关契约，不为单个适配器建立永久性断言。
 
 ## Pre-commit Configuration Sync
 

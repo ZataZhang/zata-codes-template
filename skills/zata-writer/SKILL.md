@@ -135,7 +135,7 @@ description: "[Updated 2026-09-10] 撰写或重构结构清晰、证据充分、
    ./scripts/sync_template.sh --skill zata-writer
    ```
 
-   非交互、只更新已安装该 Skill 的本机目录（~/.qoder-cn、~/.claude、~/.codex、~/.cc-switch、~/.pi、~/.kimi-code），不会在任何工具里凭空创建安装目录；首次装到新工具用交互式的 `just sync-local-skills`（fzf 逐项预览 diff）。提交前想先在安装副本上验证改动，可以提前部署，但仓库侧的提交始终由用户复核后决定。
+   非交互、只更新已安装该 Skill 的本机目录（~/.qoder-cn、~/.claude、~/.codex、~/.cc-switch、~/.pi、~/.kimi-code、~/.codebuddy），不会在任何工具里凭空创建安装目录；首次装到新工具用交互式的 `just sync-local-skills`（fzf 逐项预览 diff）。提交前想先在安装副本上验证改动，可以提前部署，但仓库侧的提交始终由用户复核后决定。
 
 **不要把安装副本同步回仓库。** `assets/sync_upstream.sh` 仅作急救保留：只有安装副本被直接改过、需要把改动抢救回仓库时才用它。它把无版本控制的副本单向覆盖进 Git 仓库——脚本守卫能挡住文件删除，挡不住仓库已提交内容被旧副本盖回，用完必须人工逐行复核 diff 再决定提交。
 
