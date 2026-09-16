@@ -450,9 +450,12 @@ def format_activity_cell(
     新鲜锁 → 黄色 ``RUNNING <tool> <时长> @<branch>``（branch 缺失回退 worktree）；
     过期锁但归属 worktree 仍有近期改动 → 同样按 RUNNING 渲染（心跳只是兜底信号，
     活性佐证说明会话仍在执行）；过期锁且无活性佐证 → 红色 ``STALE <最后心跳>``；
-    无锁但存在分支名匹配的 worktree → 黄色 ``⚠ unlocked @<branch>``（互斥未生效
-    的漏洞必须摆到台面上，而不是静默显示 ``-``）；无锁但 PRD 文件或证据目录
-    近期有改动 → 暗色 ``⚡ active <n>m ago``；其余 ``-``。
+    无锁但存在分支名匹配的 worktree 时先看该 worktree 是否已把 PRD 归档：
+    已归档 → 绿色 ``✔ branch-archived @<branch> · <n>/<m> · awaiting merge``
+    （收尾已在分支完成，缺的只是合并回主线，不得再按互斥漏洞报警）；未归档 →
+    黄色 ``⚠ unlocked @<branch>``（互斥未生效的漏洞必须摆到台面上，而不是
+    静默显示 ``-``）；无锁但 PRD 文件或证据目录近期有改动 → 暗色
+    ``⚡ active <n>m ago``；其余 ``-``。
 
     Args:
         prd_record (PrdRecord): 单条 PRD 记录。
@@ -495,6 +498,21 @@ def format_activity_cell(
     )
     if matched_worktree is not None:
         branch_name_text, worktree_path = matched_worktree
+        worktree_archive_prd_path = worktree_path / "tasks" / "archive" / prd_record.prd_path.name
+        if worktree_archive_prd_path.is_file():
+            # worktree 内 tasks/archive 已有这条 PRD：收尾已在分支上完成，主线缺的
+            # 只是合并动作。此时继续亮 ⚠ unlocked 会误导人重新执行一个已完成的
+            # PRD；清单进度改用分支上归档副本的真实勾选。
+            branch_checked_count, branch_total_count = count_checklist_items(
+                worktree_archive_prd_path.read_text(encoding="utf-8")
+            )
+            raw_branch_progress_text = (
+                f" · {branch_checked_count}/{branch_total_count}" if branch_total_count > 0 else ""
+            )
+            return palette.green(
+                f"✔ branch-archived @{branch_name_text}{raw_branch_progress_text}"
+                " · awaiting merge"
+            )
         worktree_activity_minutes = prd_lock.detect_worktree_activity_minutes(
             worktree_path, RECENT_TOUCH_WINDOW_MINUTES
         )
