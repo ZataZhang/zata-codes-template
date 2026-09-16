@@ -1,0 +1,11 @@
+(() => {
+  // left/top/width/height 均为相对原图的百分比；把热点放在图片真实控件上。
+  const states = [
+    { id: 'start', label: '开始', image: './assets/state-01.png', alt: '替换为开始状态说明', description: '替换为当前状态说明。', hint: '点击图片中的主要操作。', hotspots: [{ label: '主要操作', left: 72, top: 70, width: 12, height: 6, action: 'result' }] },
+    { id: 'result', label: '结果', image: './assets/state-02.png', alt: '替换为结果状态说明', description: '替换为结果状态说明。', hint: '点击返回操作，或使用顶部辅助导航。', hotspots: [{ label: '返回开始', left: 8, top: 8, width: 9, height: 5, action: 'start' }] },
+  ];
+  let selectedId = states[0].id;
+  const image = document.querySelector('#state-image'); const description = document.querySelector('#state-description'); const hint = document.querySelector('#state-hint'); const hotspots = document.querySelector('#hotspots'); const nav = document.querySelector('#state-nav'); const previous = document.querySelector('#previous');
+  const render = () => { const index = states.findIndex((state) => state.id === selectedId); const state = states[index]; image.src = state.image; image.alt = state.alt; description.textContent = state.description; hint.textContent = state.hint; previous.disabled = index === 0; nav.innerHTML = states.map((candidate) => `<button class="${candidate.id === selectedId ? 'active' : ''}" data-state="${candidate.id}">${candidate.label}</button>`).join(''); hotspots.innerHTML = state.hotspots.map((hotspot) => `<button class="hotspot" aria-label="${hotspot.label}" data-action="${hotspot.action}" style="left:${hotspot.left}%;top:${hotspot.top}%;width:${hotspot.width}%;height:${hotspot.height}%"></button>`).join(''); };
+  nav.addEventListener('click', (event) => { const button = event.target.closest('[data-state]'); if (button) { selectedId = button.dataset.state; render(); } }); hotspots.addEventListener('click', (event) => { const button = event.target.closest('[data-action]'); if (button) { selectedId = button.dataset.action; render(); } }); previous.addEventListener('click', () => { const index = states.findIndex((state) => state.id === selectedId); selectedId = states[Math.max(0,index - 1)].id; render(); }); render();
+})();

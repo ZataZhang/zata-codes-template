@@ -92,6 +92,10 @@ Include only when prototype files were actually changed.
 | File Path | Change Type | Before | After | Why |
 |---|---|---|---|---|
 | `docs/prototypes/<feature>-demo.html` | Modify | Static layout only | Added state transition controls | Clarify behavior that static diagrams could not show |
+| `<existing prototype hub / registry>` | Modify | Prototype absent or stale | Registered title, entry, form, validation level, primary flow, availability | Keep the prototype discoverable through the repository's single Hub |
+| `docs/prototypes/<feature>/assets/<state>.prompt.md` | Add/Modify | Missing or stale generation provenance | Full prompt, reference, invariants, canvas, tool and date match final image | Preserve editability of AI-generated state images |
+
+When the repository provides a dedicated prototype skill, load it before changing prototype files. A prototype change log is incomplete when it lists only the feature artifact but omits applicable Hub/registry, return-entry, navigation, or image provenance-sidecar changes. A Markdown docs index and `mkdocs.yml` entry do not substitute for registering the artifact in an existing visual/clickable Hub.
 
 If no prototype files changed, state:
 
