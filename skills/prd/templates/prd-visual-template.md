@@ -318,7 +318,11 @@ If no external validation was needed:
 规则：
 
 - 交付时本表必须填上**实际呈递物路径**；agent 的完成回复必须原样带上本表内容（截图路径 + 自验方式），不允许只甩一句"证据在 tasks/evidence/ 里"。
+- **呈递物要可直接打开，不能只给一个文件名**：本地产物给绝对路径 + 一行可执行命令（macOS `open "<绝对路径>"`）；页面、PR、CI 等给可点 URL。
+- **视觉产物必须附真实渲染图**：表格、报告、页面这类人审件由**真实文件/真实页面**渲染成图片（不能用重建的复刻图冒充），就地嵌进本 PRD 与证据报告；图片是本地文件、不入 Git 时明确标注，避免他人以为 GitHub 上能看到。
+- **"想自己复核？"要精确到看哪里、期望看到什么**（某张表的某列、某页的某个字段、旧值→新值），不要写"打开看看"。
 - 截图落在 `tasks/evidence/<prd-slug>/`，并标注验证层级（real user flow / component preview）；涉及 Dialog、Portal、父级布局或用户流程时保留生产边界。
+- 证据报告 `<prd-slug>.evidence-report.md` 的**首节必须是同一份「人审导航」**（同样的打开命令、就地图片、逐项期望值，另加 PR/CI 链接与"执行者已替你核对过什么"）——人只看这一节就知道要不要点开、点开看哪。
 - "想自己复核？"列是可选项：呈递物可信就不用做；不信就花十几秒自己点。
 
 | # | 你要看什么（对应 oracle） | 呈递物（交付时填实际路径） | 想自己复核？ |
@@ -384,6 +388,8 @@ If no external validation was needed:
 - [ ] Recommended approach fully implemented; no unapproved parallel abstraction introduced
 - [ ] No open regression or rollout blocker remains
 - [ ] §9.1 呈递区的呈递物路径已全部回填，且完成回复已原样带上呈递表内容（只给 evidence 目录链接不算交付）
+- [ ] 每个呈递物都带**可直接执行的打开方式**（绝对路径 + `open` 命令或可点 URL）与**逐项期望值**；视觉产物附真实渲染图（本地图片已标注不入 Git）
+- [ ] 证据报告首节是同一份「人审导航」，含打开命令、就地图片、逐项期望值、PR/CI 链接与"已替你核对过什么"
 
 ---
 
