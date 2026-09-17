@@ -1,6 +1,6 @@
 ---
 name: prd
-description: "[Updated 2026-09-16] Generate an architecture-aware technical PRD split into two altitudes — a human review layer (Part A) and an executor build layer (Part B) — with a decision-oriented human review map, a front-loaded interpretation lock, and a risk-ordered acceptance evidence package with a two-audience reviewer split (human-facing presentation surface over machine evidence) for a single end-of-flow human review. Triggers on: create a prd, write prd for, plan this feature. Prioritizes reuse, minimal-change plans, evidence-chain integrity, required output compliance, realistic validation, and conditional web research."
+description: "[Updated 2026-09-17] Generate an architecture-aware technical PRD split into two altitudes — a human review layer (Part A) and an executor build layer (Part B) — with a decision-oriented human review map, a front-loaded interpretation lock, a bounded design-challenge pass, and a risk-ordered acceptance evidence package with a two-audience reviewer split (human-facing presentation surface over machine evidence) for a single end-of-flow human review. Triggers on: create a prd, write prd for, plan this feature. Prioritizes reuse, minimal-change plans, evidence-chain integrity, required output compliance, realistic validation, and conditional web research."
 ---
 
 # PRD Generator (Architecture-First)
@@ -122,6 +122,27 @@ For each unresolved question:
 5. include alternative options only when the trade-off is real and material
 
 If there are no critical unresolved questions, proceed without asking.
+
+### Phase 2.5: Design Challenge Pass
+
+Before converging on the recommendation, temporarily argue against the emerging design. This is a judgment pass, not an accumulating compliance checklist: look for the few mismatches that could make the team build the wrong shape of solution, and say nothing when there is no material concern.
+
+Challenge the design from first principles:
+
+- **Promise vs. model:** Do names, UI scope, APIs, or documentation promise a more general or different capability than the data model actually supports?
+- **Ownership:** Is state, policy, credential, or behavior attached to the actor or component that truly owns its lifecycle and trust boundary?
+- **Stable core vs. variation:** Has one current example, provider, customer, or workflow leaked into a supposedly shared contract? Conversely, is the proposal inventing an extension system without evidence of a real variation axis?
+- **Change pressure:** Name one plausible adjacent case or changed requirement and mentally apply it. Does it reveal irreversible coupling, duplicated policy, a migration-heavy field choice, or a misleading user experience?
+- **User mental model:** Would an administrator or end user understand what object they are configuring, what permission they are granting, and what happens at runtime?
+
+For each material concern, provide a concrete counterexample and the smallest correction. Do not prescribe a plugin system, generic schema, new service, or other heavier abstraction merely because future change is imaginable. Bound the pass to the most important one to three concerns; merge overlapping concerns rather than growing a catalog.
+
+Route the result through existing PRD structures instead of adding another mandatory section:
+
+- if repository evidence resolves it, record the chosen interpretation in the `Decisions taken silently` block (`我默默定了这些` in Chinese PRDs) and carry the correction into the recommendation;
+- if it changes scope, trust, public behavior, or architecture and the code cannot resolve it, surface it as a Section 2 human decision;
+- if it is an implementation trade-off that does not require human choice, explain it in Part B's recommended approach or risks;
+- if no material concern survives the challenge, add no filler and continue.
 
 ### Phase 3: Redundancy Gate And Recommendation Check
 
@@ -367,8 +388,8 @@ Review-altitude only. Must include, in order:
 
      Follow the table with one line stating that these rows become the acceptance oracles verbatim, so correcting a cell corrects the acceptance criteria.
 
-  2. **我默默定了这些** — a scannable list of every ambiguity resolved without asking, one line each, each naming the answer chosen.
-  3. **我理解为不做** — 2-3 things the reader might plausibly have wanted that this PRD reads as excluded.
+  2. **Decisions taken silently (`我默默定了这些`)** — a scannable list of every ambiguity resolved without asking, one line each, each naming the answer chosen. Use the Chinese text as the emitted heading in Chinese PRDs.
+  3. **Read as out of scope (`我理解为不做`)** — 2-3 things the reader might plausibly have wanted that this PRD reads as excluded. Use the Chinese text as the emitted heading in Chinese PRDs.
   4. the falsifiable prose reading ("read as X, not Y"): target behavior, key boundaries whose omission would permit a materially different implementation, and explicit non-goals. Preserve formal mode/config names only when the human is approving them.
 - `### What The User Gets` — plain-language description of the capability/behavior the consumer (end user / caller / operator) receives, from the consumer's point of view. No implementation mechanism or module paths — mechanism belongs in Section 6.
 - `### Measurable Objectives` — success criteria with an obvious pass/fail oracle through a test, runtime observation, static boundary check, or human-visible result. Do not use unqualified goals such as "clearer responsibilities", "more maintainable", "better extensibility", or "can be described as".
@@ -592,7 +613,8 @@ Change Log entries are parsed mechanically (entry counting, per-field completene
   !tasks/evidence/**/*.md
   ```
 
-- The evidence report must **open with a `## 人审导航 / Human Review Navigation` section**, before any delivery or implementation detail. It restates the 9.1 surface in the same actionable form so the human never has to hunt through the PRD, the directory tree, and the PR body: one row per human-facing presentation with its absolute path, a runnable open command, the inline real-render image (labelled local-only when the artifact is gitignored and therefore invisible on GitHub), the exact expected value per item, clickable PR/CI links, and a short "already cross-checked by the executor" note. A presentation the human has to search for counts as not delivered.
+- The evidence report must **open with a `## 人审导航 / Human Review Navigation` section**, before any delivery or implementation detail. It restates the 9.1 surface in the same actionable form so the human never has to hunt through the PRD, the directory tree, and the PR body: one row per human-facing presentation with its absolute path, a runnable open command, the real-render image embedded inline, the exact expected value per item, clickable PR/CI links, and a short "already cross-checked by the executor" note. A presentation the human has to search for counts as not delivered.
+- **The inline embed is mandatory, and an open command never substitutes for it.** Every still image in the evidence directory must appear at least once in the evidence report as a Markdown image whose path is relative to the report — `![rv-4 MCP 管理页](rv-4-mcp-management.png)`. Report and artifact sit in the same directory, so that renders in any local Markdown preview. The gitignore whitelist keeps the image out of version control, so the same embed is a broken image on GitHub: that is precisely what the local-only label explains and what the `open "<absolute path>"` line works around. Ship all three per image, in that order — **embed, label, open command**. Shipping only the label and the command is the historical failure mode: a reviewer who must paste a shell command before seeing the screenshot was shown nothing. Recordings are exempt, since Markdown cannot render them inline; they ship with the open command alone.
 
 ### 5. Delivery Dependencies Block
 
@@ -636,7 +658,7 @@ Read [references/prd-content-rules.md](references/prd-content-rules.md) before g
 * [ ] **BLOCKER:** Included an `Acceptance Status Banner (验收状态横幅)` immediately after the Delivery Gate Banner, using exactly one of the three defined states (`⬜ 未开工` / `🧍 待人工验收` / `✅ 可归档`), marked as a projection of §9; a freshly generated PRD starts at `⬜ 未开工`
 * [ ] Before archive, flipped the Acceptance Status Banner to `✅ 可归档` only after every §9 checkbox was checked; `🧍 待人工验收` was used exactly when only `Human-Confirmed` items remained unchecked
 * [ ] Section 1 stays review-altitude: Problem Statement, `Interpretation (解读回显)`, What The User Gets, and Measurable Objectives only — no proposed solution summary, validation commands, or delivery-dependency metadata
-* [ ] **BLOCKER:** The `Interpretation (解读回显)` is correctable, not just readable — a behavior-example table of ≥3 rows (with an edge case and a failure case) whose rows become the Section 7.6 oracles verbatim, a `我默默定了这些` list of ambiguities resolved without asking, a `我理解为不做` list of plausibly-wanted excluded scope, and the falsifiable prose reading. Enforced by `scripts/check_prd_acceptance_checklist.py`
+* [ ] **BLOCKER:** The `Interpretation (解读回显)` is correctable, not just readable — a behavior-example table of ≥3 rows (with an edge case and a failure case) whose rows become the Section 7.6 oracles verbatim, a `Decisions taken silently` list (`我默默定了这些` in Chinese PRDs), a `Read as out of scope` list (`我理解为不做` in Chinese PRDs), and the falsifiable prose reading. Enforced by `scripts/check_prd_acceptance_checklist.py`
 * [ ] Problem Statement includes a concrete repository-observable current-state fact when available; Measurable Objectives are pass/fail outcomes rather than unqualified maintainability claims
 * [ ] **BLOCKER:** Section 2 Human Review Map presents only concrete human decisions, each with a plain-language recommendation/risk explanation, an explicit `请确认：` question, and a short observable `验收：` statement; it does not expose the fixed-zone menu, hit/miss bookkeeping, classification tables, commands, file paths, or `rv-id` values
 * [ ] Section 2 ends with a compact automated-gate summary and explicit non-scope; schema changes surface the relevant ER diagram with the decision that approves them
@@ -648,7 +670,8 @@ Read [references/prd-content-rules.md](references/prd-content-rules.md) before g
 * [ ] Section 8 includes a tool-neutral Delivery Dependencies block, using explicit `none` values when no sequencing dependency exists
 * [ ] Section 9 Acceptance Checklist includes a `Human-Confirmed` group whose items map one-to-one to the Section 2 human-confirm change points
 * [ ] **BLOCKER:** Section 9 opens with `9.1 人读呈递区（Human Review Surface）` covering exactly the `reviewer: human` oracles (one row each: plain-language outcome + presentation artifact + optional self-check; verifier-only groups explicitly noted as not shown), followed by the `9.2 Acceptance Evidence Package` risk-ordered by the Section 7 classification (human-confirmed and `R3` evidence first, then `R2`, then folded `R1`/`R0` gates)
-* [ ] **BLOCKER:** Every 9.1 row is actionable rather than a bare filename — absolute path + runnable open command or clickable URL, inline real-render image for visual artifacts, and a self-check naming the exact place and expected value; and `<prd-stem>.evidence-report.md` opens with the `## 人审导航 / Human Review Navigation` block carrying the same contents plus PR/CI links
+* [ ] **BLOCKER:** Every 9.1 row is actionable rather than a bare filename — absolute path + runnable open command or clickable URL, and a self-check naming the exact place and expected value; and `<prd-stem>.evidence-report.md` opens with the `## 人审导航 / Human Review Navigation` block carrying the same contents plus PR/CI links
+* [ ] **BLOCKER:** Every still image in the evidence directory is embedded inline with `![<说明>](<path relative to the report>)` in both the PRD 9.1 surface and the evidence report; an `open` command plus a local-only label accompanies the embed and never replaces it
 * [ ] After an independent verifier `PASS`, machine-verifiable checklist items are ticked by the executor with their evidence file named beside them; only `Human-Confirmed` items stay open until the human answers; nothing is archived while an unchecked item remains
 * [ ] The `Human-Confirmed` group contains the Section 2 decisions and the 9.1 surface review only — no bare "oracle ran green" items; `Delivery Readiness` requires the completion message to carry the 9.1 surface contents verbatim
 * [ ] Included a Change Impact Tree with architecture-fit reasoning

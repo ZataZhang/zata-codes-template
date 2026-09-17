@@ -52,6 +52,14 @@ Docs
 
 不要包含：import 调整、格式化、lint 修复、无意义 rename、与任务无关的小改动。
 
+这棵树有机器消费者：`just prd status` 的 FILES 列解析它，与分支实际改动过的文件集求交，给出执行途中的触达进度（详见 `docs/ai-standards/tooling.md`）。为了让这个信号可用：
+
+- 文件节点写**仓库相对路径**。层级标签（`Infrastructure`、`Database / Migration`）下挂的文件必须写全路径；目录节点带结尾 `/` 时其下才可以写裸文件名。
+- 一行写多个文件时用 ` / `、` + ` 或 `、` 分隔，后续文件可以只写文件名（会继承第一个文件的目录）。
+- 点到目录也可以（`src/backend/core/fcl_sync [修改]`），目录下任一文件被改就算触达；但文件级更精确，能写文件就别只写目录。
+- 避免 `{a,b}.py` 花括号展开、`components/layout/*` 通配符与 `<由 … 生成>` 占位文件名——这类节点本地无法唯一定位，会被排除出分母并计入 `?n`。逐个列出文件即可。
+- 跨仓库文件（本仓库之外的新项目）同样无法判定；这是预期行为，不必为此改写路径。
+
 For executor handoff quality:
 
 - keep file-level and logical specificity, but do not reference exact line numbers or line ranges
@@ -200,7 +208,7 @@ It is the single completion artifact and also serves as the overall delivery-rea
 
 - One table row per `reviewer: human` oracle: the plain-language outcome to look at, the presentation artifact (path filled in at delivery), and an optional ~10-second self-check (a URL to open, or one command the human can run themselves).
 - One explicit note naming the `reviewer: verifier` groups that are deliberately not shown.
-- The presentation rule: the Agent's completion message must carry the surface table's contents verbatim, artifacts included. Filing screenshots in an evidence directory without showing them counts as not delivered.
+- The presentation rule: the Agent's completion message must carry the surface table's contents verbatim, artifacts included. Filing screenshots in an evidence directory without showing them counts as not delivered, and so does a bare `open` command — every still image is embedded inline with `![<说明>](<path relative to the file>)`, with the open command and the local-only label accompanying that embed rather than replacing it.
 
 The machine-facing package follows as `### 9.2 Acceptance Evidence Package` — risk-ordered and evidence-chain-bearing. The grouped subsections below follow 9.2. The `Human-Confirmed` group covers the Section 2 decisions and the 9.1 surface review only; "oracle X ran green" is a machine-layer prerequisite verified by the Agent and the verifier, and never appears as a human checkbox.
 

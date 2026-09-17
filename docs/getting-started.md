@@ -115,6 +115,12 @@ just worktree feature-branch --base develop
 子命令（`status`、`start`、`heartbeat`、`release`）、为 `just prd status <Tab>` 补全 scope
 （`all`、`pending`、`archive`）。
 
+打开已有 worktree 用 `just worktree -o <名称>`。除分支全名外，名称还接受分支最后一段、
+PRD slug、PRD 文件名（可带 `.md`）与 `tasks/pending/....md` 路径——`just prd status`
+的 ACTIVITY 列里 `@` 后的名称可以直接复制过来。命中多个 worktree 时会报错并列出候选，
+改用分支全名即可；完全找不到时会把当前可打开的 worktree 列出来，便于区分名字写错与
+worktree 尚未创建。
+
 `just worktree`（底层实现位于 `scripts/shared/worktree/create.sh`）在创建 worktree 后会自动执行两类依赖准备：
 
 - Python：如果仓库根目录存在 `pyproject.toml`，则运行 `uv sync --all-extras`。
