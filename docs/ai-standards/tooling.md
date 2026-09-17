@@ -38,6 +38,7 @@
 | `just prd start <prd-file> [--tool <名称>] [--branch <名称>]` | 领取 PRD 执行锁：他人新鲜锁拒绝开工（退出 1）并输出持锁者信息；过期锁自动接管并留档；同归属重复领锁幂等刷新 |
 | `just prd heartbeat <prd-file>` | 续期当前会话持有的执行锁；锁丢失或归属不符时警告并非零退出 |
 | `just prd release <prd-file> [--force]` | 释放执行锁；归属不符需显式 `--force` |
+| `just prd review <prd-file> [--print]` | 打开该 PRD 的人工审查清单（证据目录分支副本优先，交互 HTML 优先于 Markdown）：未完成 Human-Confirmed 项、9.1 人读呈递区与人工待决事项的集中页；无清单时回退打开证据报告，两者皆无时列出证据目录现状 |
 
 ## Justfile Layering
 
@@ -157,6 +158,12 @@ python scripts/check_prd_acceptance_checklist.py --repo-root "$PWD" --all
 - 执行过程中每个主要步骤后运行 `just prd heartbeat <prd-file>` 续期；锁丢失或归属不符时 heartbeat 非零退出，便于 executor 发现锁已被接管。锁归属 worktree 有持续文件改动时活性探测会阻止误接管，心跳是兜底；主仓库持有的锁没有活性佐证，仍完全依赖心跳。
 - 宽松兜底：提交时 `check_prd_lock_conflict` 钩子发现 staged 变更触及他人新鲜锁 PRD 的 `tasks/pending` / `tasks/evidence` 路径会输出警告，但永不阻断提交。
 - 看板 ACTIVITY 列：**分支归档优先于一切锁信号**——存在分支名匹配的 worktree 且其中 `tasks/archive` 已有该 PRD 时，无论锁是新鲜还是过期（含带活性佐证的 RUNNING）一律显示绿色 `✔ branch-archived @<branch> · awaiting merge`（收尾已在分支完成，只差合并回主线；清单进度见 CHECKLIST 列，该列同样读分支副本，ACTIVITY 不再重复携带）；其余按锁状态渲染：新鲜锁显示 `RUNNING <tool> <时长> @<位置>`，位置按实际状态解析——锁归属主仓库（`worktree` 为空，例如 `just implement` 领锁后 worktree 尚未建出的窗口）显示 `@主仓库`，归属 worktree 仍存在时显示其当前实际检出的分支，目录已消失且锁里的分支也无处检出时显示归属标签本身（不照抄锁里的 `branch` 快照，否则看板会给出一个用 `just worktree -o` 打不开的名字）；过期锁但归属 worktree 仍有近期改动同样显示 `RUNNING`（活性佐证优先于心跳）；过期且无活性佐证显示 `STALE <最后心跳>`；无锁但存在分支名匹配的 worktree 且其中未归档该 PRD 显示黄色 `⚠ unlocked @<branch>`（互斥未生效，需进 worktree 补领锁）；无锁但 PRD 文件或证据目录 15 分钟内有改动显示暗色 `⚡ active <n>m ago`；其余 `-`。
+
+### PRD 人工审查清单
+
+当 PRD 只剩 `Human-Confirmed` 项、验收横幅翻成 `🧍 待人工验收` 时，执行方在证据目录 `tasks/evidence/<prd-stem>/` 生成 `human-review-checklist.md`：按审查顺序集中全部未完成项，每项为人类阅读而写——**决策先行**（开头点明要拍板什么、判断错了的后果）、**自足可读**（原样引用 PRD 表述并白话展开，引用只用于核验而非理解）、**稳定锚点**（按章节引用如 `§9.2 Human-Confirmed 第 N 条`，禁止行号——PRD 一编辑行号即漂移）、**渐进披露**（一句话结论 → 引文 → 证据 → 复跑命令放最后）、**证据走人类入口**（视觉呈递物用相对路径内嵌渲染，关键报告行原文摘录，打开命令只作可选深挖）、**回复格式明确**（每项写清回"同意"还是选选项/列差异）、**术语即用即解**（内部黑话首现处给一行白话定义）。涉及拍板的分歧（接受披露 / 要求补测等）给出可勾选的选项。清单携带截图或选项项时，同目录再生成自包含交互版 `human-review-checklist.html`（无外部依赖）：逐步向导、每项点按钮作答、进度存浏览器 localStorage、末页生成可复制的审查结果——Markdown 为静态底稿，两者内容必须一致。清单是审查会话的呈现面，**不是第二事实源**：确认结果回填 PRD §9 与证据包，清单本身留作人工审查的留痕。
+
+`just prd review <prd-file>` 打开该清单（清单槽位内交互 HTML 优先于静态 Markdown）。证据目录解析与看板共用同一套规则（worktree 按 slug 匹配、分支副本优先）——执行发生在 worktree 里，未合并前证据不在主仓库，直接按主仓库路径找会扑空。没有清单时回退打开证据报告（其「人审导航」节是呈递物入口）；两者都没有时列出证据目录现状并退出 1，绝不静默成功。`--print` 只打印解析到的路径、不调用系统打开器，供测试与脚本消费。
 
 ## Platform Notes
 

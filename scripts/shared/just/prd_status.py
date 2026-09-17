@@ -318,26 +318,35 @@ def format_deps_cell(
     return palette.dim("-")
 
 
-def find_named_evidence_file(evidence_dir: Path, stem_suffix: str) -> Path | None:
-    """在证据目录中查找 ``<prd-basename>.<suffix>.md`` 或 ``<suffix>.md``。
+def find_named_evidence_file(
+    evidence_dir: Path,
+    stem_suffix: str,
+    suffix_extensions: tuple[str, ...] = (".md",),
+) -> Path | None:
+    """在证据目录中查找 ``<prd-basename>.<suffix><ext>`` 或 ``<suffix><ext>``。
 
     Args:
         evidence_dir (Path): 该 PRD 的证据目录。
         stem_suffix (str): 文件种类后缀，例如 ``verification-plan``。
+        suffix_extensions (tuple[str, ...]): 按优先级排列的候选扩展名，
+            默认仅 ``.md``；需要交互 HTML 优先于 Markdown 的调用方（如
+            ``prd_review.py``）传入 ``(".html", ".md")``，命名模式仍由本函数
+            单一事实源维护。
 
     Returns:
-        Path | None: 命中的文件路径，均不存在时返回 ``None``。
+        Path | None: 命中的文件路径（按扩展名优先级），均不存在时返回 ``None``。
     """
     if not evidence_dir.is_dir():
         return None
 
-    for evidence_filename in (
-        f"{evidence_dir.name}.{stem_suffix}.md",
-        f"{stem_suffix}.md",
-    ):
-        candidate_evidence_path = evidence_dir / evidence_filename
-        if candidate_evidence_path.is_file():
-            return candidate_evidence_path
+    for suffix_extension_text in suffix_extensions:
+        for evidence_filename in (
+            f"{evidence_dir.name}.{stem_suffix}{suffix_extension_text}",
+            f"{stem_suffix}{suffix_extension_text}",
+        ):
+            candidate_evidence_path = evidence_dir / evidence_filename
+            if candidate_evidence_path.is_file():
+                return candidate_evidence_path
     return None
 
 

@@ -918,6 +918,7 @@ ai subcommand arg1="" arg2="" arg3="" :
 #   just prd start <prd-file> [--tool <名称>] [--branch <名称>]   # 领取执行锁
 #   just prd heartbeat <prd-file>                                 # 续期自己的锁
 #   just prd release <prd-file> [--force]                         # 释放执行锁
+#   just prd review <prd-file> [--print]                          # 打开人工审查清单（交互 HTML 优先）
 prd subcommand scope="" *extra_args:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -945,6 +946,18 @@ prd subcommand scope="" *extra_args:
             fi
             python3 ./scripts/shared/just/prd_lock.py "${lock_args[@]}"
             ;;
+        review)
+            if [ -z "{{scope}}" ]; then
+                echo "Usage: just prd review <prd-file> [--print]"
+                exit 1
+            fi
+            review_args=("{{scope}}")
+            if [ -n "{{extra_args}}" ]; then
+                read -ra extra_words <<< "{{extra_args}}"
+                review_args+=("${extra_words[@]}")
+            fi
+            python3 ./scripts/shared/just/prd_review.py "${review_args[@]}"
+            ;;
         *)
             echo "Usage:"
             echo "  just prd status          # dashboard: pending rows + archive grouped by month"
@@ -954,6 +967,7 @@ prd subcommand scope="" *extra_args:
             echo "  just prd start <prd-file> [--tool <名称>] [--branch <名称>]  # claim execution lock"
             echo "  just prd heartbeat <prd-file>                              # renew own lock"
             echo "  just prd release <prd-file> [--force]                      # release lock"
+            echo "  just prd review <prd-file> [--print]                       # open the human-review checklist (HTML first)"
             exit 1
             ;;
     esac
