@@ -25,6 +25,7 @@
 | `just down` | 按当前 Git worktree 保存的端口停止本地开发服务 |
 | `just copy <new-dir>` | 派生新项目；随机分配三个互不重叠的端口避免多副本端口冲突，并根据新项目名自动生成独立 PostgreSQL 数据库 |
 | `just worktree <branch>` | 仅能从 Git primary worktree 创建；自动分配端口、创建专用 PostgreSQL 空库并执行迁移，开发与 E2E 共用该 Worktree 的数据库 |
+| `just worktree -o <worktree-name>` | 打开已有 worktree；名称接受分支全名、分支最后一段、PRD slug、PRD 文件名（可带 `.md`）与 `tasks/pending/....md` 路径，歧义时报错列候选、未命中时列可用 worktree |
 | `just test` | 运行本地测试 |
 | `just bench-test` | 验证 warm / after-edit 场景的 `just test` 是否满足 30 秒预算 |
 | `uv run mkdocs build` | 验证文档站点 |
@@ -33,7 +34,7 @@
 | `just ai fix [claude\|kimi]` | 用 AI 解决当前 git 冲突（rebase/merge/cherry-pick 等） |
 | `just ai commit [claude\|kimi]` | 先跑 `just test`，再用 AI 生成提交信息 |
 | `just ai implement <prd-file> [claude\|kimi]` | 按 PRD 实现功能 |
-| `just prd status [all\|pending\|archive]` | PRD 状态看板：pending 逐条列出、archive 按月折叠，展示验收清单勾选进度、证据包状态与运行态（ACTIVITY 列） |
+| `just prd status [all\|pending\|archive]` | PRD 状态看板：pending 逐条列出、archive 按月折叠，展示验收清单勾选进度、影响树触达进度（FILES 列）、证据包状态与运行态（ACTIVITY 列） |
 | `just prd start <prd-file> [--tool <名称>] [--branch <名称>]` | 领取 PRD 执行锁：他人新鲜锁拒绝开工（退出 1）并输出持锁者信息；过期锁自动接管并留档；同归属重复领锁幂等刷新 |
 | `just prd heartbeat <prd-file>` | 续期当前会话持有的执行锁；锁丢失或归属不符时警告并非零退出 |
 | `just prd release <prd-file> [--force]` | 释放执行锁；归属不符需显式 `--force` |
@@ -129,10 +130,22 @@ python scripts/check_prd_acceptance_checklist.py --repo-root "$PWD" --all
 
 `just prd status` 汇总上述状态，输出 `tasks/pending` 的逐条明细与 `tasks/archive` 的月份折叠概览（`all` 展开每条）：
 
-- 明细列：优先级与类型（取自文件名前缀）、创建日期、验收清单 `已勾/总数`、证据包 `plan` / `report` / `verifier` 三个槽位。
+- 明细列：优先级与类型（取自文件名前缀）、创建日期、验收清单 `已勾/总数`、影响树触达进度（FILES 列）、证据包 `plan` / `report` / `verifier` 三个槽位。
 - archive 概览：每月 PRD 条数、清单全完成的条数、有证据包的条数与 verifier `REJECT` 条数；月份下出现 `⚠ 有未勾完的清单` 时，会列出具体是哪几条。
 
-**看板是启发式视图，不是门禁**：清单进度按 `Acceptance Checklist` / `验收清单` 小节内的 `- [ ]` 计数；verifier 结论取报告中最后一次出现的显式结论行（`verdict:`、`结论：` 或整行独立的 `PASS`/`REJECT`），只能从散文推断时会加 `?` 标记。真正的把关仍由 `check_prd_acceptance_checklist.py` 与独立 verifier 完成，看板只用于快速定位。
+**进度与证据取分支副本**：执行发生在 worktree 里，主仓库的 `tasks/pending` 副本与证据目录要等合并回主线才更新。因此存在分支名匹配的 worktree 时，清单进度取该 worktree 内 `tasks/archive` → `tasks/pending` 的 PRD 副本，证据包按 `plan` / `report` / `verifier` 每个槽位单独「分支目录先查、主仓库目录后查」；没有匹配 worktree（例如直接在主仓库开工）时读主仓库副本。只认 slug 匹配到的那个 worktree——每个 worktree 都带一份未改动的同名 pending 副本。
+
+**FILES 列 = 影响树触达进度（弱信号）**：验收清单要到收尾才勾，从开工到验收之间看板原本没有任何进度粒度。FILES 列解析 PRD 的 `Change Impact Tree`，把其中的文件节点与**分支上实际改动过的文件集**求交，形如 `~7/12?2`。
+
+- 判据是「本次分支碰过没有」，取 `git diff <与主线的分叉点>` 加未 `git add` 的新文件，覆盖已提交、已改未提交与新建三种状态。**不是**「文件在磁盘上存在」——模板历史 PRD 的影响树里 57% 的节点是 `[修改]`，那些文件开工前就在磁盘上，用存在性判定会让一条尚未动工的 PRD 直接显示过半完成。
+- 树里点到**目录**（`src/backend/core/fcl_sync [修改]`）时，目录下任一文件被碰过即算触达；只做文件级精确比较会让这类节点永远判不出进度。
+- 可判定性只认 **git 报出的真实路径**（`git ls-files`），不做文件系统探测：`Path.is_dir()` 在 macOS/Windows 上大小写不敏感，层级标签 `Docs` 会命中真实目录 `docs/`，让 `Docs/mkdocs.yml` 混进分母却永远匹配不上；被 gitignore 的目录（如运行时 `logs/`）同样会让跨仓库路径看起来讲得通。分母不该随操作系统或本地残留文件变。
+- `?n` 后缀披露本地无法判定、因而**未计入分母**的节点数：跨仓库路径、`{a,b}.py` 花括号展开、通配符、`<由 … 生成>` 占位文件名。宁可少算也不用一个假分母换好看的百分比。
+- 一行写多个文件时 ` / `、` + `、`、` 都是分隔符，后续文件继承第一个文件的目录（`locales/zh.json、en.json` 会拆成两个节点）。
+- 只在存在分支名匹配的 worktree 时测量；没有分支可比对、PRD 没写影响树或树内没有可判定节点时显示 `-`。
+- **永不转绿。** 它与 ACTIVITY 列的 mtime 启发式同级：影响树自己声明「以上为起点而非穷尽清单」，且「文件被碰过」不等于「改对了」——executor 换一条更合理的实现路径，触达率反而会掉。看板的强信号链仍是 CHECKLIST → EVIDENCE → verifier，FILES 不参与其中。
+
+**看板是启发式视图，不是门禁**：清单进度按 `Acceptance Checklist` / `验收清单` 小节内的 `- [ ]` 与 `- [x]` 计数，`- [~]`（runner-owned gate）不计入总数；verifier 结论取报告中最后一次出现的显式结论行（`verdict:`、`结论：` 或整行独立的 `PASS`/`REJECT`），只能从散文推断时会加 `?` 标记。真正的把关仍由 `check_prd_acceptance_checklist.py` 与独立 verifier 完成，看板只用于快速定位。
 
 ### PRD 执行锁
 
@@ -140,10 +153,10 @@ python scripts/check_prd_acceptance_checklist.py --repo-root "$PWD" --all
 
 - 锁是主仓库 `tasks/evidence/<prd-stem>/active.lock` 的本机 JSON 文件，被 gitignore 覆盖、不进版本库；在任意 linked worktree 内运行时经 `git rev-parse --git-common-dir` 反推主仓库根，各 worktree 共享同一份锁视图。
 - 领锁原子化（排他创建）；他人**新鲜锁**硬拒绝并输出持锁者工具 / 分支 / worktree / 开始时间 / 最后心跳，想接手只能显式 `just prd release` 后重试；**过期锁**（心跳超 30 分钟）自动接管并把旧锁留档为 `active.lock.<时间戳>.stale`；同归属（worktree 相对路径一致）重复领锁幂等刷新。过期判定看心跳 + worktree 活性、不做 pid 探测——锁脚本与 agent 工具调用的会话都是短命的，pid 死亡不代表持锁会话已死；反过来，心跳过期但归属 worktree 在过期窗口内仍有文件改动时视为存活会话、拒绝接管，心跳只是无活性佐证时的兜底信号。
-- 三个机械入口自动领锁：`just implement` 在校验 PRD 后、创建 worktree 前领锁（透传 `--tool` / `--branch`）；`just worktree`（`create.sh`）在分支名匹配 pending PRD 时先领锁、冲突即拒绝创建，创建成功后锁归属自动移交到新 worktree；`just worktree -o`（`open.sh`）打开已有 worktree 时同样尝试领锁（冲突仅提示持锁者、不阻塞打开）。分支名 ↔ PRD 匹配规则的唯一事实源在 `scripts/shared/worktree/prd_branch_match.sh`（slug 与分支全名或分支最后一段相等即命中），与看板的文件名解析保持一致。
+- 三个机械入口自动领锁：`just implement` 在校验 PRD 后、创建 worktree 前领锁（透传 `--tool` / `--branch`）；`just worktree`（`create.sh`）在分支名匹配 pending PRD 时先领锁、冲突即拒绝创建，创建成功后锁归属自动移交到新 worktree；`just worktree -o`（`open.sh`）打开已有 worktree 时同样尝试领锁（冲突仅提示持锁者、不阻塞打开），领锁记的是解析出的真实分支名。分支名 ↔ PRD 匹配规则的唯一事实源在 `scripts/shared/worktree/prd_branch_match.sh`（slug 与分支全名或分支最后一段相等即命中），与看板的文件名解析保持一致。`just worktree -o <worktree-name>` 接受看板与 PRD 流程里出现的各种名称——分支全名、分支最后一段、PRD slug、PRD 文件名（可带 `.md`）与 `tasks/pending/....md` 路径；精确分支名优先于 slug 等价匹配，命中多个 worktree 时报错并列出候选，未命中时列出当前可打开的 worktree（不猜旧约定路径 `$repo_parent/<名称>`）。
 - 执行过程中每个主要步骤后运行 `just prd heartbeat <prd-file>` 续期；锁丢失或归属不符时 heartbeat 非零退出，便于 executor 发现锁已被接管。锁归属 worktree 有持续文件改动时活性探测会阻止误接管，心跳是兜底；主仓库持有的锁没有活性佐证，仍完全依赖心跳。
 - 宽松兜底：提交时 `check_prd_lock_conflict` 钩子发现 staged 变更触及他人新鲜锁 PRD 的 `tasks/pending` / `tasks/evidence` 路径会输出警告，但永不阻断提交。
-- 看板 ACTIVITY 列：**分支归档优先于一切锁信号**——存在分支名匹配的 worktree 且其中 `tasks/archive` 已有该 PRD 时，无论锁是新鲜还是过期（含带活性佐证的 RUNNING）一律显示绿色 `✔ branch-archived @<branch> · <n>/<m> · awaiting merge`（收尾已在分支完成，只差合并回主线，清单进度取归档副本的真实勾选；残留锁把已完成的 PRD 渲染成 RUNNING / STALE 会误导人重新执行一个已完成的任务）；其余按锁状态渲染：新鲜锁显示 `RUNNING <tool> <时长> @<branch>`（branch 缺失回退 worktree）；过期锁但归属 worktree 仍有近期改动同样显示 `RUNNING`（活性佐证优先于心跳）；过期且无活性佐证显示 `STALE <最后心跳>`；无锁但存在分支名匹配的 worktree 且其中未归档该 PRD 显示黄色 `⚠ unlocked @<branch>`（互斥未生效，需进 worktree 补领锁）；无锁但 PRD 文件或证据目录 15 分钟内有改动显示暗色 `⚡ active <n>m ago`；其余 `-`。
+- 看板 ACTIVITY 列：**分支归档优先于一切锁信号**——存在分支名匹配的 worktree 且其中 `tasks/archive` 已有该 PRD 时，无论锁是新鲜还是过期（含带活性佐证的 RUNNING）一律显示绿色 `✔ branch-archived @<branch> · awaiting merge`（收尾已在分支完成，只差合并回主线；清单进度见 CHECKLIST 列，该列同样读分支副本，ACTIVITY 不再重复携带）；其余按锁状态渲染：新鲜锁显示 `RUNNING <tool> <时长> @<位置>`，位置按实际状态解析——锁归属主仓库（`worktree` 为空，例如 `just implement` 领锁后 worktree 尚未建出的窗口）显示 `@主仓库`，归属 worktree 仍存在时显示其当前实际检出的分支，目录已消失且锁里的分支也无处检出时显示归属标签本身（不照抄锁里的 `branch` 快照，否则看板会给出一个用 `just worktree -o` 打不开的名字）；过期锁但归属 worktree 仍有近期改动同样显示 `RUNNING`（活性佐证优先于心跳）；过期且无活性佐证显示 `STALE <最后心跳>`；无锁但存在分支名匹配的 worktree 且其中未归档该 PRD 显示黄色 `⚠ unlocked @<branch>`（互斥未生效，需进 worktree 补领锁）；无锁但 PRD 文件或证据目录 15 分钟内有改动显示暗色 `⚡ active <n>m ago`；其余 `-`。
 
 ## Platform Notes
 

@@ -55,11 +55,14 @@ AI 代理默认不会设置该变量，因此会被 hook 拦下——这是"指�
 |---|---|
 | `shared/test_archive_tasks.py` | PRD 归档 hook（`hooks/shared/archive_tasks.py`） |
 | `shared/test_check_max_file_lines.py` | 单文件行数上限 hook（`hooks/shared/check_max_file_lines.py`） |
+| `shared/test_check_prd_evidence.py` | PRD 证据门禁（`scripts/shared/just/check_prd_evidence.sh`）：证据目录里的静态图必须在证据报告里用 `![](…)` 就地嵌入（`open` 命令不算呈递），失败要点名漏嵌文件；无报告、无图片、录屏均不得误伤 |
 | `shared/test_check_schema_conventions.py` | schema convention hook（`hooks/shared/check_schema_conventions.py`）：迁移脚本命名校验、分隔符与 revision 一致性 |
 | `shared/test_duplication_check_utils.py` | duplication-check 共享 git helper（`hooks/shared/duplication_check_utils.py`） |
 | `shared/test_gc_worktree_databases.py` | Worktree 数据库 GC 脚本（`scripts/shared/worktree/gc_worktree_databases.py`） |
+| `shared/test_open_worktree.py` | `just worktree -o` 的名称解析（`scripts/shared/worktree/open.sh`）：PRD slug / 文件名 / `tasks/pending` 路径与分支末段等价、精确分支优先、歧义报错列候选、不回退旧约定目录、未命中列可用 worktree |
+| `shared/test_prd_impact_tree.py` | 影响树触达进度（`scripts/shared/just/prd_impact_tree.py` 与看板 FILES 列）：触达判据必须是「本次分支改动过」而非「文件存在」、未提交与未 `git add` 的改动都要计入、目录节点下任一文件被改即算触达、可判定性只认 git 真实路径（大小写严格、不吃 gitignore 残留）、无法判定的节点排除出分母并用 `?n` 披露、裸文件名不得回退仓库根、FILES 列永不转绿 |
 | `shared/test_prd_lock.py` | PRD 执行锁脚本（`scripts/shared/just/prd_lock.py`）：锁落主仓库、并发领锁唯一、过期接管留档、worktree 活性佐证的存活判定 |
-| `shared/test_prd_status.py` | PRD 状态看板（`scripts/shared/just/prd_status.py`）：分支归档优先于锁信号（branch-archived）、无锁 worktree 的 `⚠ unlocked` 警告与活性 RUNNING / STALE 渲染 |
+| `shared/test_prd_status.py` | PRD 状态看板（`scripts/shared/just/prd_status.py`）：清单进度与证据包取分支副本（archive → pending → 主仓库兜底、只认 slug 匹配的 worktree）、分支归档优先于锁信号（branch-archived）、无锁 worktree 的 `⚠ unlocked` 警告、活性 RUNNING / STALE 渲染，以及锁位置不冒充并不存在的分支（`@主仓库` / 归属标签） |
 | `shared/test_quality_flag_hooks.py` | quality / test flag hook 行为（`scripts/shared/hooks/`） |
 | `shared/test_release_script.py` | release 归档排除规则（`scripts/shared/release.py`） |
 | `shared/test_run_jscpd_duplication_check.py` | jscpd 增量重复检查 hook 逻辑（`hooks/shared/run_jscpd_duplication_check.py`） |

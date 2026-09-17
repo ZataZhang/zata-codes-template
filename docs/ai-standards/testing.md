@@ -286,8 +286,9 @@ HTML 报告仍固定在 `tests/playwright-e2e/playwright-report/`，可用 `just
 8. **轮次上限**：最多 2 轮。第 2 轮 verifier 只复查第 1 轮的 `BLOCKER` 和证据变更带来的新 `BLOCKER`，不对已接受的证据开新的 `NON-BLOCKING` 战线。2 轮后仍有 `BLOCKER` 时流程停止，在证据报告里写 `Open Items For Human Review` 交人决定——没有第 3 轮。轮次计数落在 `<evidence-dir>/.verifier-round`。
 9. **回填验收清单**：独立 verifier 返回 `PASS` 后，executor 必须把证据报告已建立对应关系、证据足以支持且没有相关 `BLOCKER` 的非人工验收项更新为 `[x]`，并在条目旁标注对应证据文件。不得因为等待人工终点审查而把这些机器可验证项留空；只有明确标记为 `Human-Confirmed` 的项目可以继续保持未勾选，并在人工确认后记录实际观察结果再勾选。证据文件仅仅存在但没有验收项映射、未获 verifier `PASS` 或仍有相关 `BLOCKER` 时，不得勾选。
 10. **前端强制视觉证据**：如果 PRD 涉及 `frontend-admin/` 或 `frontend-public/` 改动，证据目录必须包含至少一个 `.png`、`.jpg` 或 `.webm` 文件。
-11. **最终校验**：verifier 通过后，`just ai implement` 运行 `scripts/shared/just/check_prd_evidence.sh` 再次确认前端视觉证据存在，缺少则阻止流程结束。
-12. **工具不可用**：verifier 默认工具不可用时，降级到与 executor 相同工具；相同工具也不可用时，流程暂停并提示人工，不自动回退到 executor 自检。
+11. **图必须就地嵌进报告**：证据目录里的每张静态图（`.png` / `.jpg`）都必须在 `<prd-basename>.evidence-report.md` 里用 `![<说明>](<相对路径>)` 嵌入——报告与图片同目录，本地 Markdown 预览直接渲染。图片被 `.gitignore` 排除、在 GitHub 上是坏图，所以嵌图旁要标注「本地图片」并附 `open "<绝对路径>"`；标注与命令是嵌图的补充，不是替代品。只写一行 `open` 命令、让人粘完命令才看得见截图，不算呈递。录屏无法内联渲染，免嵌图。
+12. **最终校验**：verifier 通过后，`just ai implement` 运行 `scripts/shared/just/check_prd_evidence.sh`，确认静态图都已就地嵌入、且前端视觉证据存在，缺任一项都阻止流程结束。
+13. **工具不可用**：verifier 默认工具不可用时，降级到与 executor 相同工具；相同工具也不可用时，流程暂停并提示人工，不自动回退到 executor 自检。
 
 ### 证据链完整性（按风险分层）
 
