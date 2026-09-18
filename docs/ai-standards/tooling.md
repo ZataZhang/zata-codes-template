@@ -34,7 +34,7 @@
 | `just ai fix [claude\|kimi]` | 用 AI 解决当前 git 冲突（rebase/merge/cherry-pick 等） |
 | `just ai commit [claude\|kimi]` | 先跑 `just test`，再用 AI 生成提交信息 |
 | `just ai implement <prd-file> [claude\|kimi]` | 按 PRD 实现功能 |
-| `just prd status [all\|pending\|archive]` | PRD 状态看板：pending 逐条列出、archive 按月折叠，展示验收清单勾选进度、影响树触达进度（FILES 列）、证据包状态与运行态（ACTIVITY 列） |
+| `just prd status [all\|pending\|archive] [--detail]` | PRD 状态看板：pending 逐条列出、archive 按月折叠，展示验收清单勾选进度、影响树触达进度（FILES 列）、证据包状态与运行态（ACTIVITY 列）；`--detail` 在每个 PRD 行下方追加标题与描述摘要块 |
 | `just prd start <prd-file> [--tool <名称>] [--branch <名称>]` | 领取 PRD 执行锁：他人新鲜锁拒绝开工（退出 1）并输出持锁者信息；过期锁自动接管并留档；同归属重复领锁幂等刷新 |
 | `just prd heartbeat <prd-file>` | 续期当前会话持有的执行锁；锁丢失或归属不符时警告并非零退出 |
 | `just prd release <prd-file> [--force]` | 释放执行锁；归属不符需显式 `--force` |
@@ -132,6 +132,7 @@ python scripts/check_prd_acceptance_checklist.py --repo-root "$PWD" --all
 `just prd status` 汇总上述状态，输出 `tasks/pending` 的逐条明细与 `tasks/archive` 的月份折叠概览（`all` 展开每条）：
 
 - 明细列：优先级与类型（取自文件名前缀）、创建日期、验收清单 `已勾/总数`、影响树触达进度（FILES 列）、证据包 `plan` / `report` / `verifier` 三个槽位。
+- `--detail`：在每个 PRD 行下方追加该 PRD 的一级标题与描述摘要——优先取 `Introduction & Goals` 章节正文（兼容编号写法），缺章节时退化为标题后的引言；最多 4 行，单行超宽截断、仍有剩余正文时末行补省略号。摘要与清单进度同源，读分支副本优先的 PRD 正文；archive 折叠视图不展开行，该选项只在逐条列出的视图（`status` / `pending` / `all`）下生效。
 - archive 概览：每月 PRD 条数、清单全完成的条数、有证据包的条数与 verifier `REJECT` 条数；月份下出现 `⚠ 有未勾完的清单` 时，会列出具体是哪几条。
 
 **进度与证据取分支副本**：执行发生在 worktree 里，主仓库的 `tasks/pending` 副本与证据目录要等合并回主线才更新。因此存在分支名匹配的 worktree 时，清单进度取该 worktree 内 `tasks/archive` → `tasks/pending` 的 PRD 副本，证据包按 `plan` / `report` / `verifier` 每个槽位单独「分支目录先查、主仓库目录后查」；没有匹配 worktree（例如直接在主仓库开工）时读主仓库副本。只认 slug 匹配到的那个 worktree——每个 worktree 都带一份未改动的同名 pending 副本。
