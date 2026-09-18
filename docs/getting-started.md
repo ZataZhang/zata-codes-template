@@ -113,7 +113,7 @@ just worktree feature-branch --base develop
 `just worktree -o <Tab>`、`just worktree -d <Tab>` 与
 `just worktree -D <Tab>` 补全本地分支名，并为 `just prd <Tab>` 补全
 子命令（`status`、`start`、`heartbeat`、`release`）、为 `just prd status <Tab>` 补全 scope
-（`all`、`pending`、`archive`）。
+（`all`、`pending`、`archive`）与 `--detail` 旗标（二者可互换位置）。
 
 打开已有 worktree 用 `just worktree -o <名称>`。除分支全名外，名称还接受分支最后一段、
 PRD slug、PRD 文件名（可带 `.md`）与 `tasks/pending/....md` 路径——`just prd status`
