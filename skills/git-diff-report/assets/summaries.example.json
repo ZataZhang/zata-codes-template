@@ -1,0 +1,18 @@
+{
+  "title": "示例仓库改动报告",
+  "meta_line": "分支 main · 已暂存改动 · 已排除 tests/**",
+  "files": {
+    "src/backend/core/use_cases/example.py": {
+      "summary": "新增 remove_example()：只删除配置条目，返回被删条目视图；同时补上同一路径不被多个 ID 占用校验。",
+      "hunk_notes": [
+        "补充模块不变量说明",
+        "新增 _find_entry_by_path",
+        "新增 remove_example"
+      ]
+    },
+    "justfile": {
+      "summary": "run 增加 set -m 开启作业控制，清理时按进程组 TERM→KILL，避免孙进程残留。",
+      "hunk_notes": ["开启作业控制", "新增 kill_tree"]
+    }
+  }
+}
