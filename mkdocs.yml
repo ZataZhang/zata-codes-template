@@ -72,7 +72,7 @@ nav:
       - 后台用户管理: prototypes/admin-users-interactive.md
       - AI 生成图片热点: prototypes/admin-users-ai-image-hotspot.md
       - PRD Demo UI: prototypes/prd-demo.html
-      - Worktree 前端依赖策略: prototypes/worktree-frontend-demo.html
+      - 登录页: prototypes/login-demo.md
       - Assets 命名规范: prototypes/assets/README.md
   - 核心概念:
       - Prompt 工程: core/prompt_engineering.md
