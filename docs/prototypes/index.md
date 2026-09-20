@@ -17,7 +17,7 @@
 - [后台用户管理交互原型](admin-users-interactive.md)
 - [AI 生成图片热点原型](admin-users-ai-image-hotspot.md)
 - [PRD Demo 可交互原型](prd-demo.html)
-- [Worktree 前端依赖策略 Demo](worktree-frontend-demo.html)
+- [登录页交互原型](login-demo.md)
 - [Assets 命名规范](assets/README.md)
 
 ## 设计约束

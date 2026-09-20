@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>登录页 · 交互原型</title>
+<!--
+  登录页交互原型（模板示例原型）
+
+  来源（真实代码，非臆造）：
+  - 页面结构: frontend-public/app/(auth)/login/page.tsx
+  - 表单行为: frontend-public/app/(auth)/login/login-form.tsx
+  - 外层布局: frontend-public/app/(auth)/layout.tsx
+  - 设计令牌: frontend-public/app/globals.css 的 :root
+  - 文案:     frontend-public/messages/zh.json 的 auth / errors / toast 命名空间
+
+  验证层级: interactive prototype（component preview），不构成功能验收证据。
+  数据为本地 fixture，未接入任何生产 API。
+-->
+<style>
+  /* 1. 设计令牌：取自 frontend-public/app/globals.css:root */
+  :root {
+    --background: oklch(0.98 0.005 280);
+    --foreground: oklch(0.145 0 0);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.145 0 0);
+    --primary: oklch(0.55 0.22 285);
+    --primary-foreground: oklch(0.985 0 0);
+    --secondary: oklch(0.95 0.01 285);
+    --muted: oklch(0.94 0.01 285);
+    --muted-foreground: oklch(0.45 0.02 285);
+    --destructive: oklch(0.577 0.245 27.325);
+    --destructive-foreground: oklch(0.985 0 0);
+    --border: oklch(0.88 0.01 285);
+    --ring: oklch(0.55 0.22 285);
+    --radius: 0.625rem;
+    --success: oklch(0.55 0.18 145);
+  }
+  /* .spin 显式设了 display，会盖掉 UA 的 [hidden]，这里统一兜底 */
+  [hidden] { display: none !important; }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    min-height: 100svh; background: color-mix(in oklab, var(--muted) 50%, var(--background));
+    color: var(--foreground); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+  }
+  button { font: inherit; color: inherit; }
+
+  /* 2. 外层：复刻 (auth)/layout.tsx —— 垂直水平居中，卡片 max-w-sm */
+  .auth-shell { display: flex; min-height: 100svh; flex-direction: column; align-items: center; justify-content: center; padding: 24px; }
+  .auth-card-wrap { width: 100%; max-width: 384px; }
+
+  /* 3. 卡片：复刻 components/ui/card.tsx + login/page.tsx */
+  .card {
+    background: var(--card); color: var(--card-foreground); border: 1px solid var(--border);
+    border-radius: 14px; box-shadow: 0 10px 30px -12px rgb(0 0 0 / 25%); padding: 24px;
+  }
+  .card-header { display: flex; flex-direction: column; gap: 6px; text-align: center; }
+  .card-title { font-size: 24px; font-weight: 600; line-height: 1.25; margin: 0; }
+  .card-desc { font-size: 14px; color: var(--muted-foreground); margin: 0; }
+  .card-content { margin-top: 24px; }
+
+  /* 4. 表单 */
+  .form { display: grid; gap: 16px; }
+  .field { display: grid; gap: 8px; }
+  .field-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .label { font-size: 14px; font-weight: 500; }
+  .input {
+    height: 36px; width: 100%; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--card); padding: 0 12px; font-size: 14px; color: var(--foreground);
+  }
+  .input::placeholder { color: var(--muted-foreground); }
+  .input:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; border-color: var(--ring); }
+  .input[aria-invalid='true'] { border-color: var(--destructive); }
+  .input:disabled { background: var(--muted); opacity: .6; }
+  .phone-row { display: flex; align-items: center; gap: 8px; }
+  .password-toggle {
+    border: 0; background: none; cursor: pointer; color: var(--muted-foreground);
+    font-size: 12px; padding: 2px 4px; border-radius: 4px;
+  }
+  .password-toggle:hover { color: var(--foreground); background: var(--secondary); }
+  .link-quiet { border: 0; background: none; cursor: pointer; color: var(--muted-foreground); font-size: 12px; padding: 0; text-decoration: underline; text-underline-offset: 4px; }
+  .link-quiet:hover { color: var(--primary); }
+  .field-error { font-size: 12.5px; color: var(--destructive); }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    height: 36px; width: 100%; border: 1px solid transparent; border-radius: 8px;
+    background: var(--primary); color: var(--primary-foreground); font-size: 14px; font-weight: 500; cursor: pointer;
+    transition: background-color .15s ease;
+  }
+  .btn:hover { background: color-mix(in oklab, var(--primary) 90%, transparent); }
+  .btn:disabled { pointer-events: none; opacity: .5; }
+  .btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  .spin { display: inline-block; width: 14px; height: 14px; border: 2px solid currentColor; border-top-color: transparent; border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .form-foot { margin-top: 24px; text-align: center; font-size: 14px; color: var(--muted-foreground); }
+  .form-foot a { color: var(--primary); text-decoration: none; text-underline-offset: 4px; }
+  .form-foot a:hover { text-decoration: underline; }
+  .inline-result { border-radius: 8px; padding: 10px 12px; font-size: 13px; margin-top: 4px; }
+  .inline-result.ok { background: color-mix(in oklab, var(--success) 14%, transparent); color: color-mix(in oklab, var(--success) 70%, black); }
+  .inline-result.err { background: color-mix(in oklab, var(--destructive) 12%, transparent); color: var(--destructive); }
+
+  /* 5. Toast（复刻 sonner 的居中顶部提示） */
+  .toast-wrap { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); z-index: 1200; display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; }
+  .toast { border-radius: 10px; padding: 10px 16px; font-size: 13px; max-width: min(560px, 92vw); box-shadow: 0 14px 32px -14px rgb(0 0 0 / 55%); animation: pop .16s ease; background: var(--foreground); color: var(--background); }
+  .toast.ok { background: var(--success); color: var(--primary-foreground); }
+  .toast.err { background: var(--destructive); color: var(--destructive-foreground); }
+  @keyframes pop { from { opacity: 0; transform: translateY(-6px); } }
+
+  /* 6. 浮层 */
+  .overlay { position: fixed; inset: 0; z-index: 1100; background: rgb(0 0 0 / 60%); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .dialog { position: relative; width: 100%; max-width: 620px; background: var(--background); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 24px 60px -20px rgb(0 0 0 / 45%); padding: 24px; max-height: calc(100svh - 40px); overflow: auto; }
+  .dialog h2 { margin: 0 0 6px; font-size: 18px; }
+  .dialog .sub { margin: 0 0 14px; color: var(--muted-foreground); font-size: 13px; }
+  .dialog dl { margin: 0; }
+  .dialog dl div { display: grid; grid-template-columns: 92px 1fr; gap: 10px; border-top: 1px solid var(--border); padding: 9px 0; font-size: 13px; }
+  .dialog dt { color: var(--muted-foreground); }
+  .dialog dd { margin: 0; }
+  .dialog code { background: color-mix(in oklab, var(--primary) 10%, transparent); color: var(--primary); border-radius: 5px; padding: 2px 5px; font-size: 12px; }
+  .dialog ol, .dialog ul { margin: 6px 0 0 18px; color: var(--muted-foreground); font-size: 13px; line-height: 1.7; }
+  .dialog-close { position: absolute; right: 14px; top: 14px; border: 0; background: none; cursor: pointer; color: var(--muted-foreground); border-radius: 6px; width: 30px; height: 30px; font-size: 16px; }
+  .dialog-close:hover { background: var(--secondary); color: var(--foreground); }
+  .dialog-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+  .btn-sm { height: 32px; width: auto; padding: 0 12px; font-size: 12px; border-radius: 6px; }
+  .btn-outline { background: var(--background); border-color: var(--border); color: var(--foreground); }
+  .btn-outline:hover { background: var(--secondary); }
+
+  /* 7. 「显示可点击区域」 */
+  body.hotspots-on [data-hot] { outline: 2px dashed color-mix(in oklab, var(--primary) 65%, transparent); outline-offset: 2px; border-radius: 6px; position: relative; }
+  body.hotspots-on [data-hot]::after {
+    content: attr(data-hot); position: absolute; z-index: 40; left: 50%; top: -9px; transform: translate(-50%, -100%);
+    background: var(--primary); color: var(--primary-foreground); font-size: 10px; font-weight: 600; line-height: 1.6;
+    padding: 0 7px; border-radius: 999px; white-space: nowrap; pointer-events: none;
+  }
+
+  /* 8. prototype chrome：底部毛玻璃 Dock，不属于产品 UI */
+  .prototype-chrome { position: fixed; left: 50%; bottom: 18px; z-index: 1000; display: flex; width: 372px; max-width: calc(100vw - 28px); align-items: center; gap: 3px; overflow: hidden; padding: 5px; border: 1px solid rgb(255 255 255 / 72%); border-radius: 15px; background: linear-gradient(135deg, rgb(255 255 255 / 90%), rgb(245 240 255 / 82%)); box-shadow: inset 0 1px 0 #fff, 0 14px 38px rgb(45 23 68 / 18%); backdrop-filter: blur(20px) saturate(155%); color: #40384d; font-size: 12px; transform: translateX(-50%); transition: width 360ms cubic-bezier(.22,1,.36,1), opacity 300ms ease, transform 360ms cubic-bezier(.22,1,.36,1); }
+  .prototype-chrome::before { position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(110deg, rgb(255 255 255 / 44%), transparent 38%, rgb(139 92 246 / 9%)); content: ''; pointer-events: none; }
+  .prototype-chrome__label { position: relative; display: inline-flex; min-width: 47px; min-height: 34px; align-items: center; justify-content: center; align-self: stretch; border-radius: 10px; background: linear-gradient(145deg, #7c3aed, #5b21b6); color: #fff; font-weight: 700; letter-spacing: .04em; }
+  .prototype-chrome a, .prototype-chrome button { position: relative; display: inline-flex; min-height: 34px; align-items: center; justify-content: center; gap: 5px; padding: 0 10px; border: 0; border-radius: 9px; background: transparent; color: #51485e; font: inherit; font-weight: 550; text-decoration: none; white-space: nowrap; cursor: pointer; transition: background 160ms ease, color 160ms ease; }
+  .prototype-chrome a:hover, .prototype-chrome button:hover { background: rgb(255 255 255 / 72%); box-shadow: inset 0 0 0 1px #ddd4f1; color: #5f46d8; text-decoration: none; }
+  .prototype-chrome a:focus-visible, .prototype-chrome button:focus-visible { outline: 2px solid #7c3aed; outline-offset: 1px; }
+  .prototype-chrome button[aria-pressed='true'] { background: #ede9fe; color: #5b21b6; }
+  .prototype-chrome.is-idle { width: 57px; opacity: .38; transform: translate(-50%, 10px); }
+  .prototype-chrome.is-idle a, .prototype-chrome.is-idle button { opacity: 0; pointer-events: none; }
+  .prototype-chrome.is-idle:hover, .prototype-chrome.is-idle:focus-within { opacity: .72; }
+  .capture-product-only [data-prototype-chrome] { display: none !important; }
+
+  @media (max-width: 560px) {
+    .prototype-chrome { bottom: 10px; width: min(372px, calc(100vw - 20px)); }
+    .prototype-chrome a, .prototype-chrome button { padding: 0 8px; }
+    .auth-shell { padding: 16px 16px 96px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .prototype-chrome, .prototype-chrome a, .prototype-chrome button, .btn { transition: none; } }
+</style>
+</head>
+<body>
+
+<main class="auth-shell">
+  <div class="auth-card-wrap">
+    <section class="card" aria-labelledby="login-title">
+      <header class="card-header">
+        <h1 class="card-title" id="login-title">欢迎回来</h1>
+        <p class="card-desc">请输入账号信息登录</p>
+      </header>
+
+      <div class="card-content">
+        <form class="form" id="login-form" novalidate>
+          <div class="field">
+            <label class="label" for="identifier">用户名 / 邮箱</label>
+            <input class="input" id="identifier" name="identifier" placeholder="admin@example.com"
+                   autocomplete="username" data-hot="输入用户名或邮箱" aria-invalid="false">
+            <p class="field-error" id="identifier-error" hidden></p>
+          </div>
+
+          <div class="field">
+            <div class="field-head">
+              <label class="label" for="password">密码</label>
+              <button type="button" class="link-quiet" id="forgot" data-hot="忘记密码">忘记密码？</button>
+            </div>
+            <div class="phone-row">
+              <input class="input" id="password" name="password" type="password" placeholder="********"
+                     autocomplete="current-password" data-hot="输入密码" aria-invalid="false">
+              <button type="button" class="password-toggle" id="toggle-password"
+                      data-hot="显示/隐藏密码" aria-pressed="false" aria-label="显示密码">显示</button>
+            </div>
+            <p class="field-error" id="password-error" hidden></p>
+          </div>
+
+          <button class="btn" type="submit" id="submit" data-hot="提交登录">
+            <span class="spin" id="submit-spinner" aria-hidden="true" hidden></span>
+            <span id="submit-icon" aria-hidden="true">⇥</span>
+            <span id="submit-label">登录</span>
+          </button>
+
+          <div id="result"></div>
+        </form>
+
+        <p class="form-foot">
+          还没有账号？
+          <a href="#" id="sign-up" data-hot="去注册（不在本原型范围）">立即注册</a>
+        </p>
+      </div>
+    </section>
+  </div>
+</main>
+
+<div class="toast-wrap" id="toasts" aria-live="polite"></div>
+<div id="overlay-root"></div>
+
+<nav class="prototype-chrome" data-prototype-chrome aria-label="原型评审工具">
+  <span class="prototype-chrome__label">原型</span>
+  <a href="./prototype-hub.html" title="返回可点击原型中心">Hub</a>
+  <button type="button" data-info-toggle>说明</button>
+  <button type="button" data-hotspot-toggle aria-pressed="true">◎ 可点击区域：开</button>
+  <button type="button" data-prototype-reset>重置</button>
+</nav>
+
+<script>
+(() => {
+  /* ---- 元素引用 ---- */
+  const form = document.getElementById("login-form");
+  const identifierInput = document.getElementById("identifier");
+  const passwordInput = document.getElementById("password");
+  const identifierError = document.getElementById("identifier-error");
+  const passwordError = document.getElementById("password-error");
+  const submitButton = document.getElementById("submit");
+  const submitSpinner = document.getElementById("submit-spinner");
+  const submitIcon = document.getElementById("submit-icon");
+  const submitLabel = document.getElementById("submit-label");
+  const resultBox = document.getElementById("result");
+  const toasts = document.getElementById("toasts");
+  const overlayRoot = document.getElementById("overlay-root");
+
+  let loadingTimer = null;
+  let toastTimers = [];
+
+  const escapeHtml = (value) =>
+    String(value ?? "").replace(/[&<>'"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[c]));
+
+  /** 顶部提示，3.2 秒后自动消失。 */
+  function toast(message, tone) {
+    const node = document.createElement("div");
+    node.className = "toast" + (tone ? " " + tone : "");
+    node.innerHTML = escapeHtml(message);
+    toasts.appendChild(node);
+    toastTimers.push(setTimeout(() => node.remove(), 3200));
+  }
+
+  /** 清理提示、内联结果与所有字段错误，回到初始态。 */
+  function resetState() {
+    if (loadingTimer) { clearTimeout(loadingTimer); loadingTimer = null; }
+    toastTimers.forEach(clearTimeout);
+    toastTimers = [];
+    toasts.innerHTML = "";
+    overlayRoot.innerHTML = "";
+    resultBox.innerHTML = "";
+    setFieldError(identifierInput, identifierError, null);
+    setFieldError(passwordInput, passwordError, null);
+    identifierInput.value = "";
+    passwordInput.value = "";
+    identifierInput.disabled = false;
+    passwordInput.disabled = false;
+    setLoading(false);
+  }
+
+  function setFieldError(input, errorNode, message) {
+    if (message) {
+      input.setAttribute("aria-invalid", "true");
+      errorNode.textContent = message;
+      errorNode.hidden = false;
+    } else {
+      input.setAttribute("aria-invalid", "false");
+      errorNode.textContent = "";
+      errorNode.hidden = true;
+    }
+  }
+
+  function setLoading(isLoading) {
+    submitButton.disabled = isLoading;
+    identifierInput.disabled = isLoading;
+    passwordInput.disabled = isLoading;
+    // 切换两个稳定的节点，不做 outerHTML 替换（替换会让保存的引用脱离文档）
+    submitSpinner.hidden = !isLoading;
+    submitIcon.hidden = isLoading;
+    submitLabel.textContent = isLoading ? "登录中…" : "登录";
+  }
+
+  /** 复刻 login-form.tsx 的 zod 校验：identifier / password 均必填。 */
+  function validate() {
+    const identifierMissing = identifierInput.value.trim() === "";
+    const passwordMissing = passwordInput.value === "";
+    setFieldError(identifierInput, identifierError, identifierMissing ? "请输入用户名或邮箱" : null);
+    setFieldError(passwordInput, passwordError, passwordMissing ? "请输入密码" : null);
+    return !identifierMissing && !passwordMissing;
+  }
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    resultBox.innerHTML = "";
+    if (!validate()) return;
+
+    setLoading(true);
+    // 模拟请求往返。密码输入 wrong 走失败分支，便于演示错误态。
+    loadingTimer = setTimeout(() => {
+      loadingTimer = null;
+      setLoading(false);
+      if (passwordInput.value === "wrong") {
+        toast("登录失败", "err");
+        resultBox.innerHTML = '<div class="inline-result err">登录失败：账号或密码不正确（模拟 401）</div>';
+      } else {
+        toast("登录成功", "ok");
+        resultBox.innerHTML = '<div class="inline-result ok">登录成功 —— 真实实现会 <code>router.replace("/app/dashboard")</code>（原型不跳转）</div>';
+      }
+    }, 900);
+  });
+
+  // 输入时清除该字段的错误，与 react-hook-form 的行为一致
+  [identifierInput, passwordInput].forEach((input) =>
+    input.addEventListener("input", () => setFieldError(input, input === identifierInput ? identifierError : passwordError, null)));
+
+  document.getElementById("toggle-password").addEventListener("click", (event) => {
+    const shown = passwordInput.type === "text";
+    passwordInput.type = shown ? "password" : "text";
+    event.currentTarget.textContent = shown ? "显示" : "隐藏";
+    event.currentTarget.setAttribute("aria-pressed", String(!shown));
+    event.currentTarget.setAttribute("aria-label", shown ? "显示密码" : "隐藏密码");
+  });
+
+  document.getElementById("forgot").addEventListener("click", () => toast("请联系管理员重置密码"));
+  document.getElementById("sign-up").addEventListener("click", (event) => {
+    event.preventDefault();
+    toast("「立即注册」跳转到 /register，不在本原型范围");
+  });
+
+  /* ---- 说明浮层 ---- */
+  function openInfo() {
+    overlayRoot.innerHTML = `
+      <div class="overlay" onclick="if(event.target===this)document.getElementById('overlay-root').innerHTML=''">
+        <div class="dialog" role="dialog" aria-modal="true" aria-label="原型说明">
+          <button class="dialog-close" aria-label="关闭" data-hot="关闭" onclick="document.getElementById('overlay-root').innerHTML=''">✕</button>
+          <h2>登录页 · 交互原型</h2>
+          <p class="sub">验证层级：interactive prototype（component preview）——<strong>不构成功能验收证据</strong>；数据为本地 fixture，未接入生产 API。</p>
+          <dl>
+            <div><dt>来源页面</dt><dd><code>frontend-public/app/(auth)/login/</code></dd></div>
+            <div><dt>设计令牌</dt><dd><code>frontend-public/app/globals.css</code> 的 :root</dd></div>
+            <div><dt>文案</dt><dd><code>frontend-public/messages/zh.json</code> 的 auth / errors / toast</dd></div>
+            <div><dt>原型形式</dt><dd>code-native 单文件，无外部依赖</dd></div>
+          </dl>
+          <p class="sub" style="margin:14px 0 0;font-weight:600;color:var(--foreground)">状态模型与触发方式</p>
+          <ol>
+            <li><strong>idle</strong>：初始态</li>
+            <li><strong>validation-error</strong>：留空点「登录」→ 两字段分别提示「请输入用户名或邮箱」「请输入密码」</li>
+            <li><strong>loading</strong>：填任意非空值提交 → 按钮转圈并禁用输入</li>
+            <li><strong>success</strong>：密码填非 <code>wrong</code> → 提示「登录成功」+ 内联结果</li>
+            <li><strong>failure</strong>：密码填 <code>wrong</code> → 提示「登录失败」+ 401 内联错误</li>
+            <li>密码可见性切换；「忘记密码？」提示；「立即注册」为范围外提示</li>
+          </ol>
+          <p class="sub" style="margin:14px 0 0;font-weight:600;color:var(--foreground)">未覆盖 / 需生产确认</p>
+          <ul>
+            <li>真实鉴权、<code>redirect</code> 查询参数落地、注册与找回密码页</li>
+            <li>平台级错误（限流 429、网络失败）与多语言切换</li>
+          </ul>
+          <div class="dialog-foot">
+            <a class="btn btn-sm btn-outline" href="./index.md">原型约定</a>
+            <button class="btn btn-sm" data-hot="关闭" onclick="document.getElementById('overlay-root').innerHTML=''">关闭</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  /* ---- prototype chrome ---- */
+  const chrome = document.querySelector("[data-prototype-chrome]");
+  const hotspotToggle = chrome.querySelector("[data-hotspot-toggle]");
+  let idleTimer = null;
+  const setHotspotsVisible = (visible) => {
+    document.body.classList.toggle("hotspots-on", visible);
+    hotspotToggle.setAttribute("aria-pressed", String(visible));
+    hotspotToggle.textContent = `◎ 可点击区域：${visible ? "开" : "关"}`;
+  };
+  const wake = () => { clearTimeout(idleTimer); chrome.classList.remove("is-idle"); };
+  const sleepLater = (delay = 2500) => {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+      if (!chrome.matches(":hover") && !chrome.matches(":focus-within")) chrome.classList.add("is-idle");
+    }, delay);
+  };
+  hotspotToggle.addEventListener("click", () => setHotspotsVisible(!document.body.classList.contains("hotspots-on")));
+  chrome.querySelector("[data-info-toggle]").addEventListener("click", openInfo);
+  chrome.querySelector("[data-prototype-reset]").addEventListener("click", () => { setHotspotsVisible(true); resetState(); });
+  chrome.addEventListener("pointerenter", wake);
+  chrome.addEventListener("pointerleave", () => sleepLater(1200));
+  chrome.addEventListener("focusin", wake);
+  chrome.addEventListener("focusout", () => sleepLater(1200));
+  setHotspotsVisible(true);
+  sleepLater();
+
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") overlayRoot.innerHTML = "";
+  });
+})();
+</script>
+</body>
+</html>
