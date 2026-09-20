@@ -42,7 +42,7 @@
 - 新增或修改代码前先搜索现有实现；禁止复制粘贴后微调，参数超过 4 个时收敛到对象
 - 除非用户明确要求，否则不要自动执行 `git add`、`git commit`、`git push` 等 Git 变更操作
 - 单代码文件非空行不超过 1000 行；`just lint` 会对此发出警告
-- 随手想法先落 `tasks/inbox/`：原话逐字**只追加**到 `tasks/inbox/ideas.md`（禁止改写已有条目），AI 维护 `tasks/inbox/summary.md` 做总结；想法成熟后用 PRD 流程升级到 `tasks/pending/`。详见 `docs/guides/idea-inbox.md`
+- 随手想法先落 `tasks/inbox/`：只在**想法边界**捕获（用户明确要求，或话题收敛到可开 PRD 的状态），条目 = 用户原话逐字**引用** + 标注为 `AI 派生` 的背景块，**只追加**到 `tasks/inbox/ideas.md`（禁止改写已有条目）；AI 维护 `tasks/inbox/summary.md` 做总结；想法成熟后用 PRD 流程升级到 `tasks/pending/`。详见 `docs/guides/idea-inbox.md`
 - 执行 `tasks/pending/` 下任何 PRD 前先 `just prd start <prd-file>` 领取执行锁（知道工具名就 `--tool` 自报）；若报告他人新鲜锁，立即停止并向用户报告持锁者，不要继续实现。详见 `docs/ai-standards/tooling.md` 的 PRD 执行锁小节
 - PRD 对应任务全部完成后：生成验证计划、收集证据；独立 verifier `PASS` 后，executor 必须勾选证据充分支持的非人工 Acceptance Checklist 项并标注证据，只有 `Human-Confirmed` 项等待人工确认；所有条目达到完成态后，再将 PRD 从 `tasks/pending/` 归档到 `tasks/archive/`
 - 禁止为了可测性修改生产代码：不得为了让测试或负控能变红而往 `src/`、前端 app 加故障注入开关、失败模式、test-only 配置项、计数器或观测钩子；无法变红时记 `negative_control: not feasible — <原因>`
