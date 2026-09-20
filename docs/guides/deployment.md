@@ -81,9 +81,14 @@ just ops-dashboard --mock     # 终端状态看板
 
 两个前端都直接面向最终用户：public 站点负责营销首页和登录/注册，admin 站点负责登录后的管理 Dashboard。public 前端在容器内通过 `API_BASE_URL` 直接调用后端；admin 前端通过 Nginx 的 `/api/*` 代理到内部 `<slug>-backend:8000`。模板不再包含 `<slug>-backup` 服务——备份能力由独立的 `zata-ops` CLI 提供，通过 Dokploy Scheduled Job 调用即可。
 
-> **App-slug 命名空间（共部署约束）**：模板源文件中的服务名、卷名与 nginx 上游主机名统一使用占位前缀 `zata-codes-template-`（如 `zata-codes-template-backend`）。`just copy <slug>` 实例化时会把该前缀替换成项目目录名 `<slug>`，产出 `<slug>-backend` / `<slug>-admin` / `<slug>-public` 等唯一名。
+> **App-slug 命名空间（共部署约束）**：模板源文件中的服务名、卷名、nginx 上游主机名，以及 **Traefik 的 router / service / middleware 名**统一使用占位前缀 `zata-codes-template-`（如 `zata-codes-template-backend`）。`just copy <slug>` 实例化时会把该前缀替换成项目目录名 `<slug>`，产出 `<slug>-backend` / `<slug>-admin` / `<slug>-public` 等唯一名。
 >
-> 这是为了在同一台服务器上通过 Dokploy 把多个模板派生应用接入同一外部网络 `dokploy-network` 时，避免服务名派生的网络别名相互碰撞。Docker Compose 会为每个服务在其网络上注册一个与服务名同名的别名；若两个应用都叫 `backend`，容器按名解析 `backend` 时 Docker DNS 会在两者间轮询，导致接口 404 或串数据。**同一 `dokploy-network` 上的服务名必须按 slug 唯一**，新项目经 `just copy` 实例化后无需任何手动改名即可满足该约束。
+> 这是为了在同一台服务器上通过 Dokploy 把多个模板派生应用接入同一外部网络 `dokploy-network` 时，避免名字相互碰撞。两类碰撞都发生过：
+>
+> - **服务名**：Docker Compose 会为每个服务在其网络上注册一个与服务名同名的别名；若两个应用都叫 `backend`，容器按名解析 `backend` 时 Docker DNS 会在两者间轮询，导致接口 404 或串数据。
+> - **Traefik 名**：Dokploy 上所有项目共用一个 Traefik 实例，router / service / middleware 名是**全局**命名空间。两个应用都定义 `app-public` 时 Traefik 只保留一份，另一个域名随即失去路由——表现为该域名返回 Traefik 默认 404，而同项目的其他域名（名字没撞的那个）一切正常，症状完全指不到命名冲突。
+>
+> **同一 `dokploy-network` 上的服务名与 Traefik 名都必须按 slug 唯一**，新项目经 `just copy` 实例化后无需任何手动改名即可满足该约束；`tests/guards/test_deployment_stack.py` 会把这条钉住。
 
 在 Dokploy 的 Compose Environment 中必须配置：
 
