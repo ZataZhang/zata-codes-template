@@ -13,6 +13,10 @@
 - 用 `uv` 代替 `pip` / `conda`
 - 用 `just` 代替手工记忆零散命令
 
+读代码与看改动优先用 `just view`（本机只读的浏览界面），而不是为此起一个完整 IDE；它
+和 `just docs-serve` / `just prd review` 属于同一类「一条命令起一个本机只读页面」。需要
+**可发送、可归档**的改动报告时仍走 `skills/git-diff-report/`，两者职责不重叠。
+
 ## Common Commands
 
 | Command | Purpose |
@@ -28,6 +32,8 @@
 | `just worktree -o <worktree-name>` | 打开已有 worktree；名称接受分支全名、分支最后一段、PRD slug、PRD 文件名（可带 `.md`）与 `tasks/pending/....md` 路径，歧义时报错列候选、未命中时列可用 worktree |
 | `just test` | 运行本地测试 |
 | `just bench-test` | 验证 warm / after-edit 场景的 `just test` 是否满足 30 秒预算 |
+| `just view [路径]` | 打开本机只读文件与改动查看器；第二条命令起复用常驻实例（秒开） |
+| `just diff [基线]` | `just view --diff [基线]` 的薄别名，直接进改动视图 |
 | `uv run mkdocs build` | 验证文档站点 |
 | `just docs-serve` | 本地预览文档 |
 | `just ai check <file> [claude\|kimi]` | 用 AI 审查单个文件；使用 kimi 时会自动恢复当前工作目录的上一个会话，方便追问 |
@@ -78,6 +84,28 @@
 - `just copy <name>` 派生新项目时，会从三个互不重叠的区间随机分配端口（后端 `8000-8999`、管理平台前端 `5180-5999`、前台官网 `3010-3999`），并且只写入 destination 的 `.env.run-state`；不会改写 justfile、前端配置或文档中的 fallback。首次 `just run` 会读取随机端口，所选端口也会打印到 stdout。
 - `just frontend dev` 与 `just frontend-public dev` 会委托给对应的 `just run` target，因此同样读取 `.env.run-state`，不会绕过已保存端口。
 - `just run docker` 会把 `.env.run-state` 作为最后一层 Compose 插值环境，动态设置三个主机端口；容器内部端口仍固定为 backend `8000`、admin `80`、public `3000`，不属于需要随机化的主机端口。
+
+## Local Read-Only Viewer
+
+`just view` 起一个只绑 `127.0.0.1` 的只读查看器（文件树 + 文件内容 + 改动视图），逻辑在
+`scripts/shared/view/`。使用指南见 `docs/guides/file-viewer.md`，这里只记与工具链约定
+相关的部分。
+
+- **常驻是刻意的，回收是必须的。** 查看器进程常驻本机换取「第二次打开是秒开」，因此
+  它必须同时具备自动回收（默认 30 分钟无任何 HTTP 请求即退出）与显式回收
+  （`just view --stop`）两条路径。这条约定直接来自本节 `just test` 的超时兜底记下的
+  教训：**手敲的三次 `just test` 曾在本机常驻 14 小时**，只杀顶层进程对那种形态完全
+  无效。不接受「常驻但没有回收路径」的工具。
+- **页面不做心跳轮询。** 空闲口径是「没有请求」，加上轮询就等于「页面开着就永不回收」，
+  自动回收会静默失效。页面在服务退出后显示明确的重新连接提示，而不是留一个坏页面。
+- **实例登记按 worktree 独立。** 登记文件是仓库根的 `.env.view-state`，与 Run Port State
+  的 `.env.run-state` 同构：被 `.gitignore` 的 `.env*` 规则覆盖、不进版本库。端口实际值
+  只写在登记文件里，不在文档中硬编码。
+- **结束实例走进程信号，不走 HTTP。** 服务端只读是硬边界：只绑回环、只接受读取方法、
+  不注册任何写路由。今天为了「结束服务」加一个写接口，明天就会有人加「保存文件」。
+- **性能承诺只覆盖进程侧。** 复用命中路径有 150ms 预算，这也是 `just view` / `just diff`
+  刻意写成普通单行 recipe 而不是 `#!/usr/bin/env bash` shebang 的原因：`just` 执行
+  shebang recipe 每次要多花约 200ms 起一个临时脚本。浏览器冷启动不在承诺内。
 
 ## Run Process Guard
 

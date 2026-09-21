@@ -44,5 +44,9 @@ dev = [
     "mkdocs-git-revision-date-localized-plugin>=1.4.5",
     "mkdocstrings[python]>=0.30.0",
     "pymdown-extensions>=10.14",
+    # `just view` 在服务端渲染语法高亮。显式声明而不是靠传递依赖：mkdocs-material
+    # 之类的包恰好带上它时，`uv sync --no-dev` 的派生项目会静默失去高亮——查看器
+    # 会降级成纯文本，功能不缺失，但"环境里恰好有"不是可接受的声明方式。
+    "pygments>=2.17.0",
     "ruff==0.7.4",
 ]
