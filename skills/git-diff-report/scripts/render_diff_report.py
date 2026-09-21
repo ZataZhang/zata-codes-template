@@ -152,7 +152,11 @@ def _split_git_path_tokens(rest: str) -> list[str]:
 
 
 def parse_diff(diff_text: str) -> list[dict[str, Any]]:
-    """把 unified diff 文本解析成「文件 → hunk」结构。"""
+    """把 unified diff 文本解析成「文件 → hunk」结构。
+
+    重命名（``git mv``）的元信息会被解析成结构化字段 ``is_rename`` / ``old_path`` /
+    ``similarity``，供树与文件区块渲染「移动」；它们不进 ``meta``，避免同一事实渲染两次。
+    """
     files: list[dict[str, Any]] = []
     current: dict[str, Any] | None = None
     in_hunk = False
@@ -162,7 +166,14 @@ def parse_diff(diff_text: str) -> list[dict[str, Any]]:
             path = tokens[1] if len(tokens) == 2 else (tokens[0] if tokens else "unknown")
             if path.startswith("b/"):
                 path = path[2:]
-            current = {"path": path, "meta": [], "hunks": []}
+            current = {
+                "path": path,
+                "is_rename": False,
+                "old_path": None,
+                "similarity": None,
+                "meta": [],
+                "hunks": [],
+            }
             files.append(current)
             in_hunk = False
             continue
@@ -182,9 +193,26 @@ def parse_diff(diff_text: str) -> list[dict[str, Any]]:
             continue
         if in_hunk:
             current["hunks"][-1]["lines"].append(line)
-        elif line.startswith(METADATA_PREFIXES):
+            continue
+        if line.startswith("similarity index "):
+            current["similarity"] = line[len("similarity index ") :].strip()
+            continue
+        if line.startswith("rename from "):
+            current["is_rename"] = True
+            current["old_path"] = line[len("rename from ") :].strip()
+            continue
+        if line.startswith("rename to "):
+            continue
+        if line.startswith(METADATA_PREFIXES):
             current["meta"].append(line)
     return files
+
+
+def moved_from_path(file_entry: dict[str, Any]) -> str:
+    """返回该文件的移动来源路径；不是重命名时返回空串。"""
+    if not file_entry.get("is_rename"):
+        return ""
+    return str(file_entry.get("old_path") or "")
 
 
 def count_changes(file_entry: dict[str, Any]) -> tuple[int, int]:
@@ -272,7 +300,11 @@ def collapse_chain(name: str, child: dict[str, Any]) -> tuple[str, dict[str, Any
     return name, child
 
 
-def render_tree(node: dict[str, Any], summaries: dict[str, Any], paths: Sequence[str]) -> str:
+def render_tree(
+    node: dict[str, Any],
+    summaries: dict[str, Any],
+    files: Sequence[dict[str, Any]],
+) -> str:
     """递归渲染文件树 HTML。"""
     rows: list[str] = []
     for dir_name in sorted(node["dirs"]):
@@ -281,19 +313,25 @@ def render_tree(node: dict[str, Any], summaries: dict[str, Any], paths: Sequence
             '<details class="node dir" open>'
             f'<summary class="dir-row"><span class="dir-name">{esc(label)}</span>'
             f'<span class="dir-count">{count_files(child)}</span></summary>'
-            f'<div class="children">{render_tree(child, summaries, paths)}</div>'
+            f'<div class="children">{render_tree(child, summaries, files)}</div>'
             "</details>"
         )
     for leaf in sorted(node["leaves"], key=lambda item: item["name"]):
-        summary = file_summary(summaries, paths[leaf["index"]])
+        file_entry = files[leaf["index"]]
+        path = str(file_entry["path"])
+        summary = file_summary(summaries, path)
+        moved_from = moved_from_path(file_entry)
+        # 移动过的文件要一眼看出来：名字旁边给徽标，下面单独一行写清从哪来
+        badge_html = '<span class="move-badge">移动</span>' if moved_from else ""
+        move_html = f'<span class="file-move-path">← {esc(moved_from)}</span>' if moved_from else ""
         rows.append(
             f'<a class="node file-row" href="#f{leaf["index"]}" data-index="{leaf["index"]}" '
-            f'title="{esc(paths[leaf["index"]])}">'
+            f'title="{esc(path)}">'
             f'<span class="file-name">{esc(leaf["name"])}</span>'
-            f'<span class="file-hit"><span class="add-stat">+{leaf["added"]}</span>'
+            f'<span class="file-hit">{badge_html}<span class="add-stat">+{leaf["added"]}</span>'
             f'<span class="del-stat">-{leaf["removed"]}</span></span>'
             f'<span class="file-summary">{esc(summary)}</span>'
-            "</a>"
+            f"{move_html}</a>"
         )
     return "".join(rows)
 
@@ -326,6 +364,55 @@ def render_line(line: str) -> str:
     return f'<div class="line {css_class}"><span class="txt">{esc(body) or "&nbsp;"}</span></div>'
 
 
+def move_lines_html(pair_path: str, path: str) -> str:
+    """渲染「← 来源 / → 现址」两行路径，左侧汇总卡与右侧横幅共用。"""
+    return (
+        f'<span class="mv-line"><span class="mv-glyph">←</span>'
+        f'<span class="mv-old">{esc(pair_path)}</span></span>'
+        f'<span class="mv-line"><span class="mv-glyph">→</span>'
+        f'<span class="mv-new">{esc(path)}</span></span>'
+    )
+
+
+def render_move_banner(file_entry: dict[str, Any], moved_from: str) -> str:
+    """渲染文件移动横幅，替代原先低对比度的 rename 元信息行。"""
+    similarity = file_entry.get("similarity")
+    similarity_html = (
+        f'<span class="mv-sim">内容相似度 {esc(str(similarity))}</span>' if similarity else ""
+    )
+    return (
+        '<div class="move-banner"><span class="move-badge">移动</span>'
+        f"{move_lines_html(moved_from, str(file_entry['path']))}"
+        f"{similarity_html}</div>"
+    )
+
+
+def render_moves_card(files: Sequence[dict[str, Any]]) -> str:
+    """渲染左侧栏顶部的「文件移动」汇总卡；没有移动时返回空串。"""
+    moved_entries = [
+        (index, file_entry) for index, file_entry in enumerate(files) if moved_from_path(file_entry)
+    ]
+    if not moved_entries:
+        return ""
+    items: list[str] = []
+    for index, file_entry in moved_entries:
+        added, removed = count_changes(file_entry)
+        detail = "内容未变更" if added + removed == 0 else f"另有 {added + removed} 行改动"
+        similarity = file_entry.get("similarity")
+        detail_text = f"相似度 {esc(str(similarity))} · {detail}" if similarity else detail
+        items.append(
+            f'<li><a href="#f{index}">'
+            f"{move_lines_html(moved_from_path(file_entry), str(file_entry['path']))}"
+            f'<span class="mv-sim">{detail_text}</span></a></li>'
+        )
+    return (
+        '<div class="moves-card">'
+        f'<div class="moves-title">文件移动<span class="move-badge">'
+        f"{len(moved_entries)} 个文件换了路径</span></div>"
+        f'<ol class="moves-list">{"".join(items)}</ol></div>'
+    )
+
+
 def render_section(index: int, file_entry: dict[str, Any], summaries: dict[str, Any]) -> str:
     """渲染右侧单个文件的完整 diff 区块。"""
     path = file_entry["path"]
@@ -339,6 +426,10 @@ def render_section(index: int, file_entry: dict[str, Any], summaries: dict[str, 
         )
         blocks.append(f'<div class="hunk-body meta-only">{meta_html}</div>')
 
+    moved_from = moved_from_path(file_entry)
+    if moved_from:
+        blocks.append(render_move_banner(file_entry, moved_from))
+
     for hunk_index, hunk in enumerate(file_entry["hunks"]):
         note = hunk_note(summaries, path, hunk_index)
         note_html = f'<div class="hunk-note">{esc(note)}</div>' if note else ""
@@ -351,7 +442,10 @@ def render_section(index: int, file_entry: dict[str, Any], summaries: dict[str, 
         )
 
     if not file_entry["hunks"]:
-        blocks.append('<p class="empty-hunk">无内容变更（重命名、模式变更或二进制文件）。</p>')
+        if moved_from:
+            blocks.append('<p class="empty-hunk">纯移动：文件内容未变更，没有可展示的 hunk。</p>')
+        else:
+            blocks.append('<p class="empty-hunk">无内容变更（模式变更或二进制文件）。</p>')
 
     summary = file_summary(summaries, path)
     summary_html = f'<p class="summary">{esc(summary)}</p>' if summary else ""
@@ -388,6 +482,8 @@ STYLE = """
     position: sticky; top: 0; height: 100vh; overflow-y: auto;
     background: var(--panel); border-right: 1px solid var(--line);
     padding: 16px 12px 40px;
+    /* 侧栏滚到底后不再把滚动链给页面，否则联动高亮会把侧栏拽回上方 */
+    overscroll-behavior: contain;
   }
   aside h1 { font-size: 15px; margin: 0 0 4px 4px; }
   aside .meta-line { color: var(--muted); font-size: 12px; margin: 0 0 4px 4px; }
@@ -437,6 +533,48 @@ STYLE = """
   }
   .file-row.active .file-summary { -webkit-line-clamp: unset; color: #b3c0d4; }
 
+  /* ── 文件移动（重命名）───────────────────────────────── */
+  .moves-card {
+    margin: 0 4px 12px; padding: 9px 11px; background: var(--panel2);
+    border: 1px solid var(--line); border-radius: 8px;
+  }
+  .moves-title {
+    display: flex; align-items: center; gap: 6px; margin-bottom: 8px;
+    font-size: 12px; font-weight: 600; color: #b9c6db;
+  }
+  .moves-list {
+    list-style: none; margin: 0; padding: 0;
+    display: flex; flex-direction: column; gap: 9px;
+  }
+  .moves-list a { text-decoration: none; display: block; border-radius: 5px; padding: 2px 3px; }
+  .moves-list a:hover { background: var(--panel); }
+  .moves-list a:hover .mv-new { color: #a8cdff; }
+  .mv-line {
+    display: flex; gap: 6px; align-items: baseline;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 10.5px; line-height: 1.45; overflow-wrap: anywhere;
+  }
+  .mv-glyph { flex: 0 0 9px; color: var(--muted); font-weight: 700; }
+  .mv-old { color: var(--muted); text-decoration: line-through; text-decoration-color: #4a586f; }
+  .mv-new { color: var(--accent); }
+  .mv-sim { display: block; margin-left: 15px; color: var(--muted); font-size: 10px; }
+
+  .move-badge {
+    font-size: 10px; font-weight: 600; letter-spacing: .3px;
+    background: #24344f; color: #9dc0ff; border: 1px solid #35507a;
+    border-radius: 4px; padding: 0 5px; white-space: nowrap;
+  }
+  .file-move-path {
+    grid-column: 1 / -1; color: var(--muted); opacity: .85; font-size: 10.5px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    overflow-wrap: anywhere;
+  }
+  .move-banner {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline;
+    background: #172439; border: 1px solid #2f4a72; border-radius: 8px;
+    padding: 10px 12px; margin-bottom: 8px;
+  }
+
   /* ── 右侧全部文件 ─────────────────────────────────────── */
   main { padding: 24px 28px 80px; max-width: 1100px; }
   .file {
@@ -484,10 +622,21 @@ SCRIPT = """
   // 缩进交给 .children 的层级 margin，这里只负责滚动高亮
   var rows = Array.prototype.slice.call(document.querySelectorAll('.file-row'));
   var sections = Array.prototype.slice.call(document.querySelectorAll('main .file'));
+  var aside = document.querySelector('aside');
   var byIndex = {};
   rows.forEach(function (row) { byIndex[row.dataset.index] = row; });
 
   var ticking = false;
+  var activeId = null;
+  var sidebarTouchedAt = 0;
+  // 用户主动操作侧栏（滚轮 / 触摸 / 按下）时，短暂抑制自动滚动。
+  // 否则「把侧栏滚到底再继续滚」会因滚动链把页面滚起来，再被这里拽回上方。
+  ['wheel', 'touchmove', 'pointerdown'].forEach(function (eventName) {
+    aside.addEventListener(eventName, function () {
+      sidebarTouchedAt = Date.now();
+    }, { passive: true });
+  });
+
   function syncActive() {
     ticking = false;
     var bestId = null;
@@ -496,18 +645,24 @@ SCRIPT = """
       var delta = Math.abs(sec.getBoundingClientRect().top - 24);
       if (delta < bestDelta) { bestDelta = delta; bestId = String(i); }
     });
-    rows.forEach(function (row) { row.classList.remove('active'); });
     var active = byIndex[bestId];
     if (!active) { return; }
-    active.classList.add('active');
-    // 展开所在目录，保证高亮项可见
-    var parent = active.parentElement;
-    while (parent && parent !== document.body) {
-      if (parent.tagName === 'DETAILS') { parent.open = true; }
-      parent = parent.parentElement;
+
+    if (bestId !== activeId) {
+      rows.forEach(function (row) { row.classList.remove('active'); });
+      active.classList.add('active');
+      activeId = bestId;
+      // 展开所在目录，保证高亮项可见
+      var parent = active.parentElement;
+      while (parent && parent !== document.body) {
+        if (parent.tagName === 'DETAILS') { parent.open = true; }
+        parent = parent.parentElement;
+      }
     }
+
+    if (Date.now() - sidebarTouchedAt < 1200) { return; }
+
     var box = active.getBoundingClientRect();
-    var aside = document.querySelector('aside');
     var asideBox = aside.getBoundingClientRect();
     if (box.top < asideBox.top + 8 || box.bottom > asideBox.bottom - 8) {
       active.scrollIntoView({ block: 'nearest' });
@@ -529,10 +684,10 @@ def render_page(
     meta_line: str,
 ) -> str:
     """组装完整 HTML 页面。"""
-    paths = [file_entry["path"] for file_entry in files]
     total_added = sum(count_changes(file_entry)[0] for file_entry in files)
     total_removed = sum(count_changes(file_entry)[1] for file_entry in files)
-    tree_html = render_tree(build_tree(files), summaries, paths)
+    tree_html = render_tree(build_tree(files), summaries, files)
+    moves_html = render_moves_card(files)
     sections = "".join(
         render_section(index, file_entry, summaries) for index, file_entry in enumerate(files)
     )
@@ -553,6 +708,7 @@ def render_page(
     <div class="totals">{len(files)} 个文件 ·
       <span class="add-stat">+{total_added}</span>
       <span class="del-stat">-{total_removed}</span></div>
+    {moves_html}
     <div class="tree">{tree_html}</div>
   </aside>
   <main>{sections}</main>
