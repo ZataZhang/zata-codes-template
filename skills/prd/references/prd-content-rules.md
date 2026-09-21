@@ -78,8 +78,15 @@ Mermaid label safety rule:
 
 ## C. Low-Fidelity Prototype
 
-Include only when required by Phase 5.
-Use ASCII wireframe or Mermaid layout.
+For every user-visible frontend change, include or identify a reviewable target prototype artifact whose rendered image can be paired with the real implementation screenshot in PR evidence. The artifact may be:
+
+- a focused low-fidelity state for a contained visual change;
+- an existing truthful prototype already registered in the repository;
+- an interactive/high-fidelity prototype for UI-heavy, multi-step, or layout-sensitive work.
+
+Use ASCII wireframe or Mermaid layout only when it can be rendered into a clear target image. If the frontend change is purely non-visual plumbing, state a concrete prototype-image waiver naming why rendered UI and interaction do not change. Do not invent a prototype after implementation merely to make the result appear matched.
+
+The PRD must name the acceptance-critical states that need prototype-versus-implementation pairs. Final PR presentation follows [pr-evidence-and-merge-acceptance.md](pr-evidence-and-merge-acceptance.md).
 
 ## D. ER Diagram
 

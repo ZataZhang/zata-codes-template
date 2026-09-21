@@ -45,7 +45,7 @@
 - 单代码文件非空行不超过 1000 行；`just lint` 会对此发出警告
 - 随手想法先落 `tasks/inbox/`：只在**想法边界**捕获（用户明确要求，或话题收敛到可开 PRD 的状态），条目 = 用户原话逐字**引用** + 标注为 `AI 派生` 的背景块，**只追加**到 `tasks/inbox/ideas.md`（禁止改写已有条目）；AI 维护 `tasks/inbox/summary.md` 做总结；想法成熟后用 PRD 流程升级到 `tasks/pending/`。详见 `docs/guides/idea-inbox.md`
 - 执行 `tasks/pending/` 下任何 PRD 前先 `just prd start <prd-file>` 领取执行锁（知道工具名就 `--tool` 自报）；若报告他人新鲜锁，立即停止并向用户报告持锁者，不要继续实现。详见 `docs/ai-standards/tooling.md` 的 PRD 执行锁小节
-- PRD 对应任务全部完成后：生成验证计划、收集证据；独立 verifier `PASS` 后，executor 必须勾选证据充分支持的非人工 Acceptance Checklist 项并标注证据，只有 `Human-Confirmed` 项等待人工确认；所有条目达到完成态后，再将 PRD 从 `tasks/pending/` 归档到 `tasks/archive/`
+- PRD 对应任务全部完成后：生成验证计划、收集证据；独立 verifier `PASS` 后，executor 必须勾选证据充分支持的非人工 Acceptance Checklist 项并标注证据。`Human-Confirmed` 可由对话/审查清单确认，或由一个明确声明“合并即验收”、唯一关联该 PRD 且已发布证据的 PR merge（含 squash）确认；PR 流程须在 GitHub 直接呈递 §9.1 与证据，用户可见前端改动还须并排呈递目标原型图与真实实现截图。合并后核对最终 Git tree 再自动回填并归档。所有条目达到完成态后，才能将 PRD 从 `tasks/pending/` 归档到 `tasks/archive/`
 - 禁止为了可测性修改生产代码：不得为了让测试或负控能变红而往 `src/`、前端 app 加故障注入开关、失败模式、test-only 配置项、计数器或观测钩子；无法变红时记 `negative_control: not feasible — <原因>`
 - verifier finding 必须分 `BLOCKER` / `NON-BLOCKING` / `SECURITY`，只有 `BLOCKER` 触发重跑；验证最多 2 轮，之后交人决定，不开第 3 轮
 - PRD 必须包含 Realistic Validation Plan，验收清单需覆盖最高可行保真度的真实入口验证，或说明无可执行行为变更

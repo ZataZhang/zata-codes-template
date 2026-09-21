@@ -69,6 +69,7 @@
 6. 未执行真实用户流程时，结论必须写成“组件预览通过”或“生产组合验证通过”，不得写“真实验证通过”“完整流程通过”或“E2E 通过”。
 7. 涉及响应式布局或可变内容长度时，必须覆盖与风险对应的代表性边界，例如窄视口、长文本、多行内容或滚动状态。
 8. 生成截图本身不等于视觉验收通过。Agent 必须检查最终渲染结果，并说明证据如何证明目标问题已经解决。
+9. 用户可见的前端改动通过 PR 交付时，PR 证据必须把“目标原型图（design intent）”与“真实实现截图（按实际验证层级标注）”成对呈现。两者尽量使用相同状态、视口、主题、语言与代表数据，并写明要对照的具体差异；原型图不能冒充生产验证，真实截图也不能用重建 mock 替代。纯类型生成、API client 等无视觉/交互变化的前端改动可以写明具体 waiver，不得用笼统的“不适用”。
 
 ## Python Test Workflow
 
@@ -284,8 +285,8 @@ HTML 报告仍固定在 `tests/playwright-e2e/playwright-report/`，可用 `just
 6. **独立 verifier 审查**：`just ai implement` 自动启动一个 verifier Agent，默认使用与 executor 不同的 AI 工具；verifier 只读审查证据与 PRD 验收项的匹配度，输出 `<prd-basename>.verifier-report.md`，结论为 `PASS` 或 `REJECT`。
 7. **finding 分级**：verifier 的每条 finding 必须标 `BLOCKER` / `NON-BLOCKING` / `SECURITY`，判据只有一句——**这条补齐后，结论有可能从 PASS 翻成 FAIL 吗？** 只有 `BLOCKER` 才 REJECT。缺原始日志、命名不整齐、已通过测试的对称变体、没有验收项声明的额外覆盖，都是 `NON-BLOCKING`，记录后带走，不消耗轮次。多条 `NON-BLOCKING` 不能叠加成 `BLOCKER`。
 8. **轮次上限**：最多 2 轮。第 2 轮 verifier 只复查第 1 轮的 `BLOCKER` 和证据变更带来的新 `BLOCKER`，不对已接受的证据开新的 `NON-BLOCKING` 战线。2 轮后仍有 `BLOCKER` 时流程停止，在证据报告里写 `Open Items For Human Review` 交人决定——没有第 3 轮。轮次计数落在 `<evidence-dir>/.verifier-round`。
-9. **回填验收清单**：独立 verifier 返回 `PASS` 后，executor 必须把证据报告已建立对应关系、证据足以支持且没有相关 `BLOCKER` 的非人工验收项更新为 `[x]`，并在条目旁标注对应证据文件。不得因为等待人工终点审查而把这些机器可验证项留空；只有明确标记为 `Human-Confirmed` 的项目可以继续保持未勾选，并在人工确认后记录实际观察结果再勾选。证据文件仅仅存在但没有验收项映射、未获 verifier `PASS` 或仍有相关 `BLOCKER` 时，不得勾选。
-10. **前端强制视觉证据**：如果 PRD 涉及 `frontend-admin/` 或 `frontend-public/` 改动，证据目录必须包含至少一个 `.png`、`.jpg` 或 `.webm` 文件。
+9. **回填验收清单**：独立 verifier 返回 `PASS` 后，executor 必须把证据报告已建立对应关系、证据足以支持且没有相关 `BLOCKER` 的非人工验收项更新为 `[x]`，并在条目旁标注对应证据文件。不得因为等待人工终点审查而把这些机器可验证项留空；只有明确标记为 `Human-Confirmed` 的项目可以继续保持未勾选。人工确认可以来自对话/审查清单，也可以来自一个事先明确声明“合并即验收”、唯一关联 PRD、完整呈递证据且门禁全绿的 PR merge；后者必须在合并后记录 PR、合并人、时间、verified tree 与 final tree，确认 tree 相等后才勾选。证据文件仅仅存在但没有验收项映射、未获 verifier `PASS`、仍有相关 `BLOCKER`，或只是打开/批准了尚未合并的 PR 时，不得勾选。
+10. **前端强制视觉证据**：如果 PRD 涉及 `frontend-admin/` 或 `frontend-public/` 的用户可见改动，证据目录必须同时包含目标原型图与至少一个真实实现 `.png` / `.jpg` / `.webm`，并按验收关键状态形成可对照配对；纯非视觉改动必须写具体 waiver。通过 PR 交付时，两类图片必须直接呈递在 PR 证据评论中。
 11. **图必须就地嵌进报告**：证据目录里的每张静态图（`.png` / `.jpg`）都必须在 `<prd-basename>.evidence-report.md` 里用 `![<说明>](<相对路径>)` 嵌入——报告与图片同目录，本地 Markdown 预览直接渲染。图片被 `.gitignore` 排除、在 GitHub 上是坏图，所以嵌图旁要标注「本地图片」并附 `open "<绝对路径>"`；标注与命令是嵌图的补充，不是替代品。只写一行 `open` 命令、让人粘完命令才看得见截图，不算呈递。录屏无法内联渲染，免嵌图。
 12. **最终校验**：verifier 通过后，`just ai implement` 运行 `scripts/shared/just/check_prd_evidence.sh`，确认静态图都已就地嵌入、且前端视觉证据存在，缺任一项都阻止流程结束。
 13. **工具不可用**：verifier 默认工具不可用时，降级到与 executor 相同工具；相同工具也不可用时，流程暂停并提示人工，不自动回退到 executor 自检。
