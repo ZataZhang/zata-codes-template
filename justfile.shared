@@ -159,6 +159,20 @@ lint mode="": _check-completion
             echo "🔍 staged archive PRD detected; running full lint checks."
         fi
 
+        # `--all-files` 只覆盖 git 已知的文件，未跟踪的新文件对 pre-commit 完全
+        # 不可见。不先喂一遍，「新增文件后的首次提交」必然踩坑:全量 lint 放行 →
+        # flag 写在未定型的内容上 → `git add -A` 后 commit 钩子才第一次看到这些
+        # 文件并 autofix → 内容变了 → check-test-flag 判「标记已过期」，人和
+        # runner 都只能回头重跑一遍 just test。放在 `--all-files` 之前,让格式化
+        # 在写 flag 之前定型。
+        untracked_file_paths="$(quality_untracked_file_paths)"
+        if [ -n "$untracked_file_paths" ]; then
+            echo "🔍 Running pre-commit on untracked files (invisible to --all-files)..."
+            printf '%s\n' "$untracked_file_paths" \
+                | tr '\n' '\0' \
+                | xargs -0 uv run pre-commit run --show-diff-on-failure --files
+        fi
+
         uv run pre-commit run --all-files --show-diff-on-failure
 
         if quality_skip_is_empty_or_only "check-test-flag"; then
