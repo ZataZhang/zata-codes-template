@@ -1,6 +1,6 @@
 ---
 name: git-diff-report
-description: "[Updated 2026-09-20] Render git changes into a self-contained HTML report: a collapsible file tree on the left with per-file summaries and +/− counts, and the full highlighted diff on the right, with click-to-jump and scroll sync. Use when the user asks to 展示当前改动, 看改了什么, 生成改动预览页, 改动可视化, diff 报告, or wants a reviewable HTML overview of a working tree, branch diff, or staged changes."
+description: "[Updated 2026-09-21] Render git changes into a self-contained HTML report: a collapsible file tree on the left with per-file summaries and +/− counts, a dedicated panel for renamed/moved files (old path → new path + similarity), and the full highlighted diff on the right, with click-to-jump and scroll sync. Use when the user asks to 展示当前改动, 看改了什么, 生成改动预览页, 改动可视化, diff 报告, or wants a reviewable HTML overview of a working tree, branch diff, or staged changes."
 user-invocable: true
 allowed-tools:
   - Read
@@ -15,7 +15,8 @@ allowed-tools:
 把「当前代码改了什么」变成一份可以直接看、可以直接发出去的 HTML 报告：
 
 - **左侧**：可折叠的改动文件树，每个文件带 `+N -M` 统计与一句话中文总结，点击跳转、滚动联动高亮；
-- **右侧**：全部文件的完整高亮 diff，逐 hunk 展开，可一路下滑；
+- **左侧顶部**：有重命名（`git mv`）时自动出现「文件移动」汇总面板，逐条列出 `← 旧路径` / `→ 新路径` 与相似度，可点击跳转——纯搬迁类改动一眼能看清搬了什么；
+- **右侧**：全部文件的完整高亮 diff，逐 hunk 展开，可一路下滑；重命名文件在 diff 顶部显示移动横幅，而不是原来那行低对比度的灰色元信息；
 - 单文件、无外部依赖（CSS/JS 全内联），可直接发给他人或用浏览器打开。
 
 报告只是**只读视图**：它不修改被检查的仓库，也不产生提交。
@@ -89,10 +90,11 @@ python3 scripts/render_diff_report.py \
 
 ### 5. 自检
 
-生成后至少确认两点，别直接甩给用户：
+生成后至少确认三点，别直接甩给用户：
 
-1. **无 JS 报错、无截断**：能用 Playwright 时跑一次裸检查（下面的片段可直接用）；否则至少确认文件非空、`grep -c 'class="file-row"'` 与改动文件数一致。
+1. **无 JS 报错、无截断**：能用 Playwright 时跑一次裸检查（下面的片段可直接用）；否则至少确认文件非空、`grep -c 'node file-row'` 与改动文件数一致（注意 class 是 `node file-row`，不是 `file-row`）。
 2. **数量对齐**：`git diff <同参数> --stat` 的文件数应与报告 `N 个文件` 一致；不一致说明排除规则或 scope 选错了。
+3. **移动数量对齐**：有重命名时，报告「文件移动」面板里的条数应与 `git diff <同参数> --name-status -M | grep -c '^R'` 一致；条数为 0 但确实搬过文件，通常是 `--exclude` 排掉了重命名的某一侧路径（见「已知边界」）。
 
 ```javascript
 // 在装有 playwright 的目录执行：node check.mjs
@@ -131,5 +133,7 @@ await b.close();
 ## 已知边界
 
 - 路径名含空格/非 ASCII 时依赖 git 的引号转义解析，已在脚本内处理；极端命名（含换行）不支持。
-- 纯重命名、模式变更、二进制文件没有 hunk，右侧显示"无内容变更"提示；左侧仍计入文件数与 `+0 -0`。
+- 重命名（`git mv`）由 git 的 `similarity index` / `rename from` / `rename to` 元信息识别，渲染成「移动」：左侧顶部汇总面板 + 树里「移动」徽标与来源路径 + 右侧移动横幅。**纯移动**（相似度 100%、无 hunk）在右侧只显示横幅与一句"纯移动：文件内容未变更"，左侧统计仍是 `+0 -0`；**带内容改动**的移动（相似度 < 100%）横幅之后照常展开 hunk。`--summaries` 的 schema 不需要为移动额外加字段。
+- 移动展示依赖 git 的重命名检测：若用 `-c diff.renames=false` 之类配置关掉它，或给 `--exclude` 排掉了重命名的**任一侧路径**，同一文件会退化成「删除 + 新增」或「新增」，报告里就不再显示为移动。
+- 模式变更、二进制文件没有 hunk，右侧显示"无内容变更（模式变更或二进制文件）"提示。
 - 报告体积随 diff 大小线性增长。改动超过约 5000 行时建议先收窄 `--scope` 或加 `--exclude`，否则浏览器内滚动体验会下降。

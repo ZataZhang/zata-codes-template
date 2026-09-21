@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>只读文件与改动查看器 · 交互原型</title>
+<!--
+  只读文件与改动查看器交互原型（PRD: P2-FEAT-20260921-111233-local-file-diff-viewer）
+
+  来源（真实代码与真实数据，非臆造）：
+  - 设计令牌: frontend-admin/src/styles/theme.css 的 :root（oklch 令牌与 --radius）
+  - 评审工具层: docs/prototypes/shared.css 与 login-demo.html 的 prototype chrome 约定
+  - 命令面与状态模型: tasks/pending/P2-FEAT-20260921-111233-local-file-diff-viewer.md 的 §6 / §7.1 / §7.7
+  - 文件树与文件内容: 本仓库真实路径；文件内容为真实文件片段
+  - 文件规模: uv.lock 287 KB / 1798 行（「文件过大」示例）；
+              docs/prototypes/assets/login-demo.png 42 KB（「二进制文件」示例）
+  - 仓库规模: 725 个受版本控制文件
+
+  验证层级: interactive prototype（component preview），不构成功能验收证据。
+  数据为本地 fixture，未接入任何真实只读接口。
+-->
+<style>
+  /* 1. 设计令牌：取自 frontend-admin/src/styles/theme.css:root */
+  :root {
+    --radius: 0.625rem;
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.129 0.042 264.695);
+    --card: oklch(1 0 0);
+    --primary: oklch(0.208 0.042 265.755);
+    --primary-foreground: oklch(0.984 0.003 247.858);
+    --secondary: oklch(0.968 0.007 247.896);
+    --muted: oklch(0.968 0.007 247.896);
+    --muted-foreground: oklch(0.554 0.046 257.417);
+    --destructive: oklch(0.577 0.245 27.325);
+    --accent: oklch(0.968 0.007 247.896);
+    --border: oklch(0.929 0.013 255.508);
+    --ring: oklch(0.704 0.04 256.788);
+    --success: oklch(0.55 0.14 152);
+    --add: oklch(0.72 0.14 152 / 22%);
+    --del: oklch(0.62 0.2 25 / 16%);
+    --add-mark: oklch(0.5 0.13 152);
+    --del-mark: oklch(0.52 0.2 25);
+    --code-bg: oklch(0.995 0.002 250);
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body {
+    background: color-mix(in oklab, var(--muted) 60%, var(--background));
+    color: var(--foreground); font-size: 13.5px; line-height: 1.5;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+
+  /* 2. 应用骨架：顶部工具条 + 左树右内容 + 底部状态条 */
+  .app {
+    display: grid; height: 100svh; padding: 14px;
+    grid-template-rows: auto minmax(0, 1fr) auto; gap: 10px;
+  }
+  .surface { overflow: hidden; border: 1px solid var(--border); border-radius: calc(var(--radius) + 2px); background: var(--card); }
+
+  .topbar { display: flex; align-items: center; gap: 12px; padding: 24px 14px 10px; flex-wrap: wrap; }
+  .repo { display: flex; align-items: center; gap: 8px; font-weight: 650; }
+  .repo-mark { display: grid; width: 24px; height: 24px; place-items: center; border-radius: 7px; background: var(--primary); color: var(--primary-foreground); font-size: 12px; }
+  .chip { border-radius: 999px; background: var(--secondary); color: var(--muted-foreground); padding: 2px 8px; font-size: 11.5px; font-weight: 600; }
+  .chip.mono { font-family: var(--mono); }
+  .spacer { flex: 1 1 auto; }
+
+  /* 3. 分段控件：[ 文件 | 改动 ] */
+  .segmented { display: inline-flex; gap: 2px; border: 1px solid var(--border); border-radius: 9px; background: var(--secondary); padding: 2px; }
+  .segmented button {
+    display: inline-flex; align-items: center; gap: 6px; min-height: 30px; border: 0; border-radius: 7px;
+    background: transparent; padding: 0 12px; font-size: 13px; font-weight: 600; color: var(--muted-foreground);
+    transition: background 140ms ease, color 140ms ease;
+  }
+  .segmented button:hover { color: var(--foreground); }
+  .segmented button[aria-selected='true'] { background: var(--card); color: var(--foreground); box-shadow: 0 1px 3px rgb(15 23 42 / 12%); }
+  .segmented .seg-count { border-radius: 999px; background: color-mix(in oklab, var(--primary) 12%, transparent); color: var(--primary); padding: 0 6px; font-size: 11px; font-weight: 700; }
+  .segmented button[aria-selected='true'] .seg-count { background: var(--primary); color: var(--primary-foreground); }
+
+  .baseline { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted-foreground); }
+  .baseline select { min-height: 32px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); padding: 0 8px; font-size: 12.5px; color: var(--foreground); }
+  .baseline select:disabled { background: var(--secondary); color: var(--muted-foreground); opacity: .75; }
+
+  .filter { display: flex; min-width: 200px; align-items: center; gap: 7px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); padding: 0 10px; }
+  .filter input { width: 100%; min-height: 32px; border: 0; outline: 0; background: transparent; font-size: 12.5px; }
+  .filter:focus-within { border-color: var(--ring); }
+
+  /* 4. 主体：左树右内容 */
+  .body-grid { display: grid; min-height: 0; grid-template-columns: 320px minmax(0, 1fr); gap: 10px; }
+  .tree { display: flex; min-height: 0; flex-direction: column; }
+  .tree-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid var(--border); padding: 9px 12px; font-size: 11.5px; color: var(--muted-foreground); }
+  .tree-head b { color: var(--foreground); font-weight: 650; }
+  .tree-body { min-height: 0; flex: 1; overflow: auto; padding: 6px 6px 12px; }
+
+  .node { display: flex; align-items: center; gap: 6px; width: 100%; border: 0; border-radius: 6px; background: transparent; padding: 4px 8px; text-align: left; font-size: 12.5px; color: var(--foreground); }
+  .node:hover { background: var(--secondary); }
+  .node[aria-selected='true'] { background: color-mix(in oklab, var(--primary) 10%, transparent); color: var(--primary); font-weight: 620; }
+  .node .caret { width: 12px; flex: none; color: var(--muted-foreground); font-size: 10px; }
+  .node .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  /* 改动视图里带上父目录，避免不同目录下的同名文件无法区分 */
+  .node .path-dir { flex: none; color: var(--muted-foreground); font-size: 11px; }
+  .node.dir .name { font-weight: 600; }
+  .node .stat { margin-left: auto; display: inline-flex; gap: 5px; font-family: var(--mono); font-size: 11px; }
+  .stat .add { color: var(--add-mark); }
+  .stat .del { color: var(--del-mark); }
+  .badge { min-width: 16px; border-radius: 4px; background: var(--secondary); color: var(--muted-foreground); font-family: var(--mono); font-size: 10px; font-weight: 700; text-align: center; }
+  .badge.A { background: color-mix(in oklab, var(--success) 18%, transparent); color: var(--add-mark); }
+  .badge.M { background: color-mix(in oklab, #d97706 18%, transparent); color: #a15c07; }
+  .badge.D { background: var(--del); color: var(--del-mark); }
+  .tree-indent { padding-left: 14px; }
+  .tree-empty { padding: 18px 12px; color: var(--muted-foreground); font-size: 12.5px; line-height: 1.7; }
+  /* 服务退出后左侧只剩最后一次成功读取的结果，不可再点击 */
+  .tree-body.is-stale { opacity: .45; pointer-events: none; }
+
+  /* 5. 内容区 */
+  .viewer { display: flex; min-height: 0; flex-direction: column; }
+  .viewer-head { display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); padding: 9px 14px; font-size: 12.5px; }
+  .viewer-path { font-family: var(--mono); font-weight: 600; }
+  .viewer-meta { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; color: var(--muted-foreground); font-size: 11.5px; }
+  .viewer-body { min-height: 0; flex: 1; overflow: auto; background: var(--code-bg); }
+
+  .code { margin: 0; padding: 8px 0 22px; font-family: var(--mono); font-size: 12.5px; line-height: 1.65; }
+  .code .row { display: grid; grid-template-columns: 52px minmax(0, 1fr); }
+  .code .no { display: flex; gap: 7px; justify-content: flex-end; user-select: none; padding-right: 12px; color: color-mix(in oklab, var(--muted-foreground) 75%, transparent); }
+  /* 改动视图一行要同时放旧行号与新行号，列宽放宽；旧行号压淡以便与新行号区分 */
+  .code.diff .row { grid-template-columns: 78px minmax(0, 1fr); }
+  .code .no em { font-style: normal; color: color-mix(in oklab, var(--muted-foreground) 48%, transparent); }
+  .code .src { padding-right: 18px; white-space: pre-wrap; word-break: break-word; }
+  .code .row.add { background: var(--add); }
+  .code .row.del { background: var(--del); }
+  .code .row.add .src::before { color: var(--add-mark); content: '+'; margin-right: 6px; }
+  .code .row.del .src::before { color: var(--del-mark); content: '−'; margin-right: 6px; }
+  .code .row.ctx .src::before { content: ' '; margin-right: 6px; }
+  /* 改动视图一行要同时放旧行号与新行号，列宽放宽 */
+  .code.diff .row { grid-template-columns: 78px minmax(0, 1fr); }
+  /* hunk 行只有一列；选择器必须压过 .code.diff .row 的列定义 */
+  .code .row.hunk { grid-template-columns: minmax(0, 1fr); background: var(--secondary); color: var(--muted-foreground); padding: 3px 14px; font-size: 11.5px; }
+  .code .row.dim { opacity: .55; }
+  .tok-key { color: oklch(0.5 0.19 300); }
+  .tok-str { color: oklch(0.48 0.13 35); }
+  .tok-com { color: oklch(0.6 0.03 250); font-style: italic; }
+  .tok-num { color: oklch(0.48 0.14 250); }
+  .tok-fn { color: oklch(0.5 0.15 240); }
+  .tok-tag { color: oklch(0.5 0.16 20); }
+
+  .notice { display: grid; max-width: 560px; gap: 8px; margin: 40px auto; border: 1px solid var(--border); border-radius: calc(var(--radius) + 2px); background: var(--card); padding: 20px 22px; }
+  .notice h3 { margin: 0; font-size: 15px; }
+  .notice p { margin: 0; color: var(--muted-foreground); font-size: 12.5px; line-height: 1.75; }
+  .notice code { border-radius: 5px; background: var(--secondary); padding: 1px 6px; font-family: var(--mono); font-size: 12px; }
+  .notice .why { border-top: 1px solid var(--border); padding-top: 10px; }
+  .notice.down { border-color: color-mix(in oklab, var(--destructive) 40%, var(--border)); }
+  .notice.down h3 { color: var(--destructive); }
+
+  /* 6. 状态条 */
+  .statusbar { display: flex; align-items: center; gap: 10px; padding: 8px 14px; font-size: 12px; color: var(--muted-foreground); }
+  .statusbar .dot { width: 7px; height: 7px; border-radius: 999px; background: var(--success); }
+  .statusbar .dot.down { background: var(--destructive); }
+  .statusbar .kbd { border: 1px solid var(--border); border-radius: 5px; background: var(--secondary); padding: 0 5px; font-family: var(--mono); font-size: 11px; color: var(--muted-foreground); }
+
+  /* 7. 「显示可点击区域」 */
+  body.hotspots-on [data-hot] { outline: 2px dashed color-mix(in oklab, var(--primary) 60%, transparent); outline-offset: 2px; border-radius: 6px; position: relative; }
+  body.hotspots-on [data-hot]::after {
+    content: attr(data-hot); position: absolute; z-index: 40; left: 50%; top: -8px; transform: translate(-50%, -100%);
+    background: var(--primary); color: var(--primary-foreground); font-size: 10px; font-weight: 600; line-height: 1.6;
+    padding: 0 7px; border-radius: 999px; white-space: nowrap; pointer-events: none;
+  }
+  /* 贴近视口上沿的控件：顶栏卡片有 overflow:hidden，徽标必须收在卡片内，
+     因此顶部留出 24px 让徽标悬在控件上方而不是被裁掉。 */
+  body.hotspots-on [data-hot].hot-raised::after { left: 4px; right: auto; top: -22px; transform: none; }
+  /* 被 overflow:hidden 裁切的容器（如文件树卡片）把徽标收进内部右上角 */
+  body.hotspots-on [data-hot].hot-inside::after { left: auto; right: 10px; top: 10px; transform: none; }
+  /* 给内部徽标让出一行，避免压住文件树第一行 */
+  body.hotspots-on .tree-body { padding-top: 30px; }
+
+  /* 8. prototype chrome：底部毛玻璃 Dock，不属于被评审产品 UI */
+  .prototype-chrome { position: fixed; left: 50%; bottom: 18px; z-index: 1000; display: flex; align-items: center; gap: 3px; overflow: hidden; padding: 5px; border: 1px solid rgb(255 255 255 / 72%); border-radius: 15px; background: linear-gradient(135deg, rgb(255 255 255 / 90%), rgb(245 240 255 / 82%)); box-shadow: inset 0 1px 0 #fff, 0 14px 38px rgb(45 23 68 / 18%); backdrop-filter: blur(20px) saturate(155%); color: #40384d; font-size: 12px; transform: translateX(-50%); transition: width 360ms cubic-bezier(.22,1,.36,1), opacity 300ms ease, transform 360ms cubic-bezier(.22,1,.36,1); }
+  .prototype-chrome::before { position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(110deg, rgb(255 255 255 / 44%), transparent 38%, rgb(139 92 246 / 9%)); content: ''; pointer-events: none; }
+  .prototype-chrome__label { position: relative; display: inline-flex; min-width: 47px; min-height: 34px; align-items: center; justify-content: center; align-self: stretch; border-radius: 10px; background: linear-gradient(145deg, #7c3aed, #5b21b6); color: #fff; font-weight: 700; letter-spacing: .04em; }
+  .prototype-chrome a, .prototype-chrome button { position: relative; display: inline-flex; min-height: 34px; align-items: center; justify-content: center; gap: 5px; padding: 0 10px; border: 0; border-radius: 9px; background: transparent; color: #51485e; font: inherit; font-weight: 550; text-decoration: none; white-space: nowrap; cursor: pointer; transition: background 160ms ease, color 160ms ease; }
+  .prototype-chrome a:hover, .prototype-chrome button:hover { background: rgb(255 255 255 / 72%); box-shadow: inset 0 0 0 1px #ddd4f1; color: #5f46d8; text-decoration: none; }
+  .prototype-chrome a:focus-visible, .prototype-chrome button:focus-visible { outline: 2px solid #7c3aed; outline-offset: 1px; }
+  .prototype-chrome button[aria-pressed='true'] { background: #ede9fe; color: #5b21b6; }
+  .prototype-chrome.is-idle { width: 57px; opacity: .38; transform: translate(-50%, 10px); }
+  .prototype-chrome.is-idle a, .prototype-chrome.is-idle button { opacity: 0; pointer-events: none; }
+  .prototype-chrome.is-idle:hover, .prototype-chrome.is-idle:focus-within { opacity: .72; }
+  .capture-product-only [data-prototype-chrome] { display: none !important; }
+
+  /* 9. 说明浮层 */
+  .overlay { position: fixed; inset: 0; z-index: 1100; display: flex; align-items: center; justify-content: center; background: rgb(0 0 0 / 60%); padding: 20px; backdrop-filter: blur(4px); }
+  .dialog { position: relative; max-height: calc(100svh - 40px); width: 100%; max-width: 640px; overflow: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--background); box-shadow: 0 24px 60px -20px rgb(0 0 0 / 45%); padding: 24px; }
+  .dialog h2 { margin: 0 0 6px; font-size: 18px; }
+  .dialog .sub { margin: 0 0 14px; color: var(--muted-foreground); font-size: 13px; line-height: 1.7; }
+  .dialog code { border-radius: 5px; background: var(--secondary); padding: 1px 6px; font-family: var(--mono); font-size: 12px; }
+  .dialog ol, .dialog ul { margin: 6px 0 0 18px; color: var(--muted-foreground); font-size: 12.5px; line-height: 1.8; }
+  .dialog dl { margin: 0; }
+  .dialog dl div { display: grid; grid-template-columns: 104px 1fr; gap: 10px; border-top: 1px solid var(--border); padding: 8px 0; font-size: 12.5px; }
+  .dialog dt { color: var(--muted-foreground); }
+  .dialog dd { margin: 0; }
+  .dialog-close { position: absolute; right: 14px; top: 14px; width: 30px; height: 30px; border: 0; border-radius: 6px; background: none; color: var(--muted-foreground); font-size: 16px; }
+  .dialog-close:hover { background: var(--secondary); color: var(--foreground); }
+  .dialog-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 34px; border: 1px solid transparent; border-radius: 8px; background: var(--primary); color: var(--primary-foreground); padding: 0 13px; font-size: 12.5px; font-weight: 600; }
+  .btn:hover { opacity: .92; }
+  .btn-outline { border-color: var(--border); background: var(--card); color: var(--foreground); }
+  .btn-outline:hover { background: var(--secondary); opacity: 1; }
+
+  @media (max-width: 860px) {
+    .body-grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: 216px minmax(0, 1fr); }
+    .app { padding: 10px 10px 84px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .prototype-chrome, .prototype-chrome a, .prototype-chrome button, .segmented button { transition: none; } }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- 顶部工具条 -->
+  <header class="surface topbar">
+    <span class="repo">
+      <span class="repo-mark" aria-hidden="true">▤</span>
+      zata_code_template
+    </span>
+    <span class="chip mono" id="branch-chip">main</span>
+
+    <div class="spacer"></div>
+
+    <div class="segmented hot-raised" role="tablist" aria-label="视图切换" data-hot="文件 / 改动 切换">
+      <button type="button" role="tab" id="tab-files" aria-selected="true">文件</button>
+      <button type="button" role="tab" id="tab-diff" aria-selected="false">改动 <span class="seg-count" id="diff-count">6</span></button>
+    </div>
+
+    <label class="baseline hot-raised" data-hot="切换比较基线">
+      基线
+      <select id="baseline-select" disabled>
+        <option value="worktree">工作区改动</option>
+        <option value="main">main</option>
+        <option value="v1.2.0">v1.2.0（无差异）</option>
+      </select>
+    </label>
+
+    <label class="filter hot-raised" data-hot="过滤文件树">
+      <span aria-hidden="true">⌕</span>
+      <input id="filter-input" type="search" placeholder="过滤文件…" autocomplete="off">
+    </label>
+  </header>
+
+  <!-- 主体：左树右内容 -->
+  <div class="body-grid">
+    <aside class="surface tree">
+      <div class="tree-head">
+        <span id="tree-title"><b>文件树</b></span>
+        <span id="tree-note">725 个文件（子集）</span>
+      </div>
+      <div class="tree-body hot-inside" id="tree-body" role="tree" aria-label="文件树" data-hot="点文件看内容 · 点目录折叠"></div>
+    </aside>
+
+    <main class="surface viewer">
+      <div class="viewer-head">
+        <span class="viewer-path" id="viewer-path">docs/ai-standards/tooling.md</span>
+        <span class="viewer-meta" id="viewer-meta"></span>
+      </div>
+      <div class="viewer-body" id="viewer-body"></div>
+    </main>
+  </div>
+
+  <!-- 状态条 -->
+  <footer class="surface statusbar">
+    <span class="dot" id="status-dot"></span>
+    <span id="status-text">只读视图 · 服务运行中</span>
+    <span class="spacer"></span>
+    <span id="status-hint"></span>
+    <span class="kbd">f</span> 文件
+    <span class="kbd">d</span> 改动
+    <span class="kbd">/</span> 过滤
+  </footer>
+</div>
+
+<div id="overlay-root"></div>
+
+<nav class="prototype-chrome" data-prototype-chrome aria-label="原型评审工具">
+  <span class="prototype-chrome__label">原型</span>
+  <a href="./prototype-hub.html" title="返回可点击原型中心">Hub</a>
+  <button type="button" data-info-toggle>说明</button>
+  <button type="button" data-hotspot-toggle aria-pressed="true">◎ 可点击区域：开</button>
+  <button type="button" data-prototype-reset>重置</button>
+</nav>
+
+<script>
+(() => {
+  "use strict";
+
+  /* ===================================================================
+     数据 fixture（结构对应真实只读接口的返回形状）
+     =================================================================== */
+
+  const REPO_NAME = "zata_code_template";
+  const BRANCH = "main";
+  const IDLE_TOTAL_SECONDS = 20;
+  const OVERSIZE_LIMIT = "256 KiB";
+
+  /** 文件视图的完整树；路径与仓库真实结构一致（展示子集）。 */
+  const FILE_TREE = {
+    name: "", children: [
+      { name: ".github", children: [
+        { name: "workflows", children: [
+          { name: "ci.yml", file: ".github/workflows/ci.yml" },
+          { name: "deploy.yml", file: ".github/workflows/deploy.yml" } ] } ] },
+      { name: "docs", children: [
+        { name: "ai-standards", children: [
+          { name: "index.md", file: "docs/ai-standards/index.md" },
+          { name: "tooling.md", file: "docs/ai-standards/tooling.md" },
+          { name: "testing.md", file: "docs/ai-standards/testing.md" } ] },
+        { name: "guides", children: [
+          { name: "configuration.md", file: "docs/guides/configuration.md" },
+          { name: "e2e.md", file: "docs/guides/e2e.md" },
+          { name: "file-viewer.md", file: "docs/guides/file-viewer.md" } ] },
+        { name: "prototypes", children: [
+          { name: "index.md", file: "docs/prototypes/index.md" },
+          { name: "prototype-registry.js", file: "docs/prototypes/prototype-registry.js" },
+          { name: "assets", children: [
+            { name: "login-demo.png", file: "docs/prototypes/assets/login-demo.png" } ] } ] } ] },
+      { name: "frontend-admin", children: [
+        { name: "src", children: [
+          { name: "styles", children: [
+            { name: "theme.css", file: "frontend-admin/src/styles/theme.css" } ] } ] } ] },
+      { name: "scripts", children: [
+        { name: "shared", children: [
+          { name: "just", children: [
+            { name: "prd_status.py", file: "scripts/shared/just/prd_status.py" } ] },
+          { name: "view", children: [
+            { name: "server.py", file: "scripts/shared/view/server.py" },
+            { name: "launch.py", file: "scripts/shared/view/launch.py" } ] } ] } ] },
+      { name: "src", children: [
+        { name: "backend", children: [
+          { name: "api", children: [ { name: "routes.py", file: "src/backend/api/routes.py" } ] },
+          { name: "core", children: [ { name: "settings.py", file: "src/backend/core/settings.py" } ] } ] } ] },
+      { name: "AGENTS.md", file: "AGENTS.md" },
+      { name: "justfile.shared", file: "justfile.shared" },
+      { name: "pyproject.toml", file: "pyproject.toml" },
+      { name: "uv.lock", file: "uv.lock" }
+    ]
+  };
+
+  /** 改动视图的三种基线口径；v1.2.0 用于演示「无差异」空态。 */
+  const CHANGES = {
+    worktree: [
+      { path: "scripts/shared/view/server.py", status: "A", add: 126, del: 0 },
+      { path: "scripts/shared/view/launch.py", status: "A", add: 88, del: 0 },
+      { path: "justfile.shared", status: "M", add: 8, del: 1 },
+      { path: "docs/ai-standards/tooling.md", status: "M", add: 2, del: 0 },
+      { path: "pyproject.toml", status: "M", add: 1, del: 0 },
+      { path: "docs/prototypes/prototype-registry.js", status: "M", add: 22, del: 0 }
+    ],
+    "main": [
+      { path: "scripts/shared/view/server.py", status: "A", add: 126, del: 0 },
+      { path: "justfile.shared", status: "M", add: 8, del: 1 }
+    ],
+    "v1.2.0": []
+  };
+
+  /** 文件内容：真实文件片段；server.py / launch.py 为本次设计的示意内容。 */
+  const FILES = {
+    "docs/ai-standards/tooling.md": {
+      lang: "Markdown", size: "18 KB",
+      lines: [
+        "# Tooling Standards",
+        "",
+        "## Preferred Tools",
+        "",
+        "### Python",
+        "",
+        "- 包管理：`uv`",
+        "- 任务入口：`just`",
+        "- 文档：`mkdocs`",
+        "",
+        "优先顺序：",
+        "",
+        "- 用 `uv` 代替 `pip` / `conda`",
+        "- 用 `just` 代替手工记忆零散命令",
+        "",
+        "## Common Commands",
+        "",
+        "| Command | Purpose |",
+        "|---|---|",
+        "| `just sync` | 同步开发依赖 |",
+        "| `just run` | 运行主应用（后端 + 管理平台前端 + 前台官网） |",
+        "| `just test` | 运行本地测试 |",
+        "| `just view` | 打开本机只读文件与改动查看器（本 PRD 新增） |"
+      ]
+    },
+    "AGENTS.md": {
+      lang: "Markdown", size: "12 KB",
+      lines: [
+        "# AI Agent Entry Guide",
+        "",
+        "本文件是仓库的**跨工具 AI 入口适配层**，不是规范正文。",
+        "统一规范源在 `docs/ai-standards/`，详细后端架构权威文档仍在 `docs/architecture/system-design.md`。",
+        "",
+        "## Read Order",
+        "",
+        "任何任务都先读：",
+        "",
+        "1. `docs/ai-standards/index.md` — 规范地图与权威关系",
+        "",
+        "然后根据任务类型按需补读下表对应的页面，**不要无差别地一次性读完所有标准页**。"
+      ]
+    },
+    "frontend-admin/src/styles/theme.css": {
+      lang: "CSS", size: "6 KB",
+      lines: [
+        ":root {",
+        "  --radius: 0.625rem;",
+        "  --background: oklch(1 0 0);",
+        "  --foreground: oklch(0.129 0.042 264.695);",
+        "  --card: oklch(1 0 0);",
+        "  --primary: oklch(0.208 0.042 265.755);",
+        "  --secondary: oklch(0.968 0.007 247.896);",
+        "  --muted-foreground: oklch(0.554 0.046 257.417);",
+        "  --border: oklch(0.929 0.013 255.508);",
+        "  --ring: oklch(0.704 0.04 256.788);",
+        "}"
+      ]
+    },
+    "justfile.shared": {
+      lang: "Just", size: "52 KB",
+      lines: [
+        "# \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500",
+        "# Shared recipes \u2014 kept in sync with the upstream template repository.",
+        "# \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500",
+        "",
+        "# Default recipe (runs when you type `just`)",
+        "default: _check-completion",
+        "    @just --list",
+        "",
+        "# Git diff viewer \u2014 read-only, one command to open (PRD \u00a76)",
+        "# Usage:",
+        "#   just view                    # open the viewer at the repository root",
+        "#   just view <path>             # open and focus a file or directory",
+        "#   just view --diff [base]      # open straight into the diff view",
+        "#   just view --stop             # stop this repository's resident instance",
+        "view *args:",
+        "    #!/usr/bin/env bash",
+        "    set -euo pipefail",
+        "    exec uv run --no-sync python \"{{justfile_directory()}}/scripts/shared/view/launch.py\" {{args}}",
+        "",
+        "# Thin alias: enter the diff view directly.",
+        "diff *args:",
+        "    #!/usr/bin/env bash",
+        "    set -euo pipefail",
+        "    exec just view --diff {{args}}"
+      ]
+    },
+    "scripts/shared/view/launch.py": {
+      lang: "Python", size: "4 KB",
+      lines: [
+        "\"\"\"Client entry point: reuse a live instance, or start one and open the browser.\"\"\"",
+        "",
+        "from __future__ import annotations",
+        "",
+        "import argparse",
+        "import json",
+        "import os",
+        "import socket",
+        "import subprocess",
+        "import time",
+        "from pathlib import Path",
+        "",
+        "REGISTRY_FILE_NAME = \".env.view-state\"",
+        "DEFAULT_PORT = 8791",
+        "READY_TIMEOUT_SECONDS = 5.0",
+        "",
+        "",
+        "def read_registry(repo_root: Path) -> dict[str, object] | None:",
+        "    \"\"\"Read the instance registry, returning None when it is absent or unreadable.\"\"\"",
+        "    registry_path = repo_root / REGISTRY_FILE_NAME",
+        "    if not registry_path.exists():",
+        "        return None",
+        "    try:",
+        "        return json.loads(registry_path.read_text(encoding=\"utf-8\"))",
+        "    except (OSError, ValueError):",
+        "        return None",
+        "",
+        "",
+        "def is_instance_fresh(registry: dict[str, object], repo_root: Path) -> bool:",
+        "    \"\"\"Require three independent confirmations: process alive, port reachable, same repo.\"\"\"",
+        "    pid = int(registry.get(\"pid\") or 0)",
+        "    if pid <= 0 or not _process_alive(pid):",
+        "        return False",
+        "    if registry.get(\"repo_root\") != str(repo_root):",
+        "        return False",
+        "    return _port_reachable(int(registry.get(\"port\") or 0))"
+      ]
+    }
+  };
+
+  /** 特殊文件：走「过大 / 二进制」提示分支。 */
+  const SPECIAL = {
+    "uv.lock": { kind: "oversize", size: "287 KB", lines: "1798 行" },
+    "docs/prototypes/assets/login-demo.png": { kind: "binary", size: "42 KB" },
+    "scripts/shared/view/server.py": { kind: "new", size: "5 KB" }
+  };
+
+  /** 改动内容：hunk 结构对应统一 diff 的解析结果。 */
+  const DIFFS = {
+    "justfile.shared": [
+      { kind: "hunk", text: "@@ -304,6 +304,24 @@" },
+      { kind: "ctx", old: 304, next: 304, text: "staged_changes:" },
+      { kind: "ctx", old: 305, next: 305, text: "    git diff --cached > staged_changes.diff" },
+      { kind: "ctx", old: 306, next: 306, text: "" },
+      { kind: "add", old: null, next: 307, text: "# Git diff viewer — read-only, one command to open." },
+      { kind: "add", old: null, next: 308, text: "# Usage:" },
+      { kind: "add", old: null, next: 309, text: "#   just view                    # open the viewer at the repository root" },
+      { kind: "add", old: null, next: 310, text: "#   just view --diff [base]      # open straight into the diff view" },
+      { kind: "add", old: null, next: 311, text: "view *args:" },
+      { kind: "add", old: null, next: 312, text: "    #!/usr/bin/env bash" },
+      { kind: "add", old: null, next: 313, text: "    set -euo pipefail" },
+      { kind: "add", old: null, next: 314, text: "    exec uv run --no-sync python scripts/shared/view/launch.py {{args}}" },
+      { kind: "ctx", old: 307, next: 315, text: "" },
+      { kind: "del", old: 308, next: null, text: "# (旧位置：无对应命令)" },
+      { kind: "ctx", old: 309, next: 316, text: "worktree arg1 arg2=\"\" arg3=\"\":" }
+    ],
+    "docs/ai-standards/tooling.md": [
+      { kind: "hunk", text: "@@ -30,6 +30,8 @@" },
+      { kind: "ctx", old: 30, next: 30, text: "| `just test` | 运行本地测试 |" },
+      { kind: "add", old: null, next: 31, text: "| `just view` | 打开本机只读文件与改动查看器；实例常驻，闲置自动回收 |" },
+      { kind: "add", old: null, next: 32, text: "| `just view --stop` | 回收本仓库常驻的查看器实例 |" },
+      { kind: "ctx", old: 31, next: 33, text: "| `just bench-test` | 验证 warm / after-edit 场景的 `just test` 是否满足 30 秒预算 |" }
+    ],
+    "pyproject.toml": [
+      { kind: "hunk", text: "@@ -40,6 +40,7 @@" },
+      { kind: "ctx", old: 40, next: 40, text: "[dependency-groups]" },
+      { kind: "ctx", old: 41, next: 41, text: "dev = [" },
+      { kind: "add", old: null, next: 42, text: "    \"pygments>=2.19.0\"," },
+      { kind: "ctx", old: 42, next: 43, text: "    \"pytest>=8.0.0\"," }
+    ],
+    "docs/prototypes/prototype-registry.js": [
+      { kind: "hunk", text: "@@ -74,6 +74,24 @@" },
+      { kind: "add", old: null, next: 75, text: "  {" },
+      { kind: "add", old: null, next: 76, text: "    id: \"file-viewer\"," },
+      { kind: "add", old: null, next: 77, text: "    title: \"只读文件与改动查看器\"," },
+      { kind: "add", old: null, next: 78, text: "    form: \"code-native\"," },
+      { kind: "add", old: null, next: 79, text: "    validationLevel: \"interactive prototype（component preview，非功能验收证据）\"," },
+      { kind: "add", old: null, next: 80, text: "    entry: \"./file-viewer-interactive.html\"," },
+      { kind: "add", old: null, next: 81, text: "  }," }
+    ],
+    "scripts/shared/view/server.py": [
+      { kind: "hunk", text: "@@ -0,0 +1,32 @@" },
+      { kind: "add", old: null, next: 1, text: "\"\"\"Read-only local HTTP server for browsing files and changes.\"\"\"" },
+      { kind: "add", old: null, next: 2, text: "" },
+      { kind: "add", old: null, next: 3, text: "from __future__ import annotations" },
+      { kind: "add", old: null, next: 4, text: "" },
+      { kind: "add", old: null, next: 5, text: "import http.server" },
+      { kind: "add", old: null, next: 6, text: "from pathlib import Path" },
+      { kind: "add", old: null, next: 7, text: "" },
+      { kind: "add", old: null, next: 8, text: "READ_ONLY_ROUTES = {\"/\", \"/api/meta\", \"/api/tree\", \"/api/file\", \"/api/changes\", \"/api/diff\"}" },
+      { kind: "add", old: null, next: 9, text: "MAX_FILE_BYTES = 256 * 1024" },
+      { kind: "add", old: null, next: 10, text: "" },
+      { kind: "add", old: null, next: 11, text: "" },
+      { kind: "add", old: null, next: 12, text: "def resolve_inside_repo(repo_root: Path, requested_path: str) -> Path:" },
+      { kind: "add", old: null, next: 13, text: "    \"\"\"Resolve a request path and refuse anything outside the repository root.\"\"\"" },
+      { kind: "add", old: null, next: 14, text: "    candidate_path = (repo_root / requested_path).resolve()" },
+      { kind: "add", old: null, next: 15, text: "    if not candidate_path.is_relative_to(repo_root.resolve()):" },
+      { kind: "add", old: null, next: 16, text: "        raise PermissionError(f\"path escapes the repository: {requested_path}\")" },
+      { kind: "add", old: null, next: 17, text: "    return candidate_path" }
+    ]
+  };
+
+  const LANG_CLASS = {
+    Python: (line) => colorize(line, [
+      [/(^|\s)(from|import|def|class|return|if|not|raise|None|True|False|in|and|or)(\s|$)/g, "tok-key"],
+      [/(&quot;[^&]*?&quot;|'[^']*?')/g, "tok-str"],
+      [/(#[^\n]*)/g, "tok-com"],
+      [/\b(\d+)\b/g, "tok-num"]
+    ]),
+    Markdown: (line) => colorize(line, [
+      [/^(#+ .*)$/g, "tok-key"],
+      [/(`[^`]*`)/g, "tok-str"],
+      [/^(\|.*\|)$/g, "tok-fn"]
+    ]),
+    CSS: (line) => colorize(line, [
+      [/(--[a-z-]+)/g, "tok-key"],
+      [/(oklch\([^)]*\))/g, "tok-num"],
+      [/^([a-z-]+)(?=:)/g, "tok-fn"]
+    ]),
+    Just: (line) => colorize(line, [
+      [/^(#.*)$/g, "tok-com"],
+      [/^([a-z][a-z0-9_-]*)(?= .*:)/g, "tok-key"]
+    ]),
+    null: (line) => escapeHtml(line)
+  };
+
+  /* ===================================================================
+     工具函数
+     =================================================================== */
+
+  function escapeHtml(value) {
+    return String(value ?? "").replace(/[&<>'"]/g, (char) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[char]));
+  }
+
+  function colorize(line, rules) {
+    let html = escapeHtml(line);
+    rules.forEach(([pattern, className]) => {
+      html = html.replace(pattern, (match) => `<span class="${className}">${match}</span>`);
+    });
+    return html;
+  }
+
+  function highlight(lang, line) {
+    const colorizer = LANG_CLASS[lang] || LANG_CLASS[null];
+    return colorizer(line);
+  }
+
+  function fileSizeLabel(path, size) {
+    return size || "—";
+  }
+
+  /* ===================================================================
+     状态
+     =================================================================== */
+
+  const INITIAL_STATE = {
+    mode: "files",
+    baseline: "worktree",
+    selected: "docs/ai-standards/tooling.md",
+    filter: "",
+    expanded: new Set([
+      "docs",
+      "docs/ai-standards",
+      "docs/prototypes",
+      "docs/prototypes/assets",
+      "scripts",
+      "scripts/shared",
+      "scripts/shared/view"
+    ]),
+    serviceUp: true,
+    secondsLeft: IDLE_TOTAL_SECONDS
+  };
+
+  const state = {
+    mode: INITIAL_STATE.mode,
+    baseline: INITIAL_STATE.baseline,
+    selected: INITIAL_STATE.selected,
+    filter: "",
+    expanded: new Set(INITIAL_STATE.expanded),
+    serviceUp: true,
+    secondsLeft: IDLE_TOTAL_SECONDS
+  };
+
+  /* ===================================================================
+     视图渲染
+     =================================================================== */
+
+  const elements = {
+    tabFiles: document.getElementById("tab-files"),
+    tabDiff: document.getElementById("tab-diff"),
+    diffCount: document.getElementById("diff-count"),
+    baselineSelect: document.getElementById("baseline-select"),
+    filterInput: document.getElementById("filter-input"),
+    treeTitle: document.getElementById("tree-title"),
+    treeNote: document.getElementById("tree-note"),
+    treeBody: document.getElementById("tree-body"),
+    viewerPath: document.getElementById("viewer-path"),
+    viewerMeta: document.getElementById("viewer-meta"),
+    viewerBody: document.getElementById("viewer-body"),
+    statusDot: document.getElementById("status-dot"),
+    statusText: document.getElementById("status-text"),
+    statusHint: document.getElementById("status-hint"),
+    branchChip: document.getElementById("branch-chip")
+  };
+
+  function currentChanges() {
+    return CHANGES[state.baseline] || [];
+  }
+
+  function matchesFilter(path) {
+    return state.filter === "" || path.toLowerCase().includes(state.filter.toLowerCase());
+  }
+
+  function subtreeHasMatch(node) {
+    if (node.file) return matchesFilter(node.file);
+    return (node.children || []).some((child) => subtreeHasMatch(child));
+  }
+
+  /**
+   * 文件模式：单趟递归渲染整棵树。
+   *
+   * 目录节点自己渲染标题并在展开时递归子节点；文件节点直接渲染成叶子。
+   * 只在一处递归，避免同一节点被父级重复追加（历史上这里出现过重复渲染，
+   * 表现为同名目录出现两次、缩进错乱）。
+   *
+   * 展开状态用**完整路径**作键而不是目录名，否则 `src/`、`assets/` 这类同名目录
+   * 会互相联动。
+   */
+  function renderTreeNode(node, depth, parentKey) {
+    const indent = `padding-left:${depth * 12}px`;
+
+    if (node.file) {
+      if (!matchesFilter(node.file)) return "";
+      const selected = state.selected === node.file;
+      return `<div class="tree-indent" style="${indent}">
+        <button type="button" class="node" data-select="${escapeHtml(node.file)}" aria-selected="${selected}">
+          <span class="caret"></span><span class="name">${escapeHtml(node.name)}</span>
+        </button></div>`;
+    }
+
+    const children = (node.children || []).filter((child) => subtreeHasMatch(child));
+    if (children.length === 0) return "";
+
+    const isRoot = node.name === "";
+    const nodeKey = isRoot ? "" : (parentKey ? `${parentKey}/${node.name}` : node.name);
+    // 有过滤词时强制展开，否则过滤结果会藏在折叠的目录里
+    const isExpanded = state.filter !== "" || isRoot || state.expanded.has(nodeKey);
+
+    const head = isRoot ? "" : `<div class="tree-indent" style="${indent}">
+      <button type="button" class="node dir" data-toggle-dir="${escapeHtml(nodeKey)}">
+        <span class="caret">${isExpanded ? "▾" : "▸"}</span><span class="name">${escapeHtml(node.name)}/</span>
+      </button></div>`;
+
+    const body = isExpanded
+      ? children.map((child) => renderTreeNode(child, isRoot ? depth : depth + 1, nodeKey)).join("")
+      : "";
+    return head + body;
+  }
+
+  /** 改动模式：只列有改动的文件，带状态徽标与增删统计。 */
+  function renderTreeDiff() {
+    const changes = currentChanges().filter((entry) => matchesFilter(entry.path));
+    if (changes.length === 0) {
+      return `<div class="tree-empty">${state.filter !== ""
+        ? "没有匹配的改动文件。"
+        : "该基线与当前分支没有差异。"}</div>`;
+    }
+    return changes.map((entry) => {
+      const selected = state.selected === entry.path;
+      const segments = entry.path.split("/");
+      const fileName = segments.pop();
+      const dirPrefix = segments.length > 0 ? segments.join("/") + "/" : "";
+      return `<button type="button" class="node" data-select="${escapeHtml(entry.path)}" aria-selected="${selected}" title="${escapeHtml(entry.path)}">
+        <span class="badge ${entry.status}">${entry.status}</span>
+        <span class="path-dir">${escapeHtml(dirPrefix)}</span><span class="name">${escapeHtml(fileName)}</span>
+        <span class="stat"><span class="add">+${entry.add}</span><span class="del">−${entry.del}</span></span>
+      </button>`;
+    }).join("");
+  }
+
+  function renderTree() {
+    elements.treeBody.classList.toggle("is-stale", !state.serviceUp);
+    if (state.mode === "files") {
+      elements.treeTitle.innerHTML = "<b>文件</b>";
+      elements.treeNote.textContent = `${state.filter ? "已过滤 · " : ""}725 个文件（子集）`;
+      elements.treeBody.innerHTML = renderTreeNode(FILE_TREE, 0) || `<div class="tree-empty">没有匹配的文件。</div>`;
+      return;
+    }
+    const changes = currentChanges();
+    elements.treeTitle.innerHTML = "<b>改动</b>";
+    elements.treeNote.textContent = `${changes.length} 个文件 · 基线 ${baselineLabel(state.baseline)}`;
+    elements.treeBody.innerHTML = renderTreeDiff();
+  }
+
+  function baselineLabel(value) {
+    return { worktree: "工作区", "main": "main", "v1.2.0": "v1.2.0" }[value] || value;
+  }
+
+  function renderCodeRows(lines, lang) {
+    return lines.map((line, index) => `<div class="row">
+      <span class="no">${index + 1}</span><span class="src">${highlight(lang, line)}</span></div>`).join("");
+  }
+
+  function renderDiffRows(rows) {
+    return rows.map((row) => {
+      if (row.kind === "hunk") {
+        return `<div class="row hunk">${escapeHtml(row.text)}</div>`;
+      }
+      const oldNo = row.old === null ? "" : `<em>${row.old}</em>`;
+      const newNo = row.next === null ? "" : String(row.next);
+      return `<div class="row ${row.kind}">
+        <span class="no">${oldNo}${newNo}</span><span class="src">${highlight("Python", row.text)}</span></div>`;
+    }).join("");
+  }
+
+  function noticeHtml(kind, title, body, extra) {
+    return `<div class="notice ${kind}">
+      <h3>${escapeHtml(title)}</h3>
+      <p>${body}</p>
+      ${extra ? `<p class="why">${extra}</p>` : ""}
+    </div>`;
+  }
+
+  function renderViewer() {
+    const path = state.selected;
+    const special = SPECIAL[path];
+    const change = currentChanges().find((entry) => entry.path === path);
+
+    elements.viewerPath.textContent = path || "—";
+
+    // 服务已退出：接管整个内容区
+    if (!state.serviceUp) {
+      elements.viewerMeta.innerHTML = "";
+      elements.viewerBody.innerHTML = noticeHtml("down", "服务已退出，无法继续读取",
+        "本机只读服务已不在运行（闲置超时被回收，或已被 <code>just view --stop</code> 结束）。左侧保留的是最后一次成功读取的文件树，已不可再点击。",
+        "重新连接：在仓库中执行 <code>just view</code>；已打开的标签页刷新即可继续。");
+      return;
+    }
+
+    if (state.mode === "diff") {
+      const diffRows = DIFFS[path];
+      const metaParts = [];
+      if (change) {
+        metaParts.push(`<span class="badge ${change.status}">${change.status}</span>`);
+        metaParts.push(`<span class="stat"><span class="add">+${change.add}</span><span class="del">−${change.del}</span></span>`);
+      }
+      metaParts.push(`<span>基线 ${baselineLabel(state.baseline)}</span>`);
+      elements.viewerMeta.innerHTML = metaParts.join("");
+      if (!change) {
+        elements.viewerBody.innerHTML = noticeHtml("", "该文件在当前基线下没有改动",
+          `当前基线为 <code>${baselineLabel(state.baseline)}</code>，该文件不在改动列表中。`,
+          "在左侧改动列表中选择一个文件，或在顶部切换基线。");
+        return;
+      }
+      if (!diffRows) {
+        elements.viewerBody.innerHTML = noticeHtml("", `${change.status === "A" ? "新增文件" : "改动内容"}暂未加载`,
+          "原型只演示若干文件的改动内容。", "真实实现会按需向只读接口请求该文件的完整统一 diff。");
+        return;
+      }
+      elements.viewerBody.innerHTML = `<div class="code diff">${renderDiffRows(diffRows)}</div>`;
+      return;
+    }
+
+    // 文件视图
+    const file = FILES[path];
+    elements.viewerMeta.innerHTML = file
+      ? `<span>${escapeHtml(file.lang)}</span><span>${escapeHtml(fileSizeLabel(path, file.size))}</span>`
+      : `<span>${special ? escapeHtml(special.size) : "—"}</span>`;
+
+    if (special && special.kind === "oversize") {
+      elements.viewerBody.innerHTML = noticeHtml("", "文件过大，未渲染内容",
+        `<code>${escapeHtml(path)}</code> 为 ${escapeHtml(special.size)}（${escapeHtml(special.lines)}），超过 ${OVERSIZE_LIMIT} 的渲染上限。`,
+        "这是刻意的上限：把大文件读进页面只会拖慢首屏而不增加可读性。仍需要正文时请用本地编辑器或 <code>git show</code>。");
+      return;
+    }
+    if (special && special.kind === "binary") {
+      elements.viewerBody.innerHTML = noticeHtml("", "二进制文件，不显示内容",
+        `<code>${escapeHtml(path)}</code> 为 ${escapeHtml(special.size)}，不是文本文件。`,
+        "查看器只渲染文本；改动视图仍会告诉你该二进制文件是否被改动过。");
+      return;
+    }
+    if (special && special.kind === "new") {
+      elements.viewerBody.innerHTML = noticeHtml("", "新增文件（原型未内联正文）",
+        `<code>${escapeHtml(path)}</code> 是本次改动新增的文件。`,
+        "原型只内联了少量示例文件的正文；真实实现会读取该文件的真实内容并高亮。");
+      return;
+    }
+    if (!file) {
+      elements.viewerBody.innerHTML = noticeHtml("", "原型未内联该文件",
+        `<code>${escapeHtml(path)}</code> 未收录进本原型的 fixture。`,
+        "真实实现会按需读取任意文本文件；原型只挑选了少量代表文件。");
+      return;
+    }
+    elements.viewerBody.innerHTML = `<div class="code">${renderCodeRows(file.lines, file.lang)}</div>`;
+  }
+
+  function renderStatus() {
+    const changes = currentChanges();
+    elements.diffCount.textContent = String(changes.length);
+    elements.branchChip.textContent = BRANCH;
+
+    if (!state.serviceUp) {
+      elements.statusDot.className = "dot down";
+      elements.statusText.textContent = "服务已退出 · 只读视图不可用";
+      elements.statusHint.textContent = "运行 just view 重新连接";
+      return;
+    }
+    elements.statusDot.className = "dot";
+    elements.statusText.textContent = "只读视图 · 服务运行中（pid 48120 · 127.0.0.1:8791）";
+    elements.statusHint.textContent = `模拟闲置回收：${state.secondsLeft}s（真实实现为 30 分钟无请求）`;
+  }
+
+  function render() {
+    elements.tabFiles.setAttribute("aria-selected", String(state.mode === "files"));
+    elements.tabDiff.setAttribute("aria-selected", String(state.mode === "diff"));
+    elements.baselineSelect.disabled = state.mode !== "diff";
+    elements.baselineSelect.value = state.baseline;
+    renderTree();
+    renderViewer();
+    renderStatus();
+  }
+
+  /* ===================================================================
+     交互
+     =================================================================== */
+
+  function setMode(mode) {
+    if (state.mode === mode) return;
+    state.mode = mode;
+    if (mode === "diff") {
+      const changes = currentChanges();
+      if (!changes.some((entry) => entry.path === state.selected) && changes.length > 0) {
+        state.selected = changes[0].path;
+      }
+    }
+    render();
+  }
+
+  elements.tabFiles.addEventListener("click", () => setMode("files"));
+  elements.tabDiff.addEventListener("click", () => setMode("diff"));
+
+  elements.baselineSelect.addEventListener("change", () => {
+    state.baseline = elements.baselineSelect.value;
+    const changes = currentChanges();
+    if (changes.length > 0 && !changes.some((entry) => entry.path === state.selected)) {
+      state.selected = changes[0].path;
+    }
+    render();
+  });
+
+  elements.filterInput.addEventListener("input", () => {
+    state.filter = elements.filterInput.value.trim();
+    renderTree();
+  });
+
+  elements.treeBody.addEventListener("click", (event) => {
+    const dirNode = event.target.closest("[data-toggle-dir]");
+    if (dirNode) {
+      const name = dirNode.getAttribute("data-toggle-dir");
+      if (state.expanded.has(name)) state.expanded.delete(name);
+      else state.expanded.add(name);
+      renderTree();
+      return;
+    }
+    const fileNode = event.target.closest("[data-select]");
+    if (fileNode) {
+      state.selected = fileNode.getAttribute("data-select");
+      renderTree();
+      renderViewer();
+    }
+  });
+
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") { document.getElementById("overlay-root").innerHTML = ""; return; }
+    const tag = (event.target.tagName || "").toLowerCase();
+    if (tag === "input" || tag === "select") return;
+    if (event.key === "f") setMode("files");
+    if (event.key === "d") setMode("diff");
+    if (event.key === "/") { event.preventDefault(); elements.filterInput.focus(); }
+  });
+
+  /* ===================================================================
+     模拟闲置回收（真实实现：30 分钟无任何请求 → 服务退出）
+     =================================================================== */
+
+  let idleTimer = null;
+
+  function startIdleCountdown() {
+    clearInterval(idleTimer);
+    state.secondsLeft = IDLE_TOTAL_SECONDS;
+    idleTimer = setInterval(() => {
+      if (!state.serviceUp) return;
+      state.secondsLeft -= 1;
+      if (state.secondsLeft <= 0) {
+        state.serviceUp = false;
+        clearInterval(idleTimer);
+      }
+      renderStatus();
+      if (!state.serviceUp) renderViewer();
+    }, 1000);
+  }
+
+  function simulateServiceExit() {
+    state.serviceUp = false;
+    clearInterval(idleTimer);
+    document.getElementById("overlay-root").innerHTML = "";
+    render();
+  }
+
+  /* ===================================================================
+     说明浮层
+     =================================================================== */
+
+  function openInfo() {
+    document.getElementById("overlay-root").innerHTML = `
+      <div class="overlay" onclick="if(event.target===this)document.getElementById('overlay-root').innerHTML=''">
+        <div class="dialog" role="dialog" aria-modal="true" aria-label="原型说明">
+          <button class="dialog-close" aria-label="关闭" data-hot="关闭" onclick="document.getElementById('overlay-root').innerHTML=''">✕</button>
+          <h2>只读文件与改动查看器 · 交互原型</h2>
+          <p class="sub">验证层级：interactive prototype（component preview）——<strong>不构成功能验收证据</strong>；数据为本地 fixture，未接入任何真实只读接口。</p>
+          <dl>
+            <div><dt>对应 PRD</dt><dd><code>tasks/pending/P2-FEAT-20260921-111233-local-file-diff-viewer.md</code></dd></div>
+            <div><dt>设计令牌</dt><dd><code>frontend-admin/src/styles/theme.css</code> 的 :root</dd></div>
+            <div><dt>评审工具层</dt><dd><code>docs/prototypes/shared.css</code> 与 <code>login-demo.html</code> 的 prototype chrome 约定</dd></div>
+            <div><dt>真实数据</dt><dd>文件路径取自本仓库；<code>uv.lock</code> 287 KB / 1798 行；<code>login-demo.png</code> 42 KB；仓库共 725 个受版本控制文件</dd></div>
+            <div><dt>原型形式</dt><dd>code-native 单文件，无外部依赖</dd></div>
+          </dl>
+          <p class="sub" style="margin:14px 0 0;font-weight:600;color:var(--foreground)">状态模型与到达方式</p>
+          <ol>
+            <li><strong>文件视图</strong>：默认态；左树选文件，右侧显示带行号与语法高亮的正文</li>
+            <li><strong>改动视图</strong>：点顶部「改动」，或在键盘按 <code>d</code></li>
+            <li><strong>切换基线</strong>：改动视图下切换基线为 <code>main</code>，改动文件减少；切到 <code>v1.2.0</code> 得到「无差异」空态</li>
+            <li><strong>过滤文件树</strong>：在右上过滤框输入，或在键盘按 <code>/</code> 聚焦</li>
+            <li><strong>文件过大</strong>：点左树 <code>uv.lock</code>（287 KB，超过 256 KiB 上限）</li>
+            <li><strong>二进制文件</strong>：点 <code>docs/prototypes/assets/login-demo.png</code></li>
+            <li><strong>服务已退出</strong>：闲置 ${IDLE_TOTAL_SECONDS} 秒不回任何请求后自动进入（状态条有倒计时），或立即用下方按钮模拟</li>
+          </ol>
+          <p class="sub" style="margin:14px 0 0;font-weight:600;color:var(--foreground)">未覆盖 / 需生产确认</p>
+          <ul>
+            <li>真实的 git 命令执行、文件读取、语法高亮渲染与路径越界防护</li>
+            <li>实例登记文件的读写、陈旧实例识别、进程与端口探测</li>
+            <li>真实浏览器冷启动耗时（实测 1.5–3s，PRD 明确不计入性能承诺）</li>
+            <li>700+ 文件规模下的真实文件树性能与懒加载策略</li>
+          </ul>
+          <div class="dialog-foot">
+            <button class="btn btn-outline" id="simulate-exit">模拟服务已退出</button>
+            <a class="btn btn-outline" href="./file-viewer-interactive.md" target="_blank" rel="noopener">原型说明页</a>
+            <button class="btn" data-hot="关闭" onclick="document.getElementById('overlay-root').innerHTML=''">关闭</button>
+          </div>
+        </div>
+      </div>`;
+    const simulateButton = document.getElementById("simulate-exit");
+    if (simulateButton) simulateButton.addEventListener("click", simulateServiceExit);
+  }
+
+  /* ===================================================================
+     prototype chrome
+     =================================================================== */
+
+  const chrome = document.querySelector("[data-prototype-chrome]");
+  const hotspotToggle = chrome.querySelector("[data-hotspot-toggle]");
+  let chromeIdleTimer = null;
+
+  const setHotspotsVisible = (visible) => {
+    document.body.classList.toggle("hotspots-on", visible);
+    hotspotToggle.setAttribute("aria-pressed", String(visible));
+    hotspotToggle.textContent = `◎ 可点击区域：${visible ? "开" : "关"}`;
+  };
+  const wakeChrome = () => { clearTimeout(chromeIdleTimer); chrome.classList.remove("is-idle"); };
+  const sleepChromeLater = (delay = 2500) => {
+    clearTimeout(chromeIdleTimer);
+    chromeIdleTimer = setTimeout(() => {
+      if (!chrome.matches(":hover") && !chrome.matches(":focus-within")) chrome.classList.add("is-idle");
+    }, delay);
+  };
+
+  function resetPrototype() {
+    state.mode = INITIAL_STATE.mode;
+    state.baseline = INITIAL_STATE.baseline;
+    state.selected = INITIAL_STATE.selected;
+    state.filter = "";
+    state.expanded = new Set(INITIAL_STATE.expanded);
+    state.serviceUp = true;
+    elements.filterInput.value = "";
+    document.getElementById("overlay-root").innerHTML = "";
+    setHotspotsVisible(true);
+    startIdleCountdown();
+    render();
+  }
+
+  hotspotToggle.addEventListener("click", () => setHotspotsVisible(!document.body.classList.contains("hotspots-on")));
+  chrome.querySelector("[data-info-toggle]").addEventListener("click", openInfo);
+  chrome.querySelector("[data-prototype-reset]").addEventListener("click", resetPrototype);
+  chrome.addEventListener("pointerenter", wakeChrome);
+  chrome.addEventListener("pointerleave", () => sleepChromeLater(1200));
+  chrome.addEventListener("focusin", wakeChrome);
+  chrome.addEventListener("focusout", () => sleepChromeLater(1200));
+
+  setHotspotsVisible(true);
+  sleepChromeLater();
+  startIdleCountdown();
+  render();
+})();
+</script>
+</body>
+</html>
