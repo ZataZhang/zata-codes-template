@@ -1,5 +1,7 @@
 # PRD: 本机只读文件与改动查看器（`just view`）
 
+- GitHub Issue: https://github.com/ZataZhang/zata-codes-template/issues/9
+
 > ✅ **交付前置**：无，可立即开工。
 > 结构化声明见 §8 Delivery Dependencies，**那里是唯一事实源**。
 
