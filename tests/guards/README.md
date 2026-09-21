@@ -68,6 +68,7 @@ AI 代理默认不会设置该变量，因此会被 hook 拦下——这是"指�
 | `shared/test_run_jscpd_duplication_check.py` | jscpd 增量重复检查 hook 逻辑（`hooks/shared/run_jscpd_duplication_check.py`） |
 | `shared/test_setup_copied_database.py` | Worktree 专用数据库派生与建库脚本契约（严格模式不静默回退共享库、日志不吐凭据） |
 | `shared/test_sync_template.py` | template sync 脚本（`scripts/shared/template/sync_template.sh`），含 upstream-owned 清单契约 |
+| `shared/test_view_server.py` | 本机只读查看器（`scripts/shared/view/`）：路径越界与符号链接逃逸必须被拒且不回声绝对路径、写方法与白名单外路由被拒、服务只绑回环、正文与本地文件逐行一致且每行标签平衡、超限与二进制只返回标记、改动文件集合与增删统计与终端 `git diff` 逐项一致、基线取值不得流进 git 选项解析、陈旧登记接管、`--stop` 与空闲回收后端口与登记都被清理、登记清理不误伤他人记录 |
 | `shared/test_whats_new_manifest.py` | what's-new manifest 构建脚本（`scripts/build/build_whats_new_manifest.py`） |
 
 ### 根目录（项目自有，不随 sync 分发）

@@ -5,7 +5,7 @@
 > ✅ **交付前置**：无，可立即开工。
 > 结构化声明见 §8 Delivery Dependencies，**那里是唯一事实源**。
 
-> ⬜ **验收状态**：未开工。
+> ✅ **验收状态**：已验收（2026-09-21）— 机器侧条目全部执行并留下证据（含补验的失效态 rv-7 与重测达标的性能 rv-5），3 项 Human-Confirmed 已由仓库所有者逐条确认。§12 的性能口径随「结项归档」这一决定按**空载口径 + 判定时连 load average 一起读**采纳（见 §12 裁定记录）。证据包见 §9。
 > 本行是 §9 Acceptance Checklist 的投影，**那里是唯一事实源**。
 
 > 本 PRD 分两个 altitude：**Part A · 人审层**（决定该不该做、做得对不对，含介入与风险地图）；**Part B · 执行器层**（实现细节，人只在风险地图点名处下钻）。
@@ -227,26 +227,46 @@ This section is a living implementation guide based on current repository analys
 .
 ├── scripts/shared/
 │   └── view/
+│       ├── instance.py
+│       │   [新增]
+│       │   【总结】常驻实例的登记与仓库定位：`.env.view-state` 读写、三项新鲜度判定所需
+│       │   的字段、登记清理的归属校验、仓库根解析。客户端入口与服务端共用同一份实现。
+│       │
+│       ├── ├── 登记文件读写（`VIEW_PID` / `VIEW_PORT` / `VIEW_REPO_ROOT` / `VIEW_STARTED_AT`）
+│       │   ├── `clear_instance_record` 的 `expected_process_id` 归属校验（回收方不得抹掉更新实例的记录）
+│       │   └── 仓库根解析：先向上找 `.git` 标记（亚毫秒），找不到才退回 `git rev-parse`
+│       │
+│       ├── workspace.py
+│       │   [新增]
+│       │   【总结】仓库工作区的只读快照：文件树、文件正文、改动列表与单文件 diff；路径
+│       │   越界防护与基线白名单校验也在这里，服务端只做路由分发。
+│       │
+│       ├── ├── `resolve_repository_path`：先 `resolve()` 再断言位于仓库根之下（rg 锚点：`is_relative_to`）
+│       │   ├── 文件树数据源：`git ls-files -z`（受控 + 未跟踪），排除 `.git`、`node_modules`、虚拟环境与构建产物目录
+│       │   ├── 改动数据源：工作区 `git diff HEAD` 与分支 `git diff <分支>...HEAD`；`--name-status -z` / `--numstat -z` 解析
+│       │   ├── 基线白名单：取值必须命中本地分支，避免 `--output=…` 之类以 `-` 开头的取值流进 git 选项解析
+│       │   ├── 大小上限、二进制文件与超大文件的标记返回
+│       │   └── Pygments 行级高亮（跨行 span 在行边界闭合再重开）、文件名回退词法器表、后台预热、缺失时降级纯文本
+│       │
 │       ├── server.py
 │       │   [新增]
-│       │   【总结】只读本机 HTTP 服务：固定只读路由白名单、路径越界防护、文件树/内容/改动数据、Pygments 高亮与降级、空闲回收与登记清理。
+│       │   【总结】只读本机 HTTP 服务：固定只读路由白名单、仅接受读取方法、静态资源白名单、
+│       │   空闲回收与登记清理、终止信号优雅退出。
 │       │
 │       ├── ├── 路由白名单与「仅接受读取方法」的拒绝逻辑（rg 锚点：`def do_GET` / 白名单常量）
-│       │   ├── 路径解析与仓库内断言（rg 锚点：`resolve` / `is_relative_to`）
-│       │   ├── 文件树数据源：`git ls-files` + 未跟踪文件，排除 `.git`、`node_modules`、虚拟环境与构建产物目录
-│       │   ├── 改动数据源：工作区改动与「相对分支的合并基点」两种基线
-│       │   ├── 大小上限、二进制文件与超大文件的标记返回
-│       │   ├── Pygments 行级高亮与后台预热、缺失时降级纯文本
-│       │   └── 空闲计时后台线程：超时优雅退出并清理登记文件
+│       │   ├── 静态资源按文件名白名单读取（没有可拼接的路径就没有可逃逸的路径）
+│       │   ├── 空闲计时后台线程：超时优雅退出并清理登记文件
+│       │   └── SIGINT / SIGTERM 经独立线程触发 `shutdown()`，避免与 `serve_forever()` 死锁
 │       │
 │       ├── launch.py
 │       │   [新增]
 │       │   【总结】客户端入口：实例新鲜度校验与复用、端口选择、以新会话启动服务、轮询就绪、写登记、打开浏览器、`--stop` 回收、参数解析。
 │       │
-│       ├── ├── 登记文件读写与新鲜度三校验（进程存活 / 端口可连 / 仓库路径一致）
+│       ├── ├── 登记文件读取与新鲜度三校验（进程存活 / 端口可连 / 仓库路径一致）
 │       │   ├── 陈旧登记的清理与接管
-│       │   ├── 端口选择顺序：登记值 → 默认 8791 → 系统空闲端口
-│       │   ├── 轮询就绪（不使用固定 sleep）与启动超时的明确报错
+│       │   ├── 端口选择顺序：显式 `--port` → 登记值 → 默认 8791 → 系统空闲端口
+│       │   ├── 轮询就绪（不使用固定 sleep）与启动超时的明确报错；起不来的实例主动收掉
+│       │   ├── 打开浏览器走系统打开器的非阻塞交接（不用 `webbrowser`，见 Change Log）
 │       │   └── `--stop`：读登记 → 终止进程 → 清理登记（不新增 HTTP 写路由）
 │       │
 │       └── assets/
@@ -454,6 +474,23 @@ flowchart TD
   tier: R0
   test_layer: unit
   required_for_acceptance: true
+- id: rv-7
+  behavior: 服务退出后页面切到明确的「服务已退出」提示与重新连接指引，而不是停留在半渲染的坏页面
+  reviewer: verifier
+  real_entry: "just view 起的真实服务 + 真实浏览器加载该 URL，再用 just view --stop 让服务退出，然后在页面里点一次文件树"
+  expected: "状态条变为「服务已退出 · 运行 just view 重新连接」、内容区渲染「服务已退出」提示块并带重新连接指引、左树加 is-stale 置灰"
+  mock_boundary: "不得用静态 HTML 复刻失效态；页面必须是真实浏览器渲染的真实入口 URL，失效必须是真实服务退出导致的"
+  tier: R2
+  test_layer: e2e
+  required_for_acceptance: true
+  presentation: "真实浏览器截图 tasks/evidence/P2-FEAT-20260921-111233-local-file-diff-viewer/rv-7-disconnected-state.png + 10 秒自检：内容区应出现红框「服务已退出」提示，左下状态条为红色圆点加「服务已退出 · 运行 just view 重新连接」"
+  critical_value_source: "URL 与端口取自本次 just view 的输出与登记文件；失效由真实回收命令 just view --stop 触发，不是手工停进程"
+  must_cross: "just view --stop -> 服务进程退出 -> 页面下一次 fetch 失败 -> guardAgainstServiceExit -> enterDisconnectedState"
+  forbidden_bypasses: "禁止用静态 HTML 复刻图或原型截图冒充；禁止刷新页面（服务已退出时刷新只会得到浏览器的连接错误页）"
+  fresh_state_probe: "重新执行 just view 后另开标签页，页面应恢复为「服务运行中」且文件树可点"
+  final_tree_evidence: "截图必须在最后一次修改 viewer.js 或其静态资源之后重拍"
+  negative_control: "在测试边界用打桩服务把界面资产换成「接口失败不切失效态」的副本（stub_server.py 的 stale-exit-handling，生产代码一行未改）：失效提示必须**不出现**"
+  expected_fail: "服务退出后页面仍显示「服务运行中」、左树未置灰、内容区仍是旧内容或空白"
 ```
 
 Failure triage:
@@ -461,6 +498,8 @@ Failure triage:
 - `rv-2` 跑挂先查基线语义：工作区基线与分支基线是两套 `git diff` 参数，先确认界面当前基线，再比对终端同参数输出。
 - `rv-3` 跑挂先查登记文件内容与 `lsof -nP -iTCP:<port>` 的实际监听状态，再判断是新鲜度校验误判还是回收未清理。
 - `rv-4` 跑挂先查路径解析是否在断言之前已被 `resolve()`，符号链接是常见漏点。
+- `rv-7` 跑挂先确认点的是**文件**节点而不是目录节点（目录只展开、不发请求），并确认失效
+  是由真实 `just view --stop` 触发的——手工 `kill` 与刷新页面都不算这条 oracle 的入口。
 - 全部条目均为本机可跑，无凭据依赖，无需 opt-in。
 
 ### 7.7 Low-Fidelity Prototype (Only When Required)
@@ -524,15 +563,41 @@ Failure triage:
 
 ### 9.1 人读呈递区（Human Review Surface）
 
-> 实现尚未开始，下表呈递物路径在交付时回填；设计评审阶段请改用 §7.8 的原型（`docs/prototypes/file-viewer-interactive.html`）。
+> 全部呈递物已落在 `tasks/evidence/P2-FEAT-20260921-111233-local-file-diff-viewer/`；原始工件被 `.gitignore` 白名单挡在版本库外，**只存在于本机**（下图为本地图片，GitHub 上不显示）。
+> 逐项期望值与「已替你核对过什么」见同目录 `<prd-stem>.evidence-report.md` 的 **人审导航** 章节。
 
-| # | 你要看什么（对应 oracle） | 呈递物（交付时填实际路径） | 想自己复核？ |
+| # | 你要看什么（对应 oracle） | 呈递物（绝对路径 + 打开方式） | 想自己复核？（含期望值） |
 |---|---|---|---|
-| 1 | 一条命令开出查看器，左树选文件、右侧是带行号的真实源码（rv-1） | `[交付时回填]` 真实入口截图 `rv-1-viewer-file.png` | 在查看器里点开 `justfile.shared`，对照本地文件首行 |
-| 2 | 切到改动视图，文件集合与增删统计和终端 `git diff` 一致（rv-2） | `[交付时回填]` 真实入口截图 `rv-2-viewer-diff.png` | 比对该界面文件数与终端 `git diff HEAD --stat` 的合计行 |
-| 3 | 第二次打开不重启进程且明显更快；闲置或 `--stop` 后彻底回收；陈旧登记不会打开坏页面（rv-3） | `[交付时回填]` 生命周期输出 `rv-3-lifecycle.txt` | `just view --stop` 后立刻 `curl` 该端口，应连接失败 |
+| 1 | 一条命令开出查看器，左树选文件、右侧是带行号的真实源码（rv-1） | `/Users/zata/code/zata_code_template/.iar-worktrees/issue-9/tasks/evidence/P2-FEAT-20260921-111233-local-file-diff-viewer/rv-1-viewer-file.png`<br>`open "/Users/zata/code/zata_code_template/.iar-worktrees/issue-9/tasks/evidence/P2-FEAT-20260921-111233-local-file-diff-viewer/rv-1-viewer-file.png"`<br>重跑：`bash .iar/evidence/scripts/rv1_file_view.sh` | 右侧第 1 行应为 `# ────…` 分隔注释行、行号从 1 起连续、文件头显示 `justfile.shared` / `1525 行 · 66.6 KB`、左树标题 `745 个文件`（终端受版本控制文件 732 个 + 未跟踪文件） |
+| 2 | 切到改动视图，文件集合与增删统计和终端 `git diff` 一致（rv-2） | `/Users/zata/code/zata_code_template/.iar-worktrees/issue-9/tasks/evidence/P2-FEAT-20260921-111233-local-file-diff-viewer/rv-2-viewer-diff.png`<br>`open "/Users/zata/code/zata_code_template/.iar-worktrees/issue-9/tasks/evidence/P2-FEAT-20260921-111233-local-file-diff-viewer/rv-2-viewer-diff.png"`<br>重跑：`bash .iar/evidence/scripts/rv2_diff_view.sh` | 界面合计应为 `8 个文件 +343 -67`，与终端 `git diff HEAD --stat` 的 `8 files changed, 343 insertions(+), 67 deletions(-)` 相同；左树 8 个文件与 `git diff HEAD --name-only` 逐一相同（这两组数字随工作区改动而变，以你复核时终端同参数输出为准） |
+| 3 | 第二次打开不重启进程且明显更快；闲置或 `--stop` 后彻底回收；陈旧登记不会打开坏页面（rv-3） | `/Users/zata/code/zata_code_template/.iar-worktrees/issue-9/tasks/evidence/P2-FEAT-20260921-111233-local-file-diff-viewer/rv-3-lifecycle.txt`<br>`open "/Users/zata/code/zata_code_template/.iar-worktrees/issue-9/tasks/evidence/P2-FEAT-20260921-111233-local-file-diff-viewer/rv-3-lifecycle.txt"`<br>重跑：`bash .iar/evidence/scripts/rv3_lifecycle.sh` | 第二次复用耗时远低于 150ms 且进程号与第一次相同；`--stop` 后立刻 `curl` 该端口应得 `HTTP 000`（连接失败）、登记文件不存在 |
+| 4 | **本次新增**：服务退出后页面给出「服务已退出」提示与重新连接指引，而不是半渲染的坏页面（rv-7） | `/Users/zata/code/zata_code_template/.iar-worktrees/issue-9/tasks/evidence/P2-FEAT-20260921-111233-local-file-diff-viewer/rv-7-disconnected-state.png`<br>`open "/Users/zata/code/zata_code_template/.iar-worktrees/issue-9/tasks/evidence/P2-FEAT-20260921-111233-local-file-diff-viewer/rv-7-disconnected-state.png"`<br>重跑：`bash .iar/evidence/scripts/rv7_disconnected_state.sh` | 内容区应出现红框「服务已退出」提示（含「重新执行 just view 会新起一个实例并打开新标签页」）、左下状态条为红点 + 「服务已退出 · 运行 just view 重新连接」、左树整体置灰 |
 
-**以下项不需要你看**（`reviewer: verifier`，agent 自验 + verifier 复核，挂了会自己红）：只读边界与路径越界防护（rv-4）、进程侧性能预算（rv-5）、命令/文档/原型登记（rv-6）。它们的证据在 §9.2。
+**rv-1 · 文件视图**
+
+![rv-1 文件视图：左树 + 右侧 justfile.shared 带行号高亮源码](../evidence/P2-FEAT-20260921-111233-local-file-diff-viewer/rv-1-viewer-file.png)
+
+**本地图片，GitHub 上不显示。**
+
+**rv-2 · 改动视图（工作区基线）**
+
+![rv-2 改动视图：左树只列改动文件 + 右侧逐行 diff](../evidence/P2-FEAT-20260921-111233-local-file-diff-viewer/rv-2-viewer-diff.png)
+
+**本地图片，GitHub 上不显示。**
+
+**rv-2 · 改动视图（分支基线，夹具仓库）**
+
+![rv-2 分支基线：相对 main 的合并基点改动](../evidence/P2-FEAT-20260921-111233-local-file-diff-viewer/rv-2-viewer-diff-baseline.png)
+
+**本地图片，GitHub 上不显示。**
+
+**rv-7 · 服务退出后的失效态（真实浏览器渲染真实入口 URL）**
+
+![rv-7 失效态：左树置灰 + 内容区服务已退出提示 + 状态条重新连接指引](../evidence/P2-FEAT-20260921-111233-local-file-diff-viewer/rv-7-disconnected-state.png)
+
+**本地图片，GitHub 上不显示。**
+
+**以下项不需要你看**（`reviewer: verifier`，agent 自验 + verifier 复核，挂了会自己红）：只读边界与路径越界防护（rv-4）、进程侧性能预算（rv-5）、命令/文档/原型登记（rv-6）、失效态 oracle（rv-7，`reviewer` 标注为 verifier，但截图与重跑命令同样列在上一行供你抽查）。它们的证据在 §9.2。
 
 ### 9.2 Acceptance Evidence Package（机器证据 · verifier 入口，人默认跳过）
 
@@ -540,84 +605,93 @@ Failure triage:
    - rv-1 → 真实入口截图 + 与本地文件的一致性核对记录
    - rv-2 → 真实入口截图 + 同基线终端 `git diff` 输出的逐项比对
    - rv-3 → 两次调用的耗时与进程号、`--stop` 后端口与登记状态的检查输出
-2. **verifier-only 项结果**：rv-4（守卫测试全绿）、rv-5（进程侧计时）、rv-6（三处登记断言）
+   - rv-7 → 真实浏览器驱动真实入口的失效态观测 + 负控（去掉失效态处理）对照
+2. **verifier-only 项结果**：rv-4（守卫测试全绿）、rv-5（进程侧计时，**必须连 load average 一起读**）、rv-6（三处登记断言）
 3. **风险地图对账 Predicted → Reconciled**：决策一（常驻与回收）、决策二（只读边界）是否按预期落地；实现中若新增高风险面（例如发现需要写路由、需要进入产品前端构建），必须先回填到 §2 再继续
-4. **对抗自检**：对「服务只读」断言的反方检查（尝试写入类请求、尝试读取仓库外路径）；对「复用」断言的反方检查（陈旧登记、端口被别进程占用）；对「空闲回收」断言的反方检查（页面不做心跳这一前提是否被误改）
+4. **对抗自检**：对「服务只读」断言的反方检查（尝试写入类请求、尝试读取仓库外路径）；对「复用」断言的反方检查（陈旧登记、端口被别进程占用）；对「空闲回收」断言的反方检查（页面不做心跳这一前提是否被误改）；对「失效提示」断言的反方检查（见 rv-7 负控）
 5. **对锁定契约的 diff**：登记文件的字段集合与 §7.1 描述是否一致；只读路由白名单是否与 §6 描述一致
 6. **低风险门禁结果（折叠）**：`just lint`、`just test`、守卫测试、文档构建
+7. **性能判定的环境口径**：rv-5 的每条采样都由 `rv5_measure.py` 在首行打印 load average；**脱离 load average 单看毫秒数会把实现质量与机器拥塞混为一谈**（两次达标采集见 `rv-5-performance.txt` / `rv-5-performance-repeat.txt`，历史不达标采集见 §12）
 
 ### Human-Confirmed (来自 Part A 风险地图)
 
 > Part A 第 2 节每个"必须人工确认"的决策点，这里都有对应的确认项；oracle 跑绿是机器层前提，**不是**人工勾选对象。
 
-- [ ] 决策一（生命周期）已确认：进程常驻换取秒开 + 默认闲置 30 分钟无请求自动退出 + 提供显式回收命令 + 页面不做心跳、失效时给明确提示
-- [ ] 决策二（能力上限）已确认：查看器严格只读，任何编辑/暂存/提交能力都不做、也不预留接口
-- [ ] §9.1 呈递区各项已亲眼看过（截图 / 自验，二选一或都做）
+- [x] 决策一（生命周期）已确认：进程常驻换取秒开 + 默认闲置 30 分钟无请求自动退出 + 提供显式回收命令 + 页面不做心跳、失效时给明确提示 — 人工确认：2026-09-21 由仓库所有者在交互会话中逐条点头确认
+- [x] 决策二（能力上限）已确认：查看器严格只读，任何编辑/暂存/提交能力都不做、也不预留接口 — 人工确认：2026-09-21 由仓库所有者在交互会话中逐条点头确认（机器侧只读边界由 rv-4 跑绿，另经独立复核：`POST /api/file` 与 `PUT /` 均返回 405、`?path=../../../../etc/passwd` 返回 403）
+- [x] §9.1 呈递区各项已亲眼看过（截图 / 自验，二选一或都做） — 人工确认：2026-09-21 呈递区核心截图（`rv-1-viewer-file.png` 文件视图、`rv-7-disconnected-state.png` 失效态）已在会话中向仓库所有者原样呈现并确认
 
 ### Architecture Acceptance
 
-- [ ] 新增能力只落在共享工具链层：`justfile.shared` + `scripts/shared/view/`，未引入 `src/backend/` 依赖、未进入 composition root
-- [ ] 未进入 `frontend-admin/` 与 `frontend-public/` 的构建链与路由；查看器页面是独立静态单页
-- [ ] 生命周期（登记 / 复用 / 回收）只有一份实现，`just view` 与 `just diff` 共用同一入口
-- [ ] 未在 `skills/git-diff-report/` 中新增依赖或复刻其报告生成逻辑
+- [x] 新增能力只落在共享工具链层：`justfile.shared` + `scripts/shared/view/`，未引入 `src/backend/` 依赖、未进入 composition root（证据：实现只在 `justfile.shared` + `scripts/shared/view/`；`git status --short -- src/ frontend-admin/ frontend-public/` 为空。）
+- [x] 未进入 `frontend-admin/` 与 `frontend-public/` 的构建链与路由；查看器页面是独立静态单页（证据：同上；`rv-6-docs-registry.txt` 的同步面断言。）
+- [x] 生命周期（登记 / 复用 / 回收）只有一份实现，`just view` 与 `just diff` 共用同一入口（证据：`rv-6-docs-registry.txt`——`just --list` 列出 `view` / `diff`，两条 recipe 都指向 `scripts/shared/view/launch.py`。）
+- [x] 未在 `skills/git-diff-report/` 中新增依赖或复刻其报告生成逻辑（证据：`rg -n "render_diff_report|skills/git-diff-report" scripts/shared/view docs/guides/file-viewer.md` 无命中。）
 
 ### Dependency Acceptance
 
-- [ ] 语法高亮依赖在 `pyproject.toml` 中显式声明，非依赖传递安装
-- [ ] `pygments` 缺失时服务不崩溃，降级为纯文本（功能可用性不变）
-- [ ] 未引入 Node / 前端构建链、Web 框架、终端 TUI 依赖（`delta` / `bat` / `lazygit`）或静态站点生成器
-- [ ] 未依赖仅本机存在的全局路径（技能目录、用户级配置），派生项目同步后可直接使用
+- [x] 语法高亮依赖在 `pyproject.toml` 中显式声明，非依赖传递安装（证据：`pyproject.toml` dev 组新增 `pygments>=2.17.0` 并写明理由；`rv-6-docs-registry.txt`。）
+- [x] `pygments` 缺失时服务不崩溃，降级为纯文本（功能可用性不变）（证据：本次执行的降级检查（测试边界拦截 `pygments` 导入，生产代码未改）——`build_file_payload` 返回 status 200 / `highlighted=False` / `line_count=1525` / `language=纯文本（未安装语法高亮依赖）`，正文完整且无 token span。）
+- [x] 未引入 Node / 前端构建链、Web 框架、终端 TUI 依赖（`delta` / `bat` / `lazygit`）或静态站点生成器（证据：`rv-6-docs-registry.txt`——`rg -n "git-delta|difftastic|lazygit"` 无命中；`scripts/shared/view/*.py` 顶层导入只有标准库 + `pygments`。）
+- [x] 未依赖仅本机存在的全局路径（技能目录、用户级配置），派生项目同步后可直接使用（证据：`rv-6-docs-registry.txt`——`sync_template.sh` 把 `justfile.shared` 与 `scripts/shared/*` 判为 upstream-owned，派生项目同步即得。）
 
 ### Behavior Acceptance
 
-- [ ] `just view` / `just view <路径>` / `just view --diff [基线]` / `just view --stop` / `just diff [基线]` 全部按 §6 参数面工作
-- [ ] 文件树与文件内容与真实工作区一致；二进制与超大文件返回明确标记而非正文或空白
-- [ ] 改动视图的文件集合与增删统计与同参数终端 `git diff` 逐项一致；两种基线（工作区、分支合并基点）都可用
-- [ ] 复用命中时不重启进程；登记陈旧（进程已退出 / 端口不可连 / 仓库不一致）时判定为陈旧并重新起服务
-- [ ] 空闲超时后服务退出且登记被清理；`--idle-timeout 0` 时关闭自动回收
-- [ ] `just view --stop` 后端口不再被监听、登记被清理
-- [ ] 服务退出后页面显示明确的重新连接提示，而非半渲染的坏页面
-- [ ] 服务只绑本机回环地址；仅接受读取方法；无任何写路由
-- [ ] 任意读取请求无法越出仓库目录（含 `..` 与符号链接逃逸）
-- [ ] 查看过程中被查看仓库的工作区状态不发生任何变化
-- [ ] `just run` / `just down` / `just test` / `just worktree` 的既有行为与参数不变；`.env.run-state` 语义不变
-- [ ] 默认端口 8791 与既有默认端口（8000 / 5173 / 3000）不重叠；被占用时自动退让
+- [x] `just view` / `just view <路径>` / `just view --diff [基线]` / `just view --stop` / `just diff [基线]` 全部按 §6 参数面工作（证据：`rv-1-viewer-file.txt`（`just view <路径>`）、`rv-2-viewer-diff.txt`（`--diff` 与基线切换）、`rv-3-lifecycle.txt`（`--stop`、`--idle-timeout`）；verifier 报告「命令面」一行逐条复核了 `--port` / `--no-reuse` / `--no-open` 与 `just diff main`。）
+- [x] 文件树与文件内容与真实工作区一致；二进制与超大文件返回明确标记而非正文或空白（证据：`rv-1-viewer-file.txt`（逐行一致 + 文件树覆盖）+ 守卫测试 `test_oversize_and_binary_files_are_marked_not_rendered`。）
+- [x] 改动视图的文件集合与增删统计与同参数终端 `git diff` 逐项一致；两种基线（工作区、分支合并基点）都可用（证据：`rv-2-viewer-diff.txt`——工作区基线 8 文件 `+174 -17` 与终端 `--numstat`/`--stat` 逐项相同；分支基线在夹具仓库上与 `git diff main...HEAD` 逐项相同。）
+- [x] 复用命中时不重启进程；登记陈旧（进程已退出 / 端口不可连 / 仓库不一致）时判定为陈旧并重新起服务（证据：`rv-3-lifecycle.txt`——第二次复用进程号不变（5369 → 5369，34.0ms）；`kill -9` 后登记被接管并重起，`/api/info` 200；负控（污染进程号）同样判陈旧并接管。）
+- [x] 空闲超时后服务退出且登记被清理；`--idle-timeout 0` 时关闭自动回收（证据：`rv-3-lifecycle.txt`（`--idle-timeout 3` 端到端回收）+ 守卫测试 `test_idle_timeout_exits_and_clears_registry` / `test_idle_timeout_zero_disables_automatic_recycling`。）
+- [x] `just view --stop` 后端口不再被监听、登记被清理（证据：`rv-3-lifecycle.txt`——登记不存在、进程不存活、`curl` 该端口 `HTTP 000`。）
+- [x] 服务退出后页面显示明确的重新连接提示，而非半渲染的坏页面
+  - **本次已补真实入口验证（rv-7）**：`rv-7-disconnected-state.txt` + `rv-7-disconnected-state.png`——真实 `just view` 起的服务、真实 Chrome 渲染登记文件里的 URL，再用真实回收命令 `just view --stop` 让服务退出，然后在页面里点一次文件树触发真实请求失败。观测结果：状态条 `只读视图 · 服务运行中` → `服务已退出 · 运行 just view 重新连接`、`#tree-body` class 由 `tree-body` → `tree-body is-stale`、内容区渲染出 `.notice.down` 提示块且文本含「重新执行 just view 会新起一个实例并打开新标签页」与 `本次请求失败原因：Failed to fetch`。前一版「只读代码、未驱动真实浏览器」的限制已消除。
+  - **负控（证明该断言会红）**：同一套驱动流程对着打桩服务跑，界面资产换成「接口失败不切失效态」的副本（`stub_server.py` 的 `stale-exit-handling`，生产代码一行未改）——服务退出后状态条仍是 `只读视图 · 服务运行中`、左树未被置灰、没有提示块（`rv-7-disconnected-state-negative-control.png`），说明正控看到的失效态是真实前端行为，不是页面本来就长这样。
+- [x] 服务只绑本机回环地址；仅接受读取方法；无任何写路由（证据：`rv-4-readonly-boundary.txt`——`lsof` 显示 `127.0.0.1` 监听、非回环地址 `connect_ex -> 61`；POST/PUT/DELETE/PATCH 全部 405；`rg` 无 `do_POST` 等写方法名字。）
+- [x] 任意读取请求无法越出仓库目录（含 `..` 与符号链接逃逸）（证据：`rv-4-readonly-boundary.txt`——`..` / 绝对路径 / 符号链接全部 403 且不回声绝对路径；负控（去掉断言）逃逸成功，证明该断言有判别力。）
+- [x] 查看过程中被查看仓库的工作区状态不发生任何变化（证据：`rv-4-readonly-boundary.txt`——读取前后 `git status --porcelain` 的 SHA-256 指纹相同。）
+- [x] `just run` / `just down` / `just test` / `just worktree` 的既有行为与参数不变；`.env.run-state` 语义不变（证据：`git diff justfile.shared` 只新增 `view` / `diff` 两条 recipe，未触碰既有 recipe；`.env.view-state` 是新文件，`git check-ignore` 命中 `.env*`。）
+- [x] 默认端口 8791 与既有默认端口（8000 / 5173 / 3000）不重叠；被占用时自动退让（证据：`rv-2-viewer-diff.txt` 采集时端口落在 60366 / 65439，即「被占用时自动退让」路径真实发生过；守卫测试覆盖端口选择。）
 
 ### Frontend Acceptance
 
-- [ ] `scripts/shared/view/assets/index.html` 按要求渲染文件树、内容视图、改动视图、基线选择与失效提示
-- [ ] 前端只调用本 PRD 定义的只读接口，未调用任何写接口
-- [ ] 查看器未引入产品前端组件库、构建链或状态管理；`frontend-admin/` 与 `frontend-public/` 无改动
+- [x] `scripts/shared/view/assets/index.html` 按要求渲染文件树、内容视图、改动视图、基线选择与失效提示
+  - 前四项由真实入口截图共同证明（文件树 + 内容视图见 `rv-1-viewer-file.png`，改动视图 + 基线选择见 `rv-2-viewer-diff.png` 与 `rv-2-viewer-diff-baseline.png`）；**「失效提示」这一子项本次已用真实浏览器补验**：`rv-7-disconnected-state.png`（正控，提示出现）+ `rv-7-disconnected-state-negative-control.png`（负控，去掉失效态处理后提示不出现）。五个子项全部有真实入口证据。
+- [x] 前端只调用本 PRD 定义的只读接口，未调用任何写接口（证据：verifier 报告「前端有无轮询」一行——`fetch` 只有一个调用点，且只打 `/api/info` / `/api/tree` / `/api/file` / `/api/changes` / `/api/diff` 五个只读路由。）
+- [x] 查看器未引入产品前端组件库、构建链或状态管理；`frontend-admin/` 与 `frontend-public/` 无改动（证据：`scripts/shared/view/assets/` 只有 3 个本地文件、零 CDN；`git status --short -- frontend-admin frontend-public` 为空。）
 
 ### Documentation Acceptance
 
-- [ ] `docs/ai-standards/tooling.md` 的 Common Commands 表与 Preferred Tools 已同步两条命令与只读定位
-- [ ] `docs/guides/file-viewer.md` 覆盖命令面、界面用法、实例登记与回收、性能承诺边界（含浏览器冷启动不计入）、排障入口
-- [ ] `mkdocs.yml` 导航已加入新页；原型中心 `docs/prototypes/prototype-registry.js` 已登记查看器条目，`docs/prototypes/index.md` 已加入清单
-- [ ] 文档与 `docs/ai-standards/tooling.md` 中既有的孤儿进程教训互相引用，形成一致的回收约定
+- [x] `docs/ai-standards/tooling.md` 的 Common Commands 表与 Preferred Tools 已同步两条命令与只读定位（证据：`rv-6-docs-registry.txt`（6 处命中）。）
+- [x] `docs/guides/file-viewer.md` 覆盖命令面、界面用法、实例登记与回收、性能承诺边界（含浏览器冷启动不计入）、排障入口（证据：`rv-6-docs-registry.txt`（18 处命中），含浏览器冷启动不计入的明示。）
+- [x] `mkdocs.yml` 导航已加入新页；原型中心 `docs/prototypes/prototype-registry.js` 已登记查看器条目，`docs/prototypes/index.md` 已加入清单（证据：`rv-6-docs-registry.txt`——五处登记全部命中，`uv run mkdocs build` 成功。）
+- [x] 文档与 `docs/ai-standards/tooling.md` 中既有的孤儿进程教训互相引用，形成一致的回收约定（证据：`tooling.md` 新增的 Local Read-Only Viewer 小节直接引用「三次 `just test` 曾常驻 14 小时」这条教训。）
 
 ### Validation Acceptance
 
-- [ ] `uv run pytest tests/guards/shared/test_view_server.py -v` 通过（rv-4）
-- [ ] `just view` 在真实入口上开出查看器，且内容与本地文件一致（rv-1）
-- [ ] `just view --diff` 的文件集合与增删统计与同参数终端 `git diff` 逐项一致（rv-2）
-- [ ] 连续两次 `just view` 的进程号不变、第二次 <=150ms；冷启动首个接口 <=400ms（rv-3、rv-5）
-- [ ] `just view --stop` 与空闲超时后，端口不再被监听、登记文件被清理（rv-3）
-- [ ] 证据中的端口与进程号取自 `just view` 的真实输出或登记文件，未使用文档示例值；复用、回收、越界防护三类断言都做过反方检查
-- [ ] 证据产物绑定最终代码树，并在最后一次影响该 oracle 链的改动后重新收集
-- [ ] `rg -n "just view\|file-viewer-interactive" docs/ai-standards/tooling.md docs/guides/file-viewer.md docs/prototypes/prototype-registry.js docs/prototypes/index.md mkdocs.yml` 五处均有命中（rv-6）
-- [ ] `rg -n "do_POST\|do_PUT\|do_DELETE\|do_PATCH" scripts/shared/view/` 无写方法命中
-- [ ] `rg -n "git-delta\|difftastic\|lazygit" justfile.shared scripts/shared docs/` 无命中（终端形态未回流）
-- [ ] `just lint` 与 `just test` 通过
+- [x] `uv run pytest tests/guards/shared/test_view_server.py -v` 通过（rv-4）（证据：`rv-4-readonly-boundary.txt`——**19 passed**（含本次新增的 NUL 畸形路径用例）。）
+- [x] `just view` 在真实入口上开出查看器，且内容与本地文件一致（rv-1）（证据：`rv-1-viewer-file.txt` + `rv-1-viewer-file.png`（真实浏览器渲染登记文件里的 URL）。）
+- [x] `just view --diff` 的文件集合与增删统计与同参数终端 `git diff` 逐项一致（rv-2）（证据：`rv-2-viewer-diff.txt` + 两张截图。）
+- [x] 连续两次 `just view` 的进程号不变、第二次 <=150ms；冷启动首个接口 <=400ms（rv-3、rv-5）
+  - **本次重测达标（两次独立采集，均已落档）**：`rv-5-performance.txt`（load avg 4.58/5.54/6.13）与 `rv-5-performance-repeat.txt`（load avg 2.39/3.08/9.81）——复用命中中位 **60.1 / 60.1 ms**（预算 150，超预算样本 0/12 与 0/12）、冷启动口径一中位 **115.7 / 88.6 ms**、口径二中位 **96.6 / 98.6 ms**（预算 400，超预算样本 0/11 与 0/11）。负控（注入固定延迟的启动器）两次都判 FAIL（中位 348.3 / 352.2 ms），证明这套计时有判别力。rv-3 同批重测：第二次调用进程号不变、耗时 34.0 ms。
+  - **必须一并披露的口径风险（不许只看这一行）**：这四条预算的值**由机器负载主导，不是由实现主导**。同一份代码在负载约 15 时实测复用中位 158.9ms、冷启动中位 419.1ms（上一版证据，已作废但仍记录在 §12），在负载 2–5 时实测 60.1 / 115.7ms；采集期间本机还观察到无关进程 `next-server` 长期占用约 534% CPU。因此这一项**只在「采集时 load average 已写入证据首行」的前提下成立**，判定时请连着 load average 一起看。`docs/guides/file-viewer.md` 的「性能承诺边界」已把这条口径限制写给使用者。
+  - **本次为此做了两项真实改动**（见 §14 Change Log）：recipe 对入口传 `-S` 跳过 site 初始化（空载省约 1.5ms、负载高时省约 30ms，交错 A/B 见 `rv-5-no-site-flag-ab.txt`），以及新增守卫测试把「入口 stdlib-only」这条约束钉住。**没有修改任何预算数字。**
+- [x] `just view --stop` 与空闲超时后，端口不再被监听、登记文件被清理（rv-3）（证据：`rv-3-lifecycle.txt`。）
+- [x] 服务退出后真实浏览器里的页面切到「服务已退出」失效态，且该断言有判别力（rv-7）（证据：`rv-7-disconnected-state.txt`——正控三条 DOM 断言全真、负控三条全假；截图 `rv-7-disconnected-state.png` / `rv-7-disconnected-state-negative-control.png`。重跑：`bash .iar/evidence/scripts/rv7_disconnected_state.sh`。）
+- [x] 证据中的端口与进程号取自 `just view` 的真实输出或登记文件，未使用文档示例值；复用、回收、越界防护三类断言都做过反方检查（证据：各 rv 脚本一律用 `awk` 从 `.env.view-state` 取端口（`common.sh` 的 `viewer_port` / `viewer_pid`），未使用文档示例值；rv-1/rv-2/rv-3/rv-4/rv-5/rv-6 全部做过负控或反方检查。）
+- [x] 证据产物绑定最终代码树，并在最后一次影响该 oracle 链的改动后重新收集（证据：`workspace.py` / `launch.py` / `docs/guides/file-viewer.md` 改动后 rv-1…rv-6 全部重收；verifier 报告「证据绑定」一节复核了 `justfile.shared` 的 mtime 属 fresh-state probe 还原所致。）
+- [x] `rg -n "just view\|file-viewer-interactive" docs/ai-standards/tooling.md docs/guides/file-viewer.md docs/prototypes/prototype-registry.js docs/prototypes/index.md mkdocs.yml` 五处均有命中（rv-6）（证据：`rv-6-docs-registry.txt`——五处均有命中。）
+- [x] `rg -n "do_POST\|do_PUT\|do_DELETE\|do_PATCH" scripts/shared/view/` 无写方法命中（证据：`rv-4-readonly-boundary.txt` 的源码级断言，无命中。）
+- [x] `rg -n "git-delta\|difftastic\|lazygit" justfile.shared scripts/shared docs/` 无命中（终端形态未回流）（证据：`rv-6-docs-registry.txt`——`justfile.shared` / `scripts/shared` / `docs/` 下无终端形态依赖命中。）
+- [x] `just lint` 与 `just test` 通过（证据：`just test` 输出 `Lint passed` + 全绿用例汇总，并写入本分支 @ 本次提交树的测试与 lint flag，是 `pre-commit` 的 `check-test-flag` 放行依据；执行顺序是「所有文件改动完成 → 跑 `just test` → 不再改文件」。本项不引用固定的用例条数，因为条数随本次新增守卫测试而变，引用条数会让这条证据在下次加测试时静默过期。）
 
 ### Delivery Readiness
 
-- [ ] Recommended approach fully implemented; no unapproved parallel abstraction introduced
-- [ ] No open regression or rollout blocker remains
-- [ ] §9.1 呈递区的呈递物路径已全部回填，且完成回复已原样带上呈递表内容（只给 evidence 目录链接不算交付）
-- [ ] 每个呈递物都带**可直接执行的打开方式**（绝对路径 + `open` 命令或可点 URL）与**逐项期望值**
-- [ ] 每张证据静态图都在 PRD 与证据报告里用 `![<说明>](<相对路径>)` **就地嵌入**（只给 `open` 命令不算），并在嵌图旁标注「本地图片，GitHub 上不显示」
-- [ ] 证据报告首节是同一份「人审导航」，含就地嵌图、打开命令、逐项期望值、PR/CI 链接与"已替你核对过什么"
+- [x] Recommended approach fully implemented; no unapproved parallel abstraction introduced（证据：交付面 = `justfile.shared` 两条 recipe + `scripts/shared/view/` 五个模块与静态资源 + 19 项守卫 + 文档/原型登记；无平行生命周期实现（rv-6）。）
+- [x] No open regression or rollout blocker remains（证据：`git diff justfile.shared` 未触碰既有 recipe，既有命令行为不变（见 Behavior Acceptance 对应条）；唯一未达标项是 FR-9 性能预算，属已披露的待裁定风险而非回归（§12）。）
+- [x] §9.1 呈递区的呈递物路径已全部回填，且完成回复已原样带上呈递表内容（只给 evidence 目录链接不算交付）（证据：§9.1 表格三行的绝对路径、`open` 命令、复现命令与逐项期望值均已回填，三张截图就地嵌入。）
+- [x] 每个呈递物都带**可直接执行的打开方式**（绝对路径 + `open` 命令或可点 URL）与**逐项期望值**（证据：§9.1 与证据报告人审导航同形，逐行给出绝对路径 + `open` 命令 + 复现命令 + 期望值。）
+- [x] 每张证据静态图都在 PRD 与证据报告里用 `![<说明>](<相对路径>)` **就地嵌入**（只给 `open` 命令不算），并在嵌图旁标注「本地图片，GitHub 上不显示」（证据：PRD §9.1 与证据报告人审导航均已 `![…](…)` 就地嵌入，并标注「本地图片，GitHub 上不显示」。）
+- [x] 证据报告首节是同一份「人审导航」，含就地嵌图、打开命令、逐项期望值、PR/CI 链接与"已替你核对过什么"（证据：`<prd-stem>.evidence-report.md` 首节即 `## 人审导航 / Human Review Navigation`。）
 
 ---
 
@@ -655,6 +729,11 @@ Failure triage:
 - **大仓库与超大文件**：本机 725 个文件下文件树约 25ms；派生项目若规模显著更大，首次加载与页面渲染可能变慢。文件读取有大小上限，但文件树本身未设上限，作为已知跟随项记录，出现实际卡顿时再收窄（例如改为按目录懒加载）。
 - **语法高亮依赖缺失**：依赖未安装时降级为纯文本，功能不缺失但观感下降；文档需说明降级行为。
 - **只读边界的长期侵蚀风险**：这是软约束而非技术强制，需靠 §7.3 的搜索断言与 §9 的验收项守住；若将来确有编辑需求，应另立 PRD 并重新评估安全面。
+- **【口径风险 · 已达标但结论依赖机器负载】FR-9 的两条进程侧预算由环境主导，不是实现指标**：同一份代码在本机两次测出完全相反的结论——负载约 15 时复用命中中位 **158.9ms**、冷启动到首个接口中位 **419.1ms**（两条都超标，9/12 与 7/11 样本越界）；负载 2–5 时复用命中中位 **60.1 / 60.1ms**、冷启动到首个接口中位 **88.6–115.7ms**（两条都达标，24 个复用样本与 22 个冷启动样本全部在预算内）。两次采集都达标、负控两次都判红，因此 §9 对应条目按「本次已执行并达标」勾选；但**这条达标结论只在「采集时 load average 已写入证据首行」的前提下可复现**。采集期间本机还有一个与本交付无关的 `next-server` 长期占用约 534% CPU（10 核）。路径上只有一个 `just` 加一个 Python 解释器，两者的成本几乎全是解释器启动与导入，这部分在 CPU 被挤占时会被放大约一个数量级（空载 `python -c pass` 约 9ms，负载 17 时约 50–100ms）。
+  - **执行器本次做的两件事**：(1) recipe 对入口传 `-S` 跳过 site 初始化——交错 A/B 实测空载省约 1.5ms、负载高时省约 30ms（`rv-5-no-site-flag-ab.txt`），重建了「机器忙时」这条最需要余量的路径；(2) 新增守卫测试 `tests/guards/shared/test_view_launch_entry.py` 把「入口 import 闭包只能是标准库」这条 `-S` 的隐含前提钉住，并做了红跑对照。
+  - **执行器没有做的事**：没有修改 §1 / FR-9 的任何预算数字，没有为了凑数而放宽口径，也没有把「空载达标」包装成「实现质量提升」——两次达标采集与 §12 记录的历史不达标采集同批归档，便于回溯。
+  - **仍需人工裁定的一点**：若认为「本机工具链的进程侧预算必须在机器满负荷时也成立」，则当前实现不满足，需要另立性能优化任务（例如把客户端入口与服务进程合并，去掉一个解释器启动成本）；若接受「预算按空载口径理解、判定时连 load average 一起读」，则本 PRD 可结项。`docs/guides/file-viewer.md` 的「性能承诺边界」已按后一种口径写明。
+  - **裁定结果（2026-09-21，仓库所有者）**：采纳后一种口径——预算按空载理解，判定时必须连 load average 一起读，本 PRD 结项归档。归档前另做过一次独立复核：空载下 `just view --no-open` 连续两次复用命中均为 **20ms**（预算 150ms），进程号不变。若将来确实需要「满负荷也达标」，按前一种口径另立性能优化任务，不回改本 PRD 的预算数字。
 
 ---
 
@@ -681,3 +760,140 @@ Failure triage:
 - Requirements and risks: [archive 时回填]
 - Reconciled differences:
   - none
+
+## 14. Change Log
+
+### §7.2 改动树细化：模块拆成 instance / workspace / server / launch
+
+- Type: scope
+- Before: §7.2 把登记读写、仓库根解析、文件树与内容数据、Pygments 高亮、路径越界防护全部列在 `server.py` 之下，`launch.py` 只列客户端入口。
+- After: 拆成 `instance.py`（登记与仓库根定位，客户端与服务端共用）、`workspace.py`（只读工作区快照：文件树 / 正文 / 改动列表 / 单文件 diff，含越界防护与基线白名单）、`server.py`（路由白名单、仅接受读取方法、静态资源白名单、空闲回收、信号优雅退出）、`launch.py`（客户端入口与参数面）。
+- Reason: 客户端要做「新鲜度三校验」与「`--stop` 读登记 → 清理登记」，与服务端同源；若都塞进 `server.py`，`launch.py` 只能复制一份，直接违反 §6「生命周期必须只有一份实现」。
+- Impact: 交付面从原计划的 3 个模块变为 4 个模块；命令面、对外行为与验收标准不变。
+- Review: 执行器改动；自动门禁覆盖（守卫测试 18 项 + 越界/写方法运行时探针）。无需人工复核。
+
+### `view` / `diff` 两条 recipe 写成非 shebang 单行并优先直连项目 venv
+
+- Type: scope
+- Before: PRD 未规定 recipe 形态；初版实现沿用仓库既有的 `#!/usr/bin/env bash` shebang 写法并经由 `uv run` 调用。
+- After: 两条 recipe 写成普通单行 `exec`，优先直连项目 venv 解释器（`<repo>/.venv/bin/python`，Windows 走 `Scripts/python.exe`），解释器尚未建出时退回 `uv run --no-sync python`。
+- Reason: 本机实测 shebang recipe 每次要多花约 200ms 起一个临时脚本，`uv run --no-sync` 每次仍多花 20–37ms；两者都会吃掉 rv-5 的 150ms 复用命中预算（该预算由 §1 与 FR-9 锁定，不能放宽）。
+- Impact: 复用命中中位数由超预算降至 121.4ms；未 `just sync` 的派生项目走 uv 兜底，功能不缺失。代价是这两条 recipe 与 `justfile.shared` 其余 recipe 的书写风格不一致，已在 justfile 注释中写明原因与预算来源。
+- Review: 执行器改动；rv-3（生命周期）与 rv-5（计时）在改动之后重收证据。
+
+### 打开浏览器改为系统打开器的非阻塞交接
+
+- Type: scope
+- Before: PRD 未指定打开浏览器的方式。
+- After: 经系统打开器（macOS `open`、Linux `xdg-open`）以非阻塞方式交接 URL，不使用 `webbrowser` 模块；`--no-open` 仍只打印 URL。
+- Reason: `webbrowser.open` 在若干环境下会阻塞到浏览器退出，会把「秒开」变成「浏览器关掉才返回」，与 FR-9 的进程侧预算口径冲突。
+- Impact: `just view` 在浏览器保持打开时立即返回；复用计时覆盖该交接路径。
+- Review: 执行器改动；rv-5 的复用计时样本包含该路径。
+
+### 端口优先级补上 `--port`
+
+- Type: doc
+- Before: §7.1 写「选端口（登记值 → 默认 8791 → 系统空闲端口）」。
+- After: 「显式 `--port` → 登记值 → 默认 8791 → 系统空闲端口」。
+- Reason: 原描述漏掉已承诺的 `--port` 在优先级中的位置，会让文档与实现对同一参数给出两种解释。
+- Impact: 仅补齐描述；行为、命令面与验收标准不变。
+- Review: 执行器改动；使用指南的命令面表格与之对齐。
+
+### rv-1 / rv-2 证据在入口 recipe 最后一次改动之后重收
+
+- Type: evidence
+- Before: rv-1 / rv-2 的截图与日志采集于 `justfile.shared` 最后一次改动**之前**（旧证据里可见旧 recipe 形态）。
+- After: 两条 oracle 的采集脚本在同一台机器上原样重跑，截图与终端日志按最终代码树重新生成。
+- Reason: 这两条 oracle 的 `must_cross` 明确包含 `just recipe -> launch.py` 这一段，recipe 形态改变后旧证据不再绑定最终代码树，违反 §9「证据产物绑定最终代码树」。
+- Impact: 证据时间戳晚于最后一次影响该 oracle 链的改动；两项结论仍为 PASS（内容一致性与集合一致性未变）。
+- Review: 执行器重收；独立 verifier 复核证据与最终树的绑定关系。
+
+### 实现期未新增风险面
+
+- Type: scope
+- Before: §2 风险地图锁定两条决策（生命周期、只读边界），并要求实现中若出现新高风险面必须先回填 §2。
+- After: 未回填 §2——实现期没有新增写路径、没有引入新的对外网络面、没有进入产品前端构建链。
+- Reason: 上述四项改动都落在 §2 已声明的范围内（进程侧形态与参数面），不构成新的高风险面。
+- Impact: 无。
+- Review: 执行器自检；verifier 独立复核只读边界与生命周期实现。
+
+### 畸形路径参数（内嵌 NUL 字节）改为拒绝应答，并加守卫测试
+
+- Type: scope
+- Before: `workspace.resolve_repository_path` 只捕 `OSError`；路径含 NUL 时 `Path.resolve()` 抛的是 `ValueError`，异常穿透到 HTTP 层，客户端拿不到任何应答（`curl` 显示 000），服务端日志留下 traceback。
+- After: 捕 `(OSError, ValueError)`，畸形路径与越界路径一样返回 HTTP 403 的拒绝应答；`tests/guards/shared/test_view_server.py` 新增 `test_malformed_path_parameters_are_refused_not_dropped` 固定该行为。
+- Reason: 这是独立 verifier 报告的 SECURITY 项 S-1。它不是越权（没有返回仓库外内容、没有写入、服务不中断），但把「越界/畸形一律明确拒绝」的应答形态退化成「无应答 + 日志 traceback」，也违反该函数自己写下的「解析失败返回 None」契约。
+- Impact: 仅影响畸形输入路径；正常运行行为、命令面与验收标准不变。守卫测试从 18 项增至 19 项。红跑已记录：把该行改回 `except OSError` 后新用例失败（`http.client.RemoteDisconnected: Remote end closed connection without response`）。
+- Review: verifier SECURITY 项，执行器修复并做红/绿对照；不需要人工复核。
+
+### 登记清理补上归属校验（两处调用点）
+
+- Type: scope
+- Before: `launch.py` 在「陈旧登记清理」与「`--stop` 回收」两处调用 `instance.clear_instance_record(repository_root)` 时**没有**传 `expected_process_id`。
+- After: 两处都传 `expected_process_id`，只在该进程号仍登记在案时才删除。
+- Reason: verifier 报告 N-2。并发 `just view` 时，后到者可能删掉先到者刚写入的新登记，留下一个 `--stop` 够不着的活实例；§7.2 本来就写明「回收方不得抹掉更新实例的记录」，服务端侧同一 API 也一直带着该约束，只有这两处漏了。
+- Impact: 消除该竞态；正常单进程路径行为不变。
+- Review: verifier NON-BLOCKING 项，执行器修复；守卫测试 `test_registry_clear_never_removes_another_instances_record` 覆盖底层约束。
+
+### `--no-reuse` 与端口优先级的文档订正
+
+- Type: doc
+- Before: 使用指南把 `--port` 描述为「默认优先 8791」，漏掉优先级里的「登记值」；`--no-reuse` 未说明旧实例的去向。
+- After: `--port` 一行写明完整优先级（显式 `--port` → 登记值 → 8791 → 系统空闲端口）；`--no-reuse` 一行写明「旧实例不会自动收掉，需要时 `just view --stop`，或等它自己闲置回收」。
+- Reason: verifier 报告 N-2 / N-5。前者是文档与实现不一致，后者是漏写了用户可感知的后果。
+- Impact: 仅文档；行为不变。
+- Review: 执行器订正，rv-6 的文档断言在改动后重跑。
+
+### rv-5 的计时样本量从 5/3 提高到 12/11，并如实记录未达标
+
+- Type: evidence
+- Before: `rv5_measure.py` 复用路径取 5 个样本、冷启动取 3 个样本，只打印 min / 中位 / max，按中位数判定。
+- After: 复用路径 12 个样本、冷启动 11 个，并打印 p90 与「超预算样本数」；判定仍按中位数。
+- Reason: 独立 verifier 的 N-3 指出小样本中位数不稳定、极值贴上限。加大样本后结论反转：复用命中中位 142.9ms（n=5，原判 PASS）→ 158.9ms（n=12，9/12 超标），冷启动中位 377.8ms → 419.1ms（7/11 超标）。
+- Impact: **FR-9 的两条预算按字面口径在本机未达标**，已按 §12 新增风险项与 §9 未勾选条目记录；未修改预算数字，也未做凑数式微优化。
+- Review: 执行器重测并如实上报；verifier 的 N-3 已预测该结果，执行器不修改 verifier 的独立裁定文本，只在证据报告 §11 说明时序关系。**此项需人工裁定**（见 §12）。
+
+### recipe 对入口传 `-S` 跳过 site 初始化，并加守卫测试钉住其前提
+
+- Type: scope
+- Before: `view` recipe 直接以 `<repo>/.venv/bin/python` 调起 `scripts/shared/view/launch.py`，走完整的解释器启动（含 site 初始化）。
+- After: recipe 在解释器与脚本之间插入 `-S`；同时新增 `tests/guards/shared/test_view_launch_entry.py`，把「入口的 import 闭包只能是标准库 + 同目录兄弟模块」这条 `-S` 的隐含前提钉死，并断言 recipe 确实传了 `-S`。
+- Reason: FR-9 的复用命中预算只有 150ms，而这条路径的成本几乎全是解释器启动与导入。site 初始化要扫一堆路径与 `.pth` 文件，**在被 CPU 挤占时成本会被放大约一个数量级**：交错 A/B 实测空载只省 1.5ms（20.8 → 20.2ms，`rv-5-no-site-flag-ab.txt`），载约 17 时省约 30ms（`python -c pass` 约 50–100ms → 加 `-S` 约 20–30ms）。预算真正吃紧的正是机器忙的时候，所以这个开关留着。代价是入口进程里没有 site-packages，一旦有人往 `launch.py` 加第三方 import，`just view` 会在启动瞬间 `ModuleNotFoundError`（已实测复现），因此必须有守卫测试。
+- Impact: 服务进程由 `launch.py` 以**不带** `-S` 的方式单独拉起，`sys.executable` 在 `-S` 下仍指向项目 venv，语法高亮依赖照常可用（已端到端验证 `/api/file` 返回 `highlighted: true`）。命令面、对外行为与验收标准不变；新增守卫测试 2 项。
+- Review: 执行器改动；红跑对照已记录（去掉 recipe 里的 `-S` → 断言 1 判红；往 `launch.py` 加 `import pygments` → 断言 2 判红且运行时确实 `ModuleNotFoundError`）；rv-3 / rv-5 在改动之后重收证据。
+
+### FR-9 性能结论按负载口径更正为「已达标」，并保留历史不达标记录
+
+- Type: evidence
+- Before: §12 记录「复用命中中位 158.9ms、冷启动中位 419.1ms，**未达标**」，§9 对应条目保持未勾选，请人工在 (a) 修订 FR-9 口径 / (b) 放宽预算 / (c) 另立性能任务 三条路里选一条。
+- After: 按同一套脚本（`rv5_measure.py`，样本量与判定规则未变）在负载 2–5 时重测两次，复用命中中位 **60.1 / 60.1ms**、冷启动口径一中位 **115.7 / 88.6ms**、口径二中位 **96.6 / 98.6ms**，四次判定全部 PASS 且超预算样本均为 0；负控两次都判 FAIL。§9 对应条目改为勾选，§12 改写成「已达标但结论依赖机器负载」的口径风险，并保留历史不达标数字与 `next-server` 占用约 534% CPU 的观察。
+- Reason: 独立 verifier 的 N-3 让执行器加大样本后发现「不达标」，但进一步测量显示**结论由环境而非实现主导**：同一份代码在负载 15 与负载 2 下测出相反结论，而 22 个样本的两次达标采集都可复现、负控也可复现。把「高负载下的失败」当成实现缺陷、或把「空载下的达标」当成实现质量提升，两者都是误读。
+- Impact: §9 的 rv-5 条目由未勾选改为勾选，但条目正文显式要求「判定时连着 load average 一起读」；`docs/guides/file-viewer.md` 的「性能承诺边界」新增一段口径说明。**预算数字一个都没改**，§12 仍保留「若要求满负荷也达标则需另立性能任务」这一待裁定点。
+- Review: 执行器重测并如实上报；两次达标采集（`rv-5-performance.txt` / `rv-5-performance-repeat.txt`）、`-S` 的交错 A/B（`rv-5-no-site-flag-ab.txt`）与历史不达标采集同批归档，人工可自行复核任一份。
+
+### 新增 rv-7 oracle 与真实浏览器证据：服务退出后的失效态
+
+- Type: scope
+- Before: FR-8（服务退出后页面切到「服务已退出」提示）**没有对应的 oracle**，§9 里有两条验收项因此长期未勾选；上一版明确披露「只读代码、未驱动真实浏览器」，理由是驱动这条路径需要浏览器交互——页面刻意不做心跳轮询，所以必须由浏览器真的发起一次请求。
+- After: §7.6 新增 rv-7（`reviewer: verifier`，tier R2，e2e），带完整 oracle 字段（`real_entry` / `must_cross` / `forbidden_bypasses` / `negative_control` / `expected_fail`）；新增采集脚本 `rv7_disconnected_state.sh` + `rv7_disconnected_state.py`（经 CDP 驱动真实 Chrome），并给 `stub_server.py` 加了 `stale-exit-handling` 负控桩。
+- Reason: 这是 §9 里唯一没有机器证据的行为项。补验后两条相关验收项（Behavior Acceptance 的失效提示、Frontend Acceptance 的 `index.html` 失效提示子项）都可以按「行为已真实执行」勾选，而不是继续挂着。
+- Impact: 正控观测到状态条 `服务运行中` → `服务已退出 · 运行 just view 重新连接`、`#tree-body` 由 `tree-body` → `tree-body is-stale`、内容区渲染出 `.notice.down` 且文本含重新连接指引与 `Failed to fetch`；负控（界面资产换成「接口失败不切失效态」的副本，生产代码一行未改）三条 DOM 断言全假，证明该 oracle 有判别力。截图两张：`rv-7-disconnected-state.png` / `rv-7-disconnected-state-negative-control.png`；§9.1 人审呈递区新增第 4 行并就地嵌图。
+- Review: 执行器采集；负控在测试边界打桩，未改动 `scripts/shared/view/assets/` 下任何生产代码。新增脚本落在 `.iar/evidence/scripts/`（证据采集面，不进交付面）。
+
+### rv-7 采集脚本的两个浏览器适配坑（记录以免后人重踩）
+
+- Type: evidence
+- Before: 驱动脚本最初按「页面级 WebSocket + `Page.navigate`」写，且优先用 Playwright 缓存里的 Chrome for Testing。
+- After: 改为「启动参数里直接给目标 URL + 浏览器级 WebSocket + `Target.attachToTarget(flatten=True)`」，且优先用系统 Chrome。`rv7_disconnected_state.py` 的类 docstring 里写明了原因。
+- Reason: 本机实测 Playwright 缓存的 `chromium-1243`（及同缓存旧版本）在 headless 下 CDP 拿不到真实页面上下文——`Target.attachToTarget` 成功但 `Runtime.evaluate` 恒报 `location.href === "about:blank"`、`Page.captureScreenshot` 不回应答；这会**静默产出「页面是空的」这种假证据**，比直接报错更危险。换系统 Chrome 后两种 headless 模式都正常。另外，无论哪个构建，页面级 WebSocket 与 `Page.navigate` 在本机都会在导航后静默失效，只有「启动时就在目标页」这条路径稳定。
+- Impact: 仅影响证据采集脚本；交付代码未改。
+- Review: 执行器排查并记录；选择依据是同一套探针对四个组合（两个构建 × 两种 headless）的实测对照。
+
+### 人工验收完成：3 项 Human-Confirmed 勾选 + §12 性能口径裁定 + 结项归档
+
+- Type: acceptance
+- Before: §9 的 3 项 Human-Confirmed 挂 `- [~]`（runner-owned gate，执行器不得代签）；§12 留着一条「预算是否必须在满负荷时也成立」的待裁定项；PRD 在 `tasks/pending/`。
+- After: 3 项按人工确认勾成 `- [x]` 并各自记录确认方式；§12 新增裁定结果（采纳空载口径 + 判定时连 load average 一起读）；PRD 归档到 `tasks/archive/`；§1 验收状态横幅由「待人工验收」改为「已验收」。
+- Reason: 仓库所有者在交互会话中逐条确认了生命周期决策、只读能力上限决策，并已看过 §9.1 呈递区的核心截图（`rv-1-viewer-file.png` / `rv-7-disconnected-state.png`）；结项归档这一决定本身即选定了 §12 的后一种口径。
+- Impact: 归档前另做过一次不依赖执行器证据的独立复核，全部复现：全量测试（`CI=1` 强制，绕过 flag 短路）321 passed + lint 通过；`/api/tree`、`/api/file`、`/api/diff` 返回真实数据；`POST /api/file` 与 `PUT /` 均 405、`?path=../../../../etc/passwd` 403；连续两次复用命中 20ms、进程号不变；仅监听 `127.0.0.1`，经外部网卡连接被拒；`--stop` 后进程与登记双清理。预算数字、FR 与验收口径一律未改。
+- Review: 人工验收（仓库所有者，2026-09-21）+ 独立复核。**已知遗留**：Issue #9 正文的 Realistic Validation 清单只有 rv-1…rv-6，与本 PRD §9 的 7 项不一致，会让 `validate_evidence_manifest` 把 manifest 的 item 7 判成「计划外条目」而报红（`agent_runner_structured_evidence.py:775`）——这是 runner 在 2026-09-21 15:24:06 升级到 recovery 3/5 的真实原因，本次随归档一并回填 Issue 正文。
