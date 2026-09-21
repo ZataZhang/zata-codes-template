@@ -202,7 +202,9 @@ uv run pre-commit run --show-diff-on-failure
 
 完整模式：
 
-- `just lint --full`：运行 `uv run pre-commit run --all-files --show-diff-on-failure`，通过后写入 `.last_linted_commit`；manual 重复检测 hooks 不属于该模式。
+- `just lint --full`：先把**未跟踪且未被 `.gitignore` 排除**的文件显式喂给 `uv run pre-commit run --files`，再运行 `uv run pre-commit run --all-files --show-diff-on-failure`，通过后写入 `.last_linted_commit`；manual 重复检测 hooks 不属于该模式。
+    - 未跟踪那一趟不可省：`--all-files` 只覆盖 git 已知的文件，新建但尚未 `git add` 的文件对它完全不可见。漏掉这趟时，「新增文件后的首次提交」必然踩坑——全量 lint 放行 → test 标记写在未定型的内容上 → `git add -A` 后 `git commit` 的钩子才第一次看到这些文件并 autofix → 内容变了 → `check-test-flag` 判「标记已过期」，人和 agent runner 都只能回头重跑一遍 `just test`。
+    - 因此首次引入新文件时，`just lint --full` 可能在未跟踪那一趟因 autofix 改写文件而失败一次；重跑即通过，这与仓库里其它 autofix 钩子的收敛方式一致。
 - `just lint --reuse`：显式运行 manual 重复检测 hooks：`jscpd`、`pylint-duplicate-code`，并补跑 `check-architecture`、`check-guidelines-consistency`、`check-max-file-lines`。
 - `just lint --repo`：本地交付前总入口，串行执行 `just lint --full`、`just lint --reuse`、`just test`、`uv run mkdocs build --strict`，并在最后重新确认 full lint/test 标记。
 
