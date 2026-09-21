@@ -72,6 +72,8 @@ just run        # 同时启动后端 + 管理平台前端 + 前台官网
 | `just worktree -m <feature> [base=main] [flags]` | 将 feature worktree 合并到 base 分支 |
 | `just worktree --doctor` | 扫描所有 worktree 的健康状况 |
 | `just worktree --doctor <branch>` | 检查指定 worktree |
+| `just worktree --prune` | 批量删除已并入 base 的本地分支及其 worktree；默认先列出计划并确认一次 |
+| `just worktree --prune --dry-run` | 只列出待清理计划，不做任何变更；`--yes` 跳过确认，`--force` 额外纳入远端已删但有独有提交的分支 |
 
 ### 模版与项目管理
 

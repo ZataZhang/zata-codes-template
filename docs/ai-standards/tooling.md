@@ -30,6 +30,7 @@
 | `just copy <new-dir>` | 派生新项目；随机分配三个互不重叠的端口避免多副本端口冲突，并根据新项目名自动生成独立 PostgreSQL 数据库 |
 | `just worktree <branch>` | 仅能从 Git primary worktree 创建；自动分配端口、创建专用 PostgreSQL 空库并执行迁移，开发与 E2E 共用该 Worktree 的数据库 |
 | `just worktree -o <worktree-name>` | 打开已有 worktree；名称接受分支全名、分支最后一段、PRD slug、PRD 文件名（可带 `.md`）与 `tasks/pending/....md` 路径，歧义时报错列候选、未命中时列可用 worktree |
+| `just worktree --prune [--dry-run\|--yes\|--force] [--base <branch>]` | 批量删除已并入 base 的本地分支及其 worktree；默认列计划并确认一次，gone 但有独有提交的分支需 `--force` |
 | `just test` | 运行本地测试 |
 | `just bench-test` | 验证 warm / after-edit 场景的 `just test` 是否满足 30 秒预算 |
 | `just view [路径]` | 打开本机只读文件与改动查看器；第二条命令起复用常驻实例（秒开） |
@@ -202,6 +203,10 @@ python scripts/check_prd_acceptance_checklist.py --repo-root "$PWD" --all
 ### PRD 人工审查清单
 
 当 PRD 只剩 `Human-Confirmed` 项、验收横幅翻成 `🧍 待人工验收` 时，执行方在证据目录 `tasks/evidence/<prd-stem>/` 生成 `human-review-checklist.md`：按审查顺序集中全部未完成项，每项为人类阅读而写——**决策先行**（开头点明要拍板什么、判断错了的后果）、**自足可读**（原样引用 PRD 表述并白话展开，引用只用于核验而非理解）、**稳定锚点**（按章节引用如 `§9.2 Human-Confirmed 第 N 条`，禁止行号——PRD 一编辑行号即漂移）、**渐进披露**（一句话结论 → 引文 → 证据 → 复跑命令放最后）、**证据走人类入口**（视觉呈递物用相对路径内嵌渲染，关键报告行原文摘录，打开命令只作可选深挖）、**回复格式明确**（每项写清回"同意"还是选选项/列差异）、**术语即用即解**（内部黑话首现处给一行白话定义）。涉及拍板的分歧（接受披露 / 要求补测等）给出可勾选的选项。清单携带截图或选项项时，同目录再生成自包含交互版 `human-review-checklist.html`（无外部依赖）：逐步向导、每项点按钮作答、进度存浏览器 localStorage、末页生成可复制的审查结果——Markdown 为静态底稿，两者内容必须一致。清单是审查会话的呈现面，**不是第二事实源**：确认结果回填 PRD §9 与证据包，清单本身留作人工审查的留痕。
+
+当交付流程包含 PR 时，PR 是默认人工审查入口，不能再要求审阅者回到本地清单完成第二次确认。PR 正文必须唯一关联 pending PRD，列出需要接受的决策，并明确声明“合并即接受这些决策与可见结果，并授权合并后归档”；稳定的 PR 证据评论必须呈递 §9.1、verifier/CI 结论、可复现命令、证据 hash、内嵌视觉证据或文本摘要，以及验证时的 head/tree 标识。原始证据不进入代码 diff，可由仓库证据发布器推到专用 orphan branch。Squash、merge commit、rebase merge 均可作为接受事件；合并后以最终 Git tree 与 verified tree 相等为归档条件，SHA 不同但 tree 相同是正常的。缺声明、缺证据、门禁未绿、未合并或最终 tree 不同，都不得自动勾选 `Human-Confirmed`。完整协议以 `skills/prd/references/pr-evidence-and-merge-acceptance.md` 为准。
+
+用户可见的前端改动还必须在同一条 PR 证据评论里成对展示目标原型图与真实实现截图。每个验收关键状态都要匹配状态、视口、主题、语言和代表数据，注明 prototype source、真实进入路径、实现截图的验证层级、具体对照点与已披露差异；原型只表达设计目标，不能充当真实运行证据。只有确认无任何视觉或交互变化的前端 plumbing 才可写具体 waiver。
 
 `just prd review <prd-file>` 打开该清单（清单槽位内交互 HTML 优先于静态 Markdown）。证据目录解析与看板共用同一套规则（worktree 按 slug 匹配、分支副本优先）——执行发生在 worktree 里，未合并前证据不在主仓库，直接按主仓库路径找会扑空。没有清单时回退打开证据报告（其「人审导航」节是呈递物入口）；两者都没有时列出证据目录现状并退出 1，绝不静默成功。`--print` 只打印解析到的路径、不调用系统打开器，供测试与脚本消费。
 
