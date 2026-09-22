@@ -5,9 +5,14 @@
  * /api/markdown），页面不做任何写入，也不做心跳轮询——一旦开始轮询，服务端的空闲自动
  * 回收就会静默失效（见 docs/guides/file-viewer.md 的回收策略一节）。
  *
- * 改动视图按 `git status` 的三段口径展示：已暂存、未暂存、未跟踪。**同一个文件可以同时
- * 出现在两段里**（暂存了几个 hunk 之后又改了几行），因此条目的身份是「路径 + 分区」而不是
- * 路径；选中态、请求参数与直达路径的归属都按这个二元组走。
+ * 改动视图在界面上分两段展示，与 VSCode 对齐：`Staged Changes` 与 `Changes`（后者由服务端
+ * 的「未暂存」与「未跟踪」两段合并而来）。**同一个文件可以同时出现在两段里**（暂存了几个 hunk
+ * 之后又改了几行），因此条目的身份是「路径 + 底层分区」而不是路径；选中态、请求参数与直达路径
+ * 的归属都按这个二元组走，显示上的合并不改变它。
+ *
+ * 页面只有一个写操作：`Changes` 里的加号（标题旁那一个、以及每个文件旁那一个）会把改动
+ * 加进索引（`POST /api/stage`）。除此之外页面不写入任何东西——没有提交、没有撤销暂存、
+ * 没有丢弃改动，服务端也只有这一个写口（见 docs/guides/file-viewer.md）。
  *
  * 两个视图各自记一份「上一次看的那一个」（成功读到内容才记），切视图时还原，而不是每次
  * 都回到空态。改动视图头部的「查看文件」是显式指定，优先于记忆。
@@ -26,16 +31,29 @@
   const SOURCE_MODE = "source";
   const PREVIEW_MODE = "preview";
 
-  /** 文件视图那棵目录树的标识；改动视图的每段各有一棵，见 treeKeyForSection。 */
+  /** 文件视图那棵目录树的标识；改动视图每段各有一棵，见 treeKeyForGroup。 */
   const FILES_TREE_KEY = FILES_VIEW;
 
   /**
+   * 改动视图在界面上显示的**两段**，与 VSCode 对齐：`Staged Changes` 与 `Changes`。
+   *
+   * 服务端仍按三段给数据（HEAD↔索引 / 索引↔工作区 / 未跟踪的 git 口径互不相同，单文件 diff
+   * 与暂存动作都要知道自己面对哪一种），因此合并只发生在这里——`memberSections` 是这一段由
+   * 哪几个底层分区拼出来的。`canStage` 决定这一段的标题旁摆不摆「全部暂存」的加号：已经在索引
+   * 里的东西再暂存一次没有意义。
+   */
+  const CHANGE_GROUPS = [
+    { key: "staged", label: "Staged Changes", memberSections: ["staged"], canStage: false },
+    { key: "changes", label: "Changes", memberSections: ["unstaged", "untracked"], canStage: true },
+  ];
+
+  /**
    * 改动视图里某一段那棵目录树的标识。
-   * @param {string} sectionName 分区取值。
+   * @param {string} groupKey 显示分段的标识。
    * @returns {string} 树标识。
    */
-  function treeKeyForSection(sectionName) {
-    return `${DIFF_VIEW}:${sectionName}`;
+  function treeKeyForGroup(groupKey) {
+    return `${DIFF_VIEW}:${groupKey}`;
   }
 
   const elements = {
@@ -45,6 +63,8 @@
     tabDiff: document.getElementById("tab-diff"),
     diffCount: document.getElementById("diff-count"),
     filterInput: document.getElementById("filter-input"),
+    refreshButton: document.getElementById("refresh-view"),
+    refreshTimer: document.getElementById("refresh-timer"),
     treeTitle: document.getElementById("tree-title"),
     treeNote: document.getElementById("tree-note"),
     treeBody: document.getElementById("tree-body"),
@@ -83,6 +103,12 @@
     filePaths: [],
     changedSections: [],
     isDisconnected: false,
+    /** 一次手动刷新是否正在进行；用来防止连点发出多份请求。 */
+    isRefreshing: false,
+    /** 一次暂存请求是否正在进行；同样防连点——连点会发出两遍 `git add`。 */
+    isStaging: false,
+    /** 上次刷新的时刻（`performance.now()`，单调、不受改系统时间影响）。 */
+    lastRefreshedAtMonotonic: 0,
     // --- 两个视图各自记住「上一次看的那一个」，切视图时还原（见 switchView） ---
     /** 文件视图里上一次成功读到正文的路径；空串表示还没看过任何文件。 */
     lastFileViewPath: "",
@@ -100,12 +126,24 @@
   };
 
   /**
-   * 请求一个只读接口。
+   * 请求一个接口。
+   *
+   * GET 是只读读取；`POST` 只用于暂存（`/api/stage`）——那是页面唯一的写操作，且必须带
+   * JSON 请求体：服务端用 `Content-Type: application/json` 把跨站表单式 POST 挡在预检外。
    * @param {string} requestUrl 接口地址。
+   * @param {{method?: string, body?: object}} [requestOptions] 方法与 JSON 请求体；缺省是 GET。
    * @returns {Promise<{status: number, body: object}>} 应答状态码与 JSON 正文。
    */
-  async function requestJson(requestUrl) {
-    const response = await fetch(requestUrl, { headers: { Accept: "application/json" } });
+  async function requestJson(requestUrl, requestOptions = {}) {
+    const requestBody = requestOptions.body;
+    const response = await fetch(requestUrl, {
+      method: requestOptions.method || "GET",
+      headers: {
+        Accept: "application/json",
+        ...(requestBody ? { "Content-Type": "application/json" } : {}),
+      },
+      ...(requestBody ? { body: JSON.stringify(requestBody) } : {}),
+    });
     const responseBody = await response.json();
     return { status: response.status, body: responseBody };
   }
@@ -116,6 +154,7 @@
    */
   function enterDisconnectedState(failureMessage) {
     viewState.isDisconnected = true;
+    stopRefreshTimer();
     elements.treeBody.classList.add("is-stale");
     elements.statusDot.classList.add("down");
     elements.statusText.textContent = "服务已退出 · 运行 just view 重新连接";
@@ -217,6 +256,116 @@
     viewState.selectedPath = searchParameters.get("path") || "";
   }
 
+  /** 正计时定时器的句柄；页面退出「服务已退出」态后就停掉它。 */
+  let refreshTimerHandle = 0;
+
+  /**
+   * 启动「距上次刷新」的正计时，并把起点定为现在。
+   *
+   * 这个定时器**只改本地文字，不发任何请求**：不轮询那条口径说的是请求，页面依旧是「用户不
+   * 动就不产生流量」。它存在的意义是把「你看到的这份状态有多旧」摆在眼前——查看器不会自己
+   * 跟上文件变更，而人很容易以为它是实时的。
+   */
+  function startRefreshTimer() {
+    viewState.lastRefreshedAtMonotonic = performance.now();
+    updateRefreshTimerText();
+    if (refreshTimerHandle) {
+      return;
+    }
+    refreshTimerHandle = window.setInterval(updateRefreshTimerText, 1000);
+  }
+
+  /**
+   * 停掉正计时并把它藏起来。服务已退出时留着它只会误导：那个数字说得像是「刚刚还看过」。
+   */
+  function stopRefreshTimer() {
+    if (refreshTimerHandle) {
+      window.clearInterval(refreshTimerHandle);
+      refreshTimerHandle = 0;
+    }
+    elements.refreshTimer.hidden = true;
+  }
+
+  /**
+   * 把「距上次刷新」画成 `分:秒`（超过一小时才显示小时），并在 title 里写清整句。
+   */
+  function updateRefreshTimerText() {
+    const elapsedSeconds = Math.floor(
+      (performance.now() - viewState.lastRefreshedAtMonotonic) / 1000
+    );
+    const elapsedHours = Math.floor(elapsedSeconds / 3600);
+    const elapsedMinutes = Math.floor((elapsedSeconds % 3600) / 60);
+    const remainingSeconds = elapsedSeconds % 60;
+    const paddedMinutes = String(elapsedMinutes).padStart(2, "0");
+    const paddedSeconds = String(remainingSeconds).padStart(2, "0");
+    elements.refreshTimer.textContent =
+      elapsedHours > 0
+        ? `${elapsedHours}:${paddedMinutes}:${paddedSeconds}`
+        : `${elapsedMinutes}:${paddedSeconds}`;
+    elements.refreshTimer.title =
+      `距上次刷新已过去 ${elapsedHours > 0 ? `${elapsedHours} 小时 ` : ""}` +
+      `${elapsedMinutes} 分 ${remainingSeconds} 秒（查看器不会自动刷新，点「刷新」重新计时）`;
+  }
+
+  /**
+   * 手动刷新：重取仓库信息、文件树，并按当前视图重取内容。
+   *
+   * 页面**刻意不做任何轮询**（见 docs/guides/file-viewer.md 的常驻与回收一节），所以「看到
+   * 最新的文件状态」这件事是一个显式动作。它比页面初始化多做的就一件：重取文件树——树只在
+   * 初始化时取过一次，新建或删掉的文件不重取就永远不会出现（这也是这个按钮存在的主要理由）。
+   *
+   * 选中项尽量保住：文件视图重读当前那个文件（文件已被删就照实报「未找到」），改动视图重新
+   * 列改动（那一条已经不在列表里就回到空态）。
+   */
+  async function refreshWorkspace() {
+    if (viewState.isRefreshing) {
+      return;
+    }
+    viewState.isRefreshing = true;
+    elements.refreshButton.setAttribute("aria-busy", "true");
+    const didRefresh = await guardAgainstServiceExit(async () => {
+      const infoResponse = await requestJson("/api/info");
+      elements.repoName.textContent = infoResponse.body.repo_name;
+      elements.branchChip.textContent = infoResponse.body.branch;
+      window.document.title = `${infoResponse.body.repo_name} · 只读查看器`;
+
+      const treeResponse = await requestJson("/api/tree");
+      viewState.filePaths = treeResponse.body.paths;
+
+      if (viewState.view === DIFF_VIEW) {
+        await loadChangedFiles();
+        return;
+      }
+      // 先展开祖先目录再渲染树，否则选中项落在折叠目录里时树上看不到它（与切视图同一条顺序）。
+      expandToSelectedPath();
+      renderTree();
+      if (viewState.selectedPath) {
+        await selectPath(viewState.selectedPath);
+        return;
+      }
+      renderPlaceholder();
+    });
+    viewState.isRefreshing = false;
+    elements.refreshButton.setAttribute("aria-busy", "false");
+    if (didRefresh) {
+      startRefreshTimer();
+      showRefreshFeedback();
+    }
+  }
+
+  /**
+   * 给刷新按钮一个短暂的对勾反馈。
+   *
+   * 与「复制路径」同一套做法：成功只做图标反馈，不动状态条——状态条那行写的是当前内容的
+   * 渲染方式，覆盖掉反而丢信息。
+   */
+  function showRefreshFeedback() {
+    elements.refreshButton.dataset.refreshed = "true";
+    window.setTimeout(() => {
+      elements.refreshButton.dataset.refreshed = "false";
+    }, 1200);
+  }
+
   /**
    * 初始化页面：拉取仓库信息与文件树，然后按初始状态渲染。
    */
@@ -235,6 +384,8 @@
       return;
     }
 
+    // 页面打开这一次本身就是一次读取，「距上次刷新」从此刻起算。
+    startRefreshTimer();
     expandToSelectedPath();
     if (viewState.view === DIFF_VIEW) {
       await loadChangedFiles();
@@ -327,8 +478,8 @@
   /**
    * 找出某个路径当前所属的分区，用于给不带分区的直达路径定归属。
    *
-   * 同一路径可能同时在「已暂存」与「未暂存」两段里，这里取分区顺序上的第一个（已暂存
-   * 优先），与列表的展示顺序一致——点开哪一段都能看到改动，但不能没有确定答案。
+   * 同一路径可能同时以「已暂存」与「未暂存」两种身份出现，这里取底层分区顺序上的第一个
+   * （已暂存优先），与列表的展示顺序一致——点开哪一段都能看到改动，但不能没有确定答案。
    * @param {string} repositoryPath 仓库相对路径。
    * @returns {string} 分区取值；该路径不在任何分区里时为空串。
    */
@@ -367,13 +518,14 @@
       viewState.changedSections = changesResponse.body.sections;
       elements.diffCount.textContent = String(changesResponse.body.totals.files);
       elements.diffCount.hidden = false;
-      // 增删只跟在提供统计的分区后面：未跟踪那一段的数拿不到，就不把它的文件数混进
-      // 一个看起来覆盖全部的 `+N -M` 里。
-      elements.statusHint.textContent = viewState.changedSections
-        .map((section) =>
-          section.stats_available
-            ? `${section.label} ${section.totals.files} (+${section.totals.add} -${section.totals.del})`
-            : `${section.label} ${section.totals.files}`
+      // 增删合计只跟在能提供它的那一段后面：`Changes` 里混着未跟踪文件，它们的增删数 git 的
+      // 列表命令不报，就不把一个只覆盖一部分文件的 `+N -M` 混进看起来覆盖全部的数字里。
+      elements.statusHint.textContent = buildDisplayGroups()
+        .map((displayGroup) =>
+          displayGroup.statsAvailable
+            ? `${displayGroup.label} ${displayGroup.files.length} ` +
+              `(+${displayGroup.totals.add} -${displayGroup.totals.del})`
+            : `${displayGroup.label} ${displayGroup.files.length}`
         )
         .join(" · ");
     });
@@ -478,7 +630,7 @@
           title: hasChangedFiles ? "选择一个改动文件" : "工作区没有改动",
           paragraphs: [
             hasChangedFiles
-              ? "左侧按「已暂存 / 未暂存 / 未跟踪」分段列出有改动的文件，点开任意一个查看逐行改动。"
+              ? "左侧按「Staged Changes / Changes」分段列出有改动的文件，点开任意一个查看逐行改动。"
               : "索引与工作区都与 HEAD 一致，也没有未跟踪文件。",
           ],
           hint: hasChangedFiles
@@ -538,60 +690,123 @@
   }
 
   /**
-   * 按分区追加改动列表：每个分区一条标题行，后面跟该分区自己的目录树。
+   * 把服务端给的三段整理成界面上显示的两段。
    *
-   * 段内那棵树先建进临时片段再判断有没有内容——空分区（或被过滤掉全部分区的分区）不该
+   * 每个文件条目都带上它**底层**的分区取值（`section`）：单文件 diff 与暂存动作都要靠它，
+   * 而显示上的分段只是把后两段并到了一起。合并之后段内仍是一棵树，因此未暂存的与未跟踪的
+   * 文件按同一套目录顺序排在一起，靠状态徽标区分（`M` 与 `A`）。
+   * @returns {Array<{key: string, label: string, files: Array<object>, canStage: boolean, statsAvailable: boolean, totals: {add: number, del: number}}>} 两段。
+   */
+  function buildDisplayGroups() {
+    return CHANGE_GROUPS.map((changedGroup) => {
+      const memberSections = viewState.changedSections.filter((changedSection) =>
+        changedGroup.memberSections.includes(changedSection.section)
+      );
+      return {
+        key: changedGroup.key,
+        label: changedGroup.label,
+        canStage: changedGroup.canStage,
+        files: memberSections.flatMap((changedSection) =>
+          changedSection.files.map((changedFile) => ({
+            ...changedFile,
+            section: changedSection.section,
+            statsAvailable: changedSection.stats_available,
+          }))
+        ),
+        // 「这一段能不能给出完整的增删合计」= 成员段都提供统计。`Changes` 里混着未跟踪文件，
+        // git 的列表命令不为它们报增删（逐文件去取在 800 个文件时会让页面卡住），只把其中
+        // 一部分加起来当成整段合计就是编数字。
+        statsAvailable:
+          memberSections.length > 0 &&
+          memberSections.every((changedSection) => changedSection.stats_available),
+        totals: {
+          add: memberSections.reduce((addSum, section) => addSum + section.totals.add, 0),
+          del: memberSections.reduce((delSum, section) => delSum + section.totals.del, 0),
+        },
+      };
+    });
+  }
+
+  /**
+   * 按显示分段追加改动列表：每段一条标题行，后面跟该段自己的目录树。
+   *
+   * 段内那棵树先建进临时片段再判断有没有内容——空段（或被过滤掉全部内容的段）不该
    * 留下一条孤零零的标题行。
    * @param {DocumentFragment} treeFragment 目标片段。
    * @param {string} filterText 小写过滤词。
    */
   function appendChangedSections(treeFragment, filterText) {
-    for (const changedSection of viewState.changedSections) {
+    for (const displayGroup of buildDisplayGroups()) {
       const sectionFragment = document.createDocumentFragment();
-      // 分区取值与「本段是否提供 +N -M」随条目一起进树：叶子行需要它们才能把「路径 +
+      // 底层分区取值与「本段是否提供 +N -M」随条目一起进树：叶子行需要它们才能把「路径 +
       // 分区」这个身份还原出来、并按段决定统计列的显示，而递归渲染函数自己不知道当前
       // 在哪一段。
       appendDirectoryChildren(
         sectionFragment,
-        buildDirectoryTree(
-          changedSection.files.map((changedFile) => ({
-            ...changedFile,
-            section: changedSection.section,
-            statsAvailable: changedSection.stats_available,
-          })),
-          treeKeyForSection(changedSection.section)
-        ),
+        buildDirectoryTree(displayGroup.files, treeKeyForGroup(displayGroup.key)),
         0,
         filterText
       );
       if (!sectionFragment.childNodes.length) {
         continue;
       }
-      treeFragment.append(buildChangedSectionHeader(changedSection));
+      treeFragment.append(buildChangedSectionHeader(displayGroup));
       treeFragment.append(sectionFragment);
     }
   }
 
   /**
-   * 构造一条分区标题行。
-   * @param {{section: string, label: string, files: Array<object>}} changedSection 分区数据。
+   * 构造一条分段标题行：标签 + 文件数 +（`Changes` 段才有的）全部暂存加号。
+   *
+   * 这一行刻意不是可点条目（不复用 `.node` 的外观）：它自己是分组标签，点它没有意义；
+   * 可点的只有那个加号。
+   * @param {{key: string, label: string, files: Array<object>, canStage: boolean}} displayGroup 显示分段。
    * @returns {HTMLElement} 标题行节点。
    */
-  function buildChangedSectionHeader(changedSection) {
+  function buildChangedSectionHeader(displayGroup) {
     const headerNode = document.createElement("div");
     headerNode.className = "section-head";
-    headerNode.dataset.section = changedSection.section;
+    headerNode.dataset.section = displayGroup.key;
 
     const labelNode = document.createElement("span");
     labelNode.className = "section-label";
-    labelNode.textContent = changedSection.label;
+    labelNode.textContent = displayGroup.label;
     headerNode.append(labelNode);
 
     const countNode = document.createElement("span");
     countNode.className = "chip";
-    countNode.textContent = String(changedSection.files.length);
+    countNode.textContent = String(displayGroup.files.length);
     headerNode.append(countNode);
+
+    if (displayGroup.canStage) {
+      const stageAllNode = buildStageButton({
+        title: "把这一段的全部改动加入索引（git add -A）",
+        label: "+",
+        isSectionLevel: true,
+      });
+      stageAllNode.addEventListener("click", () => {
+        void stageRequest({ scope: "all" });
+      });
+      headerNode.append(stageAllNode);
+    }
     return headerNode;
+  }
+
+  /**
+   * 构造一个「加入索引」按钮。
+   * @param {{title: string, label: string, isSectionLevel: boolean}} stageButtonInput 按钮内容。
+   * @returns {HTMLElement} 按钮节点。
+   */
+  function buildStageButton(stageButtonInput) {
+    const stageButtonNode = document.createElement("button");
+    stageButtonNode.type = "button";
+    stageButtonNode.className = stageButtonInput.isSectionLevel
+      ? "stage-button section-level"
+      : "stage-button";
+    stageButtonNode.title = stageButtonInput.title;
+    stageButtonNode.setAttribute("aria-label", stageButtonInput.title);
+    stageButtonNode.textContent = stageButtonInput.label;
+    return stageButtonNode;
   }
 
   /**
@@ -609,13 +824,16 @@
   }
 
   /**
-   * 构造一个改动文件叶子行：状态徽标 + 文件名 + 增删统计。
+   * 构造一个改动文件叶子行：状态徽标 + 文件名 + 增删统计（+ 还在「Changes」里时的加号）。
    * 目录上下文由所在层级表达，行内不再重复完整路径。
    *
    * 统计列有三种状态：给出 `+N -M`、给一个 `01` 徽标（git 判定为二进制，不逐行给数）、以及
-   * 整段不提供（未跟踪那一段，git 的列表命令不报这个数）。后两者不能混：`01` 是「有改动但
-   * 数不出行」，不提供是「本轮没取」。
-   * @param {{path: string, status: string, add: number|null, del: number|null, section: string, statsAvailable: boolean}} changedFile 改动文件（含所属分区与统计可用性）。
+   * 不提供（未跟踪文件，git 的列表命令不报这个数）。后两者不能混：`01` 是「有改动但数不出
+   * 行」，不提供是「本轮没取」。
+   *
+   * 行本身是一个 `<button>`，因此那个加号**不能**嵌在它里面（按钮套按钮不是合法 HTML，键盘
+   * 用户也分不出两者）。它作为兄弟节点放在外层容器里，各点各的。
+   * @param {{path: string, status: string, add: number|null, del: number|null, section: string, statsAvailable: boolean}} changedFile 改动文件（含底层分区与统计可用性）。
    * @param {number} depth 缩进层级。
    * @returns {HTMLElement} 条目节点。
    */
@@ -667,7 +885,55 @@
     rowButton.addEventListener("click", () => {
       void selectPath(changedFile.path, changedFile.section);
     });
-    return rowButton;
+
+    const rowNode = document.createElement("div");
+    rowNode.className = "node-row";
+    rowNode.append(rowButton);
+    // 只在「Changes」里的条目上给加号：已经在索引里的东西再暂存一次没有意义（这也是为什么
+    // 「Staged Changes」那一段没有反向的减号——见 docs/guides/file-viewer.md 里记下的那条决策）。
+    if (changedFile.section !== "staged") {
+      const stageButtonNode = buildStageButton({
+        title: `把 ${changedFile.path} 的当前内容加入索引（git add）`,
+        label: "+",
+        isSectionLevel: false,
+      });
+      stageButtonNode.addEventListener("click", () => {
+        void stageRequest({ scope: "path", path: changedFile.path });
+      });
+      rowNode.append(stageButtonNode);
+    }
+    return rowNode;
+  }
+
+  /**
+   * 发起一次暂存请求，并把界面拉到暂存之后的状态。
+   *
+   * 这是页面唯一的写操作（`POST /api/stage`，服务端只做 `git add`）。暂存之后那个文件就不在
+   * 「Changes」里了：把选中项的分区清空，交给重新取回的列表按分区顺序解析——它自然落到
+   * 「Staged Changes」那一侧，而不是留下一句「该文件在此区段下没有改动」，看着像把手上的东西
+   * 弄丢了。
+   * @param {{scope: string, path?: string}} stageBody 暂存范围：`{scope:"path", path}` 或 `{scope:"all"}`。
+   */
+  async function stageRequest(stageBody) {
+    if (viewState.isStaging) {
+      return;
+    }
+    viewState.isStaging = true;
+    const didStage = await guardAgainstServiceExit(async () => {
+      const stageResponse = await requestJson("/api/stage", { method: "POST", body: stageBody });
+      if (stageResponse.status !== 200) {
+        // 失败照实说，且不改动列表——观众看到的那份状态和仓库仍然一致。
+        elements.statusHint.textContent = `暂存失败：${stageResponse.body.error}`;
+        return false;
+      }
+      return true;
+    });
+    viewState.isStaging = false;
+    if (!didStage) {
+      return;
+    }
+    viewState.selectedSection = "";
+    await loadChangedFiles();
   }
 
   /**
@@ -1334,6 +1600,9 @@
   // 里每点一个条目都会换一份路径，捕获的那份会跳错文件。
   elements.openFileButton.addEventListener("click", () => {
     void switchView(FILES_VIEW, viewState.selectedPath);
+  });
+  elements.refreshButton.addEventListener("click", () => {
+    void refreshWorkspace();
   });
   // 内容区里点图片即放大。用事件委托而不是逐个挂监听：图片是每次渲染才创建的，逐个挂必然
   // 会在某条重渲染路径上漏掉。

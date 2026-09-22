@@ -1,9 +1,15 @@
-"""仓库工作区的只读快照：文件树、文件正文、改动列表、单文件 diff 与两种预览。
+"""仓库工作区的快照：文件树、文件正文、改动列表、单文件 diff、两种预览，以及暂存。
 
-查看器的全部内容都从这里出，而且**只读**：所有 ``git`` 调用都是查询
-（``ls-files`` / ``diff`` / ``rev-parse``），所有文件访问都是读取。这里不存在任何写
-路径——只读是硬边界，不是「本期先不做」。特别地，未跟踪文件的改动不靠 ``git add -N``
-取得：那一条会写索引。
+查看器的全部内容都从这里出。读操作占绝大多数：所有列目录、看正文、算 diff 的 ``git`` 调用都是
+查询（``ls-files`` / ``diff`` / ``rev-parse`` / ``cat-file``），所有文件访问都是读取。
+
+**这个模块里只有一处写操作**：:func:`stage_changes` 与 :func:`stage_all_changes`（``git add``），
+供界面上「改动」那一段的加号使用。它能做的只有「把工作区里这些改动记进索引」——不改内容、不提交、
+不丢弃、不取消暂存。这条边界由用户拍板从「完全不写」放宽为一个受控写口（2026-09-22），因此
+``docs/guides/file-viewer.md`` 的「它只能看」那一节与守卫测试里的相应条目都已同步改写；再要开新
+的写口之前请先读那两处，别把它当成「顺手就能加」。
+特别地，未跟踪文件的改动**不**靠 ``git add -N`` 取得：那一条会写索引，而我们读它靠的是
+``git diff --no-index -- /dev/null <文件>``。
 
 改动视图按 `git status` 的三段口径划分，每段的数据源都是真实 ``git``，且与终端逐项一致：
 
@@ -59,8 +65,8 @@ import rendering
 import revisions
 from workspace_read import (
     OUTSIDE_REPOSITORY_REFUSAL_MESSAGE,
+    WorkspaceCommandError,
     WorkspacePayload,
-    WorkspaceReadError,
     build_refusal_payload,
     resolve_repository_path,
 )
@@ -159,6 +165,12 @@ _SIDE_LABEL_BY_SOURCE: dict[str, str] = {
     revisions.INDEX_REVISION: "索引版本",
     _WORKTREE_SIDE: "工作区版本",
 }
+
+#: 暂存动作的取值（封闭枚举）。``path`` 只暂存一个路径，``all`` 暂存工作区里全部改动——
+#: 与「改动」那一段列出来的东西逐项对应。不在表里的取值一律拒绝，绝不作为参数流进 git。
+STAGE_SCOPE_PATH = "path"
+STAGE_SCOPE_ALL = "all"
+KNOWN_STAGE_SCOPES = frozenset({STAGE_SCOPE_PATH, STAGE_SCOPE_ALL})
 
 #: 文件树不展示的目录名，只作用于**未跟踪**文件。`git ls-files` 已经不吃被 gitignore
 #: 的目录，这里再挡一层是为了派生项目没把依赖目录写进 `.gitignore` 时不至于把整棵依赖
@@ -557,6 +569,56 @@ def build_revision_file_payload(
     )
 
 
+def stage_changes(repository_root: Path, requested_path: str) -> WorkspacePayload:
+    """把单个路径的当前状态加进索引（``git add``）——查看器唯一的写操作。
+
+    查看器从「只能看」变成「只能看 + 只能暂存」：这一个动作是它被允许对仓库做的**全部**改变。
+    它不改文件内容、不提交、不丢弃、不取消暂存，也不碰索引之外的东西。之所以只开这一个口子，
+    是因为界面上「把这一处改动收进索引」是最高频的下一步动作；其余写操作（提交、撤销暂存、
+    丢弃改动）都留在用户惯用的工具里。
+
+    路径先经 :func:`resolve_repository_path` 断言仍在仓库根之下，再作为 ``--`` 之后的单个
+    argv 元素交给 git，因此以 ``-`` 开头的路径不会被当成选项。
+
+    Args:
+        repository_root (Path): 仓库根绝对路径。
+        requested_path (str): 界面传来的仓库相对路径。
+
+    Returns:
+        WorkspacePayload: 成功时是 ``{"scope": "path", "path": ...}``；路径越界或 git 拒绝
+            （例如路径已不存在）时为拒绝应答，后者按 :class:`WorkspaceCommandError` 冒泡。
+    """
+    resolved_path = resolve_repository_path(repository_root, requested_path)
+    if resolved_path is None:
+        return build_refusal_payload(403, OUTSIDE_REPOSITORY_REFUSAL_MESSAGE)
+
+    normalized_relative_path = Path(requested_path).as_posix() if requested_path else ""
+    if not normalized_relative_path:
+        return build_refusal_payload(400, "拒绝：暂存需要给出一个仓库内的路径。")
+    _run_git(repository_root, "add", "--", normalized_relative_path)
+    return WorkspacePayload(
+        status_code=200,
+        payload={"scope": STAGE_SCOPE_PATH, "path": normalized_relative_path},
+    )
+
+
+def stage_all_changes(repository_root: Path) -> WorkspacePayload:
+    """把工作区里全部改动加进索引（``git add -A``）——界面「改动」那一段的「全部暂存」。
+
+    ``-A`` 正好对应「改动」那一段列出的东西：已改的、已删的、以及未被忽略的新文件都在内，
+    被忽略的文件永远不进索引。它不会漏掉删除，也不会把工作区里已暂存之后又改过的内容留在索引外。
+
+    Args:
+        repository_root (Path): 仓库根绝对路径。
+
+    Returns:
+        WorkspacePayload: 成功时是 ``{"scope": "all"}``；git 拒绝时按
+            :class:`WorkspaceCommandError` 冒泡。
+    """
+    _run_git(repository_root, "add", "-A")
+    return WorkspacePayload(status_code=200, payload={"scope": STAGE_SCOPE_ALL})
+
+
 def build_changes_payload(repository_root: Path) -> WorkspacePayload:
     """给出三个分区各自的改动文件集合与增删统计。
 
@@ -566,6 +628,10 @@ def build_changes_payload(repository_root: Path) -> WorkspacePayload:
     Returns:
         WorkspacePayload: 三个分区（已暂存 / 未暂存 / 未跟踪）的文件列表、分区合计与
             三区合计。空分区同样返回，界面据此显示「已暂存 0」。
+
+    界面上把后两段合并成一段「Changes」显示（见 ``docs/guides/file-viewer.md``），但这里仍按
+    三段给：三段的 git 口径不同（HEAD↔索引 / 索引↔工作区 / 未跟踪），单文件 diff 与暂存动作
+    都要知道自己面对的是哪一种，合并只发生在显示层。
     """
     sections: list[dict[str, object]] = []
     for section_name, section_label in _SECTION_LABELS.items():
@@ -1114,7 +1180,10 @@ def _run_git(
     *git_arguments: str,
     allowed_exit_codes: frozenset[int] = frozenset({0}),
 ) -> str:
-    """在仓库根执行一次只读 ``git`` 查询并返回标准输出。
+    """在仓库根执行一次 ``git`` 命令并返回标准输出。
+
+    读路径用的都是查询，写路径只有 ``git add``（见 :func:`stage_changes`）；两者共用这个
+    入口，因此这里不假设调用方是只读的——边界由「哪些子命令被调用」决定，而不是由这个函数。
 
     Args:
         repository_root (Path): 仓库根绝对路径。
@@ -1126,7 +1195,7 @@ def _run_git(
         str: 命令的标准输出。
 
     Raises:
-        WorkspaceReadError: ``git`` 的退出码不在 ``allowed_exit_codes`` 里。
+        WorkspaceCommandError: ``git`` 的退出码不在 ``allowed_exit_codes`` 里。
     """
     completed_process = subprocess.run(
         ["git", "--no-pager", *git_arguments],
@@ -1137,7 +1206,7 @@ def _run_git(
         check=False,
     )
     if completed_process.returncode not in allowed_exit_codes:
-        raise WorkspaceReadError(
+        raise WorkspaceCommandError(
             f"git {' '.join(git_arguments)} 执行失败：{completed_process.stderr.strip()}"
         )
     return completed_process.stdout

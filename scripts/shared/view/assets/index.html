@@ -30,6 +30,22 @@
       <span aria-hidden="true">⌕</span>
       <input id="filter-input" type="search" placeholder="过滤文件…" autocomplete="off">
     </label>
+
+    <!-- 手动刷新：页面刻意不做任何轮询，所以「看到最新状态」这件事是个显式动作。 -->
+    <button type="button" class="head-action" id="refresh-view"
+            title="重新读取文件树与当前内容（页面不会自动刷新）">
+      <svg class="icon-refresh" viewBox="0 0 24 24" aria-hidden="true">
+        <polyline points="23 4 23 10 17 10"></polyline>
+        <polyline points="1 20 1 14 7 14"></polyline>
+        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+      </svg>
+      <svg class="icon-check" viewBox="0 0 24 24" aria-hidden="true">
+        <polyline points="20 6 9 17 4 12"></polyline>
+      </svg>
+      <span>刷新</span>
+    </button>
+    <!-- 正计时：距上次刷新的时长。纯本地计时，不发任何请求（「不轮询」那条口径说的是请求）。 -->
+    <span class="refresh-timer" id="refresh-timer" title="距上次刷新"></span>
   </header>
 
   <!-- 主体：左树右内容 -->

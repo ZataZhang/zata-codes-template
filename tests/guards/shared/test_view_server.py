@@ -1,4 +1,4 @@
-"""守护本机只读查看器服务端的守卫测试（guard test）。
+"""守护本机查看器服务端（读 + 仅暂存）的守卫测试（guard test）。
 
 本文件位于 ``tests/guards/shared/``，失败意味着源代码、配置或脚本违反了仓库约定。
 正确做法是修复触发它的源代码或配置，而不是修改本文件让测试通过；仅当约定
@@ -8,11 +8,14 @@
 被测对象：``scripts/shared/view/server.py``、``launch.py`` 与 ``instance.py``。核心
 不变量：
 
-1. **只读是硬边界，不是「本期先不做」。** 服务端不得出现任何写方法处理器名字
-   （``do_POST`` / ``do_PUT`` / ``do_DELETE`` / ``do_PATCH``），运行时的写请求一律
-   405。逐个定义同名方法会把「服务端根本不存在写入口」变成「服务端有一个专门用来
-   拒绝的写入口」，``rg -n "do_POST" scripts/shared/view/`` 这类静态断言会随之失去
-   判别力。
+1. **写边界只剩「暂存」这一个口，其余写方法仍然一律拒绝。** 服务端唯一的写入口是
+   ``POST /api/stage``（只做 ``git add``）；``do_PUT`` / ``do_DELETE`` / ``do_PATCH`` 既
+   不存在也一律 405，指向别的路由的 POST 同样 405。这条边界由用户拍板从「完全不写」收窄
+   到这里（2026-09-22），因此它既不能悄悄扩大，也不能因为「更明确地拒绝」而在其余写方法上
+   补同名处理器——那样 ``rg -n "def do_PUT" scripts/shared/view/`` 这类静态断言就失去判别力。
+   写口额外要求 ``Content-Type: application/json``：跨站表单式 POST 是「简单请求」，浏览器
+   会直接发出去，而 JSON 类型强制预检、预检又必然失败，于是「某个网页在你不知情时改动你的
+   索引」这条路被封住。
 2. **路径不得越出仓库。** ``..`` 与符号链接都要在 ``resolve()`` 之后再断言，顺序颠倒
    时符号链接逃逸会漏网；拒绝信息本身也不得回声绝对路径，否则「被拒绝」就成了仓库外
    路径的探测口。
@@ -20,6 +23,7 @@
    ``unstaged`` / ``untracked``）只用于在服务端选择命令，取值本身从不作为位置参数交给
    ``git``；路径参数另在 ``--`` 之后传入并已做越界校验。白名单外的取值一律 400，
    ``--output=...`` 这类以 ``-`` 开头的内容因此没有任何机会被 git 当成选项解析。
+   ``POST /api/stage`` 的 ``scope`` 同一条口径。
 4. **界面数字必须与终端逐项一致。** 三个分区各自的 ``--numstat -z`` 条目形状不同（普通
    条目与重命名条目 token 数不同，未跟踪那一段走 ``--no-index`` 的双路径形式）；把其中
    任一种处理错都会静默漏掉文件或统计，而界面看上去仍然"有内容"。
@@ -128,7 +132,12 @@ def _flip_one_byte(payload: bytes) -> bytes:
     return bytes(mutated_payload)
 
 
-_FORBIDDEN_WRITE_METHOD_HANDLER_NAMES = ("do_POST", "do_PUT", "do_DELETE", "do_PATCH")
+#: 这些写方法的处理器名字不得出现在服务端源码里：唯一的写入口是 ``POST /api/stage``，
+#: 其余写方法既不存在也一律 405（逐个定义同名方法会让静态断言失去判别力）。
+_FORBIDDEN_WRITE_METHOD_HANDLER_NAMES = ("do_PUT", "do_DELETE", "do_PATCH")
+
+#: 唯一允许存在的写入口处理器名字，且它必须只出现一次。
+_ALLOWED_WRITE_METHOD_HANDLER_NAME = "do_POST"
 
 
 @dataclass(frozen=True)
@@ -145,20 +154,29 @@ class RunningViewServer:
     port: int
     process_id: int
 
-    def request(self, route: str, *, method: str = "GET") -> tuple[int, dict]:
+    def request(
+        self, route: str, *, method: str = "GET", json_body: dict | None = None
+    ) -> tuple[int, dict]:
         """对服务发一次真实 HTTP 请求。
 
         Args:
             route (str): 形如 ``/api/tree`` 的路由（含查询串）。
             method (str): HTTP 方法。
+            json_body (dict | None): 需要带 JSON 请求体时给出对象；``None`` 表示**不带**
+                正文，也不带 ``Content-Type``——写口对这种形态的应答正是「不是 JSON」那条，
+                用例要的就是这个默认形态。
 
         Returns:
             tuple[int, dict]: 状态码与解析后的 JSON 正文。
         """
+        request_body = None if json_body is None else json.dumps(json_body).encode("utf-8")
         request = urllib.request.Request(  # 目标固定为本机回环
             f"http://{_LOOPBACK_HOST}:{self.port}{route}",
+            data=request_body,
             method=method,
         )
+        if request_body is not None:
+            request.add_header("Content-Type", "application/json")
         try:
             with urllib.request.urlopen(request, timeout=5) as response:
                 return response.status, json.loads(response.read().decode("utf-8"))
@@ -218,6 +236,11 @@ def _run_git(repository_path: Path, *git_arguments: str) -> subprocess.Completed
         text=True,
         check=True,
     )
+
+
+def _staged_paths(repository_root: Path) -> list[str]:
+    """列出索引里相对 HEAD 有改动的路径（与终端 ``git diff --cached --name-only`` 逐项一致）。"""
+    return _run_git(repository_root, "diff", "--cached", "--name-only").stdout.split()
 
 
 def _find_free_port() -> int:
@@ -488,16 +511,23 @@ def test_malformed_path_parameters_are_refused_not_dropped(
         assert "越出仓库范围" in response_body["error"]
 
 
-def test_non_read_methods_and_unknown_routes_are_refused(
+def test_write_methods_outside_the_stage_route_are_refused(
     running_view_server: RunningViewServer,
 ) -> None:
-    """写方法与白名单外的路由一律被拒。"""
-    for write_method in ("POST", "PUT", "DELETE", "PATCH"):
+    """只有 ``POST /api/stage`` 是写口：其它路由上的 POST、以及全部 PUT/DELETE/PATCH 一律 405。"""
+    for write_method in ("PUT", "DELETE", "PATCH"):
         status_code, response_body = running_view_server.request(
             "/api/file?path=src/module.py", method=write_method
         )
         assert status_code == 405, f"{write_method} 未被拒绝：{status_code} {response_body}"
-        assert "只读" in response_body["error"]
+        assert "拒绝" in response_body["error"]
+
+    # 指错路由的 POST 同样不是写口：白名单只有一条。
+    misplaced_status, misplaced_body = running_view_server.request(
+        "/api/file?path=src/module.py", method="POST", json_body={"scope": "all"}
+    )
+    assert misplaced_status == 405, misplaced_body
+    assert "拒绝" in misplaced_body["error"]
 
     unknown_route_status, unknown_route_body = running_view_server.request("/api/not-whitelisted")
     assert unknown_route_status == 404
@@ -507,15 +537,20 @@ def test_non_read_methods_and_unknown_routes_are_refused(
     assert asset_escape_status == 404, asset_escape_body
 
 
-def test_server_source_has_no_write_method_handler_names() -> None:
-    """服务端源码里不得出现任何写方法处理器名字。
+def test_server_source_has_exactly_one_write_method_handler() -> None:
+    """服务端源码里只能有**一个**写方法处理器，且必须是 ``do_POST``。
 
-    这条静态断言与 ``do_POST`` 式的改写互为因果：一旦有人为了「更明确地拒绝」而
-    定义同名方法，只读边界的可审查性就没了。
+    这条静态断言与「写边界只剩暂存」互为因果：一旦有人为了「更明确地拒绝」而给 PUT /
+    DELETE / PATCH 定义同名方法，写边界的可审查性就没了；而多出第二个写入口（比如某个
+    顺手加上的 ``do_DELETE``）也会在这里显形——``rg -n "def do_" scripts/shared/view/``
+    扫一眼能数清写入口，是这条边界唯一的看护方式。
     """
     server_source_text = _SERVER_SCRIPT_PATH.read_text(encoding="utf-8")
     for forbidden_handler_name in _FORBIDDEN_WRITE_METHOD_HANDLER_NAMES:
         assert forbidden_handler_name not in server_source_text
+    assert (
+        server_source_text.count(f"def {_ALLOWED_WRITE_METHOD_HANDLER_NAME}") == 1
+    ), "服务端应当只有一个写方法处理器（暂存用），实际有多处或没有"
 
 
 def test_server_binds_loopback_address_only(fixture_repository: Path) -> None:
@@ -948,6 +983,99 @@ def test_revision_raw_route_serves_blob_bytes_and_refuses_the_rest(
         assert refused_status in {400, 403}, f"{refused_route} 未被拒绝：{refused_body}"
         response_text = json.dumps(refused_body, ensure_ascii=False)
         assert str(running_view_server.repository_root) not in response_text
+
+
+def test_stage_route_puts_a_path_into_the_index(
+    running_view_server: RunningViewServer,
+) -> None:
+    """``POST /api/stage`` 的 ``scope=path`` 把该路径的当前状态收进索引，且只动它一个。
+
+    「只动它一个」与「能暂存」同样重要：写口一旦越界多暂存了别的改动，用户就没法再靠查看器
+    把一处改动单独收进索引——那正是这个口子存在的全部理由。夹具里本来就有一批已暂存条目，
+    因此这里比的是**前后差集**，而不是「索引里只有它」。
+    """
+    repository_root = running_view_server.repository_root
+    staged_before = _staged_paths(repository_root)
+
+    # 拿一个**还没进过索引**的未跟踪文件：它既是最常见的那一下点击，也最能暴露「顺手多暂存
+    # 了别的改动」。
+    status_code, response_body = running_view_server.request(
+        "/api/stage", method="POST", json_body={"scope": "path", "path": "untracked.txt"}
+    )
+    assert status_code == 200, response_body
+    assert response_body["scope"] == "path"
+    assert response_body["path"] == "untracked.txt"
+
+    staged_after = _staged_paths(repository_root)
+    assert set(staged_after) - set(staged_before) == {"untracked.txt"}
+    assert set(staged_before) - set(staged_after) == set()
+    # 同一时刻还有别的未暂存改动（blob.bin、docs/photo.png），它们必须留在原地。
+    assert "blob.bin" not in staged_after
+
+
+def test_stage_route_with_scope_all_takes_every_change(
+    running_view_server: RunningViewServer,
+) -> None:
+    """``scope=all`` 对应「改动」那一段列出的东西：已改的、已删的、新的都在内，忽略的不在。"""
+    repository_root = running_view_server.repository_root
+    # 造一次「工作区删掉了受控文件」：``-A`` 必须把这次删除也收进索引，而不是只收修改与新增。
+    (repository_root / "big.txt").unlink()
+    (repository_root / ".gitignore").write_text("build/\n", encoding="utf-8")
+    ignored_path = repository_root / "build" / "ignored.txt"
+    ignored_path.parent.mkdir(exist_ok=True)
+    ignored_path.write_text("ignored\n", encoding="utf-8")
+
+    status_code, response_body = running_view_server.request(
+        "/api/stage", method="POST", json_body={"scope": "all"}
+    )
+    assert status_code == 200, response_body
+    assert response_body["scope"] == "all"
+
+    staged_paths = _staged_paths(repository_root)
+    assert "src/module.py" in staged_paths
+    assert "untracked.txt" in staged_paths
+    assert "untracked.bin" in staged_paths
+    assert "blob.bin" in staged_paths
+    assert "big.txt" in staged_paths
+    assert ".gitignore" in staged_paths
+    # ``-A`` 不碰被忽略的路径：那是「这不是源码」的权威信号。
+    assert not any(staged_path.startswith("build/") for staged_path in staged_paths)
+
+
+def test_stage_route_refuses_everything_but_a_json_object(
+    running_view_server: RunningViewServer,
+) -> None:
+    """写口只认 JSON 对象：非 JSON 类型 415、坏 scope 与缺 path 400、越界 403，且都不改索引。
+
+    415 那一条是这里最要紧的防线，而不是格式洁癖：跨站表单式 POST 属于「简单请求」，浏览器
+    会**直接发出去**（恶意页面读不到响应，但副作用已经发生）。要求 JSON 会把跨站请求变成
+    预检请求，而本服务不返回任何 CORS 头，预检必然失败。
+    """
+    repository_root = running_view_server.repository_root
+    staged_before = _staged_paths(repository_root)
+
+    # 不带 Content-Type（= 浏览器跨站表单的自然形态）→ 415。
+    not_json_status, not_json_body = running_view_server.request("/api/stage", method="POST")
+    assert not_json_status == 415, not_json_body
+    assert "application/json" in not_json_body["error"]
+
+    for refused_body in ({"scope": "bogus"}, {"scope": "path"}, {"scope": "path", "path": ""}):
+        status_code, response_body = running_view_server.request(
+            "/api/stage", method="POST", json_body=refused_body
+        )
+        assert status_code == 400, f"{refused_body} 未被拒绝：{response_body}"
+
+    out_of_scope_path = repository_root.parent / "stage-outside-secret.txt"
+    out_of_scope_path.write_text("SECRET-OUTSIDE-CONTENT\n", encoding="utf-8")
+    escape_status, escape_body = running_view_server.request(
+        "/api/stage",
+        method="POST",
+        json_body={"scope": "path", "path": "../stage-outside-secret.txt"},
+    )
+    assert escape_status == 403, escape_body
+    assert "SECRET-OUTSIDE-CONTENT" not in json.dumps(escape_body, ensure_ascii=False)
+
+    assert _staged_paths(repository_root) == staged_before
 
 
 def test_each_section_matches_its_own_terminal_git_output(

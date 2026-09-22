@@ -1,4 +1,4 @@
-"""只读读取的公共契约：应答信封、拒绝应答，以及所有路径参数的越界断言。
+"""只读读取的公共契约：应答信封、拒绝应答、``git`` 调用失败的错误类型，以及路径越界断言。
 
 查看器的每个读取用例（文件树、正文、改动、diff、预览、`/raw/`）都长在同一套词汇上：返回
 一个 :class:`WorkspacePayload`，拒绝时用 :func:`build_refusal_payload`，而任何来自界面的
@@ -15,8 +15,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-class WorkspaceReadError(RuntimeError):
-    """读取仓库工作区失败，例如 ``git`` 调用非零退出。"""
+class WorkspaceCommandError(RuntimeError):
+    """一次 ``git`` 调用失败（非零退出）。读取路径与那唯一一个写路径共用它。"""
 
 
 @dataclass(frozen=True)
