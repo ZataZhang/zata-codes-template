@@ -35,7 +35,9 @@ diff 先在不带 pathspec 的完整 diff 上查出旧路径，再把新旧两�
 预览有两条独立的路，都**默认不生效**，只在界面上被显式要求时才出力：
 
 - Markdown：:func:`build_markdown_payload` 按需渲染成 HTML 片段（``/api/markdown``），
-  文件视图打开 ``.md`` 先看到的仍是源码。
+  文件视图打开 ``.md`` 先看到的仍是源码。片段里的相对引用会被改写成能真正取到字节的地址
+  （见 :func:`_build_markdown_reference_url`）——预览是内联进查看器页面（``/``）的，
+  照着页面根解析只会得到 404。
 - HTML：:func:`build_raw_file_payload` 把文件字节原样供出（``/raw/``），由界面在新标签页
   里打开——查看器不做 HTML 内联渲染。
 - 图片改动的旧新对比：:func:`build_diff_payload` 的 ``image_comparison`` 给出两版各自的
@@ -55,10 +57,11 @@ diff 先在不带 pathspec 的完整 diff 上查出旧路径，再把新旧两�
 
 from __future__ import annotations
 
+import posixpath
 import re
 import subprocess
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from urllib.parse import quote
 
 import rendering
@@ -109,6 +112,11 @@ RAW_ROUTE_PREFIX = "/raw/"
 #: ``/raw/`` 上指定历史版本的查询参数名。服务端从它取值，本模块用它拼 URL，同样是
 #: 一个常量两处引用。
 RAW_REVISION_QUERY_PARAMETER = "rev"
+
+#: Markdown 里 ``.md`` 相对链接的去向：查看器文件视图的直达链接前缀。``view`` 与 ``path``
+#: 是界面自己的查询参数约定（见 ``assets/viewer.js`` 的 ``applyInitialQueryParameters``），
+#: 指到 ``/raw/`` 只会得到一屏原始 markdown 文本，指到这里点一下就能在查看器里读它。
+_VIEWER_FILES_VIEW_URL_PREFIX = "/?view=files&path="
 
 #: 后缀 → 预览形态。**只看后缀，不做内容嗅探**：让「这个文件预览成什么」随正文漂移，
 #: 排障时无从解释（与词法器解析同一口径）。
@@ -419,6 +427,28 @@ def build_raw_file_url(relative_path: str, revision_name: str | None = None) -> 
     return f"{raw_file_url}?{RAW_REVISION_QUERY_PARAMETER}={quote(revision_name, safe='')}"
 
 
+def _build_markdown_reference_url(attribute_name: str, repository_relative_path: str) -> str:
+    """决定 Markdown 正文里一个相对引用最终指向的地址。
+
+    ``src`` 一律指向 ``/raw/``（图片要的是字节）。``href`` 指向另一份 Markdown 时走查看器的
+    直达链接，其余照旧指向 ``/raw/``——判断依据只有后缀，与 :func:`resolve_preview_descriptor`
+    同一口径。
+
+    Args:
+        attribute_name (str): 被改写的属性名，``src`` 或 ``href``。
+        repository_relative_path (str): 已解析好的仓库相对路径（POSIX 分隔符）。
+
+    Returns:
+        str: 该引用最终指向的地址。
+    """
+    if (
+        attribute_name == "href"
+        and PurePosixPath(repository_relative_path).suffix.lower() in _MARKDOWN_SUFFIXES
+    ):
+        return f"{_VIEWER_FILES_VIEW_URL_PREFIX}{quote(repository_relative_path, safe='')}"
+    return build_raw_file_url(repository_relative_path)
+
+
 def build_markdown_payload(repository_root: Path, requested_path: str) -> WorkspacePayload:
     """把单个 Markdown 文件渲染成 HTML 片段，供界面的「预览」开关按需取回。
 
@@ -460,7 +490,19 @@ def build_markdown_payload(repository_root: Path, requested_path: str) -> Worksp
         return build_refusal_payload(
             503, "服务端未安装 Markdown 渲染依赖，无法生成预览，请阅读源码。"
         )
-    return WorkspacePayload(status_code=200, payload={"format": "markdown", "html": rendered_html})
+    # 正文里的相对引用是相对**这个文件所在目录**写的，而预览片段会被内联进查看器页面
+    # （`/`），不改写的话图片与站内链接全部指向页面根。口径见 rendering.rebase_relative_references。
+    return WorkspacePayload(
+        status_code=200,
+        payload={
+            "format": "markdown",
+            "html": rendering.rebase_relative_references(
+                rendered_html,
+                posixpath.dirname(normalized_relative_path),
+                _build_markdown_reference_url,
+            ),
+        },
+    )
 
 
 @dataclass(frozen=True)

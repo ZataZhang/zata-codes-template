@@ -52,8 +52,14 @@
    时它在**旧路径**上。来源记混、路径取错，或对一条本分区里并不存在的改动也给对比，界面就会
    把删除说成新增、拿同一版既当旧又当新，或者为一条不存在的改动画两张图。
 13. **``/raw/`` 的 ``rev`` 是封闭枚举，且不改变边界。** 历史版本的字节从对象库读（不是工作区
-   那份），路径照旧逐字经过同一份越界断言；未列出的取值 400，该版本里没有这个文件 404。取值
-   是任人可填的查询参数，因此它绝不能作为字符串流进 git。
+    那份），路径照旧逐字经过同一份越界断言；未列出的取值 400，该版本里没有这个文件 404。取值
+    是任人可填的查询参数，因此它绝不能作为字符串流进 git。
+14. **Markdown 预览里的相对引用必须改写，且只改相对的那几种。** 预览片段内联在查看器页面
+    （``/``）里，相对引用照着页面根解析必然落空（图片就是这么变成空白的）。``src`` 一律指向
+    ``/raw/``、指向另一份 Markdown 的 ``href`` 指向查看器直达链接；带 scheme 的、纯片段的、
+    带查询串的、以及解析后跑出仓库根的一律原样保留——猜错比不改更糟。手写的 raw HTML 标签
+    与 markdown 语法走同一条路，因此不能只照顾其中一种。改写出来的地址必须真的能取回字节，
+    只断言字符串会让「改成了另一个取不到的东西」也通过。
 
 用例全部打在真实进程与真实 HTTP 上：被测的是绑定、路由分发与 ``git`` 子进程这条
 完整链路，桩掉其中任何一段都测不到本文列出的不变量。
@@ -272,8 +278,14 @@ def _build_fixture_repository(repository_root: Path) -> Path:
       同一段内，才能验出「配对失效 → 整篇算成新增」这个缺陷。
 
     ``docs/`` 下另有三个受控且未改动的文件，供预览用例使用：``guide.md``（标题 + 表格 +
-    围栏代码，足以判别渲染是否真的发生）、``page.html`` 与它相对引用的 ``page.css``
+    围栏代码 + 四类需要区别对待的相对引用，足以判别渲染是否真的发生、以及引用有没有被改写）、
+    ``page.html`` 与它相对引用的 ``page.css``
     （判别 ``/raw/`` 是否保持路径原样）。三个都进首个提交，因此不会落进任何改动分区。
+
+    ``guide.md`` 里的四类引用：同目录图片 ``pixel.png``（要改写成 ``/raw/docs/pixel.png``）、
+    指向另一份文档的 ``../final.md``（要改写成查看器直达链接）、带 scheme 的图片
+    （一个字都不许动）、纯片段 ``#指南``（同上）；另加一段手写的 raw HTML ``<img>``，
+    它与 markdown 语法的图片走同一条改写路径。
 
     图片改动另造四份形态：``docs/photo.png`` 改两次且一次进了索引（同时出现在已暂存与未暂存
     两段）、``docs/doomed.png`` 被暂存删除、``docs/old-photo.png → docs/moved-photo.png``
@@ -301,7 +313,12 @@ def _build_fixture_repository(repository_root: Path) -> Path:
     (repository_root / "docs").mkdir()
     (repository_root / "docs" / "guide.md").write_text(
         "# 指南\n\n正文段落。\n\n| 列 | 值 |\n| --- | --- |\n| a | 1 |\n\n"
-        "```python\nprint(1)\n```\n",
+        "```python\nprint(1)\n```\n\n"
+        "![像素](pixel.png)\n\n"
+        "![网图](https://example.invalid/a.png)\n\n"
+        "[另一份文档](../final.md)\n\n"
+        "[回到指南](#指南)\n\n"
+        '<img src="pixel.png" alt="手写的">\n',
         encoding="utf-8",
     )
     (repository_root / "docs" / "page.html").write_text(
@@ -660,6 +677,40 @@ def test_markdown_preview_is_rendered_on_demand(
     # 渲染过的反面证据：原文里的 Markdown 语法不该原样留在输出里。
     assert "| 列 | 值 |" not in rendered_html
     assert "```" not in rendered_html
+
+
+def test_markdown_preview_rewrites_relative_references(
+    running_view_server: RunningViewServer,
+) -> None:
+    """预览片段里的相对引用必须改写成能真正取到字节的地址，且只改该改的那几种。
+
+    预览片段是内联进查看器页面（``/``）的，相对引用照着页面根解析必然落空——图片就是这么
+    变成一片空白的。四类引用一起守：两种要改写（同目录图片、指向另一份文档的链接），两种
+    一个字都不许动（带 scheme 的、纯片段的）。手写的 raw HTML ``<img>`` 与 markdown 语法的
+    图片走同一条路，因此两条都得改。
+    """
+    status_code, response_body = running_view_server.request("/api/markdown?path=docs/guide.md")
+    assert status_code == 200
+    rendered_html = response_body["html"]
+
+    # 同目录图片：markdown 语法那处与手写 raw HTML 那处都指向 /raw/，不再留下裸相对值。
+    assert rendered_html.count('src="/raw/docs/pixel.png"') == 2
+    assert 'src="pixel.png"' not in rendered_html
+    # 指向另一份文档：改成查看器直达链接，点一下就在查看器里读它，而不是一屏原始 markdown。
+    assert 'href="/?view=files&path=final.md"' in rendered_html
+    assert 'href="../final.md"' not in rendered_html
+    # 带 scheme 的与纯片段的一个字都不许动。
+    assert 'src="https://example.invalid/a.png"' in rendered_html
+    assert 'href="#指南"' in rendered_html
+
+    # 改写出来的地址必须真的取得回来：只断言字符串的话，「改成了另一个同样取不到的地址」
+    # 也能让用例变绿。
+    raw_status, raw_bytes, raw_content_type = running_view_server.request_bytes(
+        "/raw/docs/pixel.png"
+    )
+    assert raw_status == 200
+    assert raw_content_type.startswith("image/")
+    assert raw_bytes == _IMAGE_SIGNATURE_BYTES
 
 
 def test_preview_descriptor_is_null_for_files_without_preview(

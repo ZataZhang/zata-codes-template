@@ -147,15 +147,25 @@ button, input, select { font: inherit; color: inherit; }
 .badge.D { background: var(--del); color: var(--del-mark); }
 .badge.R { background: var(--rename); color: var(--rename-mark); }
 
-/* 改动视图的分段标题（Staged Changes / Changes）。它不是可点条目，只是分组标签，
-   所以刻意不复用 .node 的按钮外观——看起来能点却没反应比没有更糟。 */
+/* 改动视图的分段标题（Staged Changes / Changes）。整行可点：点一下收起或展开整段。
+   可点的那部分是一个真按钮（.section-toggle），暂存加号是它的兄弟节点——按钮不能套按钮。
+   箭头与 .node .caret 同宽同列，于是段标签与目录名左缘对齐（负外边距把 hover 底色撑开
+   一点，但不挪动箭头的位置）。 */
 .section-head {
   display: flex; align-items: center; gap: 6px;
-  padding: 12px 8px 4px; font-size: 11px; font-weight: 700;
-  color: var(--muted-foreground); letter-spacing: .02em;
+  padding: 12px 8px 4px;
 }
 .section-head:first-child { padding-top: 4px; }
-.section-head .section-label { text-transform: none; }
+.section-toggle {
+  display: flex; min-width: 0; flex: 1; align-items: center; gap: 6px;
+  border: 0; border-radius: 6px; background: transparent; padding: 2px 4px; margin: -2px -4px;
+  color: var(--muted-foreground); text-align: left; cursor: pointer;
+  font-family: inherit; font-size: 11px; font-weight: 700; letter-spacing: .02em;
+}
+.section-toggle:hover { background: var(--secondary); color: var(--foreground); }
+.section-toggle:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.section-toggle .caret { width: 12px; flex: none; color: var(--muted-foreground); font-size: 10px; }
+.section-toggle .section-label { min-width: 0; text-transform: none; white-space: nowrap; }
 
 /* 一行 = 条目按钮 + 右侧动作按钮。加号必须放在条目按钮**外面**：按钮套按钮不是合法 HTML，
    键盘用户也分不出两者。 */

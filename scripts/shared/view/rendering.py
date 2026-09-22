@@ -4,6 +4,10 @@
 输出是逐行 HTML 或整段 HTML 片段。读文件、判二进制、按后缀决定用哪种渲染都在
 :mod:`workspace` 里，所以本模块可以被单独测、也可以被换掉。
 
+Markdown 渲染完之后还会过一道 :func:`rebase_relative_references`：正文里的相对引用在
+浏览器眼里是相对**查看器页面**（``/``）的，得改写成能真正取到字节的地址；至于那个地址长
+什么样（``/raw/`` 还是查看器的直达链接）由调用方给的回调决定，本模块不认识任何路由。
+
 两个渲染器都按「缺失即降级」处理显式声明的 dev 依赖（``pygments`` / ``markdown``）：派生
 项目做 ``uv sync --no-dev`` 时高亮与预览消失，查看器其余功能不缺失。import 必须留在函数
 里——``launch.py`` 的 import 闭包只能含标准库加同目录兄弟模块（见
@@ -14,7 +18,9 @@
 from __future__ import annotations
 
 import html
+import posixpath
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -41,6 +47,19 @@ _FALLBACK_LEXERS_BY_FILENAME: dict[str, tuple[str, str]] = {
 
 _SPAN_TAG_PATTERN = re.compile(r"</?span[^>]*>")
 _SPAN_CLASS_PATTERN = re.compile(r'class="([^"]*)"')
+
+#: 标签级扫描：先切出一个标签本身，再只在标签文本内部改属性。正文内容（包括作者原样写的
+#: ``src="…"`` 说明文字）与代码块因此天然在视野之外——markdown 会把代码里的引号转义成
+#: ``&quot;``，属性正则也就匹配不到那里。引号里的 ``>`` 不会把标签提前截断。
+_MARKUP_TAG_PATTERN = re.compile(r"<[a-zA-Z][a-zA-Z0-9-]*(?:[^>\"']|\"[^\"]*\"|'[^']*')*>")
+
+#: 标签里要改写的属性：``src`` 与 ``href``。只认带引号的取值——不带引号的裸值在 markdown
+#: 产出里不出现，真遇到了留着原样比猜边界强。
+_REFERENCE_ATTRIBUTE_PATTERN = re.compile(r"(\b(src|href)\s*=\s*)(?:\"([^\"]*)\"|'([^']*)')")
+
+#: 带 scheme 的引用（``http:`` / ``https:`` / ``data:`` / ``mailto:`` …）不是仓库里的文件，
+#: 一个都不重写。
+_ABSOLUTE_REFERENCE_PATTERN = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*:")
 
 
 @dataclass(frozen=True)
@@ -130,6 +149,57 @@ def render_markdown_document(source_text: str) -> str | None:
     return markdown.markdown(source_text, extensions=list(_MARKDOWN_EXTENSIONS))
 
 
+def rebase_relative_references(
+    html_fragment: str,
+    base_directory: str,
+    build_reference_url: Callable[[str, str], str],
+) -> str:
+    """把 HTML 片段里的相对引用改写成调用方给的可取用地址。
+
+    markdown 渲染出来的 ``<img src="images/a.png">`` 是相对**文档所在目录**写的，但预览片段
+    是内联进查看器页面（``/``）的，浏览器于是按页面根解析成 ``/images/a.png``——那上面没有
+    仓库文件，图片必然加载失败。这里把每个相对引用先解析成仓库相对路径，再交给调用方拼成真
+    正能取到字节的地址。
+
+    只改标签里的 ``src`` / ``href`` 属性，不动正文文本、不动代码块（见模块级
+    :data:`_MARKUP_TAG_PATTERN` 的说明）。markdown 语法写的图片与链接、以及正文里手写的
+    raw HTML 标签，走的都是这一条路。扫描只看「像不像一个标签」，因此 raw HTML 块里
+    ``<script>`` 字符串中写着标签形状的内容也会被改写——预览里的 raw HTML 本来就会被执行，
+    这一档按同一口径接受。
+
+    以下引用一律**原样保留**，因为猜错比不改更糟：
+
+    - 带 scheme 的（``https:`` / ``data:`` / ``mailto:`` …）、协议相对的（``//host/…``）、
+      纯片段（``#anchor``）——它们本来就不是仓库里的文件；
+    - 带查询串的——``/raw/`` 的 ``?rev=`` 与查看器直达链接的 ``?path=`` 语义完全不同，把查询串
+      原样接在任一种地址后面都会得到一个含义不同的地址；
+    - 解析之后跑出仓库根的（``../../x`` 回到仓库之外）或解析结果为空的。
+
+    前导 ``/`` 按**仓库根相对**解释：查看器的 ``/`` 上没有仓库文件，而 ``/assets/`` 正好是
+    查看器自己的静态资源目录，照着页面根解析只会拿到错的字节或 404。
+
+    Args:
+        html_fragment (str): 待改写的 HTML 片段。
+        base_directory (str): 片段所属文档所在目录的仓库相对路径（POSIX 分隔符）；
+            文档在仓库根时为空串。
+        build_reference_url (Callable[[str, str], str]): 把「属性名 + 仓库相对路径」拼成最终
+            地址的回调。属性名会原样传入，因为 ``src`` 与 ``href`` 的去向本来就不一样。
+
+    Returns:
+        str: 改写后的片段。
+    """
+
+    def rewrite_tag(markup_tag: str) -> str:
+        return _REFERENCE_ATTRIBUTE_PATTERN.sub(
+            lambda attribute_match: _rewrite_reference_attribute(
+                attribute_match, base_directory, build_reference_url
+            ),
+            markup_tag,
+        )
+
+    return _MARKUP_TAG_PATTERN.sub(lambda tag_match: rewrite_tag(tag_match.group(0)), html_fragment)
+
+
 def prewarm_highlighting() -> None:
     """在后台预热 Pygments 的导入与词法解析，使首屏不为这段导入付费。
 
@@ -137,6 +207,73 @@ def prewarm_highlighting() -> None:
     请求会自己付这段开销。
     """
     highlight_source_lines("prewarm = True\n", "view_prewarm.py")
+
+
+def _rewrite_reference_attribute(
+    attribute_match: re.Match[str],
+    base_directory: str,
+    build_reference_url: Callable[[str, str], str],
+) -> str:
+    """改写一个 ``src`` / ``href`` 属性的取值，改不动时原样返回。
+
+    Args:
+        attribute_match (re.Match[str]): :data:`_REFERENCE_ATTRIBUTE_PATTERN` 的一处匹配。
+        base_directory (str): 片段所属文档所在目录的仓库相对路径。
+        build_reference_url (Callable[[str, str], str]): 「属性名 + 仓库相对路径 → 地址」的回调。
+
+    Returns:
+        str: 改写后的属性文本；该引用不该重写时是匹配到的原文。
+    """
+    quote_character = '"' if attribute_match.group(3) is not None else "'"
+    raw_reference = (
+        attribute_match.group(3)
+        if attribute_match.group(3) is not None
+        else attribute_match.group(4)
+    )
+    resolved_reference = _resolve_relative_reference(raw_reference, base_directory)
+    if resolved_reference is None:
+        return attribute_match.group(0)
+    resolved_path, reference_fragment = resolved_reference
+    reference_url = build_reference_url(attribute_match.group(2), resolved_path)
+    return (
+        f"{attribute_match.group(1)}"
+        f"{quote_character}{reference_url}{reference_fragment}{quote_character}"
+    )
+
+
+def _resolve_relative_reference(
+    reference_value: str, base_directory: str
+) -> tuple[str, str] | None:
+    """把一个引用取值解析成「仓库相对路径 + 尾随片段」。
+
+    Args:
+        reference_value (str): 属性里原样的取值（可能含 HTML 实体转义）。
+        base_directory (str): 片段所属文档所在目录的仓库相对路径。
+
+    Returns:
+        tuple[str, str] | None: 仓库相对路径与 ``#`` 之后的片段（没有片段时为空串）；
+            该引用不该被重写时为 ``None``。
+    """
+    # 属性里的 `&` 在 markdown 产出里是 `&amp;`，按实体解回来再交给回调逐段编码，
+    # 否则 `&` 与 `;` 会被编码进文件名里，变成一个取不到字节的地址。
+    candidate = html.unescape(reference_value).strip()
+    if not candidate or "?" in candidate:
+        return None
+    if candidate.startswith(("#", "//")) or _ABSOLUTE_REFERENCE_PATTERN.match(candidate):
+        return None
+
+    reference_path, separator, reference_fragment = candidate.partition("#")
+    if not reference_path:
+        return None
+    if reference_path.startswith("/"):
+        resolved_path = posixpath.normpath(reference_path.lstrip("/"))
+    else:
+        resolved_path = posixpath.normpath(posixpath.join(base_directory, reference_path))
+    # 跑出仓库根的引用不重写：那种地址在 `/raw/` 上只会被越界断言拒掉，而查看器也没有
+    # 「仓库之外」这一层可供跳转。
+    if resolved_path in (".", "..", "") or resolved_path.startswith("../"):
+        return None
+    return resolved_path, f"{separator}{reference_fragment}" if separator else ""
 
 
 def _resolve_lexer_for_relative_path(

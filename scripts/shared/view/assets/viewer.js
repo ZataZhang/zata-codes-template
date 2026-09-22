@@ -8,7 +8,9 @@
  * 改动视图在界面上分两段展示，与 VSCode 对齐：`Staged Changes` 与 `Changes`（后者由服务端
  * 的「未暂存」与「未跟踪」两段合并而来）。**同一个文件可以同时出现在两段里**（暂存了几个 hunk
  * 之后又改了几行），因此条目的身份是「路径 + 底层分区」而不是路径；选中态、请求参数与直达路径
- * 的归属都按这个二元组走，显示上的合并不改变它。
+ * 的归属都按这个二元组走，显示上的合并不改变它。折叠有三层粒度：整段（点分段标题）、段内目录、
+ * 叶子——三层都用同一份「用户动过手才记」的口径，见 isChangeGroupExpanded 与
+ * isDirectoryExpanded。
  *
  * 页面只有一个写操作：`Changes` 里的加号（标题旁那一个、以及每个文件旁那一个）会把改动
  * 加进索引（`POST /api/stage`）。除此之外页面不写入任何东西——没有提交、没有撤销暂存、
@@ -99,6 +101,13 @@
      * 只按路径记会把一段的折叠连带作用到别段。
      */
     directoryExpansionByTree: new Map(),
+    /**
+     * 改动视图里被手工折叠/展开过的分段：显示分段的标识 → 是否展开。
+     *
+     * 与目录折叠同一条口径：只记「用户动过手」的那几个，没记过的按默认值（展开）走。
+     * 分段是整段一起收起来的那一层——目录折叠管段内，这一层管段本身。
+     */
+    changeGroupExpansion: new Map(),
     filterText: "",
     filePaths: [],
     changedSections: [],
@@ -455,6 +464,36 @@
   }
 
   /**
+   * 判断改动视图里某一段当前是否展开。
+   *
+   * 默认展开：改动视图里本来就是「有改动的才列出来」，两段都是用户当下要看的东西，没有
+   * 文件视图那种「几百个文件摊开是一堵墙」的理由（这也是 `isDirectoryExpanded` 给改动
+   * 视图的默认值）。用户点过标题的那一段以那次点击为准，其余按默认值走。
+   *
+   * 过滤生效时一律展开，与目录同一条口径：命中项被藏在折叠的段里，界面和「没有命中」
+   * 长得一模一样，那是明确错误的结论。
+   * @param {string} groupKey 显示分段的标识。
+   * @param {string} filterText 小写过滤词。
+   * @returns {boolean} 是否展开。
+   */
+  function isChangeGroupExpanded(groupKey, filterText) {
+    if (filterText) {
+      return true;
+    }
+    const explicitExpansion = viewState.changeGroupExpansion.get(groupKey);
+    return explicitExpansion === undefined ? true : explicitExpansion;
+  }
+
+  /**
+   * 记下某一段的展开态。
+   * @param {string} groupKey 显示分段的标识。
+   * @param {boolean} isExpanded 是否展开。
+   */
+  function writeChangeGroupExpansion(groupKey, isExpanded) {
+    viewState.changeGroupExpansion.set(groupKey, isExpanded);
+  }
+
+  /**
    * 展开文件视图里直达路径上的全部祖先目录。
    *
    * 只写文件视图那棵树：直达链接、切视图还原都落在文件视图上；改动视图的每段默认展开，
@@ -731,7 +770,8 @@
    * 按显示分段追加改动列表：每段一条标题行，后面跟该段自己的目录树。
    *
    * 段内那棵树先建进临时片段再判断有没有内容——空段（或被过滤掉全部内容的段）不该
-   * 留下一条孤零零的标题行。
+   * 留下一条孤零零的标题行。折叠的段同样要把这棵树建出来：判空看的是「这一段有没有
+   * 可见内容」，不是「眼下展开了几行」，否则折起来再过滤就会得到一条骗人的空段标题。
    * @param {DocumentFragment} treeFragment 目标片段。
    * @param {string} filterText 小写过滤词。
    */
@@ -750,33 +790,57 @@
       if (!sectionFragment.childNodes.length) {
         continue;
       }
-      treeFragment.append(buildChangedSectionHeader(displayGroup));
-      treeFragment.append(sectionFragment);
+      treeFragment.append(buildChangedSectionHeader(displayGroup, filterText));
+      if (isChangeGroupExpanded(displayGroup.key, filterText)) {
+        treeFragment.append(sectionFragment);
+      }
     }
   }
 
   /**
-   * 构造一条分段标题行：标签 + 文件数 +（`Changes` 段才有的）全部暂存加号。
+   * 构造一条分段标题行：折叠箭头 + 标签 + 文件数 +（`Changes` 段才有的）全部暂存加号。
    *
-   * 这一行刻意不是可点条目（不复用 `.node` 的外观）：它自己是分组标签，点它没有意义；
-   * 可点的只有那个加号。
+   * 标题行整行可点，点一下收起或展开整段（折叠粒度：整段 → 段内目录 → 叶子）。可点的那部分
+   * 必须是一个真按钮，且**不能**把暂存加号套在里面：按钮套按钮不是合法 HTML，键盘用户也分不出
+   * 两者——与 `buildChangedFileRow` 里那条约束同源，所以加号是它的兄弟节点。
    * @param {{key: string, label: string, files: Array<object>, canStage: boolean}} displayGroup 显示分段。
+   * @param {string} filterText 小写过滤词。
    * @returns {HTMLElement} 标题行节点。
    */
-  function buildChangedSectionHeader(displayGroup) {
+  function buildChangedSectionHeader(displayGroup, filterText) {
+    const isExpanded = isChangeGroupExpanded(displayGroup.key, filterText);
+
     const headerNode = document.createElement("div");
     headerNode.className = "section-head";
     headerNode.dataset.section = displayGroup.key;
 
+    const toggleNode = document.createElement("button");
+    toggleNode.type = "button";
+    toggleNode.className = "section-toggle";
+    toggleNode.setAttribute("aria-expanded", String(isExpanded));
+
+    const caretNode = document.createElement("span");
+    caretNode.className = "caret";
+    caretNode.textContent = isExpanded ? "▾" : "▸";
+    toggleNode.append(caretNode);
+
     const labelNode = document.createElement("span");
     labelNode.className = "section-label";
     labelNode.textContent = displayGroup.label;
-    headerNode.append(labelNode);
+    toggleNode.append(labelNode);
 
     const countNode = document.createElement("span");
     countNode.className = "chip";
     countNode.textContent = String(displayGroup.files.length);
-    headerNode.append(countNode);
+    toggleNode.append(countNode);
+
+    toggleNode.addEventListener("click", () => {
+      // 取反按「不过滤时的状态」算，与目录折叠同一条理由：过滤生效时一律被强制展开、箭头恒为
+      // ▾，这时点击本就没有可见效果，该记下的是「清掉过滤词之后希望它是什么样」。
+      writeChangeGroupExpansion(displayGroup.key, !isChangeGroupExpanded(displayGroup.key, ""));
+      renderTree();
+    });
+    headerNode.append(toggleNode);
 
     if (displayGroup.canStage) {
       const stageAllNode = buildStageButton({
