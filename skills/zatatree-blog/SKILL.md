@@ -1,6 +1,6 @@
 ---
 name: zatatree-blog
-description: "[Created 2026-08-06] Write or update posts for the ZataTree Hugo blog (~/code/ZataTree, www.zata.cc) — merge-vs-new judgment, content/post/{category}/{tag}/{title} structure, frontmatter, SVG-first cover generation, screenshot/asset handling, narrative blog writing style, and local validation when hugo is unavailable. Triggers on: 写博客, 更新博客, 记录到博客, ZataTree, blog post, write blog, hugo blog."
+description: "[Updated 2026-09-22] Write or update posts for the ZataTree Hugo blog (~/code/ZataTree, www.zata.cc) — merge-vs-new judgment, content/post/{category}/{tag}/{title} structure, frontmatter, SVG-first cover generation, screenshot/asset handling, narrative blog writing style, and local validation when hugo is unavailable. Triggers on: 写博客, 更新博客, 记录到博客, ZataTree, blog post, write blog, hugo blog."
 user-invocable: true
 allowed-tools:
   - Read
@@ -71,6 +71,7 @@ content/post/{category}/{tag}/{title}/
 结构范式：
 
 1. **钩子开场**：从现象切入，写出第一直觉（通常是错的猜测），给读者代入感。例：「第一反应：文案写错了……打开代码一看，不对劲。」
+   - **device 防套路**：「第一反应是……」「讨论/群里有人说」属于转述式钩子，最容易连续多篇长成模板脸。动笔前回想上一两篇用了哪种；换着来——从物件切入（一段代码、一条报错、一个反常识数字），或从时刻/画面切入。「有人说」只在引语本身有信息量时用，且必须真实发生。
 2. **排查过程按真实认知顺序讲**：先猜什么 → 为什么排除 → 什么线索指向真相。关键证据贴出来（类型定义、源码片段）。
 3. **技术差异拟人化/对比化**：两个库、两种方案的行为差异，用「贴心 vs 实诚」这类性格对比讲，比平铺直叙好读。
 4. **修复给前后对比代码**：`// 修复前` / `// 修复后` 成对出现，能复用现有机制（翻译 key、已有 helper）就明确说出来。
