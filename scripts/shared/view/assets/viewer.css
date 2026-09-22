@@ -250,6 +250,14 @@ button, input, select { font: inherit; color: inherit; }
 .preview.markdown img { max-width: 100%; }
 .preview.markdown hr { border: 0; border-top: 1px solid var(--border); margin: 1.7em 0; }
 
+/* 图片预览：撑满可用宽度、超出就纵向滚动。刻意不按视口高度缩放——整页截图缩到一屏里会
+   小到看不清，滚动比缩更可用。 */
+.preview.image { padding: 20px; }
+.preview.image img {
+  display: block; max-width: 100%; margin: 0 auto;
+  border: 1px solid var(--border); border-radius: 8px;
+}
+
 .notice {
   display: grid; max-width: 560px; gap: 8px; margin: 40px auto;
   border: 1px solid var(--border); border-radius: calc(var(--radius) + 2px);

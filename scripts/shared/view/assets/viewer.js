@@ -12,9 +12,11 @@
  * 两个视图各自记一份「上一次看的那一个」（成功读到内容才记），切视图时还原，而不是每次
  * 都回到空态。改动视图头部的「查看文件」是显式指定，优先于记忆。
  *
- * 预览默认关闭：文件视图打开任何文件先看到的是源码。Markdown 由服务端渲染、由「预览」
- * 开关按需取回；HTML 不内联渲染，只在新标签页里打开服务端原样供出的文件（/raw/）。哪
- * 个文件支持哪种预览由服务端在 /api/file 的 `preview` 字段里给出，本文件不复制那张后缀表。
+ * 预览的默认值按文件类型定：Markdown 直接进预览（源码是一次显式切换），图片直接显示（没有
+ * 源码可切），其它文本文件与 HTML 默认源码。Markdown 的渲染结果由服务端给出、由「预览」开关
+ * 按需取回；图片与 HTML 都指向服务端原样供出的 `/raw/`（HTML 在新标签页里打开，不内联渲染）。
+ * 哪个文件支持哪种预览由服务端在 /api/file 的 `preview` / `kind` 字段里给出，本文件不复制
+ * 任何后缀表。
  */
 (() => {
   "use strict";
@@ -835,6 +837,13 @@
     // 文件视图都会重新弹同一个错误。
     viewState.lastFileViewPath = repositoryPath;
     const fileBody = fileResponse.body;
+    if (fileBody.kind === "image") {
+      // 图片没有逐行正文，也就没有「源码 / 预览」可切：内容区就是这张图，头部不摆预览控件。
+      elements.viewerMeta.textContent = fileBody.size_label;
+      elements.statusHint.textContent = "只读视图 · 图片预览";
+      renderImagePreview(fileBody);
+      return;
+    }
     if (fileBody.kind !== "text") {
       elements.viewerMeta.textContent = fileBody.size_label;
       renderNotice(
@@ -851,6 +860,10 @@
     }
     viewState.loadedFile = fileBody;
     viewState.previewDescriptor = fileBody.preview || null;
+    // Markdown 默认进预览：文档先看渲染结果，源码是一次显式切换。其它文本文件默认源码。
+    if (viewState.previewDescriptor && viewState.previewDescriptor.mode === "markdown") {
+      viewState.renderMode = PREVIEW_MODE;
+    }
     renderPreviewControls(viewState.previewDescriptor);
     await renderLoadedFile();
   }
@@ -936,6 +949,25 @@
     });
     codeBlock.append(codeFragment);
     elements.viewerBody.replaceChildren(codeBlock);
+  }
+
+  /**
+   * 渲染图片预览：内容区放一张指向 `/raw/` 的图。
+   *
+   * 地址由服务端拼好（``fileBody.url``）——URL 编码只在服务端一处负责，这里不自己拼路径。
+   * 图片原始字节是浏览器直接向 `/raw/` 取，不经过 ``/api/file``，因此这里不读、也没有
+   * 「正文过大不渲染」这回事。
+   * @param {{url: string, path: string, size_label: string}} imageFile 图片文件应答。
+   */
+  function renderImagePreview(imageFile) {
+    const containerNode = document.createElement("div");
+    containerNode.className = "preview image";
+    const imageNode = document.createElement("img");
+    imageNode.src = imageFile.url;
+    // 路径进 alt：图裂或加载中时能看出这里本该是哪张图。
+    imageNode.alt = imageFile.path;
+    containerNode.append(imageNode);
+    elements.viewerBody.replaceChildren(containerNode);
   }
 
   /**

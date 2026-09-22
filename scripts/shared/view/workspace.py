@@ -33,9 +33,9 @@ diff 先在不带 pathspec 的完整 diff 上查出旧路径，再把新旧两�
 - HTML：:func:`build_raw_file_payload` 把文件字节原样供出（``/raw/``），由界面在新标签页
   里打开——查看器不做 HTML 内联渲染。
 
-``/api/file`` 的应答里只有一位 ``preview`` 说明该文件支持哪种预览，预览能力本身由
-:func:`resolve_preview_descriptor` 按后缀判定；后缀判定只写在服务端这一处，界面不复制
-那张表。
+``/api/file`` 的应答里，``preview`` 说明**文本文件**支持哪种预览（由
+:func:`resolve_preview_descriptor` 按后缀判定），``kind: "image"`` 加 ``url`` 则直接告诉界面
+「这个文件是图片，去这个地址取」。后缀判定只写在服务端这一处，界面不复制任何后缀表。
 
 所有对外路径参数先经 :func:`resolve_repository_path` 解析成绝对路径并断言仍在仓库根
 之下，越界一律拒绝，且拒绝信息不回声任何绝对路径。改动分区取值是封闭枚举，任何取值都
@@ -94,6 +94,14 @@ _OUTSIDE_REPOSITORY_REFUSAL_MESSAGE = "拒绝：该路径越出仓库范围，�
 #: 排障时无从解释（与词法器解析同一口径）。
 _MARKDOWN_SUFFIXES = frozenset({".md", ".markdown"})
 _HTML_SUFFIXES = frozenset({".html", ".htm"})
+
+#: 后缀 → 位图图片。命中即 ``kind: "image"``，由浏览器自己去 ``/raw/`` 取字节渲染。
+#:
+#: 只收 :data:`_RAW_CONTENT_TYPES_BY_SUFFIX` 里以 ``image/`` 开头的位图，**刻意不含
+#: ``.svg``**：SVG 是可编辑的文本，源码视图对它更有用；它在 ``/raw/`` 里仍带
+#: ``image/svg+xml``，供 HTML 文档按原样引用。两份表必须对得上——图片预览拿到的
+#: Content-Type 不是 ``image/*`` 时浏览器会拒渲染，守卫测试里有一条专门钉这个。
+_IMAGE_SUFFIXES = frozenset({".gif", ".ico", ".jpeg", ".jpg", ".png", ".webp"})
 
 #: ``/raw/`` 应答的 Content-Type。只收 HTML 文档自己能引到的资源类型：样式、脚本、
 #: 图片、字体、JSON。表外一律 :data:`_DEFAULT_RAW_CONTENT_TYPE`，配合服务端发回的
@@ -325,15 +333,16 @@ def _collect_untracked_file_paths(repository_root: Path) -> list[str]:
 
 
 def build_file_payload(repository_root: Path, requested_path: str) -> WorkspacePayload:
-    """读取单个文件并按可渲染、二进制、超限三种形态给出应答。
+    """读取单个文件并按图片、可渲染、二进制、超限四种形态给出应答。
 
     Args:
         repository_root (Path): 仓库根绝对路径。
         requested_path (str): 界面传来的仓库相对路径。
 
     Returns:
-        WorkspacePayload: 正文应答（带行号渲染所需的逐行 HTML）或明确的形态标记。
-            正文应答里带 ``preview``：该文件支持哪种预览，不支持时为 ``None``。
+        WorkspacePayload: 图片应答（``kind: "image"`` + ``url``）、正文应答（带行号渲染
+            所需的逐行 HTML，另带 ``preview`` 说明该文本文件支持哪种预览）或明确的形态
+            标记（二进制 / 超限）。
     """
     resolved_path = resolve_repository_path(repository_root, requested_path)
     if resolved_path is None:
@@ -348,6 +357,20 @@ def build_file_payload(repository_root: Path, requested_path: str) -> WorkspaceP
         return build_refusal_payload(404, f"未找到文件：{normalized_relative_path}")
 
     file_byte_count = resolved_path.stat().st_size
+    # 图片在读字节之前就返回，因此**不受** 256 KiB 那条上限约束：字节是浏览器拿 URL 自己去
+    # 取的，服务端不读、也就没有可省的开销。截图动辄超过 256 KiB，而超限的图片恰恰是最该
+    # 能预览的那一类。
+    if Path(normalized_relative_path).suffix.lower() in _IMAGE_SUFFIXES:
+        return WorkspacePayload(
+            status_code=200,
+            payload={
+                "path": normalized_relative_path,
+                "kind": "image",
+                "url": build_raw_file_url(normalized_relative_path),
+                "size": file_byte_count,
+                "size_label": format_size_label(file_byte_count),
+            },
+        )
     if file_byte_count > MAX_FILE_BYTES:
         return WorkspacePayload(
             status_code=200,

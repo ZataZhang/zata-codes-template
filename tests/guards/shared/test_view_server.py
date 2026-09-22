@@ -40,6 +40,9 @@
    路由不能走静态资源的文件名白名单；替代防护是 ``resolve()`` 之后再断言仍在仓库根之下，
    越界、目录、缺失分别拒绝。表外后缀一律以二进制流供出，不会以 ``text/html`` 出现在
    浏览器里。
+11. **图片预览不受文本上限约束，且必须真的以 ``image/*`` 供出。** 图片走「后缀命中即返回」，
+   正文一次都不读，因此 256 KiB 那条上限对它没有意义——截图动辄超过它。服务端有两份按后缀
+   的表（图片后缀、``/raw/`` 的 Content-Type），漏掉任何一边都只会得到一片空白的预览。
 
 用例全部打在真实进程与真实 HTTP 上：被测的是绑定、路由分发与 ``git`` 子进程这条
 完整链路，桩掉其中任何一段都测不到本文列出的不变量。
@@ -83,6 +86,14 @@ _STOP_TIMEOUT_SECONDS = 10.0
 
 #: 超过 ``workspace.MAX_FILE_BYTES``（256 KiB）的正文，用于验「不返回正文」。
 _OVERSIZE_BYTE_COUNT = 300 * 1024
+
+#: 一段够像 PNG 的字节（真签名 + IHDR 头），用于图片预览用例。守卫测试不解码图片，
+#: 只需首字节不是合法 UTF-8，因此它同时能验「二进制字节不被当文本处理」。
+_IMAGE_SIGNATURE_BYTES = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
+
+#: 进入图片预览的后缀。与 ``workspace._IMAGE_SUFFIXES`` 一一对应——这里刻意再列一遍：
+#: 服务端那两个集合（图片后缀、``/raw/`` 的 Content-Type）哪天改了，这条会先炸。
+_IMAGE_SUFFIXES_UNDER_TEST = (".gif", ".ico", ".jpeg", ".jpg", ".png", ".webp")
 
 _FORBIDDEN_WRITE_METHOD_HANDLER_NAMES = ("do_POST", "do_PUT", "do_DELETE", "do_PATCH")
 
@@ -140,6 +151,29 @@ class RunningViewServer:
                 )
         except urllib.error.HTTPError as http_error:
             return http_error.code, http_error.read().decode("utf-8"), ""
+
+    def request_bytes(self, route: str) -> tuple[int, bytes, str]:
+        """对服务发一次真实 HTTP 请求，返回原始字节与内容类型。
+
+        图片这类应答的字节不是合法 UTF-8（PNG 签名首字节就是 ``0x89``），
+        :meth:`request_text` 解码时会直接抛错，因此二进制核对必须走这条。
+
+        Args:
+            route (str): 路由（含查询串）。
+
+        Returns:
+            tuple[int, bytes, str]: 状态码、正文字节与 ``Content-Type``。
+        """
+        request = urllib.request.Request(f"http://{_LOOPBACK_HOST}:{self.port}{route}")
+        try:
+            with urllib.request.urlopen(request, timeout=5) as response:
+                return (
+                    response.status,
+                    response.read(),
+                    response.headers.get("Content-Type", ""),
+                )
+        except urllib.error.HTTPError as http_error:
+            return http_error.code, http_error.read(), ""
 
 
 def _run_git(repository_path: Path, *git_arguments: str) -> subprocess.CompletedProcess[str]:
@@ -215,6 +249,13 @@ def _build_fixture_repository(repository_root: Path) -> Path:
         encoding="utf-8",
     )
     (repository_root / "docs" / "page.css").write_text("h1 { color: red; }\n", encoding="utf-8")
+    # 每个可预览的图片后缀各放一份（守卫测试不解码，只要字节不是 UTF-8 即可），另放一份
+    # 超限的用于钉「图片预览不受 256 KiB 上限约束」。
+    for image_suffix in _IMAGE_SUFFIXES_UNDER_TEST:
+        (repository_root / "docs" / f"pixel{image_suffix}").write_bytes(_IMAGE_SIGNATURE_BYTES)
+    (repository_root / "docs" / "huge.png").write_bytes(
+        _IMAGE_SIGNATURE_BYTES + b"\x00" * _OVERSIZE_BYTE_COUNT
+    )
     _run_git(repository_root, "add", ".")
     _run_git(repository_root, "commit", "-m", "init")
 
@@ -611,6 +652,64 @@ def test_raw_route_escape_requests_are_refused(running_view_server: RunningViewS
     missing_status, missing_body = running_view_server.request("/raw/docs/nope.html")
     assert missing_status == 404, missing_body
     assert "未找到文件" in missing_body["error"]
+
+
+def test_each_image_suffix_is_previewed_and_served_as_an_image(
+    running_view_server: RunningViewServer,
+) -> None:
+    """图片给出 ``/raw/`` 地址，且那个地址必须以 ``image/*`` 供出。
+
+    两件事一起守。其一，图片走的是「后缀命中即返回」，正文一次都不读——所以这里另外核对
+    ``/raw/`` 的字节与磁盘逐字节一致：界面显示的那张图必须就是这个文件。其二，服务端有两份
+    按后缀的表（能预览的图片后缀、``/raw/`` 的 Content-Type），漏掉任何一边都会让预览拿到
+    ``application/octet-stream`` 而渲染失败，浏览器不会报错、只会是一片空白。
+    """
+    repository_root = running_view_server.repository_root
+    for image_suffix in _IMAGE_SUFFIXES_UNDER_TEST:
+        image_relative_path = f"docs/pixel{image_suffix}"
+
+        status_code, response_body = running_view_server.request(
+            f"/api/file?path={image_relative_path}"
+        )
+        assert status_code == 200, f"{image_relative_path} 未被读取：{response_body}"
+        assert response_body["kind"] == "image", image_relative_path
+        assert response_body["url"] == f"/raw/{image_relative_path}"
+        assert "lines" not in response_body
+        assert (
+            response_body["size"]
+            == (repository_root / "docs" / f"pixel{image_suffix}").stat().st_size
+        )
+
+        raw_status, raw_bytes, raw_content_type = running_view_server.request_bytes(
+            f"/raw/{image_relative_path}"
+        )
+        assert raw_status == 200, image_relative_path
+        assert raw_content_type.startswith("image/"), f"{image_relative_path}: {raw_content_type}"
+        assert raw_bytes == (repository_root / "docs" / f"pixel{image_suffix}").read_bytes()
+
+
+def test_image_preview_is_not_subject_to_the_text_size_limit(
+    running_view_server: RunningViewServer,
+) -> None:
+    """超限图片仍走图片预览，不被判成「文件过大」。
+
+    256 KiB 上限约束的是「读进来逐行渲染的正文」；图片的字节由浏览器自己去 ``/raw/`` 取，
+    服务端不读，也就没有可省的开销。截图动辄超过 256 KiB，把上限套到图片上会把最该能预览的
+    那一类文件挡在门外。
+    """
+    repository_root = running_view_server.repository_root
+    status_code, response_body = running_view_server.request("/api/file?path=docs/huge.png")
+    assert status_code == 200
+    assert response_body["kind"] == "image", response_body
+    assert response_body["url"] == "/raw/docs/huge.png"
+
+    raw_status, raw_bytes, raw_content_type = running_view_server.request_bytes(
+        "/raw/docs/huge.png"
+    )
+    assert raw_status == 200
+    assert raw_content_type.startswith("image/png")
+    assert len(raw_bytes) == (repository_root / "docs" / "huge.png").stat().st_size
+    assert len(raw_bytes) > _OVERSIZE_BYTE_COUNT
 
 
 def test_each_section_matches_its_own_terminal_git_output(
