@@ -9,6 +9,9 @@
  * 出现在两段里**（暂存了几个 hunk 之后又改了几行），因此条目的身份是「路径 + 分区」而不是
  * 路径；选中态、请求参数与直达路径的归属都按这个二元组走。
  *
+ * 两个视图各自记一份「上一次看的那一个」（成功读到内容才记），切视图时还原，而不是每次
+ * 都回到空态。改动视图头部的「查看文件」是显式指定，优先于记忆。
+ *
  * 预览默认关闭：文件视图打开任何文件先看到的是源码。Markdown 由服务端渲染、由「预览」
  * 开关按需取回；HTML 不内联渲染，只在新标签页里打开服务端原样供出的文件（/raw/）。哪
  * 个文件支持哪种预览由服务端在 /api/file 的 `preview` 字段里给出，本文件不复制那张后缀表。
@@ -55,6 +58,11 @@
     filePaths: [],
     changedSections: [],
     isDisconnected: false,
+    // --- 两个视图各自记住「上一次看的那一个」，切视图时还原（见 switchView） ---
+    /** 文件视图里上一次成功读到正文的路径；空串表示还没看过任何文件。 */
+    lastFileViewPath: "",
+    /** 改动视图里上一次成功读到改动的「路径 + 分区」；分区一起记，否则同一文件的两段会串。 */
+    lastDiffViewSelection: { path: "", section: "" },
     // --- 当前选中文件的预览状态，换文件或切视图时由 resetFilePreview 清空 ---
     /** 当前正文来自 /api/file 的应答；没有可显示正文时为 null。 */
     loadedFile: null,
@@ -295,9 +303,14 @@
       viewState.selectedSection || resolveSectionForPath(viewState.selectedPath);
     if (resolvedSection && isSelectableChange(viewState.selectedPath, resolvedSection)) {
       await selectPath(viewState.selectedPath, resolvedSection);
-    } else {
-      renderPlaceholder();
+      return;
     }
+    // 还原过来的那条改动已经不在列表里（提交了、撤销了、换过 worktree）：清掉选中态
+    // 再报空态。不清的话「内容区是空态、selectedPath 却还指着某个文件」，复制与跳转
+    // 按钮的开关就跟内容对不上了。
+    viewState.selectedPath = "";
+    viewState.selectedSection = "";
+    renderPlaceholder();
   }
 
   /**
@@ -818,6 +831,9 @@
       renderNotice(buildNotice({ isFailure: true, title: "无法读取", paragraphs: [fileResponse.body.error] }));
       return;
     }
+    // 读到了才算「在文件视图里看过这个文件」：读失败的提示块不该被记下来，否则每次切回
+    // 文件视图都会重新弹同一个错误。
+    viewState.lastFileViewPath = repositoryPath;
     const fileBody = fileResponse.body;
     if (fileBody.kind !== "text") {
       elements.viewerMeta.textContent = fileBody.size_label;
@@ -854,6 +870,8 @@
       renderNotice(buildNotice({ isFailure: true, title: "无法读取改动", paragraphs: [diffResponse.body.error] }));
       return;
     }
+    // 与文件视图同一条口径：读到了才算「在改动视图里看过这条」，读失败的应答不记。
+    viewState.lastDiffViewSelection = { path: repositoryPath, section: sectionName };
     const diffBody = diffResponse.body;
     // 头部在空态下会被 renderNotice 清成占位符，所以来源只在有逐行改动时才写头部，
     // 纯重命名与二进制那两支交给提示块正文自己说。
@@ -921,16 +939,22 @@
   }
 
   /**
-   * 清空当前文件的预览状态。
+   * 清空当前文件的预览状态，并把界面上的预览控件一起收掉。
    *
    * 换文件、切视图都要走一遍：不清的话上一个文件的预览能力（以及已取回的 HTML）会跟着
    * 新文件一起留着，点出来的预览与内容区的正文不是同一个文件。
+   *
+   * **状态和控件必须一起清。** 两个预览控件的可见性只由 `renderPreviewControls` 决定，
+   * 只把 `previewDescriptor` 置空而不同步界面，上一个 `.md` 留下的「源码 / 预览」开关
+   * （以及 HTML 留下的「在新标签页打开」）就会滞留在头部——切到改动视图时最明显，那里
+   * 根本没有正文可预览。所以这里自己收尾，而不是指望每个调用方都记得再调一次。
    */
   function resetFilePreview() {
     viewState.loadedFile = null;
     viewState.previewDescriptor = null;
     viewState.renderMode = SOURCE_MODE;
     viewState.markdownHtml = null;
+    renderPreviewControls(null);
   }
 
   /**
@@ -1049,26 +1073,33 @@
   /**
    * 切换视图。
    *
-   * 切到文件视图时可以带一个路径——改动视图头部的「查看文件」就是这条路径：从某个改动
-   * 跳到该文件的完整正文。带路径时按直达链接同一条顺序渲染（先展开祖先目录再渲染树），
-   * 否则文件落在折叠的目录里时树上根本看不到选中态，只有右侧换了内容。
+   * 两个视图各记一份「上一次看的那一个」，切过去时还原，而不是每次都回到空态：在改动里
+   * 看到一半切去翻文件、再切回来，本该还在原来那条改动上。`pathToSelect` 是显式指定，
+   * 优先级高于记忆——改动视图头部的「查看文件」就是靠它跳到当前这条改动对应的文件（那
+   * 是「看你点的这一条」，不是「回到上次看的那个文件」）。还原是尽力而为：文件可能已经
+   * 被删、改动可能已经提交，两种情况都由下游给出明确结果（未找到文件 / 空态）。
    * @param {string} nextView 目标视图。
-   * @param {string} pathToSelect 切过去后要选中的仓库相对路径；空串表示只渲染空态。
+   * @param {string} pathToSelect 显式要选中的仓库相对路径；空串表示用目标视图的记忆。
    */
   async function switchView(nextView, pathToSelect = "") {
     if (viewState.isDisconnected || viewState.view === nextView) {
       return;
     }
     viewState.view = nextView;
-    viewState.selectedPath = pathToSelect;
-    viewState.selectedSection = "";
     resetFilePreview();
     renderViewTabs();
     if (nextView === DIFF_VIEW) {
+      // 分区也要一起还原：同一个文件可以同时出现在已暂存与未暂存两段，只带路径回去会
+      // 落到按分区顺序解析出来的另一段。
+      viewState.selectedPath = pathToSelect || viewState.lastDiffViewSelection.path;
+      viewState.selectedSection = pathToSelect ? "" : viewState.lastDiffViewSelection.section;
       await loadChangedFiles();
       return;
     }
+    viewState.selectedPath = pathToSelect || viewState.lastFileViewPath;
+    viewState.selectedSection = "";
     elements.statusHint.textContent = "";
+    // 先展开祖先目录再渲染树，否则文件落在折叠的目录里时树上看不到选中态。
     expandToSelectedPath();
     renderTree();
     if (viewState.selectedPath) {
