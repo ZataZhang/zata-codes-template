@@ -1,0 +1,27 @@
+/*
+ * 产品外壳样式：侧栏属于被评审产品 UI，与 prototype chrome 分层。
+ * 颜色沿用 shared.css 的设计令牌；复制模板后按目标仓库真实设计系统替换。
+ */
+.app-shell { display: grid; min-height: 100vh; grid-template-columns: 232px minmax(0, 1fr); }
+.app-sidebar { display: flex; flex-direction: column; gap: 14px; border-right: 1px solid var(--line); background: var(--surface); padding: 16px 12px; }
+.app-brand { display: flex; align-items: center; gap: 9px; padding: 4px 8px 12px; border-bottom: 1px solid var(--line); font-size: 14px; font-weight: 750; }
+.app-nav { display: grid; gap: 14px; }
+.app-nav-group-label { margin-bottom: 5px; padding: 0 8px; color: var(--muted); font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; }
+.app-nav-item { display: flex; width: 100%; min-height: 32px; align-items: center; gap: 8px; border: 0; border-radius: 7px; background: transparent; padding: 6px 8px; color: var(--ink); font: inherit; font-size: 13px; text-align: left; text-decoration: none; }
+.app-nav-item.is-active, .app-nav-item.is-current { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+.app-nav-link:hover, .app-nav-item[data-app-view]:hover { background: var(--accent-soft); text-decoration: none; }
+.app-nav-link:focus-visible, .app-nav-item[data-app-view]:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.app-nav-icon { flex: 0 0 16px; text-align: center; }
+.app-nav-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-nav-cross { flex: 0 0 auto; color: var(--muted); font-size: 11px; }
+/* 没有原型或当前不可用的模块：看起来就不可以点，并说明原因。 */
+.app-nav-item.is-pending { color: var(--muted); opacity: .72; cursor: default; }
+.app-main { min-width: 0; display: flex; flex-direction: column; background: var(--surface); }
+
+/* 窄屏收成图标列而不是整条隐藏，否则跨原型跳转在移动端断掉。 */
+@media (max-width: 880px) {
+  .app-shell { grid-template-columns: 56px minmax(0, 1fr); }
+  .app-nav-text, .app-nav-cross, .app-nav-group-label { display: none; }
+  .app-nav-item { justify-content: center; padding: 8px 4px; }
+  .app-nav-icon { width: auto; font-size: 15px; }
+}

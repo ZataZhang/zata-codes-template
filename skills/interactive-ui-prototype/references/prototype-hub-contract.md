@@ -4,14 +4,15 @@
 
 ## 职责边界
 
-Hub 只回答：有哪些原型、属于哪个项目/模块、采用什么形式、是否可打开、如何进入及追溯说明。CI/CD、PRD 执行状态、Issue、仓库健康、任务调度和运行监控不能成为 Hub 的公共字段或控制项。
+Hub 只回答：有哪些原型、属于哪个项目/模块/原型系统、采用什么形式、是否可打开、如何进入及追溯说明。CI/CD、PRD 执行状态、Issue、仓库健康、任务调度和运行监控不能成为 Hub 的公共字段或控制项。
 
 ## 信息架构
 
 - 主导航：全部原型、图片原型、交互原型、当前可用。
 - 辅助入口：组件库、原型规范。放在独立区域，不混入原型类型筛选。
-- 主区：搜索、项目/模块/形式筛选、高密度目录。
+- 主区：搜索、项目/模块/原型系统/形式筛选、高密度目录。
 - 详情区：大图预览、描述、验证层级、版本、来源、打开入口。
+- 按原型系统分组时插入分组行：`<系统名>（n）` 加一句关系说明，例如“共享同一个产品外壳，打开任意一个都能用左侧侧栏点到其余模块”。目录要自己解释入口结构，不能让评审者逐个打开才明白这三个卡片其实是一套界面。
 
 ## 点击语义
 
@@ -27,8 +28,23 @@ Hub 只回答：有哪些原型、属于哪个项目/模块、采用什么形式
 - 默认复用模板的底部毛玻璃 Dock，常驻 Hub、说明、热点和重置四个动作；闲置后淡化收缩为“原型”胶囊，悬停或键盘聚焦恢复。不得遮挡主操作、Dialog 确认按钮、Toast 或移动端安全区。
 - Hub 缩略图默认隐藏 prototype chrome，避免目录预览把评审工具误当成产品设计。
 
+## 共享产品外壳（app shell）
+
+prototype chrome 是评审工具，app shell 是被评审产品自己的导航（侧栏、顶栏）。两者必须分文件、分标识，截图时分别可控：`?capture=1` 一类的捕获模式只隐藏 chrome，保留外壳，否则缩略图会连产品导航一起丢掉。
+
+- 属于同一产品画布的多个原型引用同一份外壳文件，禁止每个页面复制一份侧栏——三份手写侧栏必然在图标、顺序和可用性上漂移。
+- 侧栏项只声明它在产品里的名字（`label`）、可选的同页视图（`view`）和指向的 `prototypeId`；**目标页面文件名、是否可点全部从 registry 推导**，不在外壳里硬编码路径。
+- 三种渲染形态：同一条目的其他视图 → `<button>`（同页切换）；其他可用条目 → `<a href>`（跨页真实链接，加 `↗` 一类的跨页标记，新标签或当前标签按仓库习惯）；未登记条目或 `availability != available` → 静态项，并写出不可点的原因。
+- 窄屏收成图标列（保留可点性），不要整条隐藏——整条隐藏等于在移动端断掉跨原型跳转。
+- 当前高亮由页面在启动时解析（hash → `?view=` → 默认视图），并在每次切视图后回写 `aria-current`，保证深链和点击两条路径的侧栏状态一致。
+- 外壳改动会连带让所有引用它的截图过期：同一次改动里重截全部相关预览图，并把外壳文件名写进旁车失效条件。
+
+细节实现见 `assets/prototype-system-template/app-shell.js`（`resolveNavItem` / `resolveAppShellView` / `setAppShellActiveView`）与 `app-shell-page.html` 的接线方式。
+
 ## 数据契约
 
-Prototype registry 至少包含：`id`、`title`、`entry`、`project`、`module`、`form`、`version`、`updatedAt`、`availability`、`validationLevel`、`description`、`preview`、`source`。HTML 只从 registry 渲染，不重复维护条目。
+Prototype registry 至少包含：`id`、`title`、`entry`、`project`、`module`、`system`（所属原型系统，同享一个产品外壳的一组原型用同一个名字，独立原型留空）、`form`、`version`、`updatedAt`、`availability`、`validationLevel`、`description`、`preview`、`source`。HTML 只从 registry 渲染，不重复维护条目。
 
-可复制骨架：`assets/prototype-system-template/hub.html`、`hub.css`、`hub.js`。
+registry 同时是**共享外壳导航**的事实源：有哪些原型、能不能点，只由它决定。原型被删除或标为不可用时，侧栏对应项必须自动降级成静态项，而不是留下一个跳到 404 的死链接。
+
+可复制骨架：`assets/prototype-system-template/hub.html`、`hub.css`、`hub.js`，以及被 Hub 和外壳页面共同引入的 `registry.js`；外壳为 `app-shell.css`、`app-shell.js`，页面接线示例见 `app-shell-page.html` / `app-shell-page.js`。
