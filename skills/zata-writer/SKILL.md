@@ -1,6 +1,6 @@
 ---
 name: zata-writer
-description: "[Updated 2026-09-10] 撰写或重构结构清晰、证据充分、保留个人判断且有叙事吸引力的中文长文，默认配图，并可将成稿排版为可直接粘贴的公众号文章。适用于技术博客、方法论、产品分析、现象解读和研究型文章；不用于短社交媒体文案、纯摘要或仅生成标题。"
+description: "[Updated 2026-09-22] 撰写或重构结构清晰、证据充分、保留个人判断且有叙事吸引力的中文长文，默认配图，并可将成稿排版为可直接粘贴的公众号文章。适用于技术博客、方法论、产品分析、现象解读和研究型文章；不用于短社交媒体文案、纯摘要或仅生成标题。"
 ---
 
 # Zata Writer
@@ -112,11 +112,11 @@ description: "[Updated 2026-09-10] 撰写或重构结构清晰、证据充分、
 
 ## 可选：发布到公众号
 
-用户要求把成稿发布或排版到公众号时，读取 [references/gongzhong-publish.md](references/gongzhong-publish.md) 并按其流程执行：用 `assets/gzh_build/` 中的构建脚本和主题样式，把 Markdown 转成可直接粘贴进公众号后台的 HTML，挑选金句做荧光高亮，用无头 Chrome 截图验证排版，封面按文章气质选排版式或卡通插画（AI 底图 + PIL 叠字，人物设定见 `assets/brand/`）路线生成，并向用户说明图片需手动重传、正文外链不可点等平台限制。
+用户要求把成稿发布或排版到公众号时，读取 [references/gongzhong-publish.md](references/gongzhong-publish.md) 并按其流程执行：用 `assets/gzh_build/` 中的构建脚本和主题样式，把 Markdown 转成可直接粘贴进公众号后台的 HTML，挑选金句做荧光高亮，**把 `assets/brand/开头动画.gif` 复制到文章图片目录**（构建脚本会自动插到标题块下面，不需要在 md 里手写），用无头 Chrome 截图验证排版，封面按文章气质选排版式或卡通插画（AI 底图 + PIL 叠字，人物设定见 `assets/brand/`）路线生成，并向用户说明图片需手动重传、正文外链不可点等平台限制。
 
 ## 可选：生成网页版文章
 
-用户要求「出个网页版」「做成可分享的 HTML 长文」「网页文章」时，一律读取 [references/web-publish.md](references/web-publish.md) 并按其流程执行：用 `assets/gzh_build/` 中的 `build_web.sh`、`style_web.html`、`postprocess_web.py` 走 pandoc 管线，产出媒体报道质感的单文件 HTML（封面 + 双形态目录 + 编号正文 + base64 内联图片），无头 Chrome 截图验证。该路线与公众号路线独立，外链保持可点。
+用户要求「出个网页版」「做成可分享的 HTML 长文」「网页文章」时，一律读取 [references/web-publish.md](references/web-publish.md) 并按其流程执行：用 `assets/gzh_build/` 中的 `build_web.sh`、`style_web.html`、`postprocess_web.py` 走 pandoc 管线，产出媒体报道质感的单文件 HTML（封面 + 双形态目录 + 编号正文 + base64 内联图片），无头 Chrome 截图验证。该路线与公众号路线独立，外链保持可点，**正文不插品牌动画 GIF**（封面已有 kicker 和落款，那是公众号版专属）。
 
 **硬约束：网页版只交付文章目录里的一个静态 `.html` 文件。** 构建零依赖（pandoc + python3），禁止为网页版请求搭建任何工程化脚手架：不跑 npm/node，不建 React/Vite/TypeScript 工程，不产生 `package.json`、`node_modules`、tsconfig 等依赖文件，也不改用需要装依赖或搭脚手架的其他 Skill（如 beautiful-article）。2026-09-10 曾因改走脚手架路线在用户项目里留下整套 node 工程文件，被要求把整个目录删除返工。
 

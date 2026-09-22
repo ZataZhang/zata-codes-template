@@ -9,6 +9,8 @@
 - 资料来源列表（同一个 <p> 里全是 <a> + <br>）：逐条拆成独立左对齐小字段落，
   避免微信阅读器两端对齐把短行拉成稀疏大字
 - 正文内联链接：锚文本 + 绿色上标编号，URL 收口到文末「参考资料」
+- 标题块下面插入品牌动画（只插公众号版，网页版不插）：不再要求作者在 md 里
+  手写 GIF 引用，把 assets/brand/开头动画.gif 复制到文章图片目录即可
 
 用法: python3 decorate.py 文章_公众号版.html（原地修改）
 """
@@ -87,11 +89,35 @@ def inline_refs(html):
     return html
 
 
+BRAND_LOGO = '<p>\n<img src="{}" alt="Zata山外志" />\n</p>'
+IMAGE_DIRS = ("assets", "image")
+
+
+def insert_brand_logo(html, html_path):
+    """在标题块后面插入品牌动画，只在公众号版做。
+
+    网页版（postprocess_web.py）不调用本函数，走的是封面 kicker + 落款，不需要
+    正文里的 GIF。GIF 没放进文章图片目录时跳过并提示，避免产出坏图；HTML 里已经
+    有（老文章在 md 里手写过，或本函数跑过第二遍）也跳过，保证幂等。
+    """
+    for sub in IMAGE_DIRS:
+        rel = f"{sub}/开头动画.gif"
+        if (html_path.parent / rel).exists():
+            break
+    else:
+        print("未找到 assets/开头动画.gif，跳过品牌 logo（从 assets/brand/ 复制过来即可）")
+        return html
+    if "开头动画.gif" in html or "</header>" not in html:
+        return html
+    return html.replace("</header>", f"</header>\n{BRAND_LOGO.format(rel)}", 1)
+
+
 def main():
     """读取 HTML 文件、注入标题装饰并回写文件。"""
     path = Path(sys.argv[1])
     html = path.read_text(encoding="utf-8")
     html = decorate_headings(html)
+    html = insert_brand_logo(html, path)
     html = split_source_list(html)
     html = inline_refs(html)
     path.write_text(html, encoding="utf-8")

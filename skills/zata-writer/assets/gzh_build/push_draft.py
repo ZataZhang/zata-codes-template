@@ -383,8 +383,13 @@ def main():
     print(f"已上传封面: {first_local}")
 
     title = re.sub(r"^#\s*", "", md_path.read_text(encoding="utf-8").splitlines()[0]).strip()
-    first_p = collect_elements(body, "p")
-    digest = re.sub(r"\s+", " ", text_of(first_p[0])).strip()[:110] if first_p else title
+    # 摘要取第一段有文字的正文：正文开头的品牌动画（decorate.py 插的）和图片段落
+    # 都是只有 <img> 的 <p>，取第一段会得到空摘要。
+    paras = collect_elements(body, "p")
+    digest = next(
+        (re.sub(r"\s+", " ", text_of(p)).strip() for p in paras if text_of(p).strip()), ""
+    )
+    digest = digest[:110] or title
 
     content = "".join(serialize(c) for c in body.children)
     print(f"正文 HTML 长度: {len(content)} 字符")
