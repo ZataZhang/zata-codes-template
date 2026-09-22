@@ -22,7 +22,7 @@ import time
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, unquote, urlsplit
 
 import instance
 import workspace
@@ -188,6 +188,15 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
                     self._read_query_parameter(query_parameters, "section"),
                 )
             )
+        elif route_path == "/api/markdown":
+            self._serve_workspace_payload(
+                workspace.build_markdown_payload(
+                    repository_root,
+                    self._read_query_parameter(query_parameters, "path"),
+                )
+            )
+        elif route_path.startswith(workspace.RAW_ROUTE_PREFIX):
+            self._serve_raw_file(route_path.removeprefix(workspace.RAW_ROUTE_PREFIX))
         else:
             # 不回声请求路径：未知路由的应答里没有任何来自请求的可控内容。
             self._send_json_payload(404, {"error": "未知路由：本服务只提供白名单内的只读接口。"})
@@ -209,7 +218,9 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
         """按固定文件名白名单返回静态资源。
 
         资源名来自请求路径，因此这里用白名单而不是拼接路径：没有可以拼接的路径，就
-        没有可以逃逸的路径。
+        没有可以逃逸的路径。查看器自身只有这三个固定资源，所以白名单足够；仓库内
+        文件的按路径取用走另一条路由（见 :meth:`_serve_raw_file`），那里的防护是
+        解析成绝对路径之后再断言。
         """
         content_type = _STATIC_CONTENT_TYPES_BY_FILENAME.get(asset_name)
         if content_type is None:
@@ -224,6 +235,37 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(asset_bytes)
+
+    def _serve_raw_file(self, encoded_relative_path: str) -> None:
+        """返回仓库内的原始文件字节，供 HTML 文件在自己的标签页里加载。
+
+        这是唯一一条保持路径原样的路由，而且必须保持：HTML 文档里的相对引用要能解析
+        回同一路由、真的加载出来。替代的防护是 ``resolve()`` 之后再断言仍在仓库根之下
+        （见 :func:`workspace.resolve_repository_path`），越界一律拒绝。路径段先解码再
+        交给解析器——带 ``%00`` 之类的畸形输入解码后同样落在那条断言上，而不是穿透成
+        无应答。
+
+        Args:
+            encoded_relative_path (str): ``/raw/`` 之后、尚未解码的路径。
+        """
+        raw_file_result = workspace.build_raw_file_payload(
+            self.server.repository_root,
+            unquote(encoded_relative_path),
+        )
+        if isinstance(raw_file_result, workspace.WorkspacePayload):
+            self._send_json_payload(raw_file_result.status_code, raw_file_result.payload)
+            return
+
+        self.send_response(raw_file_result.status_code)
+        self.send_header("Content-Type", raw_file_result.content_type)
+        self.send_header("Content-Length", str(len(raw_file_result.body_bytes)))
+        # 表外后缀是二进制流。不声明 nosniff 时浏览器会按内容嗅探，把一个 .txt 当 HTML
+        # 执行——即使它从来没有以 text/html 供出过。
+        self.send_header("X-Content-Type-Options", "nosniff")
+        # 与其它读取路径一致：本地开发工具不缓存，改了文件就应该立刻看到。
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(raw_file_result.body_bytes)
 
     def _send_json_payload(self, status_code: int, payload: dict[str, object]) -> None:
         """返回一条 JSON 应答。"""

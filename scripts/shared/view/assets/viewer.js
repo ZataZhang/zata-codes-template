@@ -1,19 +1,25 @@
 /**
  * 只读文件与改动查看器的前端交互。
  *
- * 数据全部来自本机只读接口（/api/info、/api/tree、/api/file、/api/changes、/api/diff），
- * 页面不做任何写入，也不做心跳轮询——一旦开始轮询，服务端的空闲自动回收就会静默
- * 失效（见 docs/guides/file-viewer.md 的回收策略一节）。
+ * 数据全部来自本机只读接口（/api/info、/api/tree、/api/file、/api/changes、/api/diff、
+ * /api/markdown），页面不做任何写入，也不做心跳轮询——一旦开始轮询，服务端的空闲自动
+ * 回收就会静默失效（见 docs/guides/file-viewer.md 的回收策略一节）。
  *
  * 改动视图按 `git status` 的三段口径展示：已暂存、未暂存、未跟踪。**同一个文件可以同时
  * 出现在两段里**（暂存了几个 hunk 之后又改了几行），因此条目的身份是「路径 + 分区」而不是
  * 路径；选中态、请求参数与直达路径的归属都按这个二元组走。
+ *
+ * 预览默认关闭：文件视图打开任何文件先看到的是源码。Markdown 由服务端渲染、由「预览」
+ * 开关按需取回；HTML 不内联渲染，只在新标签页里打开服务端原样供出的文件（/raw/）。哪
+ * 个文件支持哪种预览由服务端在 /api/file 的 `preview` 字段里给出，本文件不复制那张后缀表。
  */
 (() => {
   "use strict";
 
   const FILES_VIEW = "files";
   const DIFF_VIEW = "diff";
+  const SOURCE_MODE = "source";
+  const PREVIEW_MODE = "preview";
 
   const elements = {
     repoName: document.getElementById("repo-name"),
@@ -27,6 +33,11 @@
     treeBody: document.getElementById("tree-body"),
     viewerPath: document.getElementById("viewer-path"),
     copyPathButton: document.getElementById("copy-path"),
+    previewSwitch: document.getElementById("preview-switch"),
+    tabSource: document.getElementById("tab-source"),
+    tabPreview: document.getElementById("tab-preview"),
+    openFileButton: document.getElementById("open-file"),
+    openExternal: document.getElementById("open-external"),
     viewerMeta: document.getElementById("viewer-meta"),
     viewerBody: document.getElementById("viewer-body"),
     statusDot: document.getElementById("status-dot"),
@@ -44,6 +55,15 @@
     filePaths: [],
     changedSections: [],
     isDisconnected: false,
+    // --- 当前选中文件的预览状态，换文件或切视图时由 resetFilePreview 清空 ---
+    /** 当前正文来自 /api/file 的应答；没有可显示正文时为 null。 */
+    loadedFile: null,
+    /** 服务端给出的预览能力：{mode: 'markdown'} / {mode: 'external', url} / null。 */
+    previewDescriptor: null,
+    /** 当前显示源码还是预览。 */
+    renderMode: SOURCE_MODE,
+    /** 已取回的 Markdown 预览片段；null 表示还没取过。 */
+    markdownHtml: null,
   };
 
   /**
@@ -77,6 +97,7 @@
     elements.viewerPath.textContent = "服务已退出";
     elements.copyPathButton.hidden = true;
     elements.copyPathButton.dataset.copied = "false";
+    renderPreviewControls(null);
     elements.viewerMeta.textContent = "";
     elements.viewerBody.replaceChildren(
       buildNotice({
@@ -292,17 +313,19 @@
   }
 
   /**
-   * 写内容区头部的路径，并同步「复制路径」按钮的可见性。
+   * 写内容区头部的路径，并同步「复制路径」与「查看文件」的可见性。
    *
    * 头部没有真实路径（占位符、服务已退出、提示块）时必须把按钮收起来：留一个复制
-   * 不到东西的按钮比没有按钮更糟。复制取的是 `viewState.selectedPath`，因此这里不另
-   * 存一份路径，只负责显示与按钮的开关。
+   * 不到东西的按钮比没有按钮更糟。「查看文件」只在**改动视图**里有意义——文件视图本来
+   * 就在看正文，那里摆一个跳回自己的按钮是纯噪音。两个按钮都取
+   * `viewState.selectedPath`，因此这里不另存一份路径，只负责显示与按钮的开关。
    * @param {string} repositoryPath 仓库相对路径；空串表示只显示占位符。
    */
   function setViewerPath(repositoryPath) {
     elements.viewerPath.textContent = repositoryPath || "—";
     elements.copyPathButton.hidden = !repositoryPath;
     elements.copyPathButton.dataset.copied = "false";
+    elements.openFileButton.hidden = !repositoryPath || viewState.view !== DIFF_VIEW;
   }
 
   /**
@@ -338,6 +361,8 @@
    */
   function renderNotice(noticeNode) {
     setViewerPath("");
+    // 提示块不是文件正文，预览控件必须跟着收起：留一个点到没有内容的开关比没有更糟。
+    renderPreviewControls(null);
     elements.viewerMeta.textContent = "";
     elements.viewerBody.replaceChildren(noticeNode);
   }
@@ -782,14 +807,14 @@
   }
 
   /**
-   * 加载并渲染单个文件正文。
+   * 加载并渲染单个文件正文。默认渲染源码，预览要由用户显式切换。
    * @param {string} repositoryPath 仓库相对路径。
    */
   async function loadFileContent(repositoryPath) {
+    resetFilePreview();
     const fileResponse = await requestJson(`/api/file?path=${encodeURIComponent(repositoryPath)}`);
     setViewerPath(repositoryPath);
     if (fileResponse.status !== 200) {
-      elements.viewerMeta.textContent = "";
       renderNotice(buildNotice({ isFailure: true, title: "无法读取", paragraphs: [fileResponse.body.error] }));
       return;
     }
@@ -808,11 +833,10 @@
       );
       return;
     }
-    elements.viewerMeta.textContent = `${fileBody.language} · ${fileBody.line_count} 行 · ${fileBody.size_label}`;
-    elements.statusHint.textContent = fileBody.highlighted
-      ? "只读视图 · 服务端语法高亮"
-      : "只读视图 · 未安装语法高亮依赖，已降级为纯文本";
-    renderCodeLines(fileBody.lines);
+    viewState.loadedFile = fileBody;
+    viewState.previewDescriptor = fileBody.preview || null;
+    renderPreviewControls(viewState.previewDescriptor);
+    await renderLoadedFile();
   }
 
   /**
@@ -897,6 +921,99 @@
   }
 
   /**
+   * 清空当前文件的预览状态。
+   *
+   * 换文件、切视图都要走一遍：不清的话上一个文件的预览能力（以及已取回的 HTML）会跟着
+   * 新文件一起留着，点出来的预览与内容区的正文不是同一个文件。
+   */
+  function resetFilePreview() {
+    viewState.loadedFile = null;
+    viewState.previewDescriptor = null;
+    viewState.renderMode = SOURCE_MODE;
+    viewState.markdownHtml = null;
+  }
+
+  /**
+   * 同步预览控件的可见性与选中态。
+   *
+   * 两种能力各自对应一个控件：Markdown 给「源码 / 预览」开关，HTML 给「在新标签页
+   * 打开」。非 Markdown 文件不显示开关，非 HTML 文件不显示链接——一个点了没反应或
+   * 给出错误内容的控件比没有更糟。
+   * @param {{mode: string, url?: string}|null} previewDescriptor 服务端给出的预览能力。
+   */
+  function renderPreviewControls(previewDescriptor) {
+    const previewMode = previewDescriptor ? previewDescriptor.mode : "";
+    elements.previewSwitch.hidden = previewMode !== "markdown";
+    elements.openExternal.hidden = previewMode !== "external";
+    if (previewMode === "external") {
+      elements.openExternal.href = previewDescriptor.url;
+    } else {
+      elements.openExternal.removeAttribute("href");
+    }
+    const isPreview = viewState.renderMode === PREVIEW_MODE;
+    elements.tabSource.setAttribute("aria-selected", String(!isPreview));
+    elements.tabPreview.setAttribute("aria-selected", String(isPreview));
+  }
+
+  /**
+   * 按当前模式渲染已加载的文件正文。
+   */
+  async function renderLoadedFile() {
+    const fileBody = viewState.loadedFile;
+    elements.viewerMeta.textContent = `${fileBody.language} · ${fileBody.line_count} 行 · ${fileBody.size_label}`;
+    if (viewState.renderMode === PREVIEW_MODE) {
+      await renderMarkdownPreview();
+      return;
+    }
+    elements.statusHint.textContent = fileBody.highlighted
+      ? "只读视图 · 服务端语法高亮"
+      : "只读视图 · 未安装语法高亮依赖，已降级为纯文本";
+    renderCodeLines(fileBody.lines);
+  }
+
+  /**
+   * 渲染 Markdown 预览。
+   *
+   * 预览片段向服务端要一次并缓存：来回切换是查看 Markdown 的常规动作，每次都重新请求
+   * 既慢又要多跑一遍服务端渲染。取不到时退回源码并说明原因，不把空白预览留在那里。
+   */
+  async function renderMarkdownPreview() {
+    if (viewState.markdownHtml === null) {
+      const markdownResponse = await requestJson(
+        `/api/markdown?path=${encodeURIComponent(viewState.loadedFile.path)}`
+      );
+      if (markdownResponse.status !== 200) {
+        await setRenderMode(SOURCE_MODE);
+        elements.statusHint.textContent = `只读视图 · 无法生成预览：${markdownResponse.body.error}`;
+        return;
+      }
+      viewState.markdownHtml = markdownResponse.body.html;
+    }
+    const previewNode = document.createElement("div");
+    previewNode.className = "preview markdown";
+    // 服务端渲染出的 HTML 片段。Markdown 正文里的 raw HTML 会在这里执行——预览是用户
+    // 主动点开的一次，且查看器是绑在回环上的本机只读工具，详见 docs/guides/file-viewer.md。
+    previewNode.innerHTML = viewState.markdownHtml;
+    elements.viewerBody.replaceChildren(previewNode);
+    elements.statusHint.textContent = "只读视图 · Markdown 预览（服务端渲染）";
+  }
+
+  /**
+   * 切换源码与预览。
+   * @param {"source"|"preview"} nextMode 目标模式。
+   */
+  async function setRenderMode(nextMode) {
+    if (!viewState.loadedFile || viewState.renderMode === nextMode) {
+      return;
+    }
+    viewState.renderMode = nextMode;
+    renderPreviewControls(viewState.previewDescriptor);
+    await guardAgainstServiceExit(async () => {
+      await renderLoadedFile();
+    });
+  }
+
+  /**
    * 渲染逐行 diff。
    * @param {Array<{kind: string, old_no: number|null, new_no: number|null, text: string}>} diffRows 逐行改动。
    */
@@ -931,21 +1048,32 @@
 
   /**
    * 切换视图。
+   *
+   * 切到文件视图时可以带一个路径——改动视图头部的「查看文件」就是这条路径：从某个改动
+   * 跳到该文件的完整正文。带路径时按直达链接同一条顺序渲染（先展开祖先目录再渲染树），
+   * 否则文件落在折叠的目录里时树上根本看不到选中态，只有右侧换了内容。
    * @param {string} nextView 目标视图。
+   * @param {string} pathToSelect 切过去后要选中的仓库相对路径；空串表示只渲染空态。
    */
-  async function switchView(nextView) {
+  async function switchView(nextView, pathToSelect = "") {
     if (viewState.isDisconnected || viewState.view === nextView) {
       return;
     }
     viewState.view = nextView;
-    viewState.selectedPath = "";
+    viewState.selectedPath = pathToSelect;
     viewState.selectedSection = "";
+    resetFilePreview();
     renderViewTabs();
     if (nextView === DIFF_VIEW) {
       await loadChangedFiles();
+      return;
+    }
+    elements.statusHint.textContent = "";
+    expandToSelectedPath();
+    renderTree();
+    if (viewState.selectedPath) {
+      await selectPath(viewState.selectedPath);
     } else {
-      elements.statusHint.textContent = "";
-      renderTree();
       renderPlaceholder();
     }
   }
@@ -955,6 +1083,17 @@
   });
   elements.copyPathButton.addEventListener("click", () => {
     void copyCurrentViewerPath();
+  });
+  elements.tabSource.addEventListener("click", () => {
+    void setRenderMode(SOURCE_MODE);
+  });
+  elements.tabPreview.addEventListener("click", () => {
+    void setRenderMode(PREVIEW_MODE);
+  });
+  // 从改动跳到文件：这里现取 selectedPath，而不是在渲染时就把它捕获进闭包——改动视图
+  // 里每点一个条目都会换一份路径，捕获的那份会跳错文件。
+  elements.openFileButton.addEventListener("click", () => {
+    void switchView(FILES_VIEW, viewState.selectedPath);
   });
   elements.tabDiff.addEventListener("click", () => {
     void switchView(DIFF_VIEW);

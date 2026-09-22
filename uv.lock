@@ -1753,6 +1753,7 @@ dependencies = [
 dev = [
     { name = "fakeredis" },
     { name = "httpx", extra = ["socks"] },
+    { name = "markdown" },
     { name = "mkdocs" },
     { name = "mkdocs-git-revision-date-localized-plugin" },
     { name = "mkdocs-material" },
@@ -1786,6 +1787,7 @@ requires-dist = [
 dev = [
     { name = "fakeredis", specifier = ">=2.21.0" },
     { name = "httpx", extras = ["socks"], specifier = ">=0.27.0" },
+    { name = "markdown", specifier = ">=3.10.0" },
     { name = "mkdocs", specifier = ">=1.6.1" },
     { name = "mkdocs-git-revision-date-localized-plugin", specifier = ">=1.4.5" },
     { name = "mkdocs-material", specifier = ">=9.6.0" },

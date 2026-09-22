@@ -1,4 +1,4 @@
-"""仓库工作区的只读快照：文件树、文件正文、改动列表与单文件 diff。
+"""仓库工作区的只读快照：文件树、文件正文、改动列表、单文件 diff 与两种预览。
 
 查看器的全部内容都从这里出，而且**只读**：所有 ``git`` 调用都是查询
 （``ls-files`` / ``diff`` / ``rev-parse``），所有文件访问都是读取。这里不存在任何写
@@ -26,6 +26,17 @@ diff 先在不带 pathspec 的完整 diff 上查出旧路径，再把新旧两�
 （见 :func:`_lookup_rename_source`）。界面上显示的仍是新路径，与终端 ``--name-only``
 一致；旧路径只作为「重命名自何处」的出处。
 
+预览有两条独立的路，都**默认不生效**，只在界面上被显式要求时才出力：
+
+- Markdown：:func:`build_markdown_payload` 按需渲染成 HTML 片段（``/api/markdown``），
+  文件视图打开 ``.md`` 先看到的仍是源码。
+- HTML：:func:`build_raw_file_payload` 把文件字节原样供出（``/raw/``），由界面在新标签页
+  里打开——查看器不做 HTML 内联渲染。
+
+``/api/file`` 的应答里只有一位 ``preview`` 说明该文件支持哪种预览，预览能力本身由
+:func:`resolve_preview_descriptor` 按后缀判定；后缀判定只写在服务端这一处，界面不复制
+那张表。
+
 所有对外路径参数先经 :func:`resolve_repository_path` 解析成绝对路径并断言仍在仓库根
 之下，越界一律拒绝，且拒绝信息不回声任何绝对路径。改动分区取值是封闭枚举，任何取值都
 不会作为参数流进 ``git``。
@@ -38,6 +49,7 @@ import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import quote
 
 #: 改动视图的三个分区。字典的插入顺序即界面上的展示顺序：先看已暂存，再看未暂存，
 #: 最后是未跟踪——未跟踪恒为「新增」，排在最后不打断前两段之间的对照。
@@ -69,6 +81,46 @@ MAX_FILE_BYTES_LABEL = "256 KiB"
 MAX_DIFF_ROWS = 4000
 
 _BINARY_SNIFF_BYTES = 8192
+
+#: ``/raw/`` 路由前缀。服务端据此分发，本模块据此拼 URL——同一个常量，两处引用，
+#: 拼出来的地址不可能与服务端的匹配口径分岔。
+RAW_ROUTE_PREFIX = "/raw/"
+
+#: 路径越界时的拒绝文案。三个读取入口（正文、diff、预览）共用一份：分别各写一句时
+#: 任何一处漏更新都会让「越界」在不同接口上说法不一。
+_OUTSIDE_REPOSITORY_REFUSAL_MESSAGE = "拒绝：该路径越出仓库范围，只读查看器不读取仓库外的文件。"
+
+#: 后缀 → 预览形态。**只看后缀，不做内容嗅探**：让「这个文件预览成什么」随正文漂移，
+#: 排障时无从解释（与词法器解析同一口径）。
+_MARKDOWN_SUFFIXES = frozenset({".md", ".markdown"})
+_HTML_SUFFIXES = frozenset({".html", ".htm"})
+
+#: ``/raw/`` 应答的 Content-Type。只收 HTML 文档自己能引到的资源类型：样式、脚本、
+#: 图片、字体、JSON。表外一律 :data:`_DEFAULT_RAW_CONTENT_TYPE`，配合服务端发回的
+#: ``X-Content-Type-Options: nosniff``，浏览器不会把表外文件按内容嗅探成 HTML。
+_RAW_CONTENT_TYPES_BY_SUFFIX: dict[str, str] = {
+    ".css": "text/css; charset=utf-8",
+    ".gif": "image/gif",
+    ".htm": "text/html; charset=utf-8",
+    ".html": "text/html; charset=utf-8",
+    ".ico": "image/vnd.microsoft.icon",
+    ".jpeg": "image/jpeg",
+    ".jpg": "image/jpeg",
+    ".js": "text/javascript; charset=utf-8",
+    ".json": "application/json; charset=utf-8",
+    ".mjs": "text/javascript; charset=utf-8",
+    ".png": "image/png",
+    ".svg": "image/svg+xml",
+    ".webp": "image/webp",
+    ".woff": "font/woff",
+    ".woff2": "font/woff2",
+}
+_DEFAULT_RAW_CONTENT_TYPE = "application/octet-stream"
+
+#: Markdown 预览启用的扩展：围栏代码、表格、以及列表缩进不按 4 空格误判为代码块。
+#: 刻意不启用 ``codehilite``——那会引入第二套 Pygments 产出，与 :func:`highlight_source_lines`
+#: 的行级高亮 CSS 抢同一批短类名。
+_MARKDOWN_EXTENSIONS = ("fenced_code", "tables", "sane_lists")
 
 #: 文件树不展示的目录名，只作用于**未跟踪**文件。`git ls-files` 已经不吃被 gitignore
 #: 的目录，这里再挡一层是为了派生项目没把依赖目录写进 `.gitignore` 时不至于把整棵依赖
@@ -281,12 +333,11 @@ def build_file_payload(repository_root: Path, requested_path: str) -> WorkspaceP
 
     Returns:
         WorkspacePayload: 正文应答（带行号渲染所需的逐行 HTML）或明确的形态标记。
+            正文应答里带 ``preview``：该文件支持哪种预览，不支持时为 ``None``。
     """
     resolved_path = resolve_repository_path(repository_root, requested_path)
     if resolved_path is None:
-        return build_refusal_payload(
-            403, "拒绝：该路径越出仓库范围，只读查看器不读取仓库外的文件。"
-        )
+        return build_refusal_payload(403, _OUTSIDE_REPOSITORY_REFUSAL_MESSAGE)
 
     normalized_relative_path = Path(requested_path).as_posix() if requested_path else ""
     if resolved_path.is_dir():
@@ -337,7 +388,173 @@ def build_file_payload(repository_root: Path, requested_path: str) -> WorkspaceP
             "line_count": len(highlighted_source.rendered_lines),
             "highlighted": highlighted_source.is_highlighted,
             "lines": highlighted_source.rendered_lines,
+            "preview": resolve_preview_descriptor(normalized_relative_path),
         },
+    )
+
+
+def resolve_preview_descriptor(relative_path: str) -> dict[str, str] | None:
+    """给出某个文件支持的预览方式；不支持预览时为 ``None``。
+
+    界面靠这一位决定在内容区头部摆什么控件，而不是自己按后缀判一遍：后缀表只写在
+    这里，两处分头维护时新增一种可预览的格式必然漏掉其中一边。
+
+    Args:
+        relative_path (str): 仓库相对路径。
+
+    Returns:
+        dict[str, str] | None: ``{"mode": "markdown"}``、``{"mode": "external",
+            "url": "/raw/..."}``，或 ``None``。
+    """
+    file_suffix = Path(relative_path).suffix.lower()
+    if file_suffix in _MARKDOWN_SUFFIXES:
+        return {"mode": "markdown"}
+    if file_suffix in _HTML_SUFFIXES:
+        return {"mode": "external", "url": build_raw_file_url(relative_path)}
+    return None
+
+
+def build_raw_file_url(relative_path: str) -> str:
+    """把仓库相对路径拼成 ``/raw/`` 路由下的 URL。
+
+    逐段编码而不是整串 ``quote``：路径分隔符必须保持字面 ``/``，否则 ``/raw/`` 之后
+    会被当成一个巨大的文件名，而文件名里的 ``%2F`` 解码回来也不是目录层级。
+
+    Args:
+        relative_path (str): 仓库相对路径（POSIX 分隔符）。
+
+    Returns:
+        str: 编码后的 ``/raw/`` URL。
+    """
+    encoded_segments = [quote(path_segment, safe="") for path_segment in relative_path.split("/")]
+    return f"{RAW_ROUTE_PREFIX}{'/'.join(encoded_segments)}"
+
+
+def build_markdown_payload(repository_root: Path, requested_path: str) -> WorkspacePayload:
+    """把单个 Markdown 文件渲染成 HTML 片段，供界面的「预览」开关按需取回。
+
+    按需而不是随 :func:`build_file_payload` 一起返回：文件视图打开 ``.md`` 先看到的是
+    源码，每次打开都顺带渲染会让正文应答白白胖一倍，而多数时候那份 HTML 没人看。
+
+    Args:
+        repository_root (Path): 仓库根绝对路径。
+        requested_path (str): 界面传来的仓库相对路径。
+
+    Returns:
+        WorkspacePayload: ``{"format": "markdown", "html": ...}``；路径越界、不是
+            Markdown 文件、文件缺失、超出渲染上限或渲染依赖缺失时为拒绝应答。
+    """
+    resolved_path = resolve_repository_path(repository_root, requested_path)
+    if resolved_path is None:
+        return build_refusal_payload(403, _OUTSIDE_REPOSITORY_REFUSAL_MESSAGE)
+
+    normalized_relative_path = Path(requested_path).as_posix() if requested_path else ""
+    if Path(normalized_relative_path).suffix.lower() not in _MARKDOWN_SUFFIXES:
+        return build_refusal_payload(
+            400,
+            f"拒绝：{normalized_relative_path or '.'} 不是 Markdown 文件，没有可渲染的预览。",
+        )
+    if not resolved_path.is_file():
+        return build_refusal_payload(404, f"未找到文件：{normalized_relative_path}")
+    # 上限与正文渲染同一口径：超限文件在正文侧本来就走 oversize 分支，预览侧再放一次
+    # 就等于绕开了那条上限。
+    if resolved_path.stat().st_size > MAX_FILE_BYTES:
+        return build_refusal_payload(
+            400,
+            f"拒绝：文件超过 {MAX_FILE_BYTES_LABEL} 的渲染上限，请用本地编辑器打开。",
+        )
+
+    rendered_html = render_markdown_document(
+        resolved_path.read_bytes().decode("utf-8", errors="replace")
+    )
+    if rendered_html is None:
+        return build_refusal_payload(
+            503, "服务端未安装 Markdown 渲染依赖，无法生成预览，请阅读源码。"
+        )
+    return WorkspacePayload(status_code=200, payload={"format": "markdown", "html": rendered_html})
+
+
+def render_markdown_document(source_text: str) -> str | None:
+    """把 Markdown 正文渲染成 HTML 片段。
+
+    ``markdown`` 按 :func:`highlight_source_lines` 里 pygments 同一条口径处理：显式声明
+    的 dev 依赖，但缺失即降级——派生项目做 ``uv sync --no-dev`` 时预览入口不出现，源码
+    高亮照旧。import 必须留在函数里：``launch.py`` 的 import 闭包只能含标准库加同目录
+    兄弟模块（见 ``tests/guards/shared/test_view_launch_entry.py``），提到模块顶层会让
+    ``just view`` 在 ``-S`` 下直接起不来。
+
+    正文里的 raw HTML 不做清洗。查看器绑在回环上、只读，预览又是用户主动点开的一次；
+    这一点写进了 ``docs/guides/file-viewer.md``，而不是靠这里默默替用户过滤内容。
+
+    Args:
+        source_text (str): 已解码的 Markdown 正文。
+
+    Returns:
+        str | None: 渲染后的 HTML 片段；依赖缺失时为 ``None``。
+    """
+    try:
+        import markdown
+    except ImportError:
+        return None
+    return markdown.markdown(source_text, extensions=list(_MARKDOWN_EXTENSIONS))
+
+
+@dataclass(frozen=True)
+class RawFilePayload:
+    """一个原始文件字节应答，供 ``/raw/`` 路由原样返回。
+
+    Attributes:
+        status_code (int): 应答的 HTTP 状态码。
+        content_type (str): 应答的 ``Content-Type``。
+        body_bytes (bytes): 应答正文。
+    """
+
+    status_code: int
+    content_type: str
+    body_bytes: bytes
+
+
+def build_raw_file_payload(
+    repository_root: Path, requested_path: str
+) -> RawFilePayload | WorkspacePayload:
+    """按仓库相对路径原样返回文件字节，供 HTML 文件在自己的标签页里打开。
+
+    ``/raw/`` 是唯一一条**保持路径原样**的路由，而且必须保持：HTML 文档里的相对引用
+    （``./a.css``、``../img/i.png``）要能解析回同一路由、真的加载出来。替代的防护是
+    照旧走 :func:`resolve_repository_path` 的解析与越界断言——保持原样指的是 URL，
+    不是边界。
+
+    Args:
+        repository_root (Path): 仓库根绝对路径。
+        requested_path (str): 已解码的仓库相对路径。
+
+    Returns:
+        RawFilePayload | WorkspacePayload: 命中时为原始字节应答；路径越界、指向目录或
+            文件缺失时为 JSON 拒绝应答。
+    """
+    resolved_path = resolve_repository_path(repository_root, requested_path)
+    if resolved_path is None:
+        return build_refusal_payload(403, _OUTSIDE_REPOSITORY_REFUSAL_MESSAGE)
+
+    normalized_relative_path = Path(requested_path).as_posix() if requested_path else ""
+    if resolved_path.is_dir():
+        return build_refusal_payload(
+            400, f"拒绝：{normalized_relative_path or '.'} 是一个目录，请选择一个文件。"
+        )
+    if not resolved_path.is_file():
+        return build_refusal_payload(404, f"未找到文件：{normalized_relative_path}")
+
+    return RawFilePayload(
+        status_code=200,
+        content_type=_resolve_raw_content_type(normalized_relative_path),
+        body_bytes=resolved_path.read_bytes(),
+    )
+
+
+def _resolve_raw_content_type(relative_path: str) -> str:
+    """按后缀给出 ``/raw/`` 应答的 Content-Type，表外一律二进制流。"""
+    return _RAW_CONTENT_TYPES_BY_SUFFIX.get(
+        Path(relative_path).suffix.lower(), _DEFAULT_RAW_CONTENT_TYPE
     )
 
 
@@ -461,9 +678,7 @@ def build_diff_payload(
 
     resolved_path = resolve_repository_path(repository_root, requested_path)
     if resolved_path is None:
-        return build_refusal_payload(
-            403, "拒绝：该路径越出仓库范围，只读查看器不读取仓库外的文件。"
-        )
+        return build_refusal_payload(403, _OUTSIDE_REPOSITORY_REFUSAL_MESSAGE)
 
     normalized_relative_path = Path(requested_path).as_posix()
     if section_name == "untracked":

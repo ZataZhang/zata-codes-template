@@ -33,6 +33,13 @@
    说成「与当前内容一致」。
 8. **「路径 + 分区」才是改动条目的身份。** 同一个文件可以在暂存之后又被修改，于是同时
    出现在两段里，而且两段的逐行改动并不相同；只按路径取 diff 会拿到另一段的内容。
+9. **预览是显式动作，不是默认行为。** ``/api/file`` 只报告该文件支持哪种预览（``preview``
+   字段），Markdown 的渲染结果由 ``/api/markdown`` 按需给出——把渲染并进正文应答会让每次
+   打开 ``.md`` 都多付一次渲染，也把源码顶掉。后缀判定只在服务端一处。
+10. **``/raw/`` 保持路径原样，但边界一条不少。** 相对引用必须能解析回同一路由，所以这条
+   路由不能走静态资源的文件名白名单；替代防护是 ``resolve()`` 之后再断言仍在仓库根之下，
+   越界、目录、缺失分别拒绝。表外后缀一律以二进制流供出，不会以 ``text/html`` 出现在
+   浏览器里。
 
 用例全部打在真实进程与真实 HTTP 上：被测的是绑定、路由分发与 ``git`` 子进程这条
 完整链路，桩掉其中任何一段都测不到本文列出的不变量。
@@ -173,6 +180,10 @@ def _build_fixture_repository(repository_root: Path) -> Path:
       逐行改动还不一样——只按路径取 diff 会拿到另一段的内容。
     - ``draft.md → final.md`` 是「重命名 + 改一行」并且**改动也进了索引**：只有两段都在
       同一段内，才能验出「配对失效 → 整篇算成新增」这个缺陷。
+
+    ``docs/`` 下另有三个受控且未改动的文件，供预览用例使用：``guide.md``（标题 + 表格 +
+    围栏代码，足以判别渲染是否真的发生）、``page.html`` 与它相对引用的 ``page.css``
+    （判别 ``/raw/`` 是否保持路径原样）。三个都进首个提交，因此不会落进任何改动分区。
     """
     repository_root.mkdir(parents=True, exist_ok=True)
     _run_git(repository_root, "init", "-b", "main")
@@ -192,6 +203,18 @@ def _build_fixture_repository(repository_root: Path) -> Path:
     (repository_root / "draft.md").write_text("alpha\nbeta\ngamma\n", encoding="utf-8")
     (repository_root / "big.txt").write_text("x" * _OVERSIZE_BYTE_COUNT, encoding="utf-8")
     (repository_root / "blob.bin").write_bytes(b"\x00\x01\x02binary payload")
+    (repository_root / "docs").mkdir()
+    (repository_root / "docs" / "guide.md").write_text(
+        "# 指南\n\n正文段落。\n\n| 列 | 值 |\n| --- | --- |\n| a | 1 |\n\n"
+        "```python\nprint(1)\n```\n",
+        encoding="utf-8",
+    )
+    (repository_root / "docs" / "page.html").write_text(
+        '<!DOCTYPE html>\n<html><head><link rel="stylesheet" href="page.css"></head>'
+        '<body><h1 id="page-title">页面</h1></body></html>\n',
+        encoding="utf-8",
+    )
+    (repository_root / "docs" / "page.css").write_text("h1 { color: red; }\n", encoding="utf-8")
     _run_git(repository_root, "add", ".")
     _run_git(repository_root, "commit", "-m", "init")
 
@@ -449,6 +472,145 @@ def test_oversize_and_binary_files_are_marked_not_rendered(
     assert binary_body["kind"] == "binary"
     assert "lines" not in binary_body
     assert binary_body["note"]
+
+
+def test_markdown_preview_is_rendered_on_demand(
+    running_view_server: RunningViewServer,
+) -> None:
+    """Markdown 的预览按需渲染：正文接口只报告能力，渲染结果由预览接口单独给出。
+
+    两件事一起守：``/api/file`` 必须继续逐行等于磁盘原文（预览不能把源码顶掉），而
+    ``/api/markdown`` 必须真的走了 Markdown 渲染——标题、表格、围栏代码都变成标签，
+    而不是原文的 Markdown 语法。
+    """
+    file_status, file_body = running_view_server.request("/api/file?path=docs/guide.md")
+    assert file_status == 200
+    assert file_body["preview"] == {"mode": "markdown"}
+    local_source_lines = (
+        (running_view_server.repository_root / "docs" / "guide.md")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    )
+    assert file_body["line_count"] == len(local_source_lines)
+
+    preview_status, preview_body = running_view_server.request("/api/markdown?path=docs/guide.md")
+    assert preview_status == 200
+    assert preview_body["format"] == "markdown"
+    rendered_html = preview_body["html"]
+    assert "<h1" in rendered_html
+    assert "<table>" in rendered_html
+    assert "<pre>" in rendered_html
+    # 渲染过的反面证据：原文里的 Markdown 语法不该原样留在输出里。
+    assert "| 列 | 值 |" not in rendered_html
+    assert "```" not in rendered_html
+
+
+def test_preview_descriptor_is_null_for_files_without_preview(
+    running_view_server: RunningViewServer,
+) -> None:
+    """没有预览方式的文件必须给出 null，界面据此不摆预览控件。
+
+    凭空给一个能力，界面就会摆出一个点了报错的开关。
+    """
+    status_code, response_body = running_view_server.request("/api/file?path=src/module.py")
+    assert status_code == 200
+    assert response_body["preview"] is None
+
+
+def test_markdown_preview_refuses_non_markdown_and_missing_files(
+    running_view_server: RunningViewServer,
+) -> None:
+    """预览接口对非 Markdown、缺失与超限文件给明确拒绝，不静默渲染出别的东西。
+
+    ``big.txt`` 与 ``blob.bin`` 也在名单里：正文侧对它们走的是 oversize / binary 分支，
+    预览侧如果放行就等于绕开那条上限。
+    """
+    for non_markdown_path in ("src/module.py", "docs/page.html", "blob.bin", "big.txt"):
+        status_code, response_body = running_view_server.request(
+            f"/api/markdown?path={non_markdown_path}"
+        )
+        assert status_code == 400, f"{non_markdown_path} 未被拒绝：{response_body}"
+        assert "不是 Markdown 文件" in response_body["error"]
+
+    missing_status, missing_body = running_view_server.request("/api/markdown?path=docs/nope.md")
+    assert missing_status == 404, missing_body
+    assert "未找到文件" in missing_body["error"]
+
+
+def test_html_preview_is_served_verbatim_for_a_new_tab(
+    running_view_server: RunningViewServer,
+) -> None:
+    """HTML 不在查看器里内联渲染：原样供出，由界面在新标签页打开。
+
+    ``/raw/`` 保持路径原样，所以同一目录下的相对资源（这里是被 ``page.html`` 相对引用
+    的 ``page.css``）必须能取到——这正是它不能走静态资源文件名白名单的原因。字节也必须
+    与磁盘逐字节一致，否则「在新标签页打开」看到的就不是这个文件。
+    """
+    repository_root = running_view_server.repository_root
+    file_status, file_body = running_view_server.request("/api/file?path=docs/page.html")
+    assert file_status == 200
+    assert file_body["preview"] == {"mode": "external", "url": "/raw/docs/page.html"}
+
+    raw_status, raw_text, raw_content_type = running_view_server.request_text("/raw/docs/page.html")
+    assert raw_status == 200
+    assert raw_content_type.startswith("text/html")
+    assert raw_text == (repository_root / "docs" / "page.html").read_text(encoding="utf-8")
+
+    css_status, css_text, css_content_type = running_view_server.request_text("/raw/docs/page.css")
+    assert css_status == 200
+    assert css_content_type.startswith("text/css")
+    assert css_text == (repository_root / "docs" / "page.css").read_text(encoding="utf-8")
+
+
+def test_raw_route_keeps_non_html_suffixes_off_the_html_content_type(
+    running_view_server: RunningViewServer,
+) -> None:
+    """表外后缀一律以二进制流供出，绝不落成 ``text/html``。
+
+    服务端同时发 ``X-Content-Type-Options: nosniff``，两道合起来才挡住「一个 .txt 被
+    浏览器按内容嗅探成 HTML 执行」。
+    """
+    for non_html_path in ("src/module.py", "big.txt", "untracked.txt"):
+        status_code, _response_text, content_type = running_view_server.request_text(
+            f"/raw/{non_html_path}"
+        )
+        assert status_code == 200, non_html_path
+        assert content_type == "application/octet-stream", f"{non_html_path}: {content_type}"
+
+
+def test_raw_route_escape_requests_are_refused(running_view_server: RunningViewServer) -> None:
+    """``/raw/`` 保持路径原样，但越界、目录与缺失必须各自给出明确应答。
+
+    这条路由是全服务里唯一一条路径不被压成文件名的读取路由，因此它的越界断言要在真实
+    HTTP 上被钉住：``%2E%2E`` 解码后才暴露层级、符号链接只有 ``resolve()`` 之后才指向
+    仓库外，两种都要落到同一条拒绝上；拒绝信息同样不得回声任何绝对路径。
+    """
+    outside_file_path = running_view_server.repository_root.parent / "raw-outside.txt"
+    outside_file_path.write_text("SECRET-RAW-OUTSIDE\n", encoding="utf-8")
+    escape_link_path = running_view_server.repository_root / "raw-escape-link"
+    escape_link_path.symlink_to(outside_file_path)
+
+    for escape_route in (
+        "/raw/%2E%2E/raw-outside.txt",
+        "/raw/%2E%2E%2Fraw-outside.txt",
+        "/raw/raw-escape-link",
+        "/raw/%2Fetc%2Fhosts",
+    ):
+        status_code, response_body = running_view_server.request(escape_route)
+        assert status_code == 403, f"{escape_route} 未被拒绝：{status_code} {response_body}"
+        response_text = json.dumps(response_body, ensure_ascii=False)
+        assert "SECRET-RAW-OUTSIDE" not in response_text
+        assert str(running_view_server.repository_root) not in response_text
+
+    # 目录（含仓库根本身）不能当文件供出：那会把一个目录列表变成可浏览的入口。
+    for directory_route in ("/raw/", "/raw/docs", "/raw/docs/"):
+        directory_status, directory_body = running_view_server.request(directory_route)
+        assert directory_status == 400, f"{directory_route} 未被拒绝：{directory_body}"
+        assert "是一个目录" in directory_body["error"]
+
+    missing_status, missing_body = running_view_server.request("/raw/docs/nope.html")
+    assert missing_status == 404, missing_body
+    assert "未找到文件" in missing_body["error"]
 
 
 def test_each_section_matches_its_own_terminal_git_output(

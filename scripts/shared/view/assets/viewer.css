@@ -173,6 +173,20 @@ button, input, select { font: inherit; color: inherit; }
 .copy-path[data-copied='true'] { color: var(--success); }
 .copy-path[data-copied='true'] .icon-copy { display: none; }
 .copy-path[data-copied='true'] .icon-check { display: block; }
+
+/* 头部动作：Markdown 的「源码 / 预览」开关、HTML 的「在新标签页打开」、改动视图的
+   「查看文件」。三者都带 [hidden]，而 display 由各自的选择器给出，因此都要显式压过 display。 */
+.preview-switch[hidden], .head-action[hidden] { display: none; }
+.preview-switch button { min-height: 24px; padding: 0 10px; font-size: 12px; }
+.head-action {
+  display: inline-flex; flex: none; align-items: center; min-height: 24px;
+  border: 1px solid var(--border); border-radius: 7px; padding: 0 10px; background: transparent;
+  color: var(--muted-foreground); font: inherit; font-size: 12px;
+  text-decoration: none; white-space: nowrap; cursor: pointer;
+}
+.head-action:hover { background: var(--secondary); color: var(--foreground); }
+.head-action:focus-visible { border-color: var(--ring); outline: none; }
+
 .viewer-meta {
   margin-left: auto; display: inline-flex; flex: none; align-items: center; gap: 8px;
   color: var(--muted-foreground); font-size: 11.5px;
@@ -199,6 +213,42 @@ button, input, select { font: inherit; color: inherit; }
   grid-template-columns: minmax(0, 1fr); background: var(--secondary); color: var(--muted-foreground);
   padding: 3px 14px; font-size: 11.5px;
 }
+
+/* Markdown 预览：正文区不沿用代码块的等宽字体与行号，按文档排版。
+   相对路径的图片不解析（预览片段在查看器页面里，不在文件所在目录），这一点写在
+   docs/guides/file-viewer.md 的已知限制里。 */
+.preview { padding: 20px 26px 44px; }
+.preview.markdown { max-width: 860px; margin: 0 auto; font-size: 14px; line-height: 1.75; }
+.preview.markdown > :first-child { margin-top: 0; }
+.preview.markdown h1, .preview.markdown h2 {
+  border-bottom: 1px solid var(--border); padding-bottom: 6px;
+}
+.preview.markdown h1 { margin: 0 0 .5em; font-size: 1.6em; }
+.preview.markdown h2 { margin: 1.5em 0 .5em; font-size: 1.3em; }
+.preview.markdown h3 { margin: 1.3em 0 .4em; font-size: 1.13em; }
+.preview.markdown h4, .preview.markdown h5, .preview.markdown h6 { margin: 1.2em 0 .4em; }
+.preview.markdown p { margin: .75em 0; }
+.preview.markdown ul, .preview.markdown ol { margin: .75em 0; padding-left: 1.7em; }
+.preview.markdown li { margin: .25em 0; }
+.preview.markdown a { color: oklch(0.5 0.16 250); }
+.preview.markdown code {
+  border-radius: 5px; background: var(--secondary); padding: 1px 6px;
+  font-family: var(--mono); font-size: .9em;
+}
+.preview.markdown pre {
+  overflow: auto; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--card); padding: 12px 14px;
+}
+.preview.markdown pre code { background: none; padding: 0; font-size: 12.5px; }
+.preview.markdown blockquote {
+  margin: .85em 0; border-left: 3px solid var(--border); padding-left: 14px;
+  color: var(--muted-foreground);
+}
+.preview.markdown table { border-collapse: collapse; margin: .9em 0; }
+.preview.markdown th, .preview.markdown td { border: 1px solid var(--border); padding: 6px 10px; }
+.preview.markdown th { background: var(--secondary); font-weight: 650; }
+.preview.markdown img { max-width: 100%; }
+.preview.markdown hr { border: 0; border-top: 1px solid var(--border); margin: 1.7em 0; }
 
 .notice {
   display: grid; max-width: 560px; gap: 8px; margin: 40px auto;
