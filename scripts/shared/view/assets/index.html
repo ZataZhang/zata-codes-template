@@ -52,6 +52,15 @@
     <main class="surface viewer">
       <div class="viewer-head">
         <span class="viewer-path" id="viewer-path">—</span>
+        <button type="button" id="copy-path" class="copy-path" aria-label="复制文件路径" title="复制文件路径" hidden>
+          <svg class="icon-copy" viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+          <svg class="icon-check" viewBox="0 0 24 24" aria-hidden="true">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+        </button>
         <span class="viewer-meta" id="viewer-meta"></span>
       </div>
       <div class="viewer-body" id="viewer-body"></div>

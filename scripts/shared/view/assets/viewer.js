@@ -23,6 +23,7 @@
     treeNote: document.getElementById("tree-note"),
     treeBody: document.getElementById("tree-body"),
     viewerPath: document.getElementById("viewer-path"),
+    copyPathButton: document.getElementById("copy-path"),
     viewerMeta: document.getElementById("viewer-meta"),
     viewerBody: document.getElementById("viewer-body"),
     statusDot: document.getElementById("status-dot"),
@@ -72,6 +73,8 @@
    */
   function renderDisconnectedNotice(failureMessage) {
     elements.viewerPath.textContent = "服务已退出";
+    elements.copyPathButton.hidden = true;
+    elements.copyPathButton.dataset.copied = "false";
     elements.viewerMeta.textContent = "";
     elements.viewerBody.replaceChildren(
       buildNotice({
@@ -273,11 +276,52 @@
   }
 
   /**
+   * 写内容区头部的路径，并同步「复制路径」按钮的可见性。
+   *
+   * 头部没有真实路径（占位符、服务已退出、提示块）时必须把按钮收起来：留一个复制
+   * 不到东西的按钮比没有按钮更糟。复制取的是 `viewState.selectedPath`，因此这里不另
+   * 存一份路径，只负责显示与按钮的开关。
+   * @param {string} repositoryPath 仓库相对路径；空串表示只显示占位符。
+   */
+  function setViewerPath(repositoryPath) {
+    elements.viewerPath.textContent = repositoryPath || "—";
+    elements.copyPathButton.hidden = !repositoryPath;
+    elements.copyPathButton.dataset.copied = "false";
+  }
+
+  /**
+   * 把内容区当前文件的仓库相对路径复制到剪贴板。
+   */
+  async function copyCurrentViewerPath() {
+    const pathToCopy = viewState.selectedPath;
+    if (!pathToCopy) {
+      return;
+    }
+    if (!navigator.clipboard) {
+      elements.statusHint.textContent = "当前环境不支持剪贴板写入，请手动选中路径复制";
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(pathToCopy);
+    } catch (copyError) {
+      elements.statusHint.textContent = `复制路径失败：${
+        copyError instanceof Error ? copyError.message : copyError
+      }，请手动选中路径复制`;
+      return;
+    }
+    // 成功后只做图标反馈，不动状态条：那行的语法高亮说明是常驻信息，覆盖掉反而丢信息。
+    elements.copyPathButton.dataset.copied = "true";
+    window.setTimeout(() => {
+      elements.copyPathButton.dataset.copied = "false";
+    }, 1200);
+  }
+
+  /**
    * 在内容区渲染一个提示块。
    * @param {HTMLElement} noticeNode 提示块节点。
    */
   function renderNotice(noticeNode) {
-    elements.viewerPath.textContent = "—";
+    setViewerPath("");
     elements.viewerMeta.textContent = "";
     elements.viewerBody.replaceChildren(noticeNode);
   }
@@ -633,7 +677,7 @@
    */
   async function loadFileContent(repositoryPath) {
     const fileResponse = await requestJson(`/api/file?path=${encodeURIComponent(repositoryPath)}`);
-    elements.viewerPath.textContent = repositoryPath;
+    setViewerPath(repositoryPath);
     if (fileResponse.status !== 200) {
       elements.viewerMeta.textContent = "";
       renderNotice(buildNotice({ isFailure: true, title: "无法读取", paragraphs: [fileResponse.body.error] }));
@@ -669,7 +713,7 @@
     const diffResponse = await requestJson(
       `/api/diff?path=${encodeURIComponent(repositoryPath)}&base=${encodeURIComponent(viewState.baseline)}`
     );
-    elements.viewerPath.textContent = repositoryPath;
+    setViewerPath(repositoryPath);
     if (diffResponse.status !== 200) {
       elements.viewerMeta.textContent = "";
       renderNotice(buildNotice({ isFailure: true, title: "无法读取改动", paragraphs: [diffResponse.body.error] }));
@@ -788,6 +832,9 @@
 
   elements.tabFiles.addEventListener("click", () => {
     void switchView(FILES_VIEW);
+  });
+  elements.copyPathButton.addEventListener("click", () => {
+    void copyCurrentViewerPath();
   });
   elements.tabDiff.addEventListener("click", () => {
     void switchView(DIFF_VIEW);
