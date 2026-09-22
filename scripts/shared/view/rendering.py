@@ -133,8 +133,8 @@ def render_markdown_document(source_text: str) -> str | None:
     的 dev 依赖，但缺失即降级——派生项目做 ``uv sync --no-dev`` 时预览入口不出现，源码
     高亮照旧。
 
-    正文里的 raw HTML 不做清洗。查看器绑在回环上、只读，预览又是用户主动点开的一次；
-    这一点写进了 ``docs/guides/file-viewer.md``，而不是靠这里默默替用户过滤内容。
+    正文里的 raw HTML 不做清洗。查看器绑在回环上、只有读与暂存两种能力，预览又是用户主动
+    点开的一次；这里刻意不做清洗——清洗过的结果已经不是文件本身。
 
     Args:
         source_text (str): 已解码的 Markdown 正文。

@@ -3,7 +3,7 @@
  *
  * 数据全部来自本机只读接口（/api/info、/api/tree、/api/file、/api/changes、/api/diff、
  * /api/markdown），页面不做任何写入，也不做心跳轮询——一旦开始轮询，服务端的空闲自动
- * 回收就会静默失效（见 docs/guides/file-viewer.md 的回收策略一节）。
+ * 回收就会静默失效。
  *
  * 改动视图在界面上分两段展示，与 VSCode 对齐：`Staged Changes` 与 `Changes`（后者由服务端
  * 的「未暂存」与「未跟踪」两段合并而来）。**同一个文件可以同时出现在两段里**（暂存了几个 hunk
@@ -14,7 +14,7 @@
  *
  * 页面只有一个写操作：`Changes` 里的加号（标题旁那一个、以及每个文件旁那一个）会把改动
  * 加进索引（`POST /api/stage`）。除此之外页面不写入任何东西——没有提交、没有撤销暂存、
- * 没有丢弃改动，服务端也只有这一个写口（见 docs/guides/file-viewer.md）。
+ * 没有丢弃改动，服务端也只有这一个写口。
  *
  * 两个视图各自记一份「上一次看的那一个」（成功读到内容才记），切视图时还原，而不是每次
  * 都回到空态。改动视图头部的「查看文件」是显式指定，优先于记忆。
@@ -319,7 +319,7 @@
   /**
    * 手动刷新：重取仓库信息、文件树，并按当前视图重取内容。
    *
-   * 页面**刻意不做任何轮询**（见 docs/guides/file-viewer.md 的常驻与回收一节），所以「看到
+   * 页面**刻意不做任何轮询**，所以「看到
    * 最新的文件状态」这件事是一个显式动作。它比页面初始化多做的就一件：重取文件树——树只在
    * 初始化时取过一次，新建或删掉的文件不重取就永远不会出现（这也是这个按钮存在的主要理由）。
    *
@@ -954,7 +954,7 @@
     rowNode.className = "node-row";
     rowNode.append(rowButton);
     // 只在「Changes」里的条目上给加号：已经在索引里的东西再暂存一次没有意义（这也是为什么
-    // 「Staged Changes」那一段没有反向的减号——见 docs/guides/file-viewer.md 里记下的那条决策）。
+    // 「Staged Changes」那一段没有反向的减号——取消暂存是刻意不做的，不是漏了）。
     if (changedFile.section !== "staged") {
       const stageButtonNode = buildStageButton({
         title: `把 ${changedFile.path} 的当前内容加入索引（git add）`,
@@ -1555,7 +1555,7 @@
     const previewNode = document.createElement("div");
     previewNode.className = "preview markdown";
     // 服务端渲染出的 HTML 片段。Markdown 正文里的 raw HTML 会在这里执行——预览是用户
-    // 主动点开的一次，且查看器是绑在回环上的本机只读工具，详见 docs/guides/file-viewer.md。
+    // 主动点开的一次，且查看器是绑在回环上的本机工具。
     previewNode.innerHTML = viewState.markdownHtml;
     elements.viewerBody.replaceChildren(previewNode);
     elements.statusHint.textContent = "只读视图 · Markdown 预览（服务端渲染）";

@@ -9,11 +9,11 @@
 （PUT / DELETE / PATCH）仍然一律 405。它要求 ``Content-Type: application/json``：跨站表单式
 POST 是「简单请求」，浏览器会直接发出去，而 JSON 类型会强制预检、预检又必然失败，于是「某个
 网页在你不知情时改动你的索引」这条路径被封住。要开新的写口之前，请先读
-``docs/guides/file-viewer.md`` 的「它只能看」那一节——那条边界是用户拍板收窄过的。
+:mod:`workspace` 的模块 docstring——那条边界是用户拍板收窄过的。
 
 空闲回收：服务按「最后一次请求时间」计时，超过时限即优雅退出并清理登记文件。页面
 刻意不做心跳轮询，因此「关掉标签页」即等同于进入空闲——这是自动回收路径成立的前提，
-给这个页面加轮询会让自动回收静默失效。细节见 ``docs/guides/file-viewer.md``。
+给这个页面加轮询会让自动回收静默失效。
 """
 
 from __future__ import annotations

@@ -90,7 +90,7 @@
 ## Local Read-Only Viewer
 
 `just view` 起一个只绑 `127.0.0.1` 的查看器（文件树 + 文件内容 + 改动视图 + 一次暂存），
-逻辑在 `scripts/shared/view/`。使用指南见 `docs/guides/file-viewer.md`，这里只记与工具链
+逻辑在 `scripts/shared/view/`。这里只记与工具链
 约定相关的部分。
 
 - **写边界只有一个，且只做暂存。** 服务端唯一的写口是 `POST /api/stage`（`git add`），它要求

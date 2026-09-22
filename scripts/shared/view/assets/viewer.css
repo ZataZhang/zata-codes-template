@@ -1,6 +1,5 @@
 /* 只读文件与改动查看器的样式。
-   设计令牌取自仓库现有原型的共享基线（docs/prototypes/file-viewer-interactive.html
-   的 :root，其源头是 frontend-admin/src/styles/theme.css）。 */
+   设计令牌沿用仓库前端的主题基线（frontend-admin/src/styles/theme.css 的 :root）。 */
 
 :root {
   --radius: 0.625rem;
@@ -260,9 +259,7 @@ button, input, select { font: inherit; color: inherit; }
   padding: 3px 14px; font-size: 11.5px;
 }
 
-/* Markdown 预览：正文区不沿用代码块的等宽字体与行号，按文档排版。
-   相对路径的图片不解析（预览片段在查看器页面里，不在文件所在目录），这一点写在
-   docs/guides/file-viewer.md 的已知限制里。 */
+/* Markdown 预览：正文区不沿用代码块的等宽字体与行号，按文档排版。 */
 .preview { padding: 20px 26px 44px; }
 .preview.markdown { max-width: 860px; margin: 0 auto; font-size: 14px; line-height: 1.75; }
 .preview.markdown > :first-child { margin-top: 0; }
