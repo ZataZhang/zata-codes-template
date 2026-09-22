@@ -411,6 +411,31 @@ def _run_launch(repository_root: Path, *launch_arguments: str) -> subprocess.Com
     )
 
 
+def _run_launch_on_port(
+    repository_root: Path, viewer_port: int, *launch_arguments: str
+) -> subprocess.CompletedProcess[str]:
+    """在**显式指定的端口**上以真实入口运行 ``launch.py``。
+
+    这些用例刻意不走默认端口：不传 ``--port`` 时 launch 会优先用默认端口，而默认端口是**整台
+    机器共用的一个常量**（``DEFAULT_VIEWER_PORT``，故意没做环境变量开关——给生产代码加测试
+    专用旋钮是不行的）。``just test`` 默认 ``-n auto`` 并行，一个用例把自己的实例收掉之后，
+    另一个用例的实例可能正好绑上同一个端口，于是「端口不再被监听」这类断言看到的是**别人的**
+    服务，报出与代码无关的红。端口号不是这几条用例要验的东西（它们验的是复用登记与回收），
+    各自给一个不会撞的空闲端口即可。
+
+    ``--stop`` 不需要走这里：回收读登记里的端口，与 ``--port`` 无关。
+
+    Args:
+        repository_root (Path): 被操作的仓库。
+        viewer_port (int): 本次实例要用的端口，由调用方用 :func:`_find_free_port` 取。
+        *launch_arguments (str): 其余 launch 参数。
+
+    Returns:
+        subprocess.CompletedProcess[str]: 完成结果。
+    """
+    return _run_launch(repository_root, "--port", str(viewer_port), *launch_arguments)
+
+
 def _stop_recorded_instance(repository_root: Path) -> None:
     """按登记收掉服务进程并清理登记，供用例结束时兜底。"""
     recorded_instance = instance.read_instance_record(repository_root)
@@ -1158,15 +1183,21 @@ def test_plain_edit_reports_no_rename_source(running_view_server: RunningViewSer
 
 
 def test_second_launch_reuses_the_resident_instance(fixture_repository: Path) -> None:
-    """连续两次打开必须复用同一实例：进程号不变。"""
+    """连续两次打开必须复用同一实例：进程号不变。
+
+    两次都显式给同一个空闲端口（理由见 :func:`_run_launch_on_port`）：这里验的是复用，不是
+    默认端口选得对不对。
+    """
+    viewer_port = _find_free_port()
     try:
-        first_launch_result = _run_launch(fixture_repository, "--no-open")
+        first_launch_result = _run_launch_on_port(fixture_repository, viewer_port, "--no-open")
         assert first_launch_result.returncode == 0, first_launch_result.stderr
         first_instance = instance.read_instance_record(fixture_repository)
         assert first_instance is not None
+        assert first_instance.port == viewer_port
         assert _wait_until_port_is_listening(first_instance.port)
 
-        second_launch_result = _run_launch(fixture_repository, "--no-open")
+        second_launch_result = _run_launch_on_port(fixture_repository, viewer_port, "--no-open")
         assert second_launch_result.returncode == 0, second_launch_result.stderr
         second_instance = instance.read_instance_record(fixture_repository)
 
@@ -1203,11 +1234,17 @@ def test_stale_registry_is_taken_over_by_a_fresh_instance(fixture_repository: Pa
 
 
 def test_launch_stop_recycles_the_instance(fixture_repository: Path) -> None:
-    """``--stop`` 之后端口不再被监听，登记被清理。"""
+    """``--stop`` 之后端口不再被监听，登记被清理。
+
+    同样显式给一个空闲端口（理由见 :func:`_run_launch_on_port`）：这一条断言的正是「收掉之后
+    这个端口不再被监听」，而默认端口全机共用，并行跑时那句话可能说的是别的用例的实例。
+    """
+    viewer_port = _find_free_port()
     try:
-        assert _run_launch(fixture_repository, "--no-open").returncode == 0
+        assert _run_launch_on_port(fixture_repository, viewer_port, "--no-open").returncode == 0
         recorded_instance = instance.read_instance_record(fixture_repository)
         assert recorded_instance is not None
+        assert recorded_instance.port == viewer_port
         assert _wait_until_port_is_listening(recorded_instance.port)
 
         stop_result = _run_launch(fixture_repository, "--stop")
