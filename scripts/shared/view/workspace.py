@@ -1,12 +1,24 @@
 """仓库工作区的只读快照：文件树、文件正文、改动列表与单文件 diff。
 
 查看器的全部内容都从这里出，而且**只读**：所有 ``git`` 调用都是查询
-（``ls-files`` / ``diff`` / ``rev-parse`` / ``for-each-ref``），所有文件访问都是读取。
-这里不存在任何写路径——只读是硬边界，不是「本期先不做」。
+（``ls-files`` / ``diff`` / ``rev-parse``），所有文件访问都是读取。这里不存在任何写
+路径——只读是硬边界，不是「本期先不做」。特别地，未跟踪文件的改动不靠 ``git add -N``
+取得：那一条会写索引。
 
-改动视图的数据源固定为真实 ``git``，口径与终端逐项一致：工作区基线是
-``git diff HEAD``，分支基线是 ``git diff <分支>...HEAD``（取合并基点）。界面显示的
-文件集合与增删统计不做二次推断，必须与同参数的终端输出逐项一致。
+改动视图按 `git status` 的三段口径划分，每段的数据源都是真实 ``git``，且与终端逐项一致：
+
+- 已暂存：``git diff --cached``（HEAD ↔ 索引）。
+- 未暂存：``git diff``（索引 ↔ 工作区）。
+- 未跟踪：``git ls-files --others --exclude-standard`` 列出文件；点开某个文件时才用
+  ``git diff --no-index -- /dev/null <文件>`` 求它的逐行 diff。
+
+界面显示的文件集合与增删统计不做二次推断，必须与同参数的终端输出逐项一致。唯一**不向界面
+提供**的是未跟踪文件的 ``+N -M``：``git`` 的列表类命令都不报这个数，逐文件取一次在未跟踪
+文件多时会让页面卡住（实测 800 个文件约 7 秒）。界面上那两列留空，并在分区上标出
+``stats_available=false``；不提供与二进制是两件事，不共用同一个空值。
+
+未跟踪一段沿用文件树的目录剪枝（见 :data:`_PRUNED_DIRECTORY_NAMES`）：派生项目忘了把
+依赖目录写进 ``.gitignore`` 时，整棵依赖树既不该进文件树，也不该淹没改动列表。
 
 重命名是这条口径上唯一的例外，而且必须例外：``git diff <rev> -- <新路径>`` 会把旧路径
 排除出候选，配对随即失效，同一个文件被降级成「新增」且正文整篇算成新增行。所以单文件
@@ -15,7 +27,8 @@ diff 先在不带 pathspec 的完整 diff 上查出旧路径，再把新旧两�
 一致；旧路径只作为「重命名自何处」的出处。
 
 所有对外路径参数先经 :func:`resolve_repository_path` 解析成绝对路径并断言仍在仓库根
-之下，越界一律拒绝，且拒绝信息不回声任何绝对路径。
+之下，越界一律拒绝，且拒绝信息不回声任何绝对路径。改动分区取值是封闭枚举，任何取值都
+不会作为参数流进 ``git``。
 """
 
 from __future__ import annotations
@@ -26,9 +39,27 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
-#: 改动视图中「当前工作区」这条基线的取值，其余取值是本地分支名。
-WORKTREE_BASELINE = "worktree"
-WORKTREE_BASELINE_LABEL = "工作区改动"
+#: 改动视图的三个分区。字典的插入顺序即界面上的展示顺序：先看已暂存，再看未暂存，
+#: 最后是未跟踪——未跟踪恒为「新增」，排在最后不打断前两段之间的对照。
+_SECTION_LABELS: dict[str, str] = {
+    "staged": "已暂存",
+    "unstaged": "未暂存",
+    "untracked": "未跟踪",
+}
+
+#: 前两个分区的 ``git diff`` 参数前缀；未跟踪那一段走 ``--no-index``，不在表里。
+_SECTION_DIFF_ARGUMENT_PREFIXES: dict[str, tuple[str, ...]] = {
+    "staged": ("diff", "--cached"),
+    "unstaged": ("diff",),
+}
+
+#: 未跟踪文件的路径与 ``/dev/null`` 相比，因此它整篇都是新增行。
+_UNTRACKED_DIFF_LEFT_PATH = "/dev/null"
+
+#: ``git diff --no-index`` 在「两边有差异」时退出码为 ``1``（同 ``diff`` 语义），而那正是
+#: 我们要的正常结果；``0`` 表示两边一致，``>1`` 才是真的出错。把它按成功接纳，否则每个
+#: 有内容的未跟踪文件都会让 :func:`_run_git` 抛错。
+_DIFF_NO_INDEX_EXIT_CODES = frozenset({0, 1})
 
 #: 文件正文的渲染上限；超过即返回明确标记而不是正文。
 MAX_FILE_BYTES = 256 * 1024
@@ -81,6 +112,8 @@ _FALLBACK_LEXERS_BY_FILENAME: dict[str, tuple[str, str]] = {
     "uv.lock": ("toml", "TOML"),
 }
 
+_BINARY_DIFF_PREFIX = "Binary files "
+
 _DIFF_METADATA_PREFIXES = (
     "diff --git ",
     "index ",
@@ -93,7 +126,7 @@ _DIFF_METADATA_PREFIXES = (
     "similarity index ",
     "rename from ",
     "rename to ",
-    "Binary files ",
+    _BINARY_DIFF_PREFIX,
     "\\ No newline at end of file",
 )
 _SPAN_TAG_PATTERN = re.compile(r"</?span[^>]*>")
@@ -169,21 +202,13 @@ def build_info_payload(repository_root: Path) -> WorkspacePayload:
         repository_root (Path): 仓库根绝对路径。
 
     Returns:
-        WorkspacePayload: 含仓库名、当前分支、可选基线与渲染上限的应答。
+        WorkspacePayload: 含仓库名、当前分支与渲染上限的应答。
     """
-    baseline_options: list[dict[str, str]] = [
-        {"value": WORKTREE_BASELINE, "label": WORKTREE_BASELINE_LABEL}
-    ]
-    baseline_options.extend(
-        {"value": branch_name, "label": branch_name}
-        for branch_name in _collect_local_branch_names(repository_root)
-    )
     return WorkspacePayload(
         status_code=200,
         payload={
             "repo_name": repository_root.name,
             "branch": _read_current_branch_name(repository_root),
-            "baselines": baseline_options,
             "limits": {
                 "max_file_bytes": MAX_FILE_BYTES,
                 "max_file_label": MAX_FILE_BYTES_LABEL,
@@ -223,14 +248,28 @@ def collect_viewable_file_paths(repository_root: Path) -> list[str]:
         for candidate_path in _run_git(repository_root, "ls-files", "-z", "--cached").split("\0")
         if candidate_path
     }
-    untracked_paths = {
+    return sorted(tracked_paths | set(_collect_untracked_file_paths(repository_root)))
+
+
+def _collect_untracked_file_paths(repository_root: Path) -> list[str]:
+    """列出未跟踪、未被忽略且不落在剪枝目录下的文件路径。
+
+    文件树与改动视图的「未跟踪」一段共用这一份口径：两处若各列各的，同一个文件会在
+    文件树里被剪掉、却在改动列表里冒出来。
+
+    Args:
+        repository_root (Path): 仓库根绝对路径。
+
+    Returns:
+        list[str]: 已排序的仓库相对路径。
+    """
+    return sorted(
         candidate_path
         for candidate_path in _run_git(
             repository_root, "ls-files", "-z", "--others", "--exclude-standard"
         ).split("\0")
         if candidate_path and not _is_pruned_path(candidate_path)
-    }
-    return sorted(tracked_paths | untracked_paths)
+    )
 
 
 def build_file_payload(repository_root: Path, requested_path: str) -> WorkspacePayload:
@@ -302,27 +341,74 @@ def build_file_payload(repository_root: Path, requested_path: str) -> WorkspaceP
     )
 
 
-def build_changes_payload(repository_root: Path, baseline: str) -> WorkspacePayload:
-    """给出某条基线下改动文件的集合与增删统计。
+def build_changes_payload(repository_root: Path) -> WorkspacePayload:
+    """给出三个分区各自的改动文件集合与增删统计。
 
     Args:
         repository_root (Path): 仓库根绝对路径。
-        baseline (str): ``worktree`` 或一条本地分支名。
 
     Returns:
-        WorkspacePayload: 改动文件列表与合计；基线不被接受时为拒绝应答。
+        WorkspacePayload: 三个分区（已暂存 / 未暂存 / 未跟踪）的文件列表、分区合计与
+            三区合计。空分区同样返回，界面据此显示「已暂存 0」。
     """
-    revision_spec = _build_change_revision_spec(repository_root, baseline)
-    if revision_spec is None:
-        return build_refusal_payload(
-            400, f"拒绝：{baseline} 不是可用的比较基线，请选择「工作区改动」或一条本地分支。"
+    sections: list[dict[str, object]] = []
+    for section_name, section_label in _SECTION_LABELS.items():
+        if section_name in _SECTION_DIFF_ARGUMENT_PREFIXES:
+            changed_files = _collect_index_section_files(repository_root, section_name)
+            has_stats = True
+        else:
+            # 未跟踪那一段只列文件、不给 +N -M。git 的列表类命令都不为未跟踪文件报统计，
+            # 唯一口径是逐个文件跑一次 ``--no-index --numstat``；本机实测每个文件约 8ms，
+            # 800 个未跟踪文件要 7 秒左右（并发跑到 8 路也只降到 4 秒，瓶颈在进程创建），
+            # 页面会像卡死。逐行 diff 仍由 ``--no-index`` 在点击时才取一次。
+            #
+            # ``add`` / ``del`` 留 ``None`` 表示「本轮不提供」，由 ``has_stats`` 与另外两段
+            # 区分开——**不提供**与**二进制**在界面上是两件事，不能共用同一个 ``None``。
+            changed_files = [
+                {"path": untracked_path, "status": "A", "add": None, "del": None}
+                for untracked_path in _collect_untracked_file_paths(repository_root)
+            ]
+            has_stats = False
+        sections.append(
+            {
+                "section": section_name,
+                "label": section_label,
+                "stats_available": has_stats,
+                "files": changed_files,
+                "totals": _total_changed_files(changed_files),
+            }
         )
 
+    all_files = [entry for section in sections for entry in section["files"]]
+    return WorkspacePayload(
+        status_code=200,
+        payload={
+            "sections": sections,
+            "totals": _total_changed_files(all_files),
+        },
+    )
+
+
+def _collect_index_section_files(
+    repository_root: Path, section_name: str
+) -> list[dict[str, object]]:
+    """列出「已暂存」或「未暂存」分区下的改动文件。
+
+    两个分区只差一个 ``--cached``，因此共用这条实现：分别各写一份会让口径悄悄分岔。
+
+    Args:
+        repository_root (Path): 仓库根绝对路径。
+        section_name (str): ``staged`` 或 ``unstaged``。
+
+    Returns:
+        list[dict[str, object]]: 已按路径排序的改动文件条目。
+    """
+    section_arguments = _SECTION_DIFF_ARGUMENT_PREFIXES[section_name]
     status_entry_by_path = _parse_status_entries(
-        _run_git(repository_root, "diff", "--name-status", "-z", revision_spec)
+        _run_git(repository_root, *section_arguments, "--name-status", "-z")
     )
     numstat_by_path = _parse_numstat_entries(
-        _run_git(repository_root, "diff", "--numstat", "-z", revision_spec)
+        _run_git(repository_root, *section_arguments, "--numstat", "-z")
     )
 
     changed_files: list[dict[str, object]] = []
@@ -336,69 +422,91 @@ def build_changes_payload(repository_root: Path, baseline: str) -> WorkspacePayl
                 "del": deleted_count,
             }
         )
+    return changed_files
 
-    return WorkspacePayload(
-        status_code=200,
-        payload={
-            "base": baseline,
-            "base_label": _describe_baseline(baseline),
-            "base_ref": revision_spec,
-            "files": changed_files,
-            "totals": {
-                "files": len(changed_files),
-                "add": sum(entry["add"] or 0 for entry in changed_files),
-                "del": sum(entry["del"] or 0 for entry in changed_files),
-            },
-        },
-    )
+
+def _total_changed_files(
+    changed_files: list[dict[str, object]],
+) -> dict[str, int]:
+    """把一组改动文件条目汇总成文件数与增删合计。"""
+    return {
+        "files": len(changed_files),
+        "add": sum(entry["add"] or 0 for entry in changed_files),
+        "del": sum(entry["del"] or 0 for entry in changed_files),
+    }
 
 
 def build_diff_payload(
-    repository_root: Path, requested_path: str, baseline: str
+    repository_root: Path, requested_path: str, section_name: str
 ) -> WorkspacePayload:
-    """给出单个文件在某条基线下的逐行改动。
+    """给出单个文件在某个改动分区下的逐行改动。
 
     Args:
         repository_root (Path): 仓库根绝对路径。
         requested_path (str): 界面传来的仓库相对路径。
-        baseline (str): ``worktree`` 或一条本地分支名。
+        section_name (str): 改动分区取值，必须是 :data:`_SECTION_LABELS` 的键之一。
 
     Returns:
-        WorkspacePayload: 逐行 diff 应答；路径越界或基线不可用时为拒绝应答。正文含
-        ``rename_from``：该文件是重命名而来时给出旧路径，否则为 ``None``。
+        WorkspacePayload: 逐行 diff 应答；路径越界、文件不存在或分区取值不可用时为
+            拒绝应答。正文含 ``rename_from``：该文件是重命名而来时给出旧路径，否则为
+            ``None``。
     """
+    section_label = _SECTION_LABELS.get(section_name)
+    if section_label is None:
+        return build_refusal_payload(
+            400,
+            f"拒绝：{section_name} 不是可用的改动分区，"
+            f"请选择「{'」「'.join(_SECTION_LABELS.values())}」。",
+        )
+
     resolved_path = resolve_repository_path(repository_root, requested_path)
     if resolved_path is None:
         return build_refusal_payload(
             403, "拒绝：该路径越出仓库范围，只读查看器不读取仓库外的文件。"
         )
 
-    revision_spec = _build_change_revision_spec(repository_root, baseline)
-    if revision_spec is None:
-        return build_refusal_payload(
-            400, f"拒绝：{baseline} 不是可用的比较基线，请选择「工作区改动」或一条本地分支。"
-        )
-
     normalized_relative_path = Path(requested_path).as_posix()
-    rename_source = _lookup_rename_source(repository_root, revision_spec, normalized_relative_path)
-    # 重命名必须连旧路径一起作为 pathspec 交给 git，配对才成立；只给新路径会让同一个
-    # 文件降级成「新增」，正文整篇算成新增行。
-    diff_pathspecs = (
-        [rename_source, normalized_relative_path] if rename_source else [normalized_relative_path]
-    )
-    diff_text = _run_git(repository_root, "diff", "-M", revision_spec, "--", *diff_pathspecs)
-    diff_rows, is_truncated = _parse_unified_diff_rows(diff_text)
+    if section_name == "untracked":
+        # 未跟踪文件没有可配对的旧路径，也没有索引侧可以比较；它整篇对着 /dev/null 求
+        # diff。文件已被删除时提前拒绝，否则 git 的非零退出会变成 500 而不是明确应答。
+        if not resolved_path.is_file():
+            return build_refusal_payload(404, f"未找到文件：{normalized_relative_path}")
+        rename_source = None
+        diff_text = _run_git(
+            repository_root,
+            "diff",
+            "--no-index",
+            "--",
+            _UNTRACKED_DIFF_LEFT_PATH,
+            normalized_relative_path,
+            allowed_exit_codes=_DIFF_NO_INDEX_EXIT_CODES,
+        )
+    else:
+        section_arguments = _SECTION_DIFF_ARGUMENT_PREFIXES[section_name]
+        rename_source = _lookup_rename_source(
+            repository_root, section_arguments, normalized_relative_path
+        )
+        # 重命名必须连旧路径一起作为 pathspec 交给 git，配对才成立；只给新路径会让同一个
+        # 文件降级成「新增」，正文整篇算成新增行。
+        diff_pathspecs = (
+            [rename_source, normalized_relative_path]
+            if rename_source
+            else [normalized_relative_path]
+        )
+        diff_text = _run_git(repository_root, *section_arguments, "-M", "--", *diff_pathspecs)
+
+    parsed_diff = _parse_unified_diff_rows(diff_text)
     return WorkspacePayload(
         status_code=200,
         payload={
             "path": normalized_relative_path,
-            "base": baseline,
-            "base_label": _describe_baseline(baseline),
-            "base_ref": revision_spec,
+            "section": section_name,
+            "section_label": section_label,
             "rename_from": rename_source,
-            "rows": diff_rows,
-            "truncated": is_truncated,
-            "empty": not diff_rows,
+            "rows": parsed_diff.rows,
+            "truncated": parsed_diff.is_truncated,
+            "binary": parsed_diff.is_binary,
+            "empty": not parsed_diff.rows,
         },
     )
 
@@ -599,45 +707,12 @@ def _is_pruned_path(relative_path: str) -> bool:
     )
 
 
-def _collect_local_branch_names(repository_root: Path) -> list[str]:
-    """列出本地分支名，作为改动视图的可选基线。"""
-    branch_output = _run_git(
-        repository_root, "for-each-ref", "--format=%(refname:short)", "refs/heads"
-    )
-    return sorted(branch_name for branch_name in branch_output.splitlines() if branch_name.strip())
-
-
 def _read_current_branch_name(repository_root: Path) -> str:
     """读取当前检出的分支名；分离头指针时回退为短提交号。"""
     branch_output = _run_git(repository_root, "rev-parse", "--abbrev-ref", "HEAD").strip()
     if branch_output and branch_output != "HEAD":
         return branch_output
     return _run_git(repository_root, "rev-parse", "--short", "HEAD").strip()
-
-
-def _build_change_revision_spec(repository_root: Path, baseline: str) -> str | None:
-    """把界面上的基线取值翻译成 ``git diff`` 的版本号参数。
-
-    只接受「工作区」与本地分支两种取值：版本号会作为位置参数交给 ``git``，若放任
-    任意字符串通过，``--output=...`` 这类以 ``-`` 开头的内容会被当成 git 选项解析。
-
-    Args:
-        repository_root (Path): 仓库根绝对路径。
-        baseline (str): 界面上的基线取值。
-
-    Returns:
-        str | None: ``HEAD`` 或 ``<分支>...HEAD``；取值不可用时为 ``None``。
-    """
-    if baseline == WORKTREE_BASELINE:
-        return "HEAD"
-    if baseline in _collect_local_branch_names(repository_root):
-        return f"{baseline}...HEAD"
-    return None
-
-
-def _describe_baseline(baseline: str) -> str:
-    """给出基线的人类可读标签，与界面选择器的显示保持一致。"""
-    return WORKTREE_BASELINE_LABEL if baseline == WORKTREE_BASELINE else baseline
 
 
 def _parse_status_entries(status_output: str) -> dict[str, tuple[str, str | None]]:
@@ -672,7 +747,7 @@ def _parse_status_entries(status_output: str) -> dict[str, tuple[str, str | None
 
 
 def _lookup_rename_source(
-    repository_root: Path, revision_spec: str, changed_path: str
+    repository_root: Path, section_arguments: tuple[str, ...], changed_path: str
 ) -> str | None:
     """查出 ``changed_path`` 是否由某条旧路径重命名而来，是则返回该旧路径。
 
@@ -681,14 +756,14 @@ def _lookup_rename_source(
 
     Args:
         repository_root (Path): 仓库根绝对路径。
-        revision_spec (str): 已校验的 ``git diff`` 版本号参数。
+        section_arguments (tuple[str, ...]): 该分区的 ``git diff`` 参数前缀。
         changed_path (str): 仓库相对的新路径。
 
     Returns:
         str | None: 重命名来源的仓库相对路径；不是重命名时为 ``None``。
     """
     status_entry_by_path = _parse_status_entries(
-        _run_git(repository_root, "diff", "--name-status", "-z", revision_spec)
+        _run_git(repository_root, *section_arguments, "--name-status", "-z")
     )
     status_entry = status_entry_by_path.get(changed_path)
     return status_entry[1] if status_entry else None
@@ -732,23 +807,44 @@ def _parse_count_field(raw_count_field: str) -> int | None:
     return int(raw_count_field) if raw_count_field.isdigit() else None
 
 
-def _parse_unified_diff_rows(diff_text: str) -> tuple[list[dict[str, object]], bool]:
+@dataclass(frozen=True)
+class _ParsedDiff:
+    """一份 unified diff 解析后的结果。
+
+    Attributes:
+        rows (list[dict[str, object]]): 逐行结构。
+        is_truncated (bool): 是否因超出行数上限被截断。
+        is_binary (bool): git 是否判定为二进制。二进制 diff 没有任何逐行内容，只留一行
+            ``Binary files ... differ``；不单独记这一位，「没有改动」与「改动是二进制的」
+            就会被界面说成同一件事。
+    """
+
+    rows: list[dict[str, object]]
+    is_truncated: bool
+    is_binary: bool
+
+
+def _parse_unified_diff_rows(diff_text: str) -> _ParsedDiff:
     """把 unified diff 文本解析成带新旧行号的逐行结构。
 
     Args:
         diff_text (str): ``git diff`` 的原始输出。
 
     Returns:
-        tuple[list[dict[str, object]], bool]: 逐行结构与是否因超出行数上限被截断。
+        _ParsedDiff: 逐行结构、截断标记与二进制标记。
     """
     diff_rows: list[dict[str, object]] = []
     old_line_number = 0
     new_line_number = 0
     is_truncated = False
+    is_binary = False
     for diff_line in diff_text.splitlines():
         if len(diff_rows) >= MAX_DIFF_ROWS:
             is_truncated = True
             break
+        if diff_line.startswith(_BINARY_DIFF_PREFIX):
+            is_binary = True
+            continue
         hunk_match = _HUNK_HEADER_PATTERN.match(diff_line)
         if hunk_match:
             old_line_number = int(hunk_match.group(1))
@@ -785,21 +881,27 @@ def _parse_unified_diff_rows(diff_text: str) -> tuple[list[dict[str, object]], b
             )
             old_line_number += 1
             new_line_number += 1
-    return diff_rows, is_truncated
+    return _ParsedDiff(rows=diff_rows, is_truncated=is_truncated, is_binary=is_binary)
 
 
-def _run_git(repository_root: Path, *git_arguments: str) -> str:
+def _run_git(
+    repository_root: Path,
+    *git_arguments: str,
+    allowed_exit_codes: frozenset[int] = frozenset({0}),
+) -> str:
     """在仓库根执行一次只读 ``git`` 查询并返回标准输出。
 
     Args:
         repository_root (Path): 仓库根绝对路径。
         *git_arguments (str): 传给 ``git`` 的参数（不含 ``git`` 本身）。
+        allowed_exit_codes (frozenset[int]): 视为成功的退出码。默认只认 ``0``；``git
+            diff --no-index`` 这类「有差异即退出 1」的子命令由调用方显式放宽。
 
     Returns:
         str: 命令的标准输出。
 
     Raises:
-        WorkspaceReadError: ``git`` 非零退出。
+        WorkspaceReadError: ``git`` 的退出码不在 ``allowed_exit_codes`` 里。
     """
     completed_process = subprocess.run(
         ["git", "--no-pager", *git_arguments],
@@ -809,7 +911,7 @@ def _run_git(repository_root: Path, *git_arguments: str) -> str:
         encoding="utf-8",
         check=False,
     )
-    if completed_process.returncode != 0:
+    if completed_process.returncode not in allowed_exit_codes:
         raise WorkspaceReadError(
             f"git {' '.join(git_arguments)} 执行失败：{completed_process.stderr.strip()}"
         )

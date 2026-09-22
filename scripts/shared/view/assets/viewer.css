@@ -89,13 +89,6 @@ button, input, select { font: inherit; color: inherit; }
   background: var(--primary); color: var(--primary-foreground);
 }
 
-.baseline { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted-foreground); }
-.baseline select {
-  min-height: 32px; border: 1px solid var(--border); border-radius: 8px;
-  background: var(--card); padding: 0 8px; font-size: 12.5px; color: var(--foreground);
-}
-.baseline select:disabled { background: var(--secondary); color: var(--muted-foreground); opacity: .75; }
-
 .filter {
   display: flex; min-width: 200px; align-items: center; gap: 7px;
   border: 1px solid var(--border); border-radius: 8px; background: var(--card); padding: 0 10px;
@@ -143,6 +136,17 @@ button, input, select { font: inherit; color: inherit; }
 .badge.A { background: color-mix(in oklab, var(--success) 18%, transparent); color: var(--add-mark); }
 .badge.D { background: var(--del); color: var(--del-mark); }
 .badge.R { background: var(--rename); color: var(--rename-mark); }
+
+/* 改动视图的分区标题（已暂存 / 未暂存 / 未跟踪）。它不是可点条目，只是分组标签，
+   所以刻意不复用 .node 的按钮外观——看起来能点却没反应比没有更糟。 */
+.section-head {
+  display: flex; align-items: center; gap: 6px;
+  padding: 12px 8px 4px; font-size: 11px; font-weight: 700;
+  color: var(--muted-foreground); letter-spacing: .02em;
+}
+.section-head:first-child { padding-top: 4px; }
+.section-head .section-label { text-transform: none; }
+
 .tree-empty { padding: 18px 12px; color: var(--muted-foreground); font-size: 12.5px; line-height: 1.7; }
 
 /* 4. 内容区 */

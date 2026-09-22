@@ -4,6 +4,10 @@
  * 数据全部来自本机只读接口（/api/info、/api/tree、/api/file、/api/changes、/api/diff），
  * 页面不做任何写入，也不做心跳轮询——一旦开始轮询，服务端的空闲自动回收就会静默
  * 失效（见 docs/guides/file-viewer.md 的回收策略一节）。
+ *
+ * 改动视图按 `git status` 的三段口径展示：已暂存、未暂存、未跟踪。**同一个文件可以同时
+ * 出现在两段里**（暂存了几个 hunk 之后又改了几行），因此条目的身份是「路径 + 分区」而不是
+ * 路径；选中态、请求参数与直达路径的归属都按这个二元组走。
  */
 (() => {
   "use strict";
@@ -17,7 +21,6 @@
     tabFiles: document.getElementById("tab-files"),
     tabDiff: document.getElementById("tab-diff"),
     diffCount: document.getElementById("diff-count"),
-    baselineSelect: document.getElementById("baseline-select"),
     filterInput: document.getElementById("filter-input"),
     treeTitle: document.getElementById("tree-title"),
     treeNote: document.getElementById("tree-note"),
@@ -34,12 +37,12 @@
   /** 页面的全部可变状态；渲染只读它，用户操作只改它。默认落在改动视图。 */
   const viewState = {
     view: DIFF_VIEW,
-    baseline: "worktree",
     selectedPath: "",
+    selectedSection: "",
     collapsedDirectories: new Set(),
     filterText: "",
     filePaths: [],
-    changedFiles: [],
+    changedSections: [],
     isDisconnected: false,
   };
 
@@ -63,7 +66,6 @@
     elements.treeBody.classList.add("is-stale");
     elements.statusDot.classList.add("down");
     elements.statusText.textContent = "服务已退出 · 运行 just view 重新连接";
-    elements.baselineSelect.disabled = true;
     renderDisconnectedNotice(failureMessage);
   }
 
@@ -147,17 +149,16 @@
   }
 
   /**
-   * 读取 URL 上的初始视图、基线与直达路径。
+   * 读取 URL 上的初始视图与直达路径。
+   *
+   * 直达路径不带分区：一个路径可能同时出现在多个分区里，归属在改动列表加载完之后
+   * 按分区顺序解析（见 `resolveSectionForPath`）。
    */
   function applyInitialQueryParameters() {
     const searchParameters = new URLSearchParams(window.location.search);
     const requestedView = searchParameters.get("view");
     if (requestedView === DIFF_VIEW || requestedView === FILES_VIEW) {
       viewState.view = requestedView;
-    }
-    const requestedBaseline = searchParameters.get("base");
-    if (requestedBaseline) {
-      viewState.baseline = requestedBaseline;
     }
     viewState.selectedPath = searchParameters.get("path") || "";
   }
@@ -172,7 +173,6 @@
       elements.repoName.textContent = infoResponse.body.repo_name;
       elements.branchChip.textContent = infoResponse.body.branch;
       window.document.title = `${infoResponse.body.repo_name} · 只读查看器`;
-      renderBaselineOptions(infoResponse.body.baselines);
 
       const treeResponse = await requestJson("/api/tree");
       viewState.filePaths = treeResponse.body.paths;
@@ -196,26 +196,6 @@
   }
 
   /**
-   * 把后端给出的基线列表填进选择器。
-   * @param {Array<{value: string, label: string}>} baselineOptions 可选的比较基线。
-   */
-  function renderBaselineOptions(baselineOptions) {
-    elements.baselineSelect.replaceChildren();
-    for (const baselineOption of baselineOptions) {
-      const optionNode = document.createElement("option");
-      optionNode.value = baselineOption.value;
-      optionNode.textContent = baselineOption.label;
-      elements.baselineSelect.append(optionNode);
-    }
-    const hasRequestedBaseline = baselineOptions.some(
-      (baselineOption) => baselineOption.value === viewState.baseline
-    );
-    viewState.baseline = hasRequestedBaseline ? viewState.baseline : "worktree";
-    elements.baselineSelect.value = viewState.baseline;
-    elements.baselineSelect.disabled = viewState.view !== DIFF_VIEW;
-  }
-
-  /**
    * 展开直达路径上的全部祖先目录。
    */
   function expandToSelectedPath() {
@@ -229,47 +209,83 @@
   }
 
   /**
-   * 读取当前基线下的改动文件列表。
+   * 找出某个路径当前所属的分区，用于给不带分区的直达路径定归属。
+   *
+   * 同一路径可能同时在「已暂存」与「未暂存」两段里，这里取分区顺序上的第一个（已暂存
+   * 优先），与列表的展示顺序一致——点开哪一段都能看到改动，但不能没有确定答案。
+   * @param {string} repositoryPath 仓库相对路径。
+   * @returns {string} 分区取值；该路径不在任何分区里时为空串。
+   */
+  function resolveSectionForPath(repositoryPath) {
+    const matchedSection = viewState.changedSections.find((section) =>
+      section.files.some((changedFile) => changedFile.path === repositoryPath)
+    );
+    return matchedSection ? matchedSection.section : "";
+  }
+
+  /**
+   * 变更是否仍出现在改动列表里——路径与分区都要对得上。
+   * @param {string} repositoryPath 仓库相对路径。
+   * @param {string} sectionName 分区取值。
+   * @returns {boolean} 该条目当前是否可见。
+   */
+  function isSelectableChange(repositoryPath, sectionName) {
+    return viewState.changedSections.some(
+      (section) =>
+        section.section === sectionName &&
+        section.files.some((changedFile) => changedFile.path === repositoryPath)
+    );
+  }
+
+  /**
+   * 读取三个分区的改动文件列表。
    */
   async function loadChangedFiles() {
     const didLoad = await guardAgainstServiceExit(async () => {
-      const changesResponse = await requestJson(
-        `/api/changes?base=${encodeURIComponent(viewState.baseline)}`
-      );
+      const changesResponse = await requestJson("/api/changes");
       if (changesResponse.status !== 200) {
-        viewState.changedFiles = [];
+        viewState.changedSections = [];
         renderNotice(buildNotice({ title: "无法列出改动", paragraphs: [changesResponse.body.error] }));
         return;
       }
-      viewState.changedFiles = changesResponse.body.files;
+      viewState.changedSections = changesResponse.body.sections;
       elements.diffCount.textContent = String(changesResponse.body.totals.files);
       elements.diffCount.hidden = false;
-      elements.statusHint.textContent =
-        `基线 ${changesResponse.body.base_label} · ${changesResponse.body.totals.files} 个文件 ` +
-        `+${changesResponse.body.totals.add} -${changesResponse.body.totals.del}`;
+      // 增删只跟在提供统计的分区后面：未跟踪那一段的数拿不到，就不把它的文件数混进
+      // 一个看起来覆盖全部的 `+N -M` 里。
+      elements.statusHint.textContent = viewState.changedSections
+        .map((section) =>
+          section.stats_available
+            ? `${section.label} ${section.totals.files} (+${section.totals.add} -${section.totals.del})`
+            : `${section.label} ${section.totals.files}`
+        )
+        .join(" · ");
     });
     if (!didLoad) {
       return;
     }
     renderTree();
-    const isSelectionStillVisible = viewState.changedFiles.some(
-      (changedFile) => changedFile.path === viewState.selectedPath
-    );
-    if (isSelectionStillVisible) {
-      await selectPath(viewState.selectedPath);
+    if (!viewState.selectedPath) {
+      renderPlaceholder();
+      return;
+    }
+    // 直达路径（或切换视图前的选中项）不带分区时，按分区顺序补一个。
+    const resolvedSection =
+      viewState.selectedSection || resolveSectionForPath(viewState.selectedPath);
+    if (resolvedSection && isSelectableChange(viewState.selectedPath, resolvedSection)) {
+      await selectPath(viewState.selectedPath, resolvedSection);
     } else {
       renderPlaceholder();
     }
   }
 
   /**
-   * 渲染视图切换按钮与基线选择器的启用状态。
+   * 渲染视图切换按钮。
    */
   function renderViewTabs() {
     const isDiffView = viewState.view === DIFF_VIEW;
     elements.tabFiles.setAttribute("aria-selected", String(!isDiffView));
     elements.tabDiff.setAttribute("aria-selected", String(isDiffView));
-    elements.baselineSelect.disabled = !isDiffView || viewState.isDisconnected;
     const treeTitleNode = document.createElement("b");
     treeTitleNode.textContent = isDiffView ? "改动文件" : "文件树";
     elements.treeTitle.replaceChildren(treeTitleNode);
@@ -331,15 +347,18 @@
    */
   function renderPlaceholder() {
     if (viewState.view === DIFF_VIEW) {
+      const hasChangedFiles = countChangedFiles() > 0;
       renderNotice(
         buildNotice({
-          title: viewState.changedFiles.length ? "选择一个改动文件" : "该基线下没有改动",
+          title: hasChangedFiles ? "选择一个改动文件" : "工作区没有改动",
           paragraphs: [
-            viewState.changedFiles.length
-              ? "左侧列出的是该基线下有改动的文件，点开任意一个查看逐行改动。"
-              : `当前基线（${elements.baselineSelect.value === "worktree" ? "工作区改动" : viewState.baseline}）与 HEAD 没有差异。`,
+            hasChangedFiles
+              ? "左侧按「已暂存 / 未暂存 / 未跟踪」分段列出有改动的文件，点开任意一个查看逐行改动。"
+              : "索引与工作区都与 HEAD 一致，也没有未跟踪文件。",
           ],
-          hint: "提示：未加入版本控制且未被暂存的新文件不会出现在这里，与终端 git diff 的口径一致。",
+          hint: hasChangedFiles
+            ? "提示：同一个文件可以同时出现在两段里——暂存之后又改的那几行属于未暂存。"
+            : "",
         })
       );
       return;
@@ -354,27 +373,98 @@
   }
 
   /**
+   * 统计三个分区里的改动文件总数。
+   * @returns {number} 改动文件数。
+   */
+  function countChangedFiles() {
+    return viewState.changedSections.reduce((fileCount, section) => {
+      return fileCount + section.files.length;
+    }, 0);
+  }
+
+  /**
    * 渲染左侧树；两个视图共用同一套目录树，只有叶子行与空态文案不同。
    *
-   * 改动视图按目录分组，而不是铺成一长条扁平行：改动文件动辄成百上千，扁平列表既看不出
-   * 改动集中在哪几个目录，长路径也会把真正要认的文件名挤出左栏。
+   * 改动视图先按分区分段、段内再按目录分组，而不是铺成一长条扁平行：改动文件动辄成百
+   * 上千，扁平列表既看不出改动落在哪些目录，也分不清哪几行已经进过索引。
    */
   function renderTree() {
     const isDiffView = viewState.view === DIFF_VIEW;
-    const treeEntries = isDiffView
-      ? viewState.changedFiles
-      : viewState.filePaths.map((filePath) => ({ path: filePath }));
-    const directoryTree = buildDirectoryTree(treeEntries);
-    // 计数跟着当前这棵树走：改动视图下挂着仓库总文件数会与「改动文件」这个标题对不上。
-    elements.treeNote.textContent = `${treeEntries.length} 个文件`;
     const filterText = viewState.filterText.trim().toLowerCase();
     const treeFragment = document.createDocumentFragment();
-    appendDirectoryChildren(treeFragment, directoryTree, 0, filterText);
+
+    if (isDiffView) {
+      appendChangedSections(treeFragment, filterText);
+      elements.treeNote.textContent = `${countChangedFiles()} 个文件`;
+    } else {
+      const directoryTree = buildDirectoryTree(
+        viewState.filePaths.map((filePath) => ({ path: filePath }))
+      );
+      elements.treeNote.textContent = `${viewState.filePaths.length} 个文件`;
+      appendDirectoryChildren(treeFragment, directoryTree, 0, filterText);
+    }
+
     if (!treeFragment.childNodes.length) {
       elements.treeBody.replaceChildren(buildTreeEmpty(emptyTreeMessage(isDiffView)));
       return;
     }
     elements.treeBody.replaceChildren(treeFragment);
+  }
+
+  /**
+   * 按分区追加改动列表：每个分区一条标题行，后面跟该分区自己的目录树。
+   *
+   * 段内那棵树先建进临时片段再判断有没有内容——空分区（或被过滤掉全部分区的分区）不该
+   * 留下一条孤零零的标题行。
+   * @param {DocumentFragment} treeFragment 目标片段。
+   * @param {string} filterText 小写过滤词。
+   */
+  function appendChangedSections(treeFragment, filterText) {
+    for (const changedSection of viewState.changedSections) {
+      const sectionFragment = document.createDocumentFragment();
+      // 分区取值与「本段是否提供 +N -M」随条目一起进树：叶子行需要它们才能把「路径 +
+      // 分区」这个身份还原出来、并按段决定统计列的显示，而递归渲染函数自己不知道当前
+      // 在哪一段。
+      appendDirectoryChildren(
+        sectionFragment,
+        buildDirectoryTree(
+          changedSection.files.map((changedFile) => ({
+            ...changedFile,
+            section: changedSection.section,
+            statsAvailable: changedSection.stats_available,
+          }))
+        ),
+        0,
+        filterText
+      );
+      if (!sectionFragment.childNodes.length) {
+        continue;
+      }
+      treeFragment.append(buildChangedSectionHeader(changedSection));
+      treeFragment.append(sectionFragment);
+    }
+  }
+
+  /**
+   * 构造一条分区标题行。
+   * @param {{section: string, label: string, files: Array<object>}} changedSection 分区数据。
+   * @returns {HTMLElement} 标题行节点。
+   */
+  function buildChangedSectionHeader(changedSection) {
+    const headerNode = document.createElement("div");
+    headerNode.className = "section-head";
+    headerNode.dataset.section = changedSection.section;
+
+    const labelNode = document.createElement("span");
+    labelNode.className = "section-label";
+    labelNode.textContent = changedSection.label;
+    headerNode.append(labelNode);
+
+    const countNode = document.createElement("span");
+    countNode.className = "chip";
+    countNode.textContent = String(changedSection.files.length);
+    headerNode.append(countNode);
+    return headerNode;
   }
 
   /**
@@ -386,15 +476,19 @@
     if (!isDiffView) {
       return "没有匹配过滤条件的文件。";
     }
-    return viewState.changedFiles.length
+    return countChangedFiles()
       ? "没有匹配过滤条件的改动文件。"
-      : "该基线下没有改动文件。";
+      : "工作区没有改动文件。";
   }
 
   /**
    * 构造一个改动文件叶子行：状态徽标 + 文件名 + 增删统计。
    * 目录上下文由所在层级表达，行内不再重复完整路径。
-   * @param {{path: string, status: string, add: number|null, del: number|null}} changedFile 改动文件。
+   *
+   * 统计列有三种状态：给出 `+N -M`、标成「二进制」（git 不逐行给）、以及整段不提供
+   * （未跟踪那一段，git 的列表命令不报这个数）。后两者不能混：二进制是「有改动但数不出
+   * 行」，不提供是「本轮没取」。
+   * @param {{path: string, status: string, add: number|null, del: number|null, section: string, statsAvailable: boolean}} changedFile 改动文件（含所属分区与统计可用性）。
    * @param {number} depth 缩进层级。
    * @returns {HTMLElement} 条目节点。
    */
@@ -404,7 +498,13 @@
     rowButton.className = "node";
     rowButton.style.paddingLeft = `${8 + depth * 14}px`;
     rowButton.title = changedFile.path;
-    rowButton.setAttribute("aria-selected", String(changedFile.path === viewState.selectedPath));
+    rowButton.setAttribute(
+      "aria-selected",
+      String(
+        changedFile.path === viewState.selectedPath &&
+          changedFile.section === viewState.selectedSection
+      )
+    );
     rowButton.append(buildCaretPlaceholder());
 
     const badgeNode = document.createElement("span");
@@ -419,21 +519,23 @@
       lastSlashIndex >= 0 ? changedFile.path.slice(lastSlashIndex + 1) : changedFile.path;
     rowButton.append(nameNode);
 
-    const statNode = document.createElement("span");
-    statNode.className = "stat";
-    if (changedFile.add === null || changedFile.del === null) {
-      const binaryNode = document.createElement("span");
-      binaryNode.className = "badge";
-      binaryNode.textContent = "二进制";
-      statNode.append(binaryNode);
-    } else {
-      statNode.append(buildStatNode("add", `+${changedFile.add}`));
-      statNode.append(buildStatNode("del", `-${changedFile.del}`));
+    if (changedFile.statsAvailable) {
+      const statNode = document.createElement("span");
+      statNode.className = "stat";
+      if (changedFile.add === null || changedFile.del === null) {
+        const binaryNode = document.createElement("span");
+        binaryNode.className = "badge";
+        binaryNode.textContent = "二进制";
+        statNode.append(binaryNode);
+      } else {
+        statNode.append(buildStatNode("add", `+${changedFile.add}`));
+        statNode.append(buildStatNode("del", `-${changedFile.del}`));
+      }
+      rowButton.append(statNode);
     }
-    rowButton.append(statNode);
 
     rowButton.addEventListener("click", () => {
-      void selectPath(changedFile.path);
+      void selectPath(changedFile.path, changedFile.section);
     });
     return rowButton;
   }
@@ -656,15 +758,23 @@
   }
 
   /**
-   * 选中一个路径并按当前视图加载内容。
+   * 选中一个条目并按当前视图加载内容。
+   *
+   * 改动视图下条目的身份是「路径 + 分区」：同一个文件可以同时在已暂存与未暂存两段里，
+   * 只给路径会拿到错误的 diff。分区缺省时按分区顺序解析。
    * @param {string} repositoryPath 仓库相对路径。
+   * @param {string} sectionName 分区取值；文件视图不用。
    */
-  async function selectPath(repositoryPath) {
+  async function selectPath(repositoryPath, sectionName = "") {
     viewState.selectedPath = repositoryPath;
+    viewState.selectedSection =
+      viewState.view === DIFF_VIEW
+        ? sectionName || resolveSectionForPath(repositoryPath)
+        : "";
     renderTree();
     await guardAgainstServiceExit(async () => {
       if (viewState.view === DIFF_VIEW) {
-        await loadDiffForPath(repositoryPath);
+        await loadDiffForPath(repositoryPath, viewState.selectedSection);
       } else {
         await loadFileContent(repositoryPath);
       }
@@ -706,12 +816,13 @@
   }
 
   /**
-   * 加载并渲染单个文件的逐行改动。
+   * 加载并渲染单个文件在某个分区下的逐行改动。
    * @param {string} repositoryPath 仓库相对路径。
+   * @param {string} sectionName 分区取值。
    */
-  async function loadDiffForPath(repositoryPath) {
+  async function loadDiffForPath(repositoryPath, sectionName) {
     const diffResponse = await requestJson(
-      `/api/diff?path=${encodeURIComponent(repositoryPath)}&base=${encodeURIComponent(viewState.baseline)}`
+      `/api/diff?path=${encodeURIComponent(repositoryPath)}&section=${encodeURIComponent(sectionName)}`
     );
     setViewerPath(repositoryPath);
     if (diffResponse.status !== 200) {
@@ -721,31 +832,39 @@
     }
     const diffBody = diffResponse.body;
     // 头部在空态下会被 renderNotice 清成占位符，所以来源只在有逐行改动时才写头部，
-    // 纯重命名那一支交给提示块正文自己说。
+    // 纯重命名与二进制那两支交给提示块正文自己说。
     if (diffBody.empty) {
       renderNotice(
         buildNotice(
           // 纯重命名没有逐行改动可看，但它并不是「与当前内容一致」——路径确实变了，
-          // 说成「没有改动」会把人引向错误结论。
+          // 说成「没有改动」会把人引向错误结论。二进制同理：内容确实变了，只是
+          // git 不逐行给。
           diffBody.rename_from
             ? {
                 title: "重命名，内容未变",
                 paragraphs: [
-                  `该文件在该基线下由 <code>${escapeHtmlText(diffBody.rename_from)}</code> 重命名而来，正文没有变化，因此没有逐行改动可看。`,
+                  `该文件在「${diffBody.section_label}」里由 <code>${escapeHtmlText(diffBody.rename_from)}</code> 重命名而来，正文没有变化，因此没有逐行改动可看。`,
                 ],
-                hint: `基线 ${diffBody.base_label}。`,
               }
-            : {
-                title: "该文件在此基线下没有改动",
-                paragraphs: [`基线 ${diffBody.base_label} 与当前内容一致。`],
-              }
+            : diffBody.binary
+              ? {
+                  title: "二进制文件，无逐行改动",
+                  paragraphs: [
+                    `该文件在「${diffBody.section_label}」里的内容有变化，但 git 判定它是二进制，不提供逐行 diff。`,
+                  ],
+                  hint: "要对比二进制内容，请在本机用专门工具打开这两个版本。",
+                }
+              : {
+                  title: "该文件在此区段下没有改动",
+                  paragraphs: [`「${diffBody.section_label}」中没有这个文件的改动。`],
+                }
         )
       );
       return;
     }
     elements.viewerMeta.textContent = diffBody.rename_from
-      ? `基线 ${diffBody.base_label} · 重命名自 ${diffBody.rename_from}`
-      : `基线 ${diffBody.base_label}`;
+      ? `${diffBody.section_label} · 重命名自 ${diffBody.rename_from}`
+      : diffBody.section_label;
     if (diffBody.truncated) {
       elements.statusHint.textContent = "只读视图 · 改动过大，仅显示前若干行";
     }
@@ -820,6 +939,7 @@
     }
     viewState.view = nextView;
     viewState.selectedPath = "";
+    viewState.selectedSection = "";
     renderViewTabs();
     if (nextView === DIFF_VIEW) {
       await loadChangedFiles();
@@ -838,11 +958,6 @@
   });
   elements.tabDiff.addEventListener("click", () => {
     void switchView(DIFF_VIEW);
-  });
-  elements.baselineSelect.addEventListener("change", () => {
-    viewState.baseline = elements.baselineSelect.value;
-    viewState.selectedPath = "";
-    void loadChangedFiles();
   });
   elements.filterInput.addEventListener("input", () => {
     viewState.filterText = elements.filterInput.value;

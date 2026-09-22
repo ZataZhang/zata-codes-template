@@ -179,27 +179,18 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
                 )
             )
         elif route_path == "/api/changes":
-            self._serve_workspace_payload(
-                workspace.build_changes_payload(
-                    repository_root,
-                    self._read_baseline_parameter(query_parameters),
-                )
-            )
+            self._serve_workspace_payload(workspace.build_changes_payload(repository_root))
         elif route_path == "/api/diff":
             self._serve_workspace_payload(
                 workspace.build_diff_payload(
                     repository_root,
                     self._read_query_parameter(query_parameters, "path"),
-                    self._read_baseline_parameter(query_parameters),
+                    self._read_query_parameter(query_parameters, "section"),
                 )
             )
         else:
             # 不回声请求路径：未知路由的应答里没有任何来自请求的可控内容。
             self._send_json_payload(404, {"error": "未知路由：本服务只提供白名单内的只读接口。"})
-
-    def _read_baseline_parameter(self, query_parameters: dict[str, list[str]]) -> str:
-        """读取基线参数，缺省为「当前工作区」。"""
-        return self._read_query_parameter(query_parameters, "base") or workspace.WORKTREE_BASELINE
 
     def _read_query_parameter(
         self,

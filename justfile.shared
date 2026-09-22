@@ -247,8 +247,12 @@ docs-serve port="8000": _check-completion
 #   just view                    # open straight into the diff (改动) view at the repo root
 #   just view <path>             # open into the diff view, focused on a changed file
 #   just view --files            # open into the files view instead
-#   just view --diff [base]      # diff view with an explicit baseline
+#   just view --diff             # diff view (already the default; kept as an explicit flag)
 #   just view --stop             # recycle this repository's resident instance
+#
+# The diff view always lists all three sections (已暂存 / 未暂存 / 未跟踪); there is no
+# CLI switch for picking one, and no baseline selector — the working tree is the only
+# comparison, divided by the git index.
 #
 # 这两条 recipe 刻意写成普通单行而不是 `#!/usr/bin/env bash` shebang：`just` 执行
 # shebang recipe 每次要多花约 200ms 起一个临时脚本，而 `just view` 的复用命中路径
@@ -270,8 +274,7 @@ _view_python := if os_family() == "windows" { justfile_directory() / ".venv/Scri
 view *args:
     exec {{ if path_exists(_view_python) == "true" { quote(_view_python) } else { "uv run --no-sync python" } }} -S "{{justfile_directory()}}/scripts/shared/view/launch.py" {{args}}
 
-# Thin alias: open the viewer in the diff view (now also the default) with an
-# optional baseline.
+# Thin alias: open the viewer in the diff view (already the default).
 diff *args:
     exec just view --diff {{args}}
 

@@ -16,10 +16,13 @@
 2. **路径不得越出仓库。** ``..`` 与符号链接都要在 ``resolve()`` 之后再断言，顺序颠倒
    时符号链接逃逸会漏网；拒绝信息本身也不得回声绝对路径，否则「被拒绝」就成了仓库外
    路径的探测口。
-3. **路径参数会变成 git 的位置参数。** 基线必须对本地分支白名单校验，否则
-   ``--output=...`` 这类以 ``-`` 开头的取值会被 git 当成选项解析。
-4. **界面数字必须与终端逐项一致。** ``--numstat -z`` 的普通条目与重命名条目 token
-   数不同；把两者混为一谈会静默漏掉一半改动文件，而界面看上去仍然"有内容"。
+3. **改动分区是封闭枚举，且分区取值不会流进 git 参数。** 分区（``staged`` /
+   ``unstaged`` / ``untracked``）只用于在服务端选择命令，取值本身从不作为位置参数交给
+   ``git``；路径参数另在 ``--`` 之后传入并已做越界校验。白名单外的取值一律 400，
+   ``--output=...`` 这类以 ``-`` 开头的内容因此没有任何机会被 git 当成选项解析。
+4. **界面数字必须与终端逐项一致。** 三个分区各自的 ``--numstat -z`` 条目形状不同（普通
+   条目与重命名条目 token 数不同，未跟踪那一段走 ``--no-index`` 的双路径形式）；把其中
+   任一种处理错都会静默漏掉文件或统计，而界面看上去仍然"有内容"。
 5. **陈旧登记必须被接管，且登记清理不得误伤他人。** 复用判定依赖三项交叉校验
    （进程存活 / 端口可连 / 仓库一致）；空闲回收清理登记时要确认登记仍属于自己，
    否则 ``--no-reuse`` 起的更新实例会被旧实例顺手抹掉登记。
@@ -28,6 +31,8 @@
    排除出候选，同一个文件随即降级成「新增」且正文整篇算成新增行；单文件 diff 必须
    先查出旧路径、再把新旧两条路径一起交给 git。纯重命名则要能自我说明，不能被界面
    说成「与当前内容一致」。
+8. **「路径 + 分区」才是改动条目的身份。** 同一个文件可以在暂存之后又被修改，于是同时
+   出现在两段里，而且两段的逐行改动并不相同；只按路径取 diff 会拿到另一段的内容。
 
 用例全部打在真实进程与真实 HTTP 上：被测的是绑定、路由分发与 ``git`` 子进程这条
 完整链路，桩掉其中任何一段都测不到本文列出的不变量。
@@ -160,7 +165,15 @@ def _find_defunct_process_id() -> int:
 
 
 def _build_fixture_repository(repository_root: Path) -> Path:
-    """建一个带真实提交、重命名、二进制与超限文件的小仓库。"""
+    """建一个带真实提交、重命名、二进制与超限文件的小仓库。
+
+    三个改动分区各有内容，且刻意造出两种边界：
+
+    - ``src/module.py`` 暂存之后又被修改，因此**同时出现在已暂存与未暂存两段**，两段的
+      逐行改动还不一样——只按路径取 diff 会拿到另一段的内容。
+    - ``draft.md → final.md`` 是「重命名 + 改一行」并且**改动也进了索引**：只有两段都在
+      同一段内，才能验出「配对失效 → 整篇算成新增」这个缺陷。
+    """
     repository_root.mkdir(parents=True, exist_ok=True)
     _run_git(repository_root, "init", "-b", "main")
     _run_git(repository_root, "config", "user.email", "guard@example.com")
@@ -176,26 +189,29 @@ def _build_fixture_repository(repository_root: Path) -> Path:
         "BUILD_TOOL = True\n", encoding="utf-8"
     )
     (repository_root / "rename_me.txt").write_text("rename source\n", encoding="utf-8")
-    # 第二对重命名故意带上正文修改：纯重命名没有 hunk 可查，只有「重命名 + 改一行」
-    # 才能验出「配对失效 → 整篇算成新增」这个缺陷。
-    # 必须留在仓库根：目录内重命名会让 ``--numstat`` 输出 ``docs/{旧 => 新}`` 的合并
-    # 形式，``test_changed_file_totals_match_terminal_git_output`` 按 ``" => "`` 切分
-    # 的解析会随之取到错误的键。
     (repository_root / "draft.md").write_text("alpha\nbeta\ngamma\n", encoding="utf-8")
     (repository_root / "big.txt").write_text("x" * _OVERSIZE_BYTE_COUNT, encoding="utf-8")
     (repository_root / "blob.bin").write_bytes(b"\x00\x01\x02binary payload")
     _run_git(repository_root, "add", ".")
     _run_git(repository_root, "commit", "-m", "init")
 
-    # 制造一次改动：重命名、文本修改、二进制修改，外加未跟踪文件与未忽略的依赖目录。
+    # --- 已暂存：一次纯重命名、一次「重命名 + 改一行」、一次只改了正文的修改 ---
     _run_git(repository_root, "mv", "rename_me.txt", "renamed.txt")
     _run_git(repository_root, "mv", "draft.md", "final.md")
     (repository_root / "final.md").write_text("alpha\nBETA\ngamma\n", encoding="utf-8")
+    _run_git(repository_root, "add", "final.md")
     (repository_root / "src" / "module.py").write_text(
         "def answer():\n    return 43\n", encoding="utf-8"
     )
+    _run_git(repository_root, "add", "src/module.py")
+
+    # --- 未暂存：同一个文件再改一次，外加一次二进制修改；另加未跟踪文件与未忽略的依赖目录 ---
+    (repository_root / "src" / "module.py").write_text(
+        "def answer():\n    return 44\n", encoding="utf-8"
+    )
     (repository_root / "blob.bin").write_bytes(b"\x00\x01\x02changed payload")
     (repository_root / "untracked.txt").write_text("untracked\n", encoding="utf-8")
+    (repository_root / "untracked.bin").write_bytes(b"\x00\x01new binary payload")
     (repository_root / "node_modules").mkdir()
     (repository_root / "node_modules" / "left-pad.js").write_text(
         "module.exports = 1\n", encoding="utf-8"
@@ -298,7 +314,7 @@ def test_repository_escape_requests_are_refused(running_view_server: RunningView
         "/api/file?path=../../outside-secret.txt",
         "/api/file?path=/etc/hosts",
         "/api/file?path=escape-link",
-        "/api/diff?path=../outside-secret.txt&base=worktree",
+        "/api/diff?path=../outside-secret.txt&section=unstaged",
     ):
         status_code, response_body = running_view_server.request(escape_route)
         assert status_code == 403, f"{escape_route} 未被拒绝：{status_code} {response_body}"
@@ -320,7 +336,7 @@ def test_malformed_path_parameters_are_refused_not_dropped(
     for malformed_route in (
         "/api/file?path=module.py%00.txt",
         "/api/file?path=..%00",
-        "/api/diff?path=..%00&base=worktree",
+        "/api/diff?path=..%00&section=unstaged",
     ):
         status_code, response_body = running_view_server.request(malformed_route)
         assert status_code == 403, f"{malformed_route} 未被拒绝：{status_code} {response_body}"
@@ -435,90 +451,190 @@ def test_oversize_and_binary_files_are_marked_not_rendered(
     assert binary_body["note"]
 
 
-def test_changed_file_totals_match_terminal_git_output(
+def test_each_section_matches_its_own_terminal_git_output(
     running_view_server: RunningViewServer,
 ) -> None:
-    """改动文件集合与增删统计必须与终端同参数 ``git diff`` 逐项一致。
+    """三个分区的文件集合与增删统计，必须分别与终端同参数命令逐项一致。
 
-    夹具里刻意同时放了重命名与二进制改动——``--numstat -z`` 对这两类用的是不同的
-    token 形状，只处理其中一种会静默漏掉一半文件。
+    夹具里刻意同时放了重命名、二进制与未跟踪文件——三种 ``--numstat`` 条目形状各不相同
+    （普通条目、重命名条目的双路径、``--no-index`` 的双路径），只处理其中一种会静默漏掉
+    文件或统计，而界面看上去仍然"有内容"。
     """
     repository_root = running_view_server.repository_root
-    status_code, response_body = running_view_server.request("/api/changes?base=worktree")
+    status_code, response_body = running_view_server.request("/api/changes")
     assert status_code == 200
 
-    terminal_name_only = _run_git(repository_root, "diff", "HEAD", "--name-only").stdout.split()
-    assert sorted(entry["path"] for entry in response_body["files"]) == sorted(terminal_name_only)
+    section_by_name = {
+        changed_section["section"]: changed_section for changed_section in response_body["sections"]
+    }
+    assert list(section_by_name) == ["staged", "unstaged", "untracked"]
 
-    terminal_numstat_lines = _run_git(
-        repository_root, "diff", "HEAD", "--numstat"
-    ).stdout.splitlines()
-    expected_counts_by_path = {}
-    for numstat_line in terminal_numstat_lines:
-        added_field, deleted_field, displayed_path = numstat_line.split("\t")
-        # 非 -z 输出里重命名写成 "old => new"；界面与 --name-only 一样只认新路径。
-        # 夹具造的是同目录整文件改名，因此必然是这种简单形式——若哪天不是，下面的
-        # 文件集合断言会先炸，不会让这里静默取到错的键。
-        changed_path = displayed_path.split(" => ")[-1]
-        expected_counts_by_path[changed_path] = (
-            None if added_field == "-" else int(added_field),
-            None if deleted_field == "-" else int(deleted_field),
+    for section_name, section_arguments in (
+        ("staged", ("--cached",)),
+        ("unstaged", ()),
+    ):
+        changed_section = section_by_name[section_name]
+        terminal_name_only = _run_git(
+            repository_root, "diff", *section_arguments, "--name-only"
+        ).stdout.split()
+        assert sorted(entry["path"] for entry in changed_section["files"]) == sorted(
+            terminal_name_only
         )
-    for changed_file_entry in response_body["files"]:
-        assert (changed_file_entry["add"], changed_file_entry["del"]) == expected_counts_by_path[
-            changed_file_entry["path"]
-        ]
+        assert _expected_counts_by_path(
+            _run_git(repository_root, "diff", *section_arguments, "--numstat").stdout
+        ) == {entry["path"]: (entry["add"], entry["del"]) for entry in changed_section["files"]}
+        assert changed_section["totals"] == _expected_totals(changed_section["files"])
 
-    assert response_body["totals"]["files"] == len(terminal_name_only)
-    assert response_body["totals"]["add"] == sum(
-        added_count or 0 for added_count, _ in expected_counts_by_path.values()
+    # 未跟踪那一段沿用文件树的目录剪枝，因此它不会等于 ls-files 的原始输出：差额必须
+    # 恰好是同样被文件树剪掉的路径。两处口径若各列各的，这条就会炸。
+    untracked_section = section_by_name["untracked"]
+    untracked_section_paths = [entry["path"] for entry in untracked_section["files"]]
+    terminal_untracked_paths = set(
+        _run_git(repository_root, "ls-files", "--others", "--exclude-standard").stdout.split()
     )
-    assert response_body["totals"]["del"] == sum(
-        deleted_count or 0 for _, deleted_count in expected_counts_by_path.values()
+    tree_status, tree_body = running_view_server.request("/api/tree")
+    assert tree_status == 200
+    assert set(untracked_section_paths) == terminal_untracked_paths & set(tree_body["paths"])
+
+    # 未跟踪文件确实进了改动视图（这条以前是反向断言：口径从「不进列表」改成「单独一段」）。
+    assert "untracked.txt" in untracked_section_paths, untracked_section
+
+    # 未跟踪那一段明确不提供增删统计：git 的列表命令不报这个数，我们不自己编。
+    assert untracked_section["stats_available"] is False
+    assert [entry["status"] for entry in untracked_section["files"]] == ["A"] * len(
+        untracked_section_paths
     )
-    # 未跟踪且未暂存的新文件不进改动列表：口径与终端 git diff HEAD 一致。
-    assert "untracked.txt" not in terminal_name_only
+    assert [(entry["add"], entry["del"]) for entry in untracked_section["files"]] == [
+        (None, None)
+    ] * len(untracked_section_paths)
+
+    # 提供统计的两段必须准备好这一位，界面靠它区分「不提供」与「二进制」。
+    assert all(
+        section_by_name[section_name]["stats_available"] is True
+        for section_name in ("staged", "unstaged")
+    )
 
 
-def test_branch_baseline_matches_terminal_merge_base_diff(
+def test_changes_view_prunes_untracked_dependency_directories(
     running_view_server: RunningViewServer,
 ) -> None:
-    """分支基线走 ``<分支>...HEAD``，与终端同参数输出一致。"""
-    repository_root = running_view_server.repository_root
-    _run_git(repository_root, "checkout", "-q", "-b", "feature/add-answer")
-    (repository_root / "notes.md").write_text("branch note\n", encoding="utf-8")
-    _run_git(repository_root, "add", "notes.md")
-    _run_git(repository_root, "commit", "-m", "add notes")
+    """未跟踪那一段沿用文件树的目录剪枝，依赖目录不得淹没改动列表。
 
-    status_code, response_body = running_view_server.request("/api/changes?base=main")
+    文件树与改动列表共用同一份未跟踪口径：两处若各列各的，``node_modules/`` 会在文件树里
+    被剪掉、却在改动列表里冒出来。
+    """
+    status_code, response_body = running_view_server.request("/api/changes")
     assert status_code == 200
-    terminal_name_only = _run_git(
-        repository_root, "diff", "main...HEAD", "--name-only"
-    ).stdout.split()
-    assert sorted(entry["path"] for entry in response_body["files"]) == sorted(terminal_name_only)
-    assert terminal_name_only, "夹具应当造出相对 main 的差异，否则这条断言没有判别力"
+    untracked_paths = [
+        entry["path"]
+        for changed_section in response_body["sections"]
+        if changed_section["section"] == "untracked"
+        for entry in changed_section["files"]
+    ]
+    assert "untracked.txt" in untracked_paths
+    assert not any(path.startswith("node_modules/") for path in untracked_paths), untracked_paths
 
 
-def test_option_like_baseline_is_refused(running_view_server: RunningViewServer) -> None:
-    """以 ``-`` 开头的基线取值必须被拒，不能流进 git 的选项解析。"""
-    for option_like_baseline in ("--output=/tmp/leak", "-c", "--exec=rm -rf /"):
-        encoded_baseline = urllib.parse.quote(option_like_baseline, safe="")
+def test_untracked_files_are_not_counted_as_modified(
+    running_view_server: RunningViewServer,
+) -> None:
+    """未跟踪文件只出现在未跟踪那一段，不会被并进前两段。
+
+    并进去就等于把「未提交的新文件」与「改过的旧文件」混成一类，而这正是分段要分清的事。
+    """
+    status_code, response_body = running_view_server.request("/api/changes")
+    assert status_code == 200
+    index_section_paths = {
+        entry["path"]
+        for changed_section in response_body["sections"]
+        if changed_section["section"] in {"staged", "unstaged"}
+        for entry in changed_section["files"]
+    }
+    assert "untracked.txt" not in index_section_paths
+    assert "untracked.bin" not in index_section_paths
+
+
+def test_same_path_in_two_sections_reports_its_own_diff(
+    running_view_server: RunningViewServer,
+) -> None:
+    """同一个文件同时出现在两段时，两段各自的 diff 必须不同且各自正确。
+
+    条目身份是「路径 + 分区」：``src/module.py`` 先改到 ``return 43`` 并暂存，之后又改到
+    ``return 44``，因此两段的新增行分别是 43 与 44。只按路径取 diff 会让两段显示同一份
+    内容，且其中一段是错的。
+    """
+    staged_status, staged_body = running_view_server.request(
+        "/api/diff?path=src/module.py&section=staged"
+    )
+    unstaged_status, unstaged_body = running_view_server.request(
+        "/api/diff?path=src/module.py&section=unstaged"
+    )
+    assert staged_status == 200
+    assert unstaged_status == 200
+
+    assert _added_row_texts(staged_body) == ["    return 43"]
+    assert _added_row_texts(unstaged_body) == ["    return 44"]
+    assert staged_body["section_label"] == "已暂存"
+    assert unstaged_body["section_label"] == "未暂存"
+
+
+def test_unknown_section_is_refused(running_view_server: RunningViewServer) -> None:
+    """分区是封闭枚举：白名单外的取值一律 400，且不会被交给 git。
+
+    以前这条守的是「基线名字会变成 git 的位置参数」，所以要对本地分支做白名单校验。改成
+    分区之后，取值只用于在服务端选命令、从不进 argv，选项注入在构造上就不可能——这条断言
+    从「防注入」变成了「取值集合封闭」。
+    """
+    for rejected_section in ("--output=/tmp/leak", "-c", "--exec=rm -rf /", "worktree", "HEAD"):
+        encoded_section = urllib.parse.quote(rejected_section, safe="")
         status_code, response_body = running_view_server.request(
-            f"/api/changes?base={encoded_baseline}"
+            f"/api/diff?path=src/module.py&section={encoded_section}"
         )
-        assert status_code == 400, f"{option_like_baseline} 未被拒绝：{response_body}"
-        assert "不是可用的比较基线" in response_body["error"]
+        assert status_code == 400, f"{rejected_section} 未被拒绝：{response_body}"
+        assert "不是可用的改动分区" in response_body["error"]
+
+    # 缺失 section 同样拒绝，不静默落到某个默认分区。
+    missing_status, missing_body = running_view_server.request("/api/diff?path=src/module.py")
+    assert missing_status == 400, missing_body
+    assert "不是可用的改动分区" in missing_body["error"]
+
+
+def test_untracked_binary_diff_is_reported_as_binary_not_unchanged(
+    running_view_server: RunningViewServer,
+) -> None:
+    """未跟踪的二进制文件必须被标成二进制，不能被说成「没有改动」。
+
+    git 对二进制只给一行 ``Binary files ... differ``，解析后没有任何逐行内容。不单独记这
+    一位，界面就会把「新加了一个二进制文件」报成「该文件没有改动」——一个明确错误的结论。
+    """
+    status_code, response_body = running_view_server.request(
+        "/api/diff?path=untracked.bin&section=untracked"
+    )
+    assert status_code == 200
+    assert response_body["binary"] is True
+    assert response_body["rows"] == []
+    assert response_body["empty"] is True
+    assert response_body["rename_from"] is None
+
+
+def test_missing_untracked_file_is_refused(running_view_server: RunningViewServer) -> None:
+    """请求一个不存在的未跟踪文件要得到明确的 404，而不是让 git 非零退出变成 500。"""
+    status_code, response_body = running_view_server.request(
+        "/api/diff?path=not-there.txt&section=untracked"
+    )
+    assert status_code == 404, response_body
+    assert "未找到文件" in response_body["error"]
 
 
 def test_changed_file_diff_has_line_numbers(running_view_server: RunningViewServer) -> None:
     """单文件改动要给出可着色的逐行结构与新旧行号。"""
     status_code, response_body = running_view_server.request(
-        "/api/diff?path=src/module.py&base=worktree"
+        "/api/diff?path=src/module.py&section=unstaged"
     )
     assert status_code == 200
     assert response_body["empty"] is False
     added_rows = [row for row in response_body["rows"] if row["kind"] == "add"]
-    assert [row["text"] for row in added_rows] == ["    return 43"], response_body["rows"]
+    assert [row["text"] for row in added_rows] == ["    return 44"], response_body["rows"]
     assert all(row["new_no"] is not None for row in added_rows)
     assert any(row["kind"] == "hunk" for row in response_body["rows"])
 
@@ -530,16 +646,15 @@ def test_renamed_file_diff_is_paired_with_its_source(
 
     只给新路径做 pathspec 时 git 的配对会整体失效：同一个文件被报成 ``new file
     mode``，正文整篇算成新增行，界面也就说不出它重命名自何处。夹具里那对「重命名 +
-    改一行」正是为了让这种失效可判别——配对生效时新增行只有改过的那一行。
+    改一行（改动也已暂存）」正是为了让这种失效可判别——配对生效时新增行只有改过的那一行。
     """
     status_code, response_body = running_view_server.request(
-        "/api/diff?path=final.md&base=worktree"
+        "/api/diff?path=final.md&section=staged"
     )
     assert status_code == 200
     assert response_body["rename_from"] == "draft.md"
     assert response_body["empty"] is False
-    added_texts = [row["text"] for row in response_body["rows"] if row["kind"] == "add"]
-    assert added_texts == ["BETA"], response_body["rows"]
+    assert _added_row_texts(response_body) == ["BETA"], response_body["rows"]
 
 
 def test_rename_without_content_change_still_reports_its_source(
@@ -551,7 +666,7 @@ def test_rename_without_content_change_still_reports_its_source(
     靠 ``rename_from`` 把两者区分开，否则会告诉用户一个错误结论。
     """
     status_code, response_body = running_view_server.request(
-        "/api/diff?path=renamed.txt&base=worktree"
+        "/api/diff?path=renamed.txt&section=staged"
     )
     assert status_code == 200
     assert response_body["rename_from"] == "rename_me.txt"
@@ -562,7 +677,7 @@ def test_rename_without_content_change_still_reports_its_source(
 def test_plain_edit_reports_no_rename_source(running_view_server: RunningViewServer) -> None:
     """普通改动文件的 ``rename_from`` 必须是 null，界面才不会凭空说它被重命名。"""
     status_code, response_body = running_view_server.request(
-        "/api/diff?path=src/module.py&base=worktree"
+        "/api/diff?path=src/module.py&section=unstaged"
     )
     assert status_code == 200
     assert response_body["rename_from"] is None
@@ -729,6 +844,40 @@ def test_registry_file_is_ignored_by_the_repository() -> None:
         _PROJECT_ROOT_PATH, "check-ignore", "--no-index", instance.REGISTRY_FILE_NAME
     )
     assert instance.REGISTRY_FILE_NAME in ignored_result.stdout
+
+
+def _expected_counts_by_path(
+    terminal_numstat_text: str,
+) -> dict[str, tuple[int | None, int | None]]:
+    """把终端 ``git diff --numstat`` 的输出整理成 路径 -> (新增, 删除)。
+
+    非 ``-z`` 输出里重命名写成 ``old => new``；界面与 ``--name-only`` 一样只认新路径。
+    夹具造的都是同目录整文件改名，因此必然是这种简单形式——若哪天不是，调用方的文件集合
+    断言会先炸，不会让这里静默取到错的键。
+    """
+    expected_counts_by_path: dict[str, tuple[int | None, int | None]] = {}
+    for numstat_line in terminal_numstat_text.splitlines():
+        added_field, deleted_field, displayed_path = numstat_line.split("\t")
+        changed_path = displayed_path.split(" => ")[-1]
+        expected_counts_by_path[changed_path] = (
+            None if added_field == "-" else int(added_field),
+            None if deleted_field == "-" else int(deleted_field),
+        )
+    return expected_counts_by_path
+
+
+def _expected_totals(changed_files: list[dict]) -> dict[str, int]:
+    """把一组改动条目汇总成文件数与增删合计，作为分区 totals 的期望值。"""
+    return {
+        "files": len(changed_files),
+        "add": sum(entry["add"] or 0 for entry in changed_files),
+        "del": sum(entry["del"] or 0 for entry in changed_files),
+    }
+
+
+def _added_row_texts(diff_body: dict) -> list[str]:
+    """取出一份逐行 diff 里所有新增行的正文。"""
+    return [row["text"] for row in diff_body["rows"] if row["kind"] == "add"]
 
 
 def _strip_html_tags(rendered_line_html: str) -> str:
