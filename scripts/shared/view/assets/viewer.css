@@ -132,6 +132,8 @@ button, input, select { font: inherit; color: inherit; }
 .badge {
   min-width: 16px; border-radius: 4px; background: var(--secondary); color: var(--muted-foreground);
   font-family: var(--mono); font-size: 10px; font-weight: 700; text-align: center;
+  /* 这一列只有十几像素宽，内容一律不许折行——折了会把整行高度顶开。 */
+  white-space: nowrap;
 }
 .badge.A { background: color-mix(in oklab, var(--success) 18%, transparent); color: var(--add-mark); }
 .badge.D { background: var(--del); color: var(--del-mark); }

@@ -55,7 +55,13 @@
     view: DIFF_VIEW,
     selectedPath: "",
     selectedSection: "",
-    collapsedDirectories: new Set(),
+    /**
+     * 用户显式折叠/展开过的目录：路径 → 是否展开。没记过的目录按所属视图的默认值。
+     *
+     * 只记「用户动过手」的那几个，默认值因此可以是视图相关的（见 isDirectoryExpanded）；
+     * 若改成记录折叠态，默认展开就得靠「集合里没有」来表达，默认值就锁死在一种。
+     */
+    directoryExpansionByPath: new Map(),
     filterText: "",
     filePaths: [],
     changedSections: [],
@@ -227,15 +233,45 @@
   }
 
   /**
+   * 判断一个目录当前是否展开。
+   *
+   * 默认值按视图定：**文件视图默认折叠**——仓库动辄几百上千个文件，全摊开是一堵墙，找目录
+   * 得先滚半天；改动视图默认展开——那里只有改动涉及的目录，本来就没几个，分段标题也已经把
+   * 噪音分掉了。用户点过箭头的目录以那次点击为准，两个视图共用同一份记录（同一个目录折了
+   * 就该一直是折的，切个视图又弹开会更费解）。
+   *
+   * 过滤生效时一律展开：命中的路径必须看得见，否则过滤会得到一个「有命中却全是折叠目录」的
+   * 空树——那和「没有命中」在界面上长得一模一样，是明确错误的结论。
+   * @param {string} directoryPath 目录的仓库相对路径。
+   * @param {string} filterText 小写过滤词。
+   * @returns {boolean} 是否展开。
+   */
+  function isDirectoryExpanded(directoryPath, filterText) {
+    if (filterText) {
+      return true;
+    }
+    const explicitExpansion = viewState.directoryExpansionByPath.get(directoryPath);
+    if (explicitExpansion !== undefined) {
+      return explicitExpansion;
+    }
+    return viewState.view === DIFF_VIEW;
+  }
+
+  /**
    * 展开直达路径上的全部祖先目录。
+   *
+   * 只展开祖先、不含文件自身：那条路径不是目录，记进展开表只会让表里多一个永远不会被查的键。
    */
   function expandToSelectedPath() {
     if (!viewState.selectedPath) {
       return;
     }
     const pathSegments = viewState.selectedPath.split("/");
-    for (let segmentIndex = 0; segmentIndex < pathSegments.length; segmentIndex += 1) {
-      viewState.collapsedDirectories.delete(pathSegments.slice(0, segmentIndex + 1).join("/"));
+    for (let segmentIndex = 0; segmentIndex < pathSegments.length - 1; segmentIndex += 1) {
+      viewState.directoryExpansionByPath.set(
+        pathSegments.slice(0, segmentIndex + 1).join("/"),
+        true
+      );
     }
   }
 
@@ -525,9 +561,9 @@
    * 构造一个改动文件叶子行：状态徽标 + 文件名 + 增删统计。
    * 目录上下文由所在层级表达，行内不再重复完整路径。
    *
-   * 统计列有三种状态：给出 `+N -M`、标成「二进制」（git 不逐行给）、以及整段不提供
-   * （未跟踪那一段，git 的列表命令不报这个数）。后两者不能混：二进制是「有改动但数不出
-   * 行」，不提供是「本轮没取」。
+   * 统计列有三种状态：给出 `+N -M`、给一个 `01` 徽标（git 判定为二进制，不逐行给数）、以及
+   * 整段不提供（未跟踪那一段，git 的列表命令不报这个数）。后两者不能混：`01` 是「有改动但
+   * 数不出行」，不提供是「本轮没取」。
    * @param {{path: string, status: string, add: number|null, del: number|null, section: string, statsAvailable: boolean}} changedFile 改动文件（含所属分区与统计可用性）。
    * @param {number} depth 缩进层级。
    * @returns {HTMLElement} 条目节点。
@@ -565,7 +601,10 @@
       if (changedFile.add === null || changedFile.del === null) {
         const binaryNode = document.createElement("span");
         binaryNode.className = "badge";
-        binaryNode.textContent = "二进制";
+        // 用 `01` 而不是中文「二进制」：这一列只有十几像素宽，三个汉字会折成三行把行高顶开；
+        // 而 `01` 与同排的 A / D / R 一样是语言无关的短记号，含义靠 title 兜住。
+        binaryNode.textContent = "01";
+        binaryNode.title = "二进制文件：内容有变化，但 git 不提供逐行改动";
         statNode.append(binaryNode);
       } else {
         statNode.append(buildStatNode("add", `+${changedFile.add}`));
@@ -667,7 +706,7 @@
       }
       if (childNode.isDirectory) {
         treeFragment.append(buildDirectoryRow(childNode, depth, filterText));
-        if (!viewState.collapsedDirectories.has(childNode.path)) {
+        if (isDirectoryExpanded(childNode.path, filterText)) {
           appendDirectoryChildren(treeFragment, childNode, depth + 1, filterText);
         }
       } else if (viewState.view === DIFF_VIEW) {
@@ -720,8 +759,7 @@
    * @returns {HTMLElement} 目录行。
    */
   function buildDirectoryRow(directoryNode, depth, filterText) {
-    const isCollapsed =
-      !filterText && viewState.collapsedDirectories.has(directoryNode.path);
+    const isCollapsed = !isDirectoryExpanded(directoryNode.path, filterText);
     const rowButton = document.createElement("button");
     rowButton.type = "button";
     rowButton.className = "node";
@@ -746,11 +784,11 @@
     }
 
     rowButton.addEventListener("click", () => {
-      if (viewState.collapsedDirectories.has(directoryNode.path)) {
-        viewState.collapsedDirectories.delete(directoryNode.path);
-      } else {
-        viewState.collapsedDirectories.add(directoryNode.path);
-      }
+      // 取反按「不过滤时的状态」算，不看当场那个值：过滤生效时目录一律被强制展开、箭头恒为
+      // ▾，这时点击本就没有可见效果，该记下的是「清掉过滤词之后希望它是什么样」。按当场值
+      // 取反会把这个被强制出来的 true 当成用户的意愿，反过来记成折叠。
+      const isExpandedWithoutFilter = isDirectoryExpanded(directoryNode.path, "");
+      viewState.directoryExpansionByPath.set(directoryNode.path, !isExpandedWithoutFilter);
       renderTree();
     });
     return rowButton;
