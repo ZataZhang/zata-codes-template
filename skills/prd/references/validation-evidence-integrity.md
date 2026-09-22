@@ -101,6 +101,22 @@ addressed, could the verdict flip from PASS to FAIL?**
   mechanically instead: scan the evidence package before submitting, and capture status
   views rather than live one-time links.
 
+`REVIEW_INCIDENT / INCONCLUSIVE` is a verdict-state classification, not a finding
+severity. Use it when the review itself did not produce a reliable judgment: the verifier
+timed out, emitted no valid verdict, lacked the required tool or evidence modality, ran in
+a broken environment, or made a factual claim directly contradicted by reproducible
+deterministic evidence. It is neither `PASS` nor proof that the product failed.
+
+Do not let the executor relabel an unwelcome substantive finding as an incident. An
+incident must be established by a deterministic runner signal, the reviewer's own explicit
+capability/environment failure, a second independent verifier, or human adjudication.
+Preserve the raw response, command/environment diagnostics, and tree identity; retry once
+through an independent verifier or clean environment within the normal two-round budget.
+If the result remains inconclusive, stop review retries and escalate the named incident to
+the human review surface. Reviewable code and evidence may still be published in a blocked
+Draft PR, but acceptance, automatic merge, and PRD archival remain unavailable until a
+valid verdict or explicit human adjudication exists.
+
 Severity is per finding. Several `NON-BLOCKING` findings do not add up to a `BLOCKER`.
 
 Rounds are capped at two. If `BLOCKER` items still stand after the second round, escalate

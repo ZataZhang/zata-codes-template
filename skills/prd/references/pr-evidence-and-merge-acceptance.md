@@ -175,6 +175,8 @@ Prefer a restricted GitHub App or workflow identity that can write only the requ
 - **PR closed without merge:** leave `Human-Confirmed` open and the PRD pending.
 - **Evidence comment missing or stale:** block merge-as-acceptance; republish evidence for the current tree.
 - **Verifier or required CI not green:** block merge-as-acceptance even if GitHub technically permits merge.
+- **Substantive acceptance failure:** keep or create a Draft PR when safe reviewable commits exist; mark it blocked, keep the PRD pending, and publish the failed `rv-id`, observed result, missing presentations, and concrete unblock action. Do not present the PR as acceptance-ready.
+- **Review incident / inconclusive verdict:** a timeout, malformed verdict, unavailable review tool, unsupported evidence modality, broken review environment, or independently demonstrated reviewer error is not a product failure. Retry within the bounded review budget, preserve diagnostics, then keep or create a blocked Draft PR whose stable status section names the incident and the missing adjudication. Never set verifier-passed, auto-sign off, merge automatically, or archive until a valid verdict or explicit human adjudication exists.
 - **Final tree differs after merge:** do not archive; validate the final tree and then reconcile.
 - **No post-merge writer exists:** the merge is still a durable acceptance record when all preconditions were present, but keep the PRD pending until an agent pulls the merged tree, records the audit fields, updates the checklist/banner/reconciliation, and archives it.
 - **No PR delivery:** use the existing chat or `just prd review` human-confirmation path; this reference adds a PR-native option rather than removing the fallback.
