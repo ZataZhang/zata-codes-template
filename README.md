@@ -106,7 +106,7 @@ just run        # 同时启动后端 + 管理平台前端 + 前台官网
 
 | 命令 | 说明 |
 |------|------|
-| `just export-env-encrypted` | 将所有被 gitignore 的 `.env*` 文件打包为加密 zip（`<项目名>.zip`），压缩和解压均需输入密码 |
+| `just export-env-encrypted` | 将所有被 gitignore 的 `.env*` 文件打包为加密 zip，写到仓库外的 `../mysecrets/<项目名>.zip`（不会进入 git 工作树），压缩和解压均需输入密码 |
 
 ## 项目结构
 
