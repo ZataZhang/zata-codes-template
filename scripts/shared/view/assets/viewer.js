@@ -26,6 +26,18 @@
   const SOURCE_MODE = "source";
   const PREVIEW_MODE = "preview";
 
+  /** 文件视图那棵目录树的标识；改动视图的每段各有一棵，见 treeKeyForSection。 */
+  const FILES_TREE_KEY = FILES_VIEW;
+
+  /**
+   * 改动视图里某一段那棵目录树的标识。
+   * @param {string} sectionName 分区取值。
+   * @returns {string} 树标识。
+   */
+  function treeKeyForSection(sectionName) {
+    return `${DIFF_VIEW}:${sectionName}`;
+  }
+
   const elements = {
     repoName: document.getElementById("repo-name"),
     branchChip: document.getElementById("branch-chip"),
@@ -56,12 +68,13 @@
     selectedPath: "",
     selectedSection: "",
     /**
-     * 用户显式折叠/展开过的目录：路径 → 是否展开。没记过的目录按所属视图的默认值。
+     * 各棵目录树里被手工折叠/展开过的目录：树标识 → (目录路径 → 是否展开)。
      *
-     * 只记「用户动过手」的那几个，默认值因此可以是视图相关的（见 isDirectoryExpanded）；
-     * 若改成记录折叠态，默认展开就得靠「集合里没有」来表达，默认值就锁死在一种。
+     * 只记「用户动过手」的那几个，默认值因此可以是视图相关的（见 isDirectoryExpanded）。
+     * 树标识区分「文件视图」与「改动视图的每段」——改动视图里同一个目录路径会出现在多段里，
+     * 只按路径记会把一段的折叠连带作用到别段。
      */
-    directoryExpansionByPath: new Map(),
+    directoryExpansionByTree: new Map(),
     filterText: "",
     filePaths: [],
     changedSections: [],
@@ -237,20 +250,23 @@
    *
    * 默认值按视图定：**文件视图默认折叠**——仓库动辄几百上千个文件，全摊开是一堵墙，找目录
    * 得先滚半天；改动视图默认展开——那里只有改动涉及的目录，本来就没几个，分段标题也已经把
-   * 噪音分掉了。用户点过箭头的目录以那次点击为准，两个视图共用同一份记录（同一个目录折了
-   * 就该一直是折的，切个视图又弹开会更费解）。
+   * 噪音分掉了。
+   *
+   * 用户点过箭头的目录以那次点击为准，但记录按**树**分开（节点的 `treeKey`）：改动视图里
+   * 同一个目录路径会在每段各出现一次，只按路径记的话，折起未暂存那段里的 `previews/` 会把
+   * 已暂存那段里的也一起折了——两段是两棵树，各折各的。
    *
    * 过滤生效时一律展开：命中的路径必须看得见，否则过滤会得到一个「有命中却全是折叠目录」的
    * 空树——那和「没有命中」在界面上长得一模一样，是明确错误的结论。
-   * @param {string} directoryPath 目录的仓库相对路径。
+   * @param {{treeKey: string, path: string}} directoryNode 目录节点。
    * @param {string} filterText 小写过滤词。
    * @returns {boolean} 是否展开。
    */
-  function isDirectoryExpanded(directoryPath, filterText) {
+  function isDirectoryExpanded(directoryNode, filterText) {
     if (filterText) {
       return true;
     }
-    const explicitExpansion = viewState.directoryExpansionByPath.get(directoryPath);
+    const explicitExpansion = readDirectoryExpansion(directoryNode.treeKey, directoryNode.path);
     if (explicitExpansion !== undefined) {
       return explicitExpansion;
     }
@@ -258,9 +274,37 @@
   }
 
   /**
-   * 展开直达路径上的全部祖先目录。
+   * 读出一棵树里某个目录被手工设成的展开态。
+   * @param {string} treeKey 树标识。
+   * @param {string} directoryPath 目录的仓库相对路径。
+   * @returns {boolean|undefined} 手工设过的展开态；没设过时为 undefined（按默认值走）。
+   */
+  function readDirectoryExpansion(treeKey, directoryPath) {
+    const expansionByPath = viewState.directoryExpansionByTree.get(treeKey);
+    return expansionByPath ? expansionByPath.get(directoryPath) : undefined;
+  }
+
+  /**
+   * 记下一棵树里某个目录的展开态。
+   * @param {string} treeKey 树标识。
+   * @param {string} directoryPath 目录的仓库相对路径。
+   * @param {boolean} isExpanded 是否展开。
+   */
+  function writeDirectoryExpansion(treeKey, directoryPath, isExpanded) {
+    let expansionByPath = viewState.directoryExpansionByTree.get(treeKey);
+    if (!expansionByPath) {
+      expansionByPath = new Map();
+      viewState.directoryExpansionByTree.set(treeKey, expansionByPath);
+    }
+    expansionByPath.set(directoryPath, isExpanded);
+  }
+
+  /**
+   * 展开文件视图里直达路径上的全部祖先目录。
    *
-   * 只展开祖先、不含文件自身：那条路径不是目录，记进展开表只会让表里多一个永远不会被查的键。
+   * 只写文件视图那棵树：直达链接、切视图还原都落在文件视图上；改动视图的每段默认展开，
+   * 不需要（也不该）被这里改动。只展开祖先、不含文件自身——文件那条路径不是目录，写进
+   * 展开表只会多一个永远不会被查的键。
    */
   function expandToSelectedPath() {
     if (!viewState.selectedPath) {
@@ -268,7 +312,8 @@
     }
     const pathSegments = viewState.selectedPath.split("/");
     for (let segmentIndex = 0; segmentIndex < pathSegments.length - 1; segmentIndex += 1) {
-      viewState.directoryExpansionByPath.set(
+      writeDirectoryExpansion(
+        FILES_TREE_KEY,
         pathSegments.slice(0, segmentIndex + 1).join("/"),
         true
       );
@@ -474,7 +519,8 @@
       elements.treeNote.textContent = `${countChangedFiles()} 个文件`;
     } else {
       const directoryTree = buildDirectoryTree(
-        viewState.filePaths.map((filePath) => ({ path: filePath }))
+        viewState.filePaths.map((filePath) => ({ path: filePath })),
+        FILES_TREE_KEY
       );
       elements.treeNote.textContent = `${viewState.filePaths.length} 个文件`;
       appendDirectoryChildren(treeFragment, directoryTree, 0, filterText);
@@ -508,7 +554,8 @@
             ...changedFile,
             section: changedSection.section,
             statsAvailable: changedSection.stats_available,
-          }))
+          })),
+          treeKeyForSection(changedSection.section)
         ),
         0,
         filterText
@@ -658,14 +705,17 @@
    * 把扁平的条目列表组装成目录树。
    *
    * 文件视图传 `{path}`，改动视图传改动文件对象；叶子节点把原条目留在 `payload` 里，
-   * 于是两种叶子行都能从同一棵树渲染。
+   * 于是两种叶子行都能从同一棵树渲染。`treeKey` 标出这棵树是谁的，用来把折叠状态按树分开：
+   * 改动视图里同一个目录路径会在每段各出现一次，两段是两棵树。
    * @param {Array<{path: string}>} treeEntries 每条含仓库相对路径。
-   * @returns {{name: string, path: string, isDirectory: boolean, children: Map, payload: object|null}} 根节点。
+   * @param {string} treeKey 这棵树的标识（文件视图或改动视图的某一段）。
+   * @returns {{name: string, path: string, treeKey: string, isDirectory: boolean, children: Map, payload: object|null}} 根节点。
    */
-  function buildDirectoryTree(treeEntries) {
+  function buildDirectoryTree(treeEntries, treeKey) {
     const rootNode = {
       name: "",
       path: "",
+      treeKey,
       isDirectory: true,
       children: new Map(),
       payload: null,
@@ -679,6 +729,7 @@
           currentNode.children.set(pathSegment, {
             name: pathSegment,
             path: pathSegments.slice(0, segmentIndex + 1).join("/"),
+            treeKey,
             isDirectory: segmentIndex < pathSegments.length - 1,
             children: new Map(),
             payload: null,
@@ -706,7 +757,7 @@
       }
       if (childNode.isDirectory) {
         treeFragment.append(buildDirectoryRow(childNode, depth, filterText));
-        if (isDirectoryExpanded(childNode.path, filterText)) {
+        if (isDirectoryExpanded(childNode, filterText)) {
           appendDirectoryChildren(treeFragment, childNode, depth + 1, filterText);
         }
       } else if (viewState.view === DIFF_VIEW) {
@@ -759,7 +810,7 @@
    * @returns {HTMLElement} 目录行。
    */
   function buildDirectoryRow(directoryNode, depth, filterText) {
-    const isCollapsed = !isDirectoryExpanded(directoryNode.path, filterText);
+    const isCollapsed = !isDirectoryExpanded(directoryNode, filterText);
     const rowButton = document.createElement("button");
     rowButton.type = "button";
     rowButton.className = "node";
@@ -787,8 +838,8 @@
       // 取反按「不过滤时的状态」算，不看当场那个值：过滤生效时目录一律被强制展开、箭头恒为
       // ▾，这时点击本就没有可见效果，该记下的是「清掉过滤词之后希望它是什么样」。按当场值
       // 取反会把这个被强制出来的 true 当成用户的意愿，反过来记成折叠。
-      const isExpandedWithoutFilter = isDirectoryExpanded(directoryNode.path, "");
-      viewState.directoryExpansionByPath.set(directoryNode.path, !isExpandedWithoutFilter);
+      const isExpandedWithoutFilter = isDirectoryExpanded(directoryNode, "");
+      writeDirectoryExpansion(directoryNode.treeKey, directoryNode.path, !isExpandedWithoutFilter);
       renderTree();
     });
     return rowButton;
@@ -924,6 +975,14 @@
     // 与文件视图同一条口径：读到了才算「在改动视图里看过这条」，读失败的应答不记。
     viewState.lastDiffViewSelection = { path: repositoryPath, section: sectionName };
     const diffBody = diffResponse.body;
+    // 图片改动放在最前面：它没有逐行内容，但两版画面是可比的，比下面那句「无逐行改动」
+    // 有用得多。服务端只在能给出至少一版时才带这个字段。
+    if (diffBody.image_comparison) {
+      elements.viewerMeta.textContent = diffBody.section_label;
+      elements.statusHint.textContent = "只读视图 · 图片改动，旧新两版对比";
+      renderImageComparison(diffBody.image_comparison, diffBody.path);
+      return;
+    }
     // 头部在空态下会被 renderNotice 清成占位符，所以来源只在有逐行改动时才写头部，
     // 纯重命名与二进制那两支交给提示块正文自己说。
     if (diffBody.empty) {
@@ -987,6 +1046,39 @@
     });
     codeBlock.append(codeFragment);
     elements.viewerBody.replaceChildren(codeBlock);
+  }
+
+  /**
+   * 渲染图片改动的旧新两版对比。
+   *
+   * 每一版一栏，栏内是标签 + 图；两栏在宽屏（横屏）左右并排，竖屏或窗口放不下时改上下
+   * ——这一条由 CSS 管（见 `.image-compare`），这里只负责把结构摆出来。只有一版时也照
+   * 样渲染，缺的那一版由服务端给的 `note` 说明，而不是在这里猜。
+   * @param {{panes: Array<{label: string, url: string, size_label: string}>, note: string}} imageComparison 服务端给出的两版信息。
+   * @param {string} repositoryPath 仓库相对路径，用于图片的 alt 文本。
+   */
+  function renderImageComparison(imageComparison, repositoryPath) {
+    const compareNode = document.createElement("div");
+    compareNode.className =
+      imageComparison.panes.length > 1 ? "preview image-compare" : "preview image-compare single";
+    for (const pane of imageComparison.panes) {
+      const paneNode = document.createElement("figure");
+      paneNode.className = "image-pane";
+      const captionNode = document.createElement("figcaption");
+      captionNode.textContent = `${pane.label} · ${pane.size_label}`;
+      const imageNode = document.createElement("img");
+      imageNode.src = pane.url;
+      imageNode.alt = `${repositoryPath}（${pane.label}）`;
+      paneNode.append(captionNode, imageNode);
+      compareNode.append(paneNode);
+    }
+    if (imageComparison.note) {
+      const noteNode = document.createElement("p");
+      noteNode.className = "image-compare-note";
+      noteNode.textContent = imageComparison.note;
+      compareNode.append(noteNode);
+    }
+    elements.viewerBody.replaceChildren(compareNode);
   }
 
   /**

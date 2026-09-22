@@ -43,6 +43,13 @@
 11. **图片预览不受文本上限约束，且必须真的以 ``image/*`` 供出。** 图片走「后缀命中即返回」，
    正文一次都不读，因此 256 KiB 那条上限对它没有意义——截图动辄超过它。服务端有两份按后缀
    的表（图片后缀、``/raw/`` 的 Content-Type），漏掉任何一边都只会得到一片空白的预览。
+12. **图片改动的旧新两版必须与分区对得上，且各版按自己的路径取。** 已暂存比 HEAD ↔ 索引、
+   未暂存比索引 ↔ 工作区、未跟踪只有工作区那一版；旧侧不是「同一路径的上一个版本」——重命名
+   时它在**旧路径**上。来源记混、路径取错，或对一条本分区里并不存在的改动也给对比，界面就会
+   把删除说成新增、拿同一版既当旧又当新，或者为一条不存在的改动画两张图。
+13. **``/raw/`` 的 ``rev`` 是封闭枚举，且不改变边界。** 历史版本的字节从对象库读（不是工作区
+   那份），路径照旧逐字经过同一份越界断言；未列出的取值 400，该版本里没有这个文件 404。取值
+   是任人可填的查询参数，因此它绝不能作为字符串流进 git。
 
 用例全部打在真实进程与真实 HTTP 上：被测的是绑定、路由分发与 ``git`` 子进程这条
 完整链路，桩掉其中任何一段都测不到本文列出的不变量。
@@ -94,6 +101,32 @@ _IMAGE_SIGNATURE_BYTES = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
 #: 进入图片预览的后缀。与 ``workspace._IMAGE_SUFFIXES`` 一一对应——这里刻意再列一遍：
 #: 服务端那两个集合（图片后缀、``/raw/`` 的 Content-Type）哪天改了，这条会先炸。
 _IMAGE_SUFFIXES_UNDER_TEST = (".gif", ".ico", ".jpeg", ".jpg", ".png", ".webp")
+
+#: 重命名用例的图片内容。刻意造到 512 字节：改动再小也够 git 判成重命名（R087），而几十字节的
+#: 二元文件改一个字节会被拆成「删 + 增」——那样就测不到「旧侧按旧路径取」这条了。
+_RENAME_IMAGE_BYTES = _IMAGE_SIGNATURE_BYTES + bytes(range(256)) * 2
+
+#: 图片改动用例的初始内容（进首个提交）。长度刻意各不相同，界面上的大小标签才有区分度，
+#: 断言也才能把「两版各是哪一份」钉住。
+#:
+#: 重命名那一张刻意放在**仓库根**：终端 ``--numstat`` 对目录内的改名会写成
+#: ``docs/{旧 => 新}`` 的紧凑形式，而本文件比较终端输出的助手只认 ``旧 => 新`` 的简单形式
+#: （见 ``_expected_counts_by_path``，它的注释里也写明了这条约定）。放根目录既保住那条约定，
+#: 也照样测到「旧侧按旧路径取」。
+_IMAGE_VERSIONS_BEFORE_CHANGES = {
+    "docs/photo.png": _IMAGE_SIGNATURE_BYTES + b"photo-v1",
+    "docs/doomed.png": _IMAGE_SIGNATURE_BYTES + b"doomed-v1",
+    "old-photo.png": _RENAME_IMAGE_BYTES,
+}
+
+
+def _flip_one_byte(payload: bytes) -> bytes:
+    """把中间那个字节取反，用于造「重命名 + 改了内容」的图片版本。"""
+    mutated_payload = bytearray(payload)
+    middle_index = len(mutated_payload) // 2
+    mutated_payload[middle_index] ^= 0xFF
+    return bytes(mutated_payload)
+
 
 _FORBIDDEN_WRITE_METHOD_HANDLER_NAMES = ("do_POST", "do_PUT", "do_DELETE", "do_PATCH")
 
@@ -218,6 +251,11 @@ def _build_fixture_repository(repository_root: Path) -> Path:
     ``docs/`` 下另有三个受控且未改动的文件，供预览用例使用：``guide.md``（标题 + 表格 +
     围栏代码，足以判别渲染是否真的发生）、``page.html`` 与它相对引用的 ``page.css``
     （判别 ``/raw/`` 是否保持路径原样）。三个都进首个提交，因此不会落进任何改动分区。
+
+    图片改动另造四份形态：``docs/photo.png`` 改两次且一次进了索引（同时出现在已暂存与未暂存
+    两段）、``docs/doomed.png`` 被暂存删除、``docs/old-photo.png → docs/moved-photo.png``
+    重命名且改了内容、``docs/new-photo.png`` 未跟踪。四种形态各对应一条「旧侧该取哪一版」的
+    判断，错一种就会在界面上把删除说成新增、或把重命名说成新增。
     """
     repository_root.mkdir(parents=True, exist_ok=True)
     _run_git(repository_root, "init", "-b", "main")
@@ -256,6 +294,9 @@ def _build_fixture_repository(repository_root: Path) -> Path:
     (repository_root / "docs" / "huge.png").write_bytes(
         _IMAGE_SIGNATURE_BYTES + b"\x00" * _OVERSIZE_BYTE_COUNT
     )
+    # 待会儿要造改动状态的四张图：改了两次的、要删的、重命名的、未跟踪的。
+    for image_relative_path, image_bytes in _IMAGE_VERSIONS_BEFORE_CHANGES.items():
+        (repository_root / image_relative_path).write_bytes(image_bytes)
     _run_git(repository_root, "add", ".")
     _run_git(repository_root, "commit", "-m", "init")
 
@@ -280,6 +321,21 @@ def _build_fixture_repository(repository_root: Path) -> Path:
     (repository_root / "node_modules" / "left-pad.js").write_text(
         "module.exports = 1\n", encoding="utf-8"
     )
+
+    # --- 图片改动：四种形态各造一份，用于「改动里旧新两版对比」的用例 ---
+    # 已暂存：同一张图先改一次进索引，之后又改一次留给未暂存——于是它同时出现在两段里，
+    # 两段的两版都不一样，这正是「索引既是新侧也是旧侧」那个容易搞混的地方。
+    (repository_root / "docs" / "photo.png").write_bytes(_IMAGE_SIGNATURE_BYTES + b"photo-v2")
+    _run_git(repository_root, "add", "docs/photo.png")
+    (repository_root / "docs" / "photo.png").write_bytes(_IMAGE_SIGNATURE_BYTES + b"photo-v3")
+    # 已暂存：删除一张图（新的一版里没有它）。
+    _run_git(repository_root, "rm", "-q", "docs/doomed.png")
+    # 已暂存：重命名 + 改内容——旧侧要按**旧路径**取，否则会被说成「新增」。
+    _run_git(repository_root, "mv", "old-photo.png", "moved-photo.png")
+    (repository_root / "moved-photo.png").write_bytes(_flip_one_byte(_RENAME_IMAGE_BYTES))
+    _run_git(repository_root, "add", "moved-photo.png")
+    # 未跟踪：新图片（只有工作区这一版）。
+    (repository_root / "docs" / "new-photo.png").write_bytes(_IMAGE_SIGNATURE_BYTES + b"new-photo")
     return repository_root
 
 
@@ -710,6 +766,163 @@ def test_image_preview_is_not_subject_to_the_text_size_limit(
     assert raw_content_type.startswith("image/png")
     assert len(raw_bytes) == (repository_root / "docs" / "huge.png").stat().st_size
     assert len(raw_bytes) > _OVERSIZE_BYTE_COUNT
+
+
+def test_image_change_offers_the_two_versions_of_that_section(
+    running_view_server: RunningViewServer,
+) -> None:
+    """图片改动要给出本分区里旧新两版各自的地址，且两版取自哪里必须是分区说了算。
+
+    「索引」既可能是新侧也可能是旧侧：已暂存段比 HEAD ↔ 索引，未暂存段比索引 ↔ 工作区。
+    把两段的来源记混，界面就会拿同一版当「旧」和「新」，看的人却以为自己在看 diff。
+    """
+    repository_root = running_view_server.repository_root
+    expected_worktree_bytes = (repository_root / "docs" / "photo.png").read_bytes()
+
+    staged_status, staged_body = running_view_server.request(
+        "/api/diff?path=docs/photo.png&section=staged"
+    )
+    assert staged_status == 200
+    staged_panes = staged_body["image_comparison"]["panes"]
+    assert [pane["label"] for pane in staged_panes] == ["HEAD 版本", "索引版本"]
+    assert staged_panes[0]["url"] == "/raw/docs/photo.png?rev=head"
+    assert staged_panes[1]["url"] == "/raw/docs/photo.png?rev=index"
+    assert staged_body["image_comparison"]["note"] == ""
+
+    unstaged_status, unstaged_body = running_view_server.request(
+        "/api/diff?path=docs/photo.png&section=unstaged"
+    )
+    assert unstaged_status == 200
+    unstaged_panes = unstaged_body["image_comparison"]["panes"]
+    assert [pane["label"] for pane in unstaged_panes] == ["索引版本", "工作区版本"]
+    assert unstaged_panes[0]["url"] == "/raw/docs/photo.png?rev=index"
+    # 工作区那版不带 rev，与别处引用工作区文件的写法一致。
+    assert unstaged_panes[1]["url"] == "/raw/docs/photo.png"
+
+    # 地址真的指向不同的两版：内容与 git 对象逐字节一致，且与工作区那份不同。
+    _, head_bytes, head_content_type = running_view_server.request_bytes(
+        "/raw/docs/photo.png?rev=head"
+    )
+    _, index_bytes, _ = running_view_server.request_bytes("/raw/docs/photo.png?rev=index")
+    assert head_content_type.startswith("image/png")
+    assert head_bytes == _IMAGE_SIGNATURE_BYTES + b"photo-v1"
+    assert index_bytes == _IMAGE_SIGNATURE_BYTES + b"photo-v2"
+    assert index_bytes != expected_worktree_bytes
+    assert head_bytes != index_bytes
+
+
+def test_image_change_notes_the_version_that_is_missing(
+    running_view_server: RunningViewServer,
+) -> None:
+    """只取得到一版时只画一版，并说清另一版为什么不在。
+
+    删除与「未跟踪」这两种情形的旧侧都取不到，但原因完全不同：前者是这次改动删了它，后者
+    是它还没进过索引。说成同一句话就会把删除报成「新增」或者反过来，而两者对读者意味着相反
+    的事实。
+    """
+    deleted_status, deleted_body = running_view_server.request(
+        "/api/diff?path=docs/doomed.png&section=staged"
+    )
+    assert deleted_status == 200
+    deleted_comparison = deleted_body["image_comparison"]
+    assert [pane["label"] for pane in deleted_comparison["panes"]] == ["HEAD 版本"]
+    assert "删除" in deleted_comparison["note"]
+
+    untracked_status, untracked_body = running_view_server.request(
+        "/api/diff?path=docs/new-photo.png&section=untracked"
+    )
+    assert untracked_status == 200
+    untracked_comparison = untracked_body["image_comparison"]
+    assert [pane["label"] for pane in untracked_comparison["panes"]] == ["工作区版本"]
+    assert "未跟踪" in untracked_comparison["note"]
+    assert "删除" not in untracked_comparison["note"]
+
+
+def test_renamed_image_takes_its_old_side_from_the_old_path(
+    running_view_server: RunningViewServer,
+) -> None:
+    """重命名且改了内容的图片，旧侧必须按旧路径取，标签里也要写出旧路径。
+
+    按新路径去 HEAD 里取只会取不到（那一版里新路径根本不存在），于是界面把一次重命名报成
+    「新增」，还配一句「这次改动新增了它」——一个明确错误的结论。
+    """
+    status_code, response_body = running_view_server.request(
+        "/api/diff?path=moved-photo.png&section=staged"
+    )
+    assert status_code == 200
+    assert response_body["rename_from"] == "old-photo.png"
+
+    comparison = response_body["image_comparison"]
+    assert [pane["label"] for pane in comparison["panes"]] == [
+        "HEAD 版本（old-photo.png）",
+        "索引版本",
+    ]
+    assert comparison["panes"][0]["url"] == "/raw/old-photo.png?rev=head"
+    assert comparison["note"] == ""
+
+    _, head_bytes, _ = running_view_server.request_bytes("/raw/old-photo.png?rev=head")
+    assert head_bytes == _RENAME_IMAGE_BYTES
+
+
+def test_image_comparison_is_absent_outside_its_section_and_for_non_images(
+    running_view_server: RunningViewServer,
+) -> None:
+    """不该出现对比的地方一律不给：不在本分区的路径、非图片的二进制、普通文本。
+
+    不在本分区时两版的 blob 照样存在（工作区文件在磁盘上、索引条目也在），只看后缀与文件
+    类型会为一条并不存在的改动凑出一对图；未跟踪那一段还会顺手说一句「还没有进过索引」——
+    对已跟踪的文件来说那是假话。
+    """
+    out_of_section_status, out_of_section_body = running_view_server.request(
+        "/api/diff?path=docs/photo.png&section=untracked"
+    )
+    assert out_of_section_status == 200
+    assert out_of_section_body["image_comparison"] is None
+
+    binary_status, binary_body = running_view_server.request(
+        "/api/diff?path=untracked.bin&section=untracked"
+    )
+    assert binary_status == 200
+    assert binary_body["image_comparison"] is None
+
+    text_status, text_body = running_view_server.request(
+        "/api/diff?path=src/module.py&section=unstaged"
+    )
+    assert text_status == 200
+    assert text_body["image_comparison"] is None
+
+
+def test_revision_raw_route_serves_blob_bytes_and_refuses_the_rest(
+    running_view_server: RunningViewServer,
+) -> None:
+    """``/raw/`` 的 ``rev`` 参数只认封闭枚举，字节取自对象库，边界与工作区那侧一致。
+
+    版本取值是任人可填的查询参数，因此它既不能作为字符串流进 git，也不能因为换了数据来源
+    就绕过越界断言——两条一起在这里钉住。
+    """
+    status_code, head_bytes, content_type = running_view_server.request_bytes(
+        "/raw/docs/photo.png?rev=head"
+    )
+    assert status_code == 200
+    assert content_type.startswith("image/png")
+    assert head_bytes != (running_view_server.repository_root / "docs" / "photo.png").read_bytes()
+
+    unknown_status, unknown_body = running_view_server.request("/raw/docs/photo.png?rev=bogus")
+    assert unknown_status == 400, unknown_body
+    assert "不是可用的版本" in unknown_body["error"]
+
+    # 该版本里没有这个文件：未跟踪的图片在 HEAD 与索引里都不存在。
+    for missing_route in ("/raw/docs/new-photo.png?rev=head", "/raw/docs/new-photo.png?rev=index"):
+        missing_status, missing_body = running_view_server.request(missing_route)
+        assert missing_status == 404, f"{missing_route} 未被拒绝：{missing_body}"
+        assert "该版本里没有这个文件" in missing_body["error"]
+
+    # 越界与目录在带 rev 时同样被拒。
+    for refused_route in ("/raw/%2E%2E/main.py?rev=head", "/raw/docs?rev=head"):
+        refused_status, refused_body = running_view_server.request(refused_route)
+        assert refused_status in {400, 403}, f"{refused_route} 未被拒绝：{refused_body}"
+        response_text = json.dumps(refused_body, ensure_ascii=False)
+        assert str(running_view_server.repository_root) not in response_text
 
 
 def test_each_section_matches_its_own_terminal_git_output(

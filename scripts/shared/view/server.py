@@ -25,7 +25,9 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
 import instance
+import rendering
 import workspace
+import workspace_read
 
 #: 服务只绑本机回环地址，常量与客户端入口共用同一份定义。
 VIEWER_HOST = instance.LOOPBACK_HOST
@@ -196,7 +198,12 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
                 )
             )
         elif route_path.startswith(workspace.RAW_ROUTE_PREFIX):
-            self._serve_raw_file(route_path.removeprefix(workspace.RAW_ROUTE_PREFIX))
+            self._serve_raw_file(
+                route_path.removeprefix(workspace.RAW_ROUTE_PREFIX),
+                self._read_query_parameter(
+                    query_parameters, workspace.RAW_REVISION_QUERY_PARAMETER
+                ),
+            )
         else:
             # 不回声请求路径：未知路由的应答里没有任何来自请求的可控内容。
             self._send_json_payload(404, {"error": "未知路由：本服务只提供白名单内的只读接口。"})
@@ -210,7 +217,7 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
         parameter_values = query_parameters.get(parameter_name)
         return parameter_values[0] if parameter_values else ""
 
-    def _serve_workspace_payload(self, workspace_payload: workspace.WorkspacePayload) -> None:
+    def _serve_workspace_payload(self, workspace_payload: workspace_read.WorkspacePayload) -> None:
         """返回一个工作区读取结果。"""
         self._send_json_payload(workspace_payload.status_code, workspace_payload.payload)
 
@@ -236,8 +243,8 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(asset_bytes)
 
-    def _serve_raw_file(self, encoded_relative_path: str) -> None:
-        """返回仓库内的原始文件字节，供 HTML 文件在自己的标签页里加载。
+    def _serve_raw_file(self, encoded_relative_path: str, revision_name: str) -> None:
+        """返回仓库内的原始文件字节，供 HTML 文件在新标签页里加载、供图片在内容区显示。
 
         这是唯一一条保持路径原样的路由，而且必须保持：HTML 文档里的相对引用要能解析
         回同一路由、真的加载出来。替代的防护是 ``resolve()`` 之后再断言仍在仓库根之下
@@ -245,14 +252,24 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
         交给解析器——带 ``%00`` 之类的畸形输入解码后同样落在那条断言上，而不是穿透成
         无应答。
 
+        ``revision_name`` 为空表示工作区当前版本（默认）；给了则是 HEAD / 索引里的历史
+        版本，供改动视图做旧新对比。取值是封闭枚举，两种来源走的是同一条边界断言。
+
         Args:
             encoded_relative_path (str): ``/raw/`` 之后、尚未解码的路径。
+            revision_name (str): 历史版本取值；空串表示工作区当前版本。
         """
-        raw_file_result = workspace.build_raw_file_payload(
-            self.server.repository_root,
-            unquote(encoded_relative_path),
+        decoded_relative_path = unquote(encoded_relative_path)
+        raw_file_result = (
+            workspace.build_revision_file_payload(
+                self.server.repository_root, decoded_relative_path, revision_name
+            )
+            if revision_name
+            else workspace.build_raw_file_payload(
+                self.server.repository_root, decoded_relative_path
+            )
         )
-        if isinstance(raw_file_result, workspace.WorkspacePayload):
+        if isinstance(raw_file_result, workspace_read.WorkspacePayload):
             self._send_json_payload(raw_file_result.status_code, raw_file_result.payload)
             return
 
@@ -343,7 +360,7 @@ def _start_highlight_prewarm_thread() -> threading.Thread:
         threading.Thread: 已启动的预热线程。
     """
     prewarm_thread = threading.Thread(
-        target=workspace.prewarm_highlighting,
+        target=rendering.prewarm_highlighting,
         daemon=True,
         name="view-highlight-prewarm",
     )

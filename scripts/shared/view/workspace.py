@@ -32,6 +32,11 @@ diff 先在不带 pathspec 的完整 diff 上查出旧路径，再把新旧两�
   文件视图打开 ``.md`` 先看到的仍是源码。
 - HTML：:func:`build_raw_file_payload` 把文件字节原样供出（``/raw/``），由界面在新标签页
   里打开——查看器不做 HTML 内联渲染。
+- 图片改动的旧新对比：:func:`build_diff_payload` 的 ``image_comparison`` 给出两版各自的
+  ``/raw/`` 地址（历史版本走 ``?rev=``，见 :mod:`revisions`），界面并排显示。
+
+正文渲染（语法高亮与 Markdown）在 :mod:`rendering` 里，从 git 对象库按版本读字节在
+:mod:`revisions` 里；本模块把读文件、判形态、算改动串起来，并把结果整理成界面要的载荷。
 
 ``/api/file`` 的应答里，``preview`` 说明**文本文件**支持哪种预览（由
 :func:`resolve_preview_descriptor` 按后缀判定），``kind: "image"`` 加 ``url`` 则直接告诉界面
@@ -44,12 +49,21 @@ diff 先在不带 pathspec 的完整 diff 上查出旧路径，再把新旧两�
 
 from __future__ import annotations
 
-import html
 import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import quote
+
+import rendering
+import revisions
+from workspace_read import (
+    OUTSIDE_REPOSITORY_REFUSAL_MESSAGE,
+    WorkspacePayload,
+    WorkspaceReadError,
+    build_refusal_payload,
+    resolve_repository_path,
+)
 
 #: 改动视图的三个分区。字典的插入顺序即界面上的展示顺序：先看已暂存，再看未暂存，
 #: 最后是未跟踪——未跟踪恒为「新增」，排在最后不打断前两段之间的对照。
@@ -86,9 +100,9 @@ _BINARY_SNIFF_BYTES = 8192
 #: 拼出来的地址不可能与服务端的匹配口径分岔。
 RAW_ROUTE_PREFIX = "/raw/"
 
-#: 路径越界时的拒绝文案。三个读取入口（正文、diff、预览）共用一份：分别各写一句时
-#: 任何一处漏更新都会让「越界」在不同接口上说法不一。
-_OUTSIDE_REPOSITORY_REFUSAL_MESSAGE = "拒绝：该路径越出仓库范围，只读查看器不读取仓库外的文件。"
+#: ``/raw/`` 上指定历史版本的查询参数名。服务端从它取值，本模块用它拼 URL，同样是
+#: 一个常量两处引用。
+RAW_REVISION_QUERY_PARAMETER = "rev"
 
 #: 后缀 → 预览形态。**只看后缀，不做内容嗅探**：让「这个文件预览成什么」随正文漂移，
 #: 排障时无从解释（与词法器解析同一口径）。
@@ -125,10 +139,26 @@ _RAW_CONTENT_TYPES_BY_SUFFIX: dict[str, str] = {
 }
 _DEFAULT_RAW_CONTENT_TYPE = "application/octet-stream"
 
-#: Markdown 预览启用的扩展：围栏代码、表格、以及列表缩进不按 4 空格误判为代码块。
-#: 刻意不启用 ``codehilite``——那会引入第二套 Pygments 产出，与 :func:`highlight_source_lines`
-#: 的行级高亮 CSS 抢同一批短类名。
-_MARKDOWN_EXTENSIONS = ("fenced_code", "tables", "sane_lists")
+#: 工作区那侧的代号。它不是 :mod:`revisions` 里的版本——工作区在磁盘上，不在 git 对象库
+#: 里，所以不进那个封闭枚举；但在「旧新两版各自取自哪里」这张表里，它与两个版本并列。
+_WORKTREE_SIDE = "worktree"
+
+#: 改动分区的旧新两侧分别取自哪里。已暂存比的是 HEAD ↔ 索引，未暂存比的是索引 ↔ 工作区；
+#: 未跟踪还没有进过索引，因此**没有旧侧**。这张表是「改动里的旧新对比到底在比什么」的
+#: 唯一出处，界面上的标签也从它推出来。
+_SIDES_BY_SECTION: dict[str, tuple[str | None, str]] = {
+    "staged": (revisions.HEAD_REVISION, revisions.INDEX_REVISION),
+    "unstaged": (revisions.INDEX_REVISION, _WORKTREE_SIDE),
+    "untracked": (None, _WORKTREE_SIDE),
+}
+
+#: 各侧在界面上叫什么。标签只描述**取自哪里**，不带「旧 / 新」字样——同一份索引在已暂存
+#: 分区里是新侧、在未暂存分区里是旧侧，用「旧版本 / 新版本」当标签会在两个分区里各错一次。
+_SIDE_LABEL_BY_SOURCE: dict[str, str] = {
+    revisions.HEAD_REVISION: "HEAD 版本",
+    revisions.INDEX_REVISION: "索引版本",
+    _WORKTREE_SIDE: "工作区版本",
+}
 
 #: 文件树不展示的目录名，只作用于**未跟踪**文件。`git ls-files` 已经不吃被 gitignore
 #: 的目录，这里再挡一层是为了派生项目没把依赖目录写进 `.gitignore` 时不至于把整棵依赖
@@ -156,22 +186,6 @@ _PRUNED_DIRECTORY_NAMES = frozenset(
 
 _HUNK_HEADER_PATTERN = re.compile(r"^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 
-#: Pygments 认不出来的仓库惯用文件名，映射到显式指定的词法器别名与展示标签。
-#:
-#: 只放「按扩展名判不出来、但语义有明确最近邻」的名字，不放任何仓库专属路径。标签
-#: 刻意写明是近似匹配：``justfile.shared`` 用 Makefile 词法器高亮，界面若只写
-#: 「Makefile」会让人以为渲染错了语言。
-#:
-#: - ``justfile`` / ``justfile.shared``：Pygments 2.x 没有 Just 词法器，而 just 的
-#:   配方语法与 Make 同源（``target:`` 加缩进 recipe）。按 Make 渲染仍能正确着色
-#:   注释、目标名与内嵌 shell，比整篇纯文本更接近真实语义。
-#: - ``uv.lock``：内容就是 TOML，Pygments 只按 ``*.toml`` 匹配扩展名。
-_FALLBACK_LEXERS_BY_FILENAME: dict[str, tuple[str, str]] = {
-    "justfile": ("make", "Just（Makefile 词法器近似）"),
-    "justfile.shared": ("make", "Just（Makefile 词法器近似）"),
-    "uv.lock": ("toml", "TOML"),
-}
-
 _BINARY_DIFF_PREFIX = "Binary files "
 
 _DIFF_METADATA_PREFIXES = (
@@ -189,70 +203,6 @@ _DIFF_METADATA_PREFIXES = (
     _BINARY_DIFF_PREFIX,
     "\\ No newline at end of file",
 )
-_SPAN_TAG_PATTERN = re.compile(r"</?span[^>]*>")
-_SPAN_CLASS_PATTERN = re.compile(r'class="([^"]*)"')
-
-
-class WorkspaceReadError(RuntimeError):
-    """读取仓库工作区失败，例如 ``git`` 调用非零退出。"""
-
-
-@dataclass(frozen=True)
-class WorkspacePayload:
-    """一个只读接口的应答：HTTP 状态码加 JSON 载荷。
-
-    Attributes:
-        status_code (int): 应答的 HTTP 状态码。
-        payload (dict[str, object]): 应答正文，会被序列化成 JSON。
-    """
-
-    status_code: int
-    payload: dict[str, object]
-
-
-def resolve_repository_path(repository_root: Path, requested_path: str) -> Path | None:
-    """把请求路径解析成仓库内的绝对路径，越界时返回 ``None``。
-
-    先 ``resolve()`` 再断言：符号链接指向仓库外时只有解析后才会暴露，这一步是路径
-    逃逸防护的关键顺序，不能颠倒成「先断言再解析」。
-
-    Args:
-        repository_root (Path): 仓库根绝对路径。
-        requested_path (str): 界面传来的仓库相对路径；空串表示仓库根。
-
-    Returns:
-        Path | None: 位于仓库内的绝对路径；越界、绝对路径或解析失败时为 ``None``。
-    """
-    if not requested_path:
-        return repository_root
-    requested_relative_path = Path(requested_path)
-    if requested_relative_path.is_absolute():
-        return None
-    try:
-        resolved_path = (repository_root / requested_relative_path).resolve()
-    except (OSError, ValueError):
-        # 路径里带 NUL 字节时 resolve() 抛的是 ValueError 而不是 OSError；漏掉它会让
-        # 异常穿透到 HTTP 层，畸形请求变成「连接被丢弃 + 日志 traceback」而不是拒绝应答。
-        return None
-    if resolved_path == repository_root or resolved_path.is_relative_to(repository_root):
-        return resolved_path
-    return None
-
-
-def build_refusal_payload(status_code: int, message: str) -> WorkspacePayload:
-    """构造一条拒绝应答。
-
-    拒绝信息里绝不带绝对路径，否则「路径越界被拒绝」本身就成了仓库外路径的探测口
-    与信息泄漏面。
-
-    Args:
-        status_code (int): 应答的 HTTP 状态码。
-        message (str): 面向使用者的中文说明。
-
-    Returns:
-        WorkspacePayload: 拒绝应答。
-    """
-    return WorkspacePayload(status_code=status_code, payload={"error": message})
 
 
 def build_info_payload(repository_root: Path) -> WorkspacePayload:
@@ -346,7 +296,7 @@ def build_file_payload(repository_root: Path, requested_path: str) -> WorkspaceP
     """
     resolved_path = resolve_repository_path(repository_root, requested_path)
     if resolved_path is None:
-        return build_refusal_payload(403, _OUTSIDE_REPOSITORY_REFUSAL_MESSAGE)
+        return build_refusal_payload(403, OUTSIDE_REPOSITORY_REFUSAL_MESSAGE)
 
     normalized_relative_path = Path(requested_path).as_posix() if requested_path else ""
     if resolved_path.is_dir():
@@ -399,7 +349,7 @@ def build_file_payload(repository_root: Path, requested_path: str) -> WorkspaceP
         )
 
     source_text = raw_file_bytes.decode("utf-8", errors="replace")
-    highlighted_source = highlight_source_lines(source_text, normalized_relative_path)
+    highlighted_source = rendering.highlight_source_lines(source_text, normalized_relative_path)
     return WorkspacePayload(
         status_code=200,
         payload={
@@ -437,7 +387,7 @@ def resolve_preview_descriptor(relative_path: str) -> dict[str, str] | None:
     return None
 
 
-def build_raw_file_url(relative_path: str) -> str:
+def build_raw_file_url(relative_path: str, revision_name: str | None = None) -> str:
     """把仓库相对路径拼成 ``/raw/`` 路由下的 URL。
 
     逐段编码而不是整串 ``quote``：路径分隔符必须保持字面 ``/``，否则 ``/raw/`` 之后
@@ -445,12 +395,16 @@ def build_raw_file_url(relative_path: str) -> str:
 
     Args:
         relative_path (str): 仓库相对路径（POSIX 分隔符）。
+        revision_name (str | None): 要取的历史版本；``None`` 表示工作区当前版本。
 
     Returns:
         str: 编码后的 ``/raw/`` URL。
     """
     encoded_segments = [quote(path_segment, safe="") for path_segment in relative_path.split("/")]
-    return f"{RAW_ROUTE_PREFIX}{'/'.join(encoded_segments)}"
+    raw_file_url = f"{RAW_ROUTE_PREFIX}{'/'.join(encoded_segments)}"
+    if revision_name is None:
+        return raw_file_url
+    return f"{raw_file_url}?{RAW_REVISION_QUERY_PARAMETER}={quote(revision_name, safe='')}"
 
 
 def build_markdown_payload(repository_root: Path, requested_path: str) -> WorkspacePayload:
@@ -469,7 +423,7 @@ def build_markdown_payload(repository_root: Path, requested_path: str) -> Worksp
     """
     resolved_path = resolve_repository_path(repository_root, requested_path)
     if resolved_path is None:
-        return build_refusal_payload(403, _OUTSIDE_REPOSITORY_REFUSAL_MESSAGE)
+        return build_refusal_payload(403, OUTSIDE_REPOSITORY_REFUSAL_MESSAGE)
 
     normalized_relative_path = Path(requested_path).as_posix() if requested_path else ""
     if Path(normalized_relative_path).suffix.lower() not in _MARKDOWN_SUFFIXES:
@@ -487,7 +441,7 @@ def build_markdown_payload(repository_root: Path, requested_path: str) -> Worksp
             f"拒绝：文件超过 {MAX_FILE_BYTES_LABEL} 的渲染上限，请用本地编辑器打开。",
         )
 
-    rendered_html = render_markdown_document(
+    rendered_html = rendering.render_markdown_document(
         resolved_path.read_bytes().decode("utf-8", errors="replace")
     )
     if rendered_html is None:
@@ -495,31 +449,6 @@ def build_markdown_payload(repository_root: Path, requested_path: str) -> Worksp
             503, "服务端未安装 Markdown 渲染依赖，无法生成预览，请阅读源码。"
         )
     return WorkspacePayload(status_code=200, payload={"format": "markdown", "html": rendered_html})
-
-
-def render_markdown_document(source_text: str) -> str | None:
-    """把 Markdown 正文渲染成 HTML 片段。
-
-    ``markdown`` 按 :func:`highlight_source_lines` 里 pygments 同一条口径处理：显式声明
-    的 dev 依赖，但缺失即降级——派生项目做 ``uv sync --no-dev`` 时预览入口不出现，源码
-    高亮照旧。import 必须留在函数里：``launch.py`` 的 import 闭包只能含标准库加同目录
-    兄弟模块（见 ``tests/guards/shared/test_view_launch_entry.py``），提到模块顶层会让
-    ``just view`` 在 ``-S`` 下直接起不来。
-
-    正文里的 raw HTML 不做清洗。查看器绑在回环上、只读，预览又是用户主动点开的一次；
-    这一点写进了 ``docs/guides/file-viewer.md``，而不是靠这里默默替用户过滤内容。
-
-    Args:
-        source_text (str): 已解码的 Markdown 正文。
-
-    Returns:
-        str | None: 渲染后的 HTML 片段；依赖缺失时为 ``None``。
-    """
-    try:
-        import markdown
-    except ImportError:
-        return None
-    return markdown.markdown(source_text, extensions=list(_MARKDOWN_EXTENSIONS))
 
 
 @dataclass(frozen=True)
@@ -557,7 +486,7 @@ def build_raw_file_payload(
     """
     resolved_path = resolve_repository_path(repository_root, requested_path)
     if resolved_path is None:
-        return build_refusal_payload(403, _OUTSIDE_REPOSITORY_REFUSAL_MESSAGE)
+        return build_refusal_payload(403, OUTSIDE_REPOSITORY_REFUSAL_MESSAGE)
 
     normalized_relative_path = Path(requested_path).as_posix() if requested_path else ""
     if resolved_path.is_dir():
@@ -569,15 +498,62 @@ def build_raw_file_payload(
 
     return RawFilePayload(
         status_code=200,
-        content_type=_resolve_raw_content_type(normalized_relative_path),
+        content_type=resolve_raw_content_type(normalized_relative_path),
         body_bytes=resolved_path.read_bytes(),
     )
 
 
-def _resolve_raw_content_type(relative_path: str) -> str:
+def resolve_raw_content_type(relative_path: str) -> str:
     """按后缀给出 ``/raw/`` 应答的 Content-Type，表外一律二进制流。"""
     return _RAW_CONTENT_TYPES_BY_SUFFIX.get(
         Path(relative_path).suffix.lower(), _DEFAULT_RAW_CONTENT_TYPE
+    )
+
+
+def build_revision_file_payload(
+    repository_root: Path, requested_path: str, revision_name: str
+) -> RawFilePayload | WorkspacePayload:
+    """按 git 版本（HEAD / 索引）返回文件的原始字节。
+
+    改动视图对图片改动要在同一页里给出旧新两版，而工作区只存在新侧；旧侧只能从对象库读
+    （见 :mod:`revisions`）。**按版本读与读工作区走同一条边界**：路径照旧先经
+    :func:`resolve_repository_path` 解析并断言仍在仓库根之下，不因为换了数据来源就松一格。
+
+    Args:
+        repository_root (Path): 仓库根绝对路径。
+        requested_path (str): 界面传来的仓库相对路径。
+        revision_name (str): :data:`revisions.KNOWN_REVISIONS` 里的取值。
+
+    Returns:
+        RawFilePayload | WorkspacePayload: 命中时为原始字节应答；版本取值不在封闭枚举里、
+            路径越界、指向目录、或该版本里没有这个文件时为 JSON 拒绝应答。
+    """
+    if not revisions.is_known_revision(revision_name):
+        return build_refusal_payload(
+            400,
+            f"拒绝：{revision_name} 不是可用的版本，"
+            f"请选择「{'」「'.join(sorted(revisions.KNOWN_REVISIONS))}」。",
+        )
+
+    resolved_path = resolve_repository_path(repository_root, requested_path)
+    if resolved_path is None:
+        return build_refusal_payload(403, OUTSIDE_REPOSITORY_REFUSAL_MESSAGE)
+
+    normalized_relative_path = Path(requested_path).as_posix() if requested_path else ""
+    if resolved_path.is_dir():
+        return build_refusal_payload(
+            400, f"拒绝：{normalized_relative_path or '.'} 是一个目录，请选择一个文件。"
+        )
+
+    blob_bytes = revisions.read_blob_bytes(
+        repository_root, revision_name=revision_name, relative_path=normalized_relative_path
+    )
+    if blob_bytes is None:
+        return build_refusal_payload(404, f"该版本里没有这个文件：{normalized_relative_path}")
+    return RawFilePayload(
+        status_code=200,
+        content_type=resolve_raw_content_type(normalized_relative_path),
+        body_bytes=blob_bytes,
     )
 
 
@@ -701,7 +677,7 @@ def build_diff_payload(
 
     resolved_path = resolve_repository_path(repository_root, requested_path)
     if resolved_path is None:
-        return build_refusal_payload(403, _OUTSIDE_REPOSITORY_REFUSAL_MESSAGE)
+        return build_refusal_payload(403, OUTSIDE_REPOSITORY_REFUSAL_MESSAGE)
 
     normalized_relative_path = Path(requested_path).as_posix()
     if section_name == "untracked":
@@ -745,128 +721,192 @@ def build_diff_payload(
             "truncated": parsed_diff.is_truncated,
             "binary": parsed_diff.is_binary,
             "empty": not parsed_diff.rows,
+            # 图片改动没有逐行内容可看，但两版画面本身是可比的；其余二进制（压缩包、
+            # 可执行文件）没有可比画面，这里给 ``None``，界面照旧只说「无逐行改动」。
+            #
+            # 必须同时要求 git 判定「这是一处二进制改动」：该路径不在本分区时 diff 是空的，
+            # 但两版的 blob 照样存在（工作区文件在磁盘上、索引条目也在），只看后缀会为一条
+            # 并不存在的改动凑出一对图。
+            "image_comparison": _build_image_comparison(
+                repository_root,
+                _ImageComparisonRequest(
+                    section_name=section_name,
+                    new_side_path=normalized_relative_path,
+                    old_side_path=rename_source or normalized_relative_path,
+                    is_binary_change=parsed_diff.is_binary,
+                ),
+            ),
         },
     )
 
 
 @dataclass(frozen=True)
-class HighlightedSource:
-    """文件正文的渲染结果。
+class _ImageComparisonRequest:
+    """一次图片对比的输入。
 
     Attributes:
-        rendered_lines (list[str]): 逐行 HTML；未高亮时是转义后的纯文本行。
-        language_label (str): 语言标签，展示在内容区头部。
-        is_highlighted (bool): 是否真的做了语法高亮。
+        section_name (str): 改动分区取值。
+        new_side_path (str): 新侧路径，也是界面上显示的那个路径。
+        old_side_path (str): 旧侧路径。重命名时是旧路径——旧版本里那个位置存的是旧路径
+            的图画，按新路径去取只会取不到，然后把「重命名」说成「新增」。
+        is_binary_change (bool): git 是否把这次改动判成二进制改动。
     """
 
-    rendered_lines: list[str]
-    language_label: str
-    is_highlighted: bool
+    section_name: str
+    new_side_path: str
+    old_side_path: str
+    is_binary_change: bool
 
 
-@dataclass(frozen=True)
-class _ResolvedSourceLexer:
-    """按文件名解析出的词法器，附带展示给界面的语言标签。
+def _build_image_comparison(
+    repository_root: Path, comparison_request: _ImageComparisonRequest
+) -> dict[str, object] | None:
+    """给出图片改动旧新两版的地址与大小；不是图片、或一版都取不到时返回 ``None``。
 
-    两个值总是一起出现：标签描述的是「用哪个词法器渲染的」，分开传会让调用方有机会
-    拿词法器名字直接当标签用，而回退匹配时那个名字是错的。
-    """
-
-    lexer: object
-    language_label: str
-
-
-def highlight_source_lines(source_text: str, relative_path: str) -> HighlightedSource:
-    """把源码渲染成逐行 HTML，可用时带语法高亮。
-
-    Pygments 不保证 token span 在行边界闭合（多行字符串与注释会跨行），直接按换行
-    切会把标签切坏，因此这里把整段源码渲染完再切行，并在每行末尾补上仍未闭合的
-    ``</span>``、在下一行开头按栈里记录的 class 重新打开。
-
-    Pygments 是显式声明的 dev 依赖，但这里仍按「缺失即降级」处理：派生项目做
-    ``uv sync --no-dev`` 时高亮消失，查看器功能不缺失。
+    后缀判定在最前面短路，因此**文本文件一次 git 调用都不会多**。
 
     Args:
-        source_text (str): 已解码的文件正文。
-        relative_path (str): 仓库相对路径，用于按文件名推断语言。
+        repository_root (Path): 仓库根绝对路径。
+        comparison_request (_ImageComparisonRequest): 本次对比的路径、分区与二进制标记。
 
     Returns:
-        HighlightedSource: 逐行 HTML 与语言标签。
+        dict[str, object] | None: ``{"panes": [...], "note": str}``。``panes`` 是取得到的
+            那些版本（0–2 个，按旧→新排列），``note`` 解释缺的那一版为什么缺；不是图片、
+            本分区里没有这一处改动、或一版都取不到时为 ``None``。
     """
-    try:
-        from pygments import highlight as render_highlight
-        from pygments.formatters import HtmlFormatter
-    except ImportError:
-        return _build_plain_text_source(source_text, "纯文本（未安装语法高亮依赖）")
+    if not comparison_request.is_binary_change:
+        return None
+    if Path(comparison_request.new_side_path).suffix.lower() not in _IMAGE_SUFFIXES:
+        return None
 
-    resolved_source = _resolve_lexer_for_relative_path(relative_path, source_text)
-    if resolved_source is None:
-        return _build_plain_text_source(source_text, "纯文本")
-
-    highlighted_html = render_highlight(
-        source_text, resolved_source.lexer, HtmlFormatter(nowrap=True)
-    )
-    return HighlightedSource(
-        rendered_lines=_split_highlighted_lines(highlighted_html),
-        language_label=resolved_source.language_label,
-        is_highlighted=True,
-    )
-
-
-def _resolve_lexer_for_relative_path(
-    relative_path: str, source_text: str
-) -> _ResolvedSourceLexer | None:
-    """按文件名解析词法器，认不出来时走显式的回退表。
-
-    刻意不做基于内容的 ``guess_lexer``：那会让「这个文件渲染成什么语言」随正文内容
-    漂移，排障时无法解释。
-
-    Args:
-        relative_path (str): 仓库相对路径。
-        source_text (str): 已解码的文件正文，供 Pygments 消解同扩展名的歧义。
-
-    Returns:
-        _ResolvedSourceLexer | None: 词法器与展示标签；文件名与回退表都解析不出时为
-            ``None``。
-    """
-    from pygments.lexers import get_lexer_by_name, get_lexer_for_filename
-    from pygments.util import ClassNotFound
-
-    try:
-        matched_lexer = get_lexer_for_filename(relative_path, source_text, stripnl=False)
-    except ClassNotFound:
-        fallback_lexer_alias, fallback_label = _FALLBACK_LEXERS_BY_FILENAME.get(
-            Path(relative_path).name, (None, "")
+    old_side_source, new_side_source = _SIDES_BY_SECTION[comparison_request.section_name]
+    if old_side_source is None and not _is_untracked_file(
+        repository_root, comparison_request.new_side_path
+    ):
+        # 未跟踪这一段只有旧侧为空，而「未跟踪」是这一段的**成员资格**，不是「文件碰巧没有
+        # 索引条目」：拿一个已跟踪的路径来问这一段，会在界面上得到一句「还没有进过索引」的
+        # 假话。宁可什么都不给。
+        return None
+    old_pane = (
+        _build_image_pane(
+            repository_root,
+            comparison_request.old_side_path,
+            old_side_source,
+            _build_side_label(old_side_source, comparison_request),
         )
-        if fallback_lexer_alias is None:
-            return None
-        try:
-            matched_lexer = get_lexer_by_name(fallback_lexer_alias, stripnl=False)
-        except ClassNotFound:
-            return None
-        return _ResolvedSourceLexer(lexer=matched_lexer, language_label=fallback_label)
-
-    return _ResolvedSourceLexer(lexer=matched_lexer, language_label=matched_lexer.name)
-
-
-def _build_plain_text_source(source_text: str, language_label: str) -> HighlightedSource:
-    """无高亮时的降级渲染：转义后的纯文本行，行数与高亮路径保持一致。"""
-    return HighlightedSource(
-        rendered_lines=[
-            _escape_source_line(source_line) for source_line in _split_source_lines(source_text)
-        ],
-        language_label=language_label,
-        is_highlighted=False,
+        if old_side_source is not None
+        else None
     )
+    new_pane = _build_image_pane(
+        repository_root,
+        comparison_request.new_side_path,
+        new_side_source,
+        _SIDE_LABEL_BY_SOURCE[new_side_source],
+    )
+    panes = [pane for pane in (old_pane, new_pane) if pane is not None]
+    if not panes:
+        return None
+    return {
+        "panes": panes,
+        "note": _explain_missing_image_sides(old_side_source, old_pane, new_pane),
+    }
 
 
-def prewarm_highlighting() -> None:
-    """在后台预热 Pygments 的导入与词法解析，使首屏不为这段导入付费。
+def _build_side_label(side_source: str, comparison_request: _ImageComparisonRequest) -> str:
+    """拼出旧侧的标签；重命名时把旧路径一并写出来。
 
-    典型耗时 100–150ms，正好落在冷启动预算里；预热失败不影响功能，只是首个文件
-    请求会自己付这段开销。
+    重命名的那一版图画存在**旧路径**上，标签只写「HEAD 版本」会让人以为界面上显示的路径
+    就是它，而新路径在那一版里根本不存在。
     """
-    highlight_source_lines("prewarm = True\n", "view_prewarm.py")
+    side_label = _SIDE_LABEL_BY_SOURCE[side_source]
+    if comparison_request.old_side_path == comparison_request.new_side_path:
+        return side_label
+    return f"{side_label}（{comparison_request.old_side_path}）"
+
+
+def _is_untracked_file(repository_root: Path, normalized_relative_path: str) -> bool:
+    """判断这个路径是不是真的未跟踪，口径与改动列表的未跟踪那一段一致（含目录剪枝）。
+
+    Args:
+        repository_root (Path): 仓库根绝对路径。
+        normalized_relative_path (str): 仓库相对路径。
+
+    Returns:
+        bool: 是否属于未跟踪且未被忽略、且不在剪枝目录下的文件。
+    """
+    if _is_pruned_path(normalized_relative_path):
+        return False
+    listed_output = _run_git(
+        repository_root,
+        "ls-files",
+        "-z",
+        "--others",
+        "--exclude-standard",
+        "--",
+        normalized_relative_path,
+    )
+    return bool(listed_output.strip("\0"))
+
+
+def _build_image_pane(
+    repository_root: Path, side_path: str, side_source: str, side_label: str
+) -> dict[str, object] | None:
+    """给出某一版的图片地址、大小与标签；那一版里没有这个文件时返回 ``None``。
+
+    工作区那侧走的是「解析路径 + 读磁盘」，与 ``/raw/`` 的默认分支同一份口径；历史版本那侧
+    从对象库读大小（不读字节——界面只是把地址交给浏览器，服务端不必把图片读进内存）。
+
+    Args:
+        repository_root (Path): 仓库根绝对路径。
+        side_path (str): 这一版里该文件的路径（重命名时旧侧是旧路径）。
+        side_source (str): 取自 :data:`_SIDES_BY_SECTION` 的来源取值。
+        side_label (str): 界面上显示给这一版的标签。
+
+    Returns:
+        dict[str, object] | None: ``{"label", "url", "size_label"}``，或 ``None``。
+    """
+    if side_source == _WORKTREE_SIDE:
+        worktree_path = resolve_repository_path(repository_root, side_path)
+        if worktree_path is None or not worktree_path.is_file():
+            return None
+        size_bytes = worktree_path.stat().st_size
+        raw_file_url = build_raw_file_url(side_path)
+    else:
+        size_bytes = revisions.read_blob_size(
+            repository_root,
+            revision_name=side_source,
+            relative_path=side_path,
+        )
+        if size_bytes is None:
+            return None
+        raw_file_url = build_raw_file_url(side_path, revision_name=side_source)
+    return {
+        "label": side_label,
+        "url": raw_file_url,
+        "size_label": format_size_label(size_bytes),
+    }
+
+
+def _explain_missing_image_sides(
+    old_side_source: str | None,
+    old_pane: dict[str, object] | None,
+    new_pane: dict[str, object] | None,
+) -> str:
+    """写清缺的那一版为什么缺。
+
+    单张图配一个「某某版本」的标签，读者没法判断是「那一版没有这个文件」还是「界面懒得
+    给」；这一句把结论直说，且只说服务端确知的事。
+    """
+    missing_side_notes: list[str] = []
+    if old_side_source is None:
+        missing_side_notes.append("未跟踪文件还没有进过索引，只有工作区这一版可比。")
+    elif old_pane is None:
+        missing_side_notes.append(
+            f"「{_SIDE_LABEL_BY_SOURCE[old_side_source]}」里没有这个文件——这次改动新增了它。"
+        )
+    if new_pane is None:
+        missing_side_notes.append("这次改动删除了它，新的一版里没有这个文件。")
+    return "".join(missing_side_notes)
 
 
 def format_size_label(byte_count: int) -> str:
@@ -883,59 +923,6 @@ def format_size_label(byte_count: int) -> str:
     if byte_count < 1024 * 1024:
         return f"{byte_count / 1024:.1f} KB"
     return f"{byte_count / (1024 * 1024):.1f} MB"
-
-
-def _split_source_lines(source_text: str) -> list[str]:
-    """按 ``wc -l`` 语义切分正文，末尾换行不产生额外空行。"""
-    source_lines = source_text.split("\n")
-    if source_lines and source_lines[-1] == "":
-        source_lines.pop()
-    return source_lines
-
-
-def _escape_source_line(source_line: str) -> str:
-    """把一行源码转义成可直接放进 HTML 的纯文本。"""
-    return html.escape(source_line, quote=True)
-
-
-def _split_highlighted_lines(highlighted_html: str) -> list[str]:
-    """把整段高亮 HTML 切成逐行 HTML，使每行自身标签平衡。
-
-    Pygments 输出对换行敏感但不在行边界闭合 token span，因此逐行切分时要把跨行的
-    span 在行尾闭合、在下一行行首按原 class 重开，行内既有标签的位置保持原样。
-
-    Args:
-        highlighted_html (str): ``HtmlFormatter(nowrap=True)`` 的整段输出。
-
-    Returns:
-        list[str]: 逐行 HTML，长度与 ``wc -l`` 语义一致。
-    """
-    rendered_lines: list[str] = []
-    open_span_classes: list[str] = []
-    for raw_html_line in highlighted_html.split("\n"):
-        reopened_prefix = "".join(
-            f'<span class="{span_class}">' for span_class in open_span_classes
-        )
-        scanned_parts: list[str] = []
-        scan_cursor = 0
-        for span_match in _SPAN_TAG_PATTERN.finditer(raw_html_line):
-            scanned_parts.append(raw_html_line[scan_cursor : span_match.start()])
-            scan_cursor = span_match.end()
-            span_tag_text = span_match.group(0)
-            if span_tag_text.startswith("</"):
-                if open_span_classes:
-                    open_span_classes.pop()
-            else:
-                class_match = _SPAN_CLASS_PATTERN.search(span_tag_text)
-                open_span_classes.append(class_match.group(1) if class_match else "")
-            scanned_parts.append(span_tag_text)
-        scanned_parts.append(raw_html_line[scan_cursor:])
-        closing_suffix = "</span>" * len(open_span_classes)
-        rendered_lines.append(reopened_prefix + "".join(scanned_parts) + closing_suffix)
-
-    if rendered_lines and rendered_lines[-1] == "":
-        rendered_lines.pop()
-    return rendered_lines
 
 
 def _is_pruned_path(relative_path: str) -> bool:
