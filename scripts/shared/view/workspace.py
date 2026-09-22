@@ -8,6 +8,12 @@
 ``git diff HEAD``，分支基线是 ``git diff <分支>...HEAD``（取合并基点）。界面显示的
 文件集合与增删统计不做二次推断，必须与同参数的终端输出逐项一致。
 
+重命名是这条口径上唯一的例外，而且必须例外：``git diff <rev> -- <新路径>`` 会把旧路径
+排除出候选，配对随即失效，同一个文件被降级成「新增」且正文整篇算成新增行。所以单文件
+diff 先在不带 pathspec 的完整 diff 上查出旧路径，再把新旧两条路径一起交给 ``git``
+（见 :func:`_lookup_rename_source`）。界面上显示的仍是新路径，与终端 ``--name-only``
+一致；旧路径只作为「重命名自何处」的出处。
+
 所有对外路径参数先经 :func:`resolve_repository_path` 解析成绝对路径并断言仍在仓库根
 之下，越界一律拒绝，且拒绝信息不回声任何绝对路径。
 """
@@ -312,7 +318,7 @@ def build_changes_payload(repository_root: Path, baseline: str) -> WorkspacePayl
             400, f"拒绝：{baseline} 不是可用的比较基线，请选择「工作区改动」或一条本地分支。"
         )
 
-    status_by_path = _parse_status_entries(
+    status_entry_by_path = _parse_status_entries(
         _run_git(repository_root, "diff", "--name-status", "-z", revision_spec)
     )
     numstat_by_path = _parse_numstat_entries(
@@ -320,12 +326,12 @@ def build_changes_payload(repository_root: Path, baseline: str) -> WorkspacePayl
     )
 
     changed_files: list[dict[str, object]] = []
-    for changed_path in sorted(status_by_path):
+    for changed_path in sorted(status_entry_by_path):
         added_count, deleted_count = numstat_by_path.get(changed_path, (None, None))
         changed_files.append(
             {
                 "path": changed_path,
-                "status": status_by_path[changed_path],
+                "status": status_entry_by_path[changed_path][0],
                 "add": added_count,
                 "del": deleted_count,
             }
@@ -358,7 +364,8 @@ def build_diff_payload(
         baseline (str): ``worktree`` 或一条本地分支名。
 
     Returns:
-        WorkspacePayload: 逐行 diff 应答；路径越界或基线不可用时为拒绝应答。
+        WorkspacePayload: 逐行 diff 应答；路径越界或基线不可用时为拒绝应答。正文含
+        ``rename_from``：该文件是重命名而来时给出旧路径，否则为 ``None``。
     """
     resolved_path = resolve_repository_path(repository_root, requested_path)
     if resolved_path is None:
@@ -373,7 +380,13 @@ def build_diff_payload(
         )
 
     normalized_relative_path = Path(requested_path).as_posix()
-    diff_text = _run_git(repository_root, "diff", revision_spec, "--", normalized_relative_path)
+    rename_source = _lookup_rename_source(repository_root, revision_spec, normalized_relative_path)
+    # 重命名必须连旧路径一起作为 pathspec 交给 git，配对才成立；只给新路径会让同一个
+    # 文件降级成「新增」，正文整篇算成新增行。
+    diff_pathspecs = (
+        [rename_source, normalized_relative_path] if rename_source else [normalized_relative_path]
+    )
+    diff_text = _run_git(repository_root, "diff", "-M", revision_spec, "--", *diff_pathspecs)
     diff_rows, is_truncated = _parse_unified_diff_rows(diff_text)
     return WorkspacePayload(
         status_code=200,
@@ -382,6 +395,7 @@ def build_diff_payload(
             "base": baseline,
             "base_label": _describe_baseline(baseline),
             "base_ref": revision_spec,
+            "rename_from": rename_source,
             "rows": diff_rows,
             "truncated": is_truncated,
             "empty": not diff_rows,
@@ -626,14 +640,15 @@ def _describe_baseline(baseline: str) -> str:
     return WORKTREE_BASELINE_LABEL if baseline == WORKTREE_BASELINE else baseline
 
 
-def _parse_status_entries(status_output: str) -> dict[str, str]:
-    """解析 ``git diff --name-status -z``，返回 新路径 -> 状态字母。
+def _parse_status_entries(status_output: str) -> dict[str, tuple[str, str | None]]:
+    """解析 ``git diff --name-status -z``，返回 新路径 -> (状态字母, 重命名来源)。
 
-    重命名与复制条目带两个路径（旧、新），这里只取新路径——终端 ``--name-only``
-    在同一次 diff 上也只列新路径，两边必须逐项一致。
+    重命名与复制条目带两个路径（旧、新）。键取新路径——终端 ``--name-only`` 在同一次
+    diff 上也只列新路径，两边必须逐项一致。旧路径单独留在值里，是因为单文件 diff 需要
+    它才能把配对还原（见 :func:`_lookup_rename_source`）；非重命名条目该位为 ``None``。
     """
     output_tokens = status_output.split("\0")
-    status_by_path: dict[str, str] = {}
+    status_entry_by_path: dict[str, tuple[str, str | None]] = {}
     token_index = 0
     while token_index < len(output_tokens):
         status_token = output_tokens[token_index]
@@ -641,11 +656,42 @@ def _parse_status_entries(status_output: str) -> dict[str, str]:
         if not status_token:
             continue
         is_rename_or_copy = status_token[0] in {"R", "C"}
+        source_path = (
+            output_tokens[token_index]
+            if is_rename_or_copy and token_index < len(output_tokens) and output_tokens[token_index]
+            else None
+        )
         path_token_index = token_index + 1 if is_rename_or_copy else token_index
         token_index = path_token_index + 1
         if path_token_index < len(output_tokens) and output_tokens[path_token_index]:
-            status_by_path[output_tokens[path_token_index]] = status_token[0]
-    return status_by_path
+            status_entry_by_path[output_tokens[path_token_index]] = (
+                status_token[0],
+                source_path,
+            )
+    return status_entry_by_path
+
+
+def _lookup_rename_source(
+    repository_root: Path, revision_spec: str, changed_path: str
+) -> str | None:
+    """查出 ``changed_path`` 是否由某条旧路径重命名而来，是则返回该旧路径。
+
+    必须在**不带 pathspec 的完整 diff** 上查：``git diff <rev> -- <新路径>`` 把旧路径
+    排除出候选，同一个文件会被降级成「新增」，查不到任何配对。
+
+    Args:
+        repository_root (Path): 仓库根绝对路径。
+        revision_spec (str): 已校验的 ``git diff`` 版本号参数。
+        changed_path (str): 仓库相对的新路径。
+
+    Returns:
+        str | None: 重命名来源的仓库相对路径；不是重命名时为 ``None``。
+    """
+    status_entry_by_path = _parse_status_entries(
+        _run_git(repository_root, "diff", "--name-status", "-z", revision_spec)
+    )
+    status_entry = status_entry_by_path.get(changed_path)
+    return status_entry[1] if status_entry else None
 
 
 def _parse_numstat_entries(numstat_output: str) -> dict[str, tuple[int | None, int | None]]:

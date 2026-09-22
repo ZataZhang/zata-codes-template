@@ -1,7 +1,8 @@
 """``just view`` 的客户端入口：复用既有实例，或起一个再打开。
 
-生命周期逻辑只有这一份实现，``just diff`` 只是转发到同一入口的薄别名。三条路径
-共用同一份登记（仓库根的 ``.env.view-state``）：
+``just view`` 默认落在**改动视图**——日常用的正是「看一眼改了什么」，文件视图由
+``--files`` 显式选择。生命周期逻辑只有这一份实现，``just diff`` 只是转发到同一入口
+的薄别名。三条路径共用同一份登记（仓库根的 ``.env.view-state``）：
 
 - **打开路径**：读登记 → 三项新鲜度校验（进程存活 / 端口可连 / 仓库一致）→ 命中就
   拼 URL 直接打开并立刻返回，不重启进程；任一校验失败即判定陈旧，清理登记后转入
@@ -34,7 +35,8 @@ DEFAULT_VIEWER_PORT = 8791
 #: 服务日志落在被 gitignore 覆盖的 ``logs/`` 下，排障入口之一。
 SERVICE_LOG_RELATIVE_PATH = Path("logs") / "view-viewer.log"
 
-#: 界面视图取值，与静态页读取的 ``view`` 查询参数一致。
+#: 界面视图取值，与静态页读取的 ``view`` 查询参数一致。默认进改动视图：``just view``
+#: 的日常用法就是「看一眼改了什么」，文件视图由 ``--files`` 显式选择。
 FILES_VIEW = "files"
 DIFF_VIEW = "diff"
 
@@ -60,7 +62,7 @@ class LaunchRequest(NamedTuple):
 
     Attributes:
         requested_path (str): 直达的文件或目录（仓库相对路径），空串表示仓库根。
-        view (str): 初始视图，``files`` 或 ``diff``。
+        view (str): 初始视图，``files`` 或 ``diff``；默认 ``diff``。
         baseline (str): 改动视图的初始比较基线；空串表示不由命令行指定。
         requested_port (int | None): 显式 ``--port``；未给时为 ``None``。
         idle_timeout_seconds (float): 空闲回收时限；非正数表示关闭自动回收。
@@ -146,14 +148,20 @@ def _parse_arguments(argv: list[str] | None) -> LaunchRequest:
         default="",
         help="打开后直达的文件或目录（仓库相对路径）",
     )
-    argument_parser.add_argument(
+    view_selection_group = argument_parser.add_mutually_exclusive_group()
+    view_selection_group.add_argument(
+        "--files",
+        action="store_true",
+        help="进入文件视图（默认进入改动视图）",
+    )
+    view_selection_group.add_argument(
         "--diff",
         nargs="?",
         const=UNSET_BASELINE,
         default=None,
         metavar="基线",
         dest="diff_baseline",
-        help="直接进入改动视图；可跟一条本地分支名作为基线（默认「工作区改动」）",
+        help="显式进入改动视图；可跟一条本地分支名作为基线（默认「工作区改动」）",
     )
     argument_parser.add_argument("--port", type=int, default=None, help="指定监听端口")
     argument_parser.add_argument(
@@ -181,7 +189,7 @@ def _parse_arguments(argv: list[str] | None) -> LaunchRequest:
 
     return LaunchRequest(
         requested_path=parsed_arguments.path,
-        view=DIFF_VIEW if parsed_arguments.diff_baseline is not None else FILES_VIEW,
+        view=FILES_VIEW if parsed_arguments.files else DIFF_VIEW,
         baseline=parsed_arguments.diff_baseline or UNSET_BASELINE,
         requested_port=parsed_arguments.port,
         idle_timeout_seconds=(

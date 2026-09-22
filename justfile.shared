@@ -244,9 +244,10 @@ docs-serve port="8000": _check-completion
 # never writes to the repository being viewed. It stays resident for a fast
 # second launch and recycles itself after an idle timeout.
 # Usage:
-#   just view                    # open the viewer at the repository root
-#   just view <path>             # open and focus a file or directory
-#   just view --diff [base]      # open straight into the diff view
+#   just view                    # open straight into the diff (改动) view at the repo root
+#   just view <path>             # open into the diff view, focused on a changed file
+#   just view --files            # open into the files view instead
+#   just view --diff [base]      # diff view with an explicit baseline
 #   just view --stop             # recycle this repository's resident instance
 #
 # 这两条 recipe 刻意写成普通单行而不是 `#!/usr/bin/env bash` shebang：`just` 执行
@@ -269,7 +270,8 @@ _view_python := if os_family() == "windows" { justfile_directory() / ".venv/Scri
 view *args:
     exec {{ if path_exists(_view_python) == "true" { quote(_view_python) } else { "uv run --no-sync python" } }} -S "{{justfile_directory()}}/scripts/shared/view/launch.py" {{args}}
 
-# Thin alias: open the viewer straight into the diff view.
+# Thin alias: open the viewer in the diff view (now also the default) with an
+# optional baseline.
 diff *args:
     exec just view --diff {{args}}
 

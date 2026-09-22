@@ -33,8 +33,8 @@
 | `just worktree --prune [--dry-run\|--yes\|--force] [--base <branch>]` | 批量删除已并入 base 的本地分支及其 worktree；默认列计划并确认一次，gone 但有独有提交的分支需 `--force` |
 | `just test` | 运行本地测试 |
 | `just bench-test` | 验证 warm / after-edit 场景的 `just test` 是否满足 30 秒预算 |
-| `just view [路径]` | 打开本机只读文件与改动查看器；第二条命令起复用常驻实例（秒开） |
-| `just diff [基线]` | `just view --diff [基线]` 的薄别名，直接进改动视图 |
+| `just view [路径]` | 打开本机只读改动查看器（默认改动视图，`--files` 切文件视图）；第二条命令起复用常驻实例（秒开） |
+| `just diff [基线]` | `just view --diff [基线]` 的薄别名，显式指定改动视图的基线 |
 | `uv run mkdocs build` | 验证文档站点 |
 | `just docs-serve` | 本地预览文档 |
 | `just ai check <file> [claude\|kimi]` | 用 AI 审查单个文件；使用 kimi 时会自动恢复当前工作目录的上一个会话，方便追问 |

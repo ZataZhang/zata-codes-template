@@ -19,6 +19,9 @@
   --del: oklch(0.62 0.2 25 / 16%);
   --add-mark: oklch(0.5 0.13 152);
   --del-mark: oklch(0.52 0.2 25);
+  /* 重命名既不增也不删，单给一套蓝色：沿用增删那对「浅底 + 深字」的用法。 */
+  --rename: oklch(0.62 0.11 256 / 18%);
+  --rename-mark: oklch(0.48 0.13 256);
   --code-bg: oklch(0.995 0.002 250);
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 }
@@ -130,7 +133,6 @@ button, input, select { font: inherit; color: inherit; }
 }
 .node .caret { width: 12px; flex: none; color: var(--muted-foreground); font-size: 10px; }
 .node .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.node .path-dir { flex: none; color: var(--muted-foreground); font-size: 11px; }
 .node .stat { margin-left: auto; display: inline-flex; gap: 5px; font-family: var(--mono); font-size: 11px; }
 .stat .add { color: var(--add-mark); }
 .stat .del { color: var(--del-mark); }
@@ -140,6 +142,7 @@ button, input, select { font: inherit; color: inherit; }
 }
 .badge.A { background: color-mix(in oklab, var(--success) 18%, transparent); color: var(--add-mark); }
 .badge.D { background: var(--del); color: var(--del-mark); }
+.badge.R { background: var(--rename); color: var(--rename-mark); }
 .tree-empty { padding: 18px 12px; color: var(--muted-foreground); font-size: 12.5px; line-height: 1.7; }
 
 /* 4. 内容区 */

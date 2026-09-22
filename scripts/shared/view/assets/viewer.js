@@ -30,9 +30,9 @@
     statusHint: document.getElementById("status-hint"),
   };
 
-  /** 页面的全部可变状态；渲染只读它，用户操作只改它。 */
+  /** 页面的全部可变状态；渲染只读它，用户操作只改它。默认落在改动视图。 */
   const viewState = {
-    view: FILES_VIEW,
+    view: DIFF_VIEW,
     baseline: "worktree",
     selectedPath: "",
     collapsedDirectories: new Set(),
@@ -84,6 +84,21 @@
         hint: failureMessage ? `本次请求失败原因：${failureMessage}` : "",
       })
     );
+  }
+
+  /**
+   * 转义要拼进 innerHTML 的文本。
+   *
+   * 提示块的段落走 innerHTML，而界面上的路径来自 git、文件名本身可以含 `& < >`
+   * （例如 `a<b.md`），不转义会让提示块结构错乱。
+   * @param {string} rawText 原始文本。
+   * @returns {string} 转义后的文本。
+   */
+  function escapeHtmlText(rawText) {
+    return rawText
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;");
   }
 
   /**
@@ -158,7 +173,6 @@
 
       const treeResponse = await requestJson("/api/tree");
       viewState.filePaths = treeResponse.body.paths;
-      elements.treeNote.textContent = `${treeResponse.body.count} 个文件`;
     });
     if (!didLoad) {
       return;
@@ -296,70 +310,70 @@
   }
 
   /**
-   * 渲染左侧树；文件视图渲染全量文件树，改动视图只渲染改动文件。
+   * 渲染左侧树；两个视图共用同一套目录树，只有叶子行与空态文案不同。
+   *
+   * 改动视图按目录分组，而不是铺成一长条扁平行：改动文件动辄成百上千，扁平列表既看不出
+   * 改动集中在哪几个目录，长路径也会把真正要认的文件名挤出左栏。
    */
   function renderTree() {
-    if (viewState.view === DIFF_VIEW) {
-      renderChangedFileList();
-      return;
-    }
-    renderFileTree();
-  }
-
-  /**
-   * 渲染改动视图的扁平文件列表。
-   */
-  function renderChangedFileList() {
+    const isDiffView = viewState.view === DIFF_VIEW;
+    const treeEntries = isDiffView
+      ? viewState.changedFiles
+      : viewState.filePaths.map((filePath) => ({ path: filePath }));
+    const directoryTree = buildDirectoryTree(treeEntries);
+    // 计数跟着当前这棵树走：改动视图下挂着仓库总文件数会与「改动文件」这个标题对不上。
+    elements.treeNote.textContent = `${treeEntries.length} 个文件`;
     const filterText = viewState.filterText.trim().toLowerCase();
-    const visibleChangedFiles = viewState.changedFiles.filter(
-      (changedFile) => !filterText || changedFile.path.toLowerCase().includes(filterText)
-    );
-    if (!visibleChangedFiles.length) {
-      elements.treeBody.replaceChildren(
-        buildTreeEmpty(
-          viewState.changedFiles.length
-            ? "没有匹配过滤条件的改动文件。"
-            : "该基线下没有改动文件。"
-        )
-      );
+    const treeFragment = document.createDocumentFragment();
+    appendDirectoryChildren(treeFragment, directoryTree, 0, filterText);
+    if (!treeFragment.childNodes.length) {
+      elements.treeBody.replaceChildren(buildTreeEmpty(emptyTreeMessage(isDiffView)));
       return;
     }
-    const listFragment = document.createDocumentFragment();
-    for (const changedFile of visibleChangedFiles) {
-      listFragment.append(buildChangedFileNode(changedFile));
-    }
-    elements.treeBody.replaceChildren(listFragment);
+    elements.treeBody.replaceChildren(treeFragment);
   }
 
   /**
-   * 构造一个改动文件条目。
+   * 左树的空态文案。
+   * @param {boolean} isDiffView 是否处于改动视图。
+   * @returns {string} 空态说明。
+   */
+  function emptyTreeMessage(isDiffView) {
+    if (!isDiffView) {
+      return "没有匹配过滤条件的文件。";
+    }
+    return viewState.changedFiles.length
+      ? "没有匹配过滤条件的改动文件。"
+      : "该基线下没有改动文件。";
+  }
+
+  /**
+   * 构造一个改动文件叶子行：状态徽标 + 文件名 + 增删统计。
+   * 目录上下文由所在层级表达，行内不再重复完整路径。
    * @param {{path: string, status: string, add: number|null, del: number|null}} changedFile 改动文件。
+   * @param {number} depth 缩进层级。
    * @returns {HTMLElement} 条目节点。
    */
-  function buildChangedFileNode(changedFile) {
-    const nodeButton = document.createElement("button");
-    nodeButton.type = "button";
-    nodeButton.className = "node";
-    nodeButton.setAttribute("aria-selected", String(changedFile.path === viewState.selectedPath));
-    nodeButton.append(buildCaretPlaceholder());
+  function buildChangedFileRow(changedFile, depth) {
+    const rowButton = document.createElement("button");
+    rowButton.type = "button";
+    rowButton.className = "node";
+    rowButton.style.paddingLeft = `${8 + depth * 14}px`;
+    rowButton.title = changedFile.path;
+    rowButton.setAttribute("aria-selected", String(changedFile.path === viewState.selectedPath));
+    rowButton.append(buildCaretPlaceholder());
 
     const badgeNode = document.createElement("span");
     badgeNode.className = `badge ${changedFile.status}`;
     badgeNode.textContent = changedFile.status;
-    nodeButton.append(badgeNode);
-
-    const pathNode = document.createElement("span");
-    pathNode.className = "path-dir";
-    const lastSlashIndex = changedFile.path.lastIndexOf("/");
-    pathNode.textContent =
-      lastSlashIndex >= 0 ? `${changedFile.path.slice(0, lastSlashIndex + 1)}` : "";
-    nodeButton.append(pathNode);
+    rowButton.append(badgeNode);
 
     const nameNode = document.createElement("span");
     nameNode.className = "name";
+    const lastSlashIndex = changedFile.path.lastIndexOf("/");
     nameNode.textContent =
       lastSlashIndex >= 0 ? changedFile.path.slice(lastSlashIndex + 1) : changedFile.path;
-    nodeButton.append(nameNode);
+    rowButton.append(nameNode);
 
     const statNode = document.createElement("span");
     statNode.className = "stat";
@@ -372,12 +386,12 @@
       statNode.append(buildStatNode("add", `+${changedFile.add}`));
       statNode.append(buildStatNode("del", `-${changedFile.del}`));
     }
-    nodeButton.append(statNode);
+    rowButton.append(statNode);
 
-    nodeButton.addEventListener("click", () => {
+    rowButton.addEventListener("click", () => {
       void selectPath(changedFile.path);
     });
-    return nodeButton;
+    return rowButton;
   }
 
   /**
@@ -416,29 +430,23 @@
   }
 
   /**
-   * 渲染文件视图的目录树。
+   * 把扁平的条目列表组装成目录树。
+   *
+   * 文件视图传 `{path}`，改动视图传改动文件对象；叶子节点把原条目留在 `payload` 里，
+   * 于是两种叶子行都能从同一棵树渲染。
+   * @param {Array<{path: string}>} treeEntries 每条含仓库相对路径。
+   * @returns {{name: string, path: string, isDirectory: boolean, children: Map, payload: object|null}} 根节点。
    */
-  function renderFileTree() {
-    const directoryTree = buildDirectoryTree(viewState.filePaths);
-    const filterText = viewState.filterText.trim().toLowerCase();
-    const treeFragment = document.createDocumentFragment();
-    appendDirectoryChildren(treeFragment, directoryTree, 0, filterText);
-    if (!treeFragment.childNodes.length) {
-      elements.treeBody.replaceChildren(buildTreeEmpty("没有匹配过滤条件的文件。"));
-      return;
-    }
-    elements.treeBody.replaceChildren(treeFragment);
-  }
-
-  /**
-   * 把扁平的路径列表组装成目录树。
-   * @param {string[]} filePaths 仓库相对路径列表。
-   * @returns {{name: string, path: string, isDirectory: boolean, children: Map}} 根节点。
-   */
-  function buildDirectoryTree(filePaths) {
-    const rootNode = { name: "", path: "", isDirectory: true, children: new Map() };
-    for (const filePath of filePaths) {
-      const pathSegments = filePath.split("/");
+  function buildDirectoryTree(treeEntries) {
+    const rootNode = {
+      name: "",
+      path: "",
+      isDirectory: true,
+      children: new Map(),
+      payload: null,
+    };
+    for (const treeEntry of treeEntries) {
+      const pathSegments = treeEntry.path.split("/");
       let currentNode = rootNode;
       for (let segmentIndex = 0; segmentIndex < pathSegments.length; segmentIndex += 1) {
         const pathSegment = pathSegments[segmentIndex];
@@ -448,10 +456,12 @@
             path: pathSegments.slice(0, segmentIndex + 1).join("/"),
             isDirectory: segmentIndex < pathSegments.length - 1,
             children: new Map(),
+            payload: null,
           });
         }
         currentNode = currentNode.children.get(pathSegment);
       }
+      currentNode.payload = treeEntry;
     }
     return rootNode;
   }
@@ -474,6 +484,8 @@
         if (!viewState.collapsedDirectories.has(childNode.path)) {
           appendDirectoryChildren(treeFragment, childNode, depth + 1, filterText);
         }
+      } else if (viewState.view === DIFF_VIEW) {
+        treeFragment.append(buildChangedFileRow(childNode.payload, depth));
       } else {
         treeFragment.append(buildFileRow(childNode, depth));
       }
@@ -553,7 +565,7 @@
       } else {
         viewState.collapsedDirectories.add(directoryNode.path);
       }
-      renderFileTree();
+      renderTree();
     });
     return rowButton;
   }
@@ -664,16 +676,32 @@
       return;
     }
     const diffBody = diffResponse.body;
-    elements.viewerMeta.textContent = `基线 ${diffBody.base_label}`;
+    // 头部在空态下会被 renderNotice 清成占位符，所以来源只在有逐行改动时才写头部，
+    // 纯重命名那一支交给提示块正文自己说。
     if (diffBody.empty) {
       renderNotice(
-        buildNotice({
-          title: "该文件在此基线下没有改动",
-          paragraphs: [`基线 ${diffBody.base_label} 与当前内容一致。`],
-        })
+        buildNotice(
+          // 纯重命名没有逐行改动可看，但它并不是「与当前内容一致」——路径确实变了，
+          // 说成「没有改动」会把人引向错误结论。
+          diffBody.rename_from
+            ? {
+                title: "重命名，内容未变",
+                paragraphs: [
+                  `该文件在该基线下由 <code>${escapeHtmlText(diffBody.rename_from)}</code> 重命名而来，正文没有变化，因此没有逐行改动可看。`,
+                ],
+                hint: `基线 ${diffBody.base_label}。`,
+              }
+            : {
+                title: "该文件在此基线下没有改动",
+                paragraphs: [`基线 ${diffBody.base_label} 与当前内容一致。`],
+              }
+        )
       );
       return;
     }
+    elements.viewerMeta.textContent = diffBody.rename_from
+      ? `基线 ${diffBody.base_label} · 重命名自 ${diffBody.rename_from}`
+      : `基线 ${diffBody.base_label}`;
     if (diffBody.truncated) {
       elements.statusHint.textContent = "只读视图 · 改动过大，仅显示前若干行";
     }
@@ -753,7 +781,7 @@
       await loadChangedFiles();
     } else {
       elements.statusHint.textContent = "";
-      renderFileTree();
+      renderTree();
       renderPlaceholder();
     }
   }

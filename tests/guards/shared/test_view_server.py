@@ -24,6 +24,10 @@
    （进程存活 / 端口可连 / 仓库一致）；空闲回收清理登记时要确认登记仍属于自己，
    否则 ``--no-reuse`` 起的更新实例会被旧实例顺手抹掉登记。
 6. **服务只绑本机回环地址。** 绑成 ``0.0.0.0`` 会把一个只读接口开给整个局域网。
+7. **重命名的配对不能被 pathspec 吃掉。** ``git diff <rev> -- <新路径>`` 会把旧路径
+   排除出候选，同一个文件随即降级成「新增」且正文整篇算成新增行；单文件 diff 必须
+   先查出旧路径、再把新旧两条路径一起交给 git。纯重命名则要能自我说明，不能被界面
+   说成「与当前内容一致」。
 
 用例全部打在真实进程与真实 HTTP 上：被测的是绑定、路由分发与 ``git`` 子进程这条
 完整链路，桩掉其中任何一段都测不到本文列出的不变量。
@@ -172,6 +176,12 @@ def _build_fixture_repository(repository_root: Path) -> Path:
         "BUILD_TOOL = True\n", encoding="utf-8"
     )
     (repository_root / "rename_me.txt").write_text("rename source\n", encoding="utf-8")
+    # 第二对重命名故意带上正文修改：纯重命名没有 hunk 可查，只有「重命名 + 改一行」
+    # 才能验出「配对失效 → 整篇算成新增」这个缺陷。
+    # 必须留在仓库根：目录内重命名会让 ``--numstat`` 输出 ``docs/{旧 => 新}`` 的合并
+    # 形式，``test_changed_file_totals_match_terminal_git_output`` 按 ``" => "`` 切分
+    # 的解析会随之取到错误的键。
+    (repository_root / "draft.md").write_text("alpha\nbeta\ngamma\n", encoding="utf-8")
     (repository_root / "big.txt").write_text("x" * _OVERSIZE_BYTE_COUNT, encoding="utf-8")
     (repository_root / "blob.bin").write_bytes(b"\x00\x01\x02binary payload")
     _run_git(repository_root, "add", ".")
@@ -179,6 +189,8 @@ def _build_fixture_repository(repository_root: Path) -> Path:
 
     # 制造一次改动：重命名、文本修改、二进制修改，外加未跟踪文件与未忽略的依赖目录。
     _run_git(repository_root, "mv", "rename_me.txt", "renamed.txt")
+    _run_git(repository_root, "mv", "draft.md", "final.md")
+    (repository_root / "final.md").write_text("alpha\nBETA\ngamma\n", encoding="utf-8")
     (repository_root / "src" / "module.py").write_text(
         "def answer():\n    return 43\n", encoding="utf-8"
     )
@@ -509,6 +521,51 @@ def test_changed_file_diff_has_line_numbers(running_view_server: RunningViewServ
     assert [row["text"] for row in added_rows] == ["    return 43"], response_body["rows"]
     assert all(row["new_no"] is not None for row in added_rows)
     assert any(row["kind"] == "hunk" for row in response_body["rows"])
+
+
+def test_renamed_file_diff_is_paired_with_its_source(
+    running_view_server: RunningViewServer,
+) -> None:
+    """重命名的单文件 diff 必须带回旧路径，并且配对不能失效。
+
+    只给新路径做 pathspec 时 git 的配对会整体失效：同一个文件被报成 ``new file
+    mode``，正文整篇算成新增行，界面也就说不出它重命名自何处。夹具里那对「重命名 +
+    改一行」正是为了让这种失效可判别——配对生效时新增行只有改过的那一行。
+    """
+    status_code, response_body = running_view_server.request(
+        "/api/diff?path=final.md&base=worktree"
+    )
+    assert status_code == 200
+    assert response_body["rename_from"] == "draft.md"
+    assert response_body["empty"] is False
+    added_texts = [row["text"] for row in response_body["rows"] if row["kind"] == "add"]
+    assert added_texts == ["BETA"], response_body["rows"]
+
+
+def test_rename_without_content_change_still_reports_its_source(
+    running_view_server: RunningViewServer,
+) -> None:
+    """纯重命名没有逐行改动，但仍要带出旧路径，界面才能说明它被改过名。
+
+    这里的 ``empty`` 只表示「没有逐行内容可看」，不等于「与当前内容一致」——界面必须
+    靠 ``rename_from`` 把两者区分开，否则会告诉用户一个错误结论。
+    """
+    status_code, response_body = running_view_server.request(
+        "/api/diff?path=renamed.txt&base=worktree"
+    )
+    assert status_code == 200
+    assert response_body["rename_from"] == "rename_me.txt"
+    assert response_body["rows"] == []
+    assert response_body["empty"] is True
+
+
+def test_plain_edit_reports_no_rename_source(running_view_server: RunningViewServer) -> None:
+    """普通改动文件的 ``rename_from`` 必须是 null，界面才不会凭空说它被重命名。"""
+    status_code, response_body = running_view_server.request(
+        "/api/diff?path=src/module.py&base=worktree"
+    )
+    assert status_code == 200
+    assert response_body["rename_from"] is None
 
 
 def test_second_launch_reuses_the_resident_instance(fixture_repository: Path) -> None:
