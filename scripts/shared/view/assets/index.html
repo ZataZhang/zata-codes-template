@@ -70,6 +70,12 @@
     </main>
   </div>
 
+  <!-- 图片放大层：内容区里点任意图片就铺满这一层，按原始像素看。点任意处或 Esc 关掉。 -->
+  <div class="image-zoom" id="image-zoom" role="dialog" aria-label="图片放大" hidden>
+    <img id="image-zoom-img" alt="">
+    <p class="image-zoom-caption" id="image-zoom-caption"></p>
+  </div>
+
   <!-- 状态条 -->
   <footer class="surface statusbar">
     <span class="dot" id="status-dot"></span>

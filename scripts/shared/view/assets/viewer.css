@@ -282,6 +282,32 @@ button, input, select { font: inherit; color: inherit; }
   .image-compare { grid-template-columns: minmax(0, 1fr); }
 }
 
+/* 内容区里的图片都能点开放大，指针要给出去这个信号。 */
+.viewer-body img { cursor: zoom-in; }
+
+/* 图片放大层：铺满视口只放这一张。默认「适应屏幕」——先看全貌；点图片切到「原始像素」，
+   那一档不缩放、由整层滚动承载，截图里的字才真的看得清。点空白处或 Esc 关掉。 */
+.image-zoom {
+  position: fixed; inset: 0; z-index: 20; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 10px; padding: 18px;
+  background: color-mix(in oklab, var(--foreground) 78%, transparent); cursor: zoom-out;
+}
+.image-zoom[hidden] { display: none; }
+/* `flex: none` 是必须的：图片是 flex 项，默认 flex-shrink 会把高度压到装得下，宽度再按比例
+   跟着缩——那样「原始像素」永远也到不了原始尺寸，而 max-height 拦不住这一步。 */
+.image-zoom img {
+  flex: none; max-width: 100%; max-height: 100%; cursor: zoom-in;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--card);
+}
+/* 原始像素那一档：整层滚动，图片按自身尺寸铺开——滚动容器里的 flex 项不能用 auto 外边距，
+   否则往上滚时顶部会有一段够不着。 */
+.image-zoom.is-actual-size { overflow: auto; align-items: flex-start; justify-content: flex-start; }
+.image-zoom.is-actual-size img { max-width: none; max-height: none; cursor: zoom-out; }
+.image-zoom-caption {
+  margin: 0; max-width: 90%; color: var(--primary-foreground);
+  font-size: 12px; text-align: center; word-break: break-all;
+}
+
 .notice {
   display: grid; max-width: 560px; gap: 8px; margin: 40px auto;
   border: 1px solid var(--border); border-radius: calc(var(--radius) + 2px);

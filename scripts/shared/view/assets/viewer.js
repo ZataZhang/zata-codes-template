@@ -57,11 +57,15 @@
     openExternal: document.getElementById("open-external"),
     viewerMeta: document.getElementById("viewer-meta"),
     viewerBody: document.getElementById("viewer-body"),
+    imageZoom: document.getElementById("image-zoom"),
+    imageZoomImage: document.getElementById("image-zoom-img"),
+    imageZoomCaption: document.getElementById("image-zoom-caption"),
     statusDot: document.getElementById("status-dot"),
     statusText: document.getElementById("status-text"),
     statusHint: document.getElementById("status-hint"),
   };
 
+  /** 页面的全部可变状态；渲染只读它，用户操作只改它。默认落在改动视图。 */
   /** 页面的全部可变状态；渲染只读它，用户操作只改它。默认落在改动视图。 */
   const viewState = {
     view: DIFF_VIEW,
@@ -1101,6 +1105,49 @@
   }
 
   /**
+   * 打开图片放大层：默认「适应屏幕」，点图片可在它和「原始像素」之间来回切。
+   *
+   * 内容区里任何图片都能点开——文件视图的图片预览、改动视图的旧新两栏、以及 Markdown 里
+   * 引到的图，走的是同一个入口（见 viewerBody 上的点击委托）。它只是把同一份 `/raw/` 字节
+   * 放大显示，不改任何状态，也不重新取图。
+   * @param {HTMLImageElement} imageNode 被点击的图片。
+   */
+  function openImageZoom(imageNode) {
+    elements.imageZoomImage.src = imageNode.src;
+    elements.imageZoomImage.alt = imageNode.alt;
+    setImageZoomToActualSize(false);
+    elements.imageZoom.hidden = false;
+  }
+
+  /**
+   * 关闭图片放大层。
+   *
+   * 顺手把 src 清掉：留着会让关掉的放大层继续持有一份解码后的图片，而这一层的图动辄几 MB，
+   * 用户看过的每一张都会攒在内存里。
+   */
+  function closeImageZoom() {
+    elements.imageZoom.hidden = true;
+    elements.imageZoomImage.removeAttribute("src");
+    elements.imageZoomCaption.textContent = "";
+  }
+
+  /**
+   * 在「适应屏幕」与「原始像素」之间切换放大层。
+   *
+   * 适应屏幕是打开时的默认值——先看全貌，知道自己看的是什么；要看细节再切到原始像素，那一档
+   * 不缩放、由整层滚动承载，截图里的字才真的看得清。
+   * @param {boolean} isActualSize 是否切到原始像素。
+   */
+  function setImageZoomToActualSize(isActualSize) {
+    elements.imageZoom.classList.toggle("is-actual-size", isActualSize);
+    // 路径从放大层自己的 alt 读：它就在同一份 DOM 上，再存一个变量只会多一处可能不同步的状态。
+    const imageLabel = elements.imageZoomImage.alt;
+    elements.imageZoomCaption.textContent = isActualSize
+      ? `${imageLabel} · 原始像素（可滚动）· 点图片回到适应屏幕 · 点空白处或按 Esc 关闭`
+      : `${imageLabel} · 适应屏幕 · 点图片看原始像素 · 点空白处或按 Esc 关闭`;
+  }
+
+  /**
    * 清空当前文件的预览状态，并把界面上的预览控件一起收掉。
    *
    * 换文件、切视图都要走一遍：不清的话上一个文件的预览能力（以及已取回的 HTML）会跟着
@@ -1288,6 +1335,23 @@
   elements.openFileButton.addEventListener("click", () => {
     void switchView(FILES_VIEW, viewState.selectedPath);
   });
+  // 内容区里点图片即放大。用事件委托而不是逐个挂监听：图片是每次渲染才创建的，逐个挂必然
+  // 会在某条重渲染路径上漏掉。
+  elements.viewerBody.addEventListener("click", (clickEvent) => {
+    const clickedImage = clickEvent.target.closest("img");
+    if (clickedImage) {
+      openImageZoom(clickedImage);
+    }
+  });
+  elements.imageZoom.addEventListener("click", () => {
+    closeImageZoom();
+  });
+  // 点图片本身不关，而是切「适应屏幕 / 原始像素」——放大一层只为了看清楚，切两档比反复开关
+  // 顺手。所以这里要拦住冒泡，否则外层那个「点空白处关闭」会立刻把它关掉。
+  elements.imageZoomImage.addEventListener("click", (clickEvent) => {
+    clickEvent.stopPropagation();
+    setImageZoomToActualSize(!elements.imageZoom.classList.contains("is-actual-size"));
+  });
   elements.tabDiff.addEventListener("click", () => {
     void switchView(DIFF_VIEW);
   });
@@ -1296,6 +1360,13 @@
     renderTree();
   });
   window.document.addEventListener("keydown", (keyboardEvent) => {
+    // 放大层开着时只认 Esc：底下的 f / d / 过滤快捷键不该在看一张大图时把视图换掉。
+    if (!elements.imageZoom.hidden) {
+      if (keyboardEvent.key === "Escape") {
+        closeImageZoom();
+      }
+      return;
+    }
     if (keyboardEvent.target === elements.filterInput) {
       if (keyboardEvent.key === "Escape") {
         elements.filterInput.blur();
