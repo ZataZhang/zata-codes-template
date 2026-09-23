@@ -269,7 +269,8 @@ uv run pre-commit run --show-diff-on-failure
 模板包含 Skill 更新时，`just sync-template` 与 `just sync-local-skills` 遵守以下稳定契约：
 
 - 显式配置的目标与当前检测到的工具适配器可以同时生效；同一批选中的 Skill 会同步到全部目标。
-- `AI_SKILLS_DIRS` 接受以冒号分隔的任意 skills 目录，供新增、临时或未内置适配的 Agent 使用；`CC_SWITCH_SKILLS_DIR` 继续作为兼容入口。
+- 默认探测只认工具自己读取的 skills 目录（如 `~/.claude/skills`、`~/.codex/skills`），不写入需要二次转发的中间层目录：转发一旦停下，Skill 就只更新在中间层里、工具实际看不到。
+- `AI_SKILLS_DIRS` 接受以冒号分隔的任意 skills 目录，供新增、临时或未内置适配的 Agent 使用。
 - 非交互的 `scripts/sync_template.sh --skill <name>` 只更新目标中**已存在**的同名 Skill，不会创建首次安装目录；没有可更新安装时明确失败。
 - 首次安装仍走交互式 `just sync-local-skills`；未检测到目标时才展示当前内置适配器供选择。
 
