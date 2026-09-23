@@ -81,6 +81,7 @@ AI 代理默认不会设置该变量，因此会被 hook 拦下——这是"指�
 | `test_composition_boundaries.py` | composition root 公开入口，以及四层反向导入 composition 必须被架构检查拒绝 |
 | `test_database_connection_pool.py` | 非 SQLite 后端不得使用 `StaticPool`（共用单连接会让事务互相覆盖、静默丢数据） |
 | `test_dokploy_environment.py` | 部署环境模板（env/compose 一致性） |
+| `test_git_diff_report_skill.py` | git-diff-report 技能脚本（`skills/git-diff-report/scripts/render_diff_report.py`）：含空格/非 ASCII 的路径必须解析完整并能在 `--summaries` 表里查到、路径里的引号不得截断 `title="…"` 属性、注入的事件处理器不得出现在报告里、尚无提交的仓库也要能出报告、含空格的纯重命名仍认成「文件移动」且纯模式变更条目保留完整路径 |
 | `test_migrations.py` | Alembic 迁移链完整性 |
 | `test_openapi_schema.py` | 公开 HTTP 契约（OpenAPI schema） |
 | `test_prd_skill_checker.py` | PRD 归档 checker 的证据链约束（缺关键值来源/必经边界/fresh-state probe 必须拒收）与证据受众分流（oracle 必填 `reviewer`，`reviewer: human` 必填 `presentation`）；被测对象是模板内部 skill 产物 |

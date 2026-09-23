@@ -1,6 +1,6 @@
 ---
 name: git-diff-report
-description: "[Updated 2026-09-21] Render git changes into a self-contained HTML report: a collapsible file tree on the left with per-file summaries and +/− counts, a dedicated panel for renamed/moved files (old path → new path + similarity), and the full highlighted diff on the right, with click-to-jump and scroll sync. Use when the user asks to 展示当前改动, 看改了什么, 生成改动预览页, 改动可视化, diff 报告, or wants a reviewable HTML overview of a working tree, branch diff, or staged changes."
+description: "[Updated 2026-09-23] Render git changes into a self-contained HTML report: a collapsible file tree on the left with per-file summaries and +/− counts, a dedicated panel for renamed/moved files (old path → new path + similarity), and the full highlighted diff on the right, with click-to-jump and scroll sync. Use when the user asks to 展示当前改动, 看改了什么, 生成改动预览页, 改动可视化, diff 报告, or wants a reviewable HTML overview of a working tree, branch diff, or staged changes."
 user-invocable: true
 allowed-tools:
   - Read
@@ -132,7 +132,9 @@ await b.close();
 
 ## 已知边界
 
-- 路径名含空格/非 ASCII 时依赖 git 的引号转义解析，已在脚本内处理；极端命名（含换行）不支持。
+- 路径名含空格、非 ASCII 或引号时都能解析出**完整**的仓库相对路径：git 只为特殊字符加引号，含空格的路径还会在 token 末尾补一个 TAB 终止符，两种写法都按 git 的实际输出处理。`--summaries` 的键要写真实路径（含空格、中文就照原样写），脚本按解析出的路径查表，写错一个字符那条总结就会静默丢失。含换行的极端命名能解析出来，但显示时会折行，不专门支持。
+- 仓库尚无提交（`git init` 之后、首次提交之前）也能出报告：`head` 退化为索引口径（等价 `--scope staged`），左上角环境行如实写「尚无提交」。
+- 路径与 diff 正文一律经 HTML 转义（含引号）。报告是要发给他人的，而被检查的仓库不是可信输入——文件名里带 `"` 不会截断 `title="…"` 属性，也不会在报告页面里执行任何内容。
 - 重命名（`git mv`）由 git 的 `similarity index` / `rename from` / `rename to` 元信息识别，渲染成「移动」：左侧顶部汇总面板 + 树里「移动」徽标与来源路径 + 右侧移动横幅。**纯移动**（相似度 100%、无 hunk）在右侧只显示横幅与一句"纯移动：文件内容未变更"，左侧统计仍是 `+0 -0`；**带内容改动**的移动（相似度 < 100%）横幅之后照常展开 hunk。`--summaries` 的 schema 不需要为移动额外加字段。
 - 移动展示依赖 git 的重命名检测：若用 `-c diff.renames=false` 之类配置关掉它，或给 `--exclude` 排掉了重命名的**任一侧路径**，同一文件会退化成「删除 + 新增」或「新增」，报告里就不再显示为移动。
 - 模式变更、二进制文件没有 hunk，右侧显示"无内容变更（模式变更或二进制文件）"提示。

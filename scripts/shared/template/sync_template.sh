@@ -331,6 +331,7 @@ _is_always_skipped() {
         # collection-time FileNotFoundError downstream. Keep these tests
         # template-internal by listing them here.
         tests/guards/test_prd_skill_checker.py) return 0 ;;
+        tests/guards/test_git_diff_report_skill.py) return 0 ;;
     esac
     case "$p" in
         # Local state, build output, runtime artifacts

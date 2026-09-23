@@ -14,17 +14,20 @@
 from __future__ import annotations
 
 import argparse
-import ast
+import codecs
 import html
 import json
 import re
 import shutil
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence
 
 DIFF_GIT_HEADER = "diff --git "
+#: ``git diff`` 在新增/删除的文件上用 ``/dev/null`` 表示缺失的那一侧。
+DIFF_DEV_NULL_PATH = "/dev/null"
 HUNK_HEADER_RE = re.compile(r"^@@ -(?P<old>\d+)(?:,\d+)? \+(?P<new>\d+)(?:,\d+)? @@(?P<label>.*)$")
 
 #: 默认排除的测试目录 glob：``tests/**`` 命中的是仓库根，``**/tests/**`` 命中的是
@@ -55,9 +58,28 @@ class DiffReportError(RuntimeError):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def _run_git(repo: Path, args: Sequence[str]) -> str:
-    """在指定仓库运行 git 命令并返回标准输出。"""
-    completed = subprocess.run(
+@dataclass(frozen=True)
+class DiffScope:
+    """一次报告的 diff 范围。
+
+    Attributes:
+        name (str): ``staged`` / ``unstaged`` / ``head`` / ``range`` 之一。
+        base (str | None): ``range`` 的基线 revision；其它范围为 None。
+        excludes (tuple[str, ...]): 追加排除的路径 glob。
+        has_head (bool): 仓库是否已有提交。没有 HEAD 时 ``head`` 退化为索引口径，
+            因为 ``git diff HEAD`` 在尚无提交的仓库里会直接以 ``bad revision`` 失败，
+            而「``git init`` 之后、首次提交之前」正是最常见的看改动场景。
+    """
+
+    name: str
+    base: str | None
+    excludes: tuple[str, ...]
+    has_head: bool
+
+
+def _run_git_process(repo: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+    """运行 git 命令并原样返回结果（供需要自行解读退出码的探测使用）。"""
+    return subprocess.run(
         ["git", "-C", str(repo), *args],
         capture_output=True,
         text=True,
@@ -65,6 +87,11 @@ def _run_git(repo: Path, args: Sequence[str]) -> str:
         errors="replace",
         check=False,
     )
+
+
+def _run_git(repo: Path, args: Sequence[str]) -> str:
+    """在指定仓库运行 git 命令并返回标准输出。"""
+    completed = _run_git_process(repo, args)
     if completed.returncode != 0:
         raise DiffReportError(
             f"git {' '.join(args)} failed: {completed.stderr.strip() or completed.stdout.strip()}"
@@ -92,82 +119,135 @@ def resolve_repo(repo: str | None) -> Path:
     return Path(completed.stdout.strip())
 
 
-def current_branch(repo: Path) -> str:
-    """返回当前分支名（detached 时返回短 hash）。"""
-    branch = _run_git(repo, ["rev-parse", "--abbrev-ref", "HEAD"]).strip()
+def has_head_commit(repo: Path) -> bool:
+    """判断仓库是否已有提交（HEAD 是否存在）。"""
+    return _run_git_process(repo, ["rev-parse", "--verify", "--quiet", "HEAD"]).returncode == 0
+
+
+def current_branch(repo: Path) -> str | None:
+    """返回当前分支名（detached 时返回短 hash）；尚无提交时返回 None。"""
+    branch_probe = _run_git_process(repo, ["rev-parse", "--abbrev-ref", "HEAD"])
+    if branch_probe.returncode != 0:
+        return None
+    branch = branch_probe.stdout.strip()
     if branch and branch != "HEAD":
         return branch
-    return _run_git(repo, ["rev-parse", "--short", "HEAD"]).strip()
+    short_hash_probe = _run_git_process(repo, ["rev-parse", "--short", "HEAD"])
+    return short_hash_probe.stdout.strip() if short_hash_probe.returncode == 0 else None
 
 
-def build_diff_args(scope: str, base: str | None, excludes: Sequence[str]) -> list[str]:
-    """把 scope/排除规则翻译成 `git diff` 参数列表。"""
-    if scope == "staged":
+def build_diff_args(scope: DiffScope) -> list[str]:
+    """把范围与排除规则翻译成 `git diff` 参数列表。"""
+    if scope.name == "staged":
         args = ["diff", "--staged"]
-    elif scope == "unstaged":
+    elif scope.name == "unstaged":
         args = ["diff"]
-    elif scope == "head":
-        args = ["diff", "HEAD"]
-    elif scope == "range":
-        if not base:
+    elif scope.name == "head":
+        args = ["diff", "HEAD"] if scope.has_head else ["diff", "--staged"]
+    elif scope.name == "range":
+        if not scope.base:
             raise DiffReportError("--scope range requires --base <rev>.")
-        args = ["diff", f"{base}...HEAD"]
+        args = ["diff", f"{scope.base}...HEAD"]
     else:
-        raise DiffReportError(f"Unknown scope: {scope}")
-    if excludes:
-        args += ["--", *[f":(exclude){pattern}" for pattern in excludes]]
+        raise DiffReportError(f"Unknown scope: {scope.name}")
+    if scope.excludes:
+        args += ["--", *[f":(exclude){pattern}" for pattern in scope.excludes]]
     return args
 
 
-def _split_git_path_tokens(rest: str) -> list[str]:
-    """拆分 `diff --git` 后面的两个路径 token，兼容 git 的引号转义。"""
-    tokens: list[str] = []
-    index = 0
-    length = len(rest)
-    while index < length and len(tokens) < 2:
-        while index < length and rest[index] == " ":
-            index += 1
-        if index < length and rest[index] == '"':
-            end = index + 1
-            while end < length:
-                if rest[end] == "\\":
-                    end += 2
-                    continue
-                if rest[end] == '"':
-                    break
-                end += 1
-            raw = rest[index : end + 1]
-            try:
-                tokens.append(ast.literal_eval(raw))
-            except (SyntaxError, ValueError):
-                tokens.append(raw.strip('"'))
-            index = end + 1
-        else:
-            end = rest.find(" ", index)
-            if end == -1:
-                end = length
-            tokens.append(rest[index:end])
-            index = end
-    return tokens
+def _unescape_git_quoted_path(quoted_token: str) -> str:
+    """还原 git 引号包裹的路径（``"a/\\346\\226\\207.md"`` → ``a/文.md``）。
+
+    引号里的 ``\\346`` 这类转义是 **UTF-8 字节**，必须在字节层还原再按 utf-8 解码；
+    把 ``\\346`` 当码点解释（``ast.literal_eval`` 就是这么干的）会让中文路径变成乱码。
+    """
+    quoted_body = quoted_token[1:-1] if quoted_token.endswith('"') else quoted_token[1:]
+    try:
+        escaped_bytes, _ = codecs.escape_decode(quoted_body.encode("utf-8"))
+    except ValueError:
+        return quoted_body
+    return escaped_bytes.decode("utf-8", errors="replace")
+
+
+def _quoted_token_end(text: str) -> int:
+    """返回以 ``text[0] == '"'`` 开头的引号 token 的结束下标（闭合引号处）。"""
+    index = 1
+    while index < len(text):
+        if text[index] == "\\":
+            index += 2
+            continue
+        if text[index] == '"':
+            return index
+        index += 1
+    return len(text) - 1
+
+
+def _split_new_path_token(header_rest: str) -> str | None:
+    """取出 ``diff --git`` 头部里新路径（第二个）token 的原文。
+
+    引号包裹的 token 按引号读。未加引号时 git 只用空格分隔两个路径，而空格本身也可以
+    是路径的一部分（git 只为特殊字符加引号），所以按「``a/`` 与 ``b/`` 前缀之后两侧
+    相同」挑分隔点——修改、新增、删除、二进制与纯模式变更都满足这条不变量；改名两侧
+    不同，取最后一个 ``" b/"`` 候选，其真实路径随后由 ``rename to`` 行给出。
+    """
+    if header_rest.startswith('"'):
+        first_token_end = _quoted_token_end(header_rest)
+        remainder = header_rest[first_token_end + 1 :].lstrip(" ")
+        if not remainder:
+            return None
+        if remainder.startswith('"'):
+            return remainder[: _quoted_token_end(remainder) + 1]
+        return remainder
+    separator_offsets = [
+        offset for offset in range(len(header_rest)) if header_rest.startswith(" b/", offset)
+    ]
+    for offset in separator_offsets:
+        old_side, new_side = header_rest[:offset], header_rest[offset + 1 :]
+        if old_side.startswith("a/") and new_side.startswith("b/") and old_side[2:] == new_side[2:]:
+            return new_side
+    if separator_offsets:
+        return header_rest[separator_offsets[-1] + 1 :]
+    return None
+
+
+def _decode_diff_path(raw_token: str, *, drop_git_prefix: bool = True) -> str:
+    """把 git 写的路径 token 还原成仓库相对路径。
+
+    要处理三种修饰：路径含空格时 git 补在 token 末尾的 TAB 终止符（用来和「路径 + 时间戳」
+    的老格式消歧，实测引号内外都会出现）、特殊字符的 C 风格引号，以及 ``a/`` / ``b/`` 前缀。
+    前缀只属于正文行：``rename from`` / ``rename to`` 给的是不带前缀的真实路径，不能去——
+    否则一个真的叫 ``a/foo`` 的文件会被削成 ``foo``。含 TAB 的路径由 git 引号保护，因此
+    一个未被引号包裹、却以 TAB 结尾的 token 只会是终止符。
+    """
+    trimmed_token = raw_token[:-1] if raw_token.endswith("\t") else raw_token
+    decoded_path = (
+        _unescape_git_quoted_path(trimmed_token) if trimmed_token.startswith('"') else trimmed_token
+    )
+    if drop_git_prefix:
+        for prefix in ("a/", "b/"):
+            if decoded_path.startswith(prefix):
+                return decoded_path[len(prefix) :]
+    return decoded_path
 
 
 def parse_diff(diff_text: str) -> list[dict[str, Any]]:
     """把 unified diff 文本解析成「文件 → hunk」结构。
 
-    重命名（``git mv``）的元信息会被解析成结构化字段 ``is_rename`` / ``old_path`` /
-    ``similarity``，供树与文件区块渲染「移动」；它们不进 ``meta``，避免同一事实渲染两次。
+    路径以正文行（``+++ b/<路径>``、``--- a/<路径>``、``rename to <路径>``）为准：那些行
+    一直写到行尾，不会被路径里的空格切断；只有没有正文行的条目（二进制、纯模式变更）才
+    退回 ``diff --git`` 头。重命名（``git mv``）的元信息会被解析成结构化字段 ``is_rename``
+    / ``old_path`` / ``similarity``，供树与文件区块渲染「移动」；它们不进 ``meta``，避免
+    同一事实渲染两次。
     """
     files: list[dict[str, Any]] = []
     current: dict[str, Any] | None = None
+    current_old_path: str | None = None
     in_hunk = False
     for line in diff_text.splitlines():
         if line.startswith(DIFF_GIT_HEADER):
-            tokens = _split_git_path_tokens(line[len(DIFF_GIT_HEADER) :])
-            path = tokens[1] if len(tokens) == 2 else (tokens[0] if tokens else "unknown")
-            if path.startswith("b/"):
-                path = path[2:]
+            new_path_token = _split_new_path_token(line[len(DIFF_GIT_HEADER) :])
             current = {
-                "path": path,
+                "path": _decode_diff_path(new_path_token) if new_path_token else "unknown",
                 "is_rename": False,
                 "old_path": None,
                 "similarity": None,
@@ -175,6 +255,7 @@ def parse_diff(diff_text: str) -> list[dict[str, Any]]:
                 "hunks": [],
             }
             files.append(current)
+            current_old_path = None
             in_hunk = False
             continue
         if current is None:
@@ -199,9 +280,24 @@ def parse_diff(diff_text: str) -> list[dict[str, Any]]:
             continue
         if line.startswith("rename from "):
             current["is_rename"] = True
-            current["old_path"] = line[len("rename from ") :].strip()
+            # rename 行给的是不带 a/ b/ 前缀的真实路径，不能当带前缀的正文行去削。
+            current["old_path"] = _decode_diff_path(
+                line[len("rename from ") :], drop_git_prefix=False
+            )
             continue
         if line.startswith("rename to "):
+            current["path"] = _decode_diff_path(line[len("rename to ") :], drop_git_prefix=False)
+            continue
+        if line.startswith("--- "):
+            current_old_path = _decode_diff_path(line[len("--- ") :])
+            continue
+        if line.startswith("+++ "):
+            new_path = _decode_diff_path(line[len("+++ ") :])
+            if new_path == DIFF_DEV_NULL_PATH:
+                # 删除的文件新侧是 /dev/null，路径得留旧侧那一份。
+                current["path"] = current_old_path or current["path"]
+            else:
+                current["path"] = new_path
             continue
         if line.startswith(METADATA_PREFIXES):
             current["meta"].append(line)
@@ -347,8 +443,14 @@ def count_files(node: dict[str, Any]) -> int:
 
 
 def esc(text: str) -> str:
-    """HTML 转义（不转义引号，保持 diff 原样可读）。"""
-    return html.escape(text, quote=False)
+    """HTML 转义。
+
+    引号一并转义：``&quot;`` 在元素文本里照样渲染成 ``"``，可读性不变；但同一个函数
+    落在属性位（``title="…"``）时，不转义引号就会被路径里的 ``"`` 提前闭合，等于把
+    任意属性——包括事件处理器——注进这份要发给别人的报告。路径来自被检查的仓库，
+    不是可信内容。
+    """
+    return html.escape(text, quote=True)
 
 
 def render_line(line: str) -> str:
@@ -735,17 +837,17 @@ def default_output_path(repo: Path) -> Path:
     return Path("/tmp") / f"{repo.name}-diff-report.html"
 
 
-def build_meta_line(scope: str, base: str | None, excludes: Sequence[str], branch: str) -> str:
+def build_meta_line(scope: DiffScope, *, branch: str | None) -> str:
     """生成左侧顶部的一行环境说明。"""
     scope_label = {
         "staged": "已暂存改动",
         "unstaged": "未暂存改动",
-        "head": "相对 HEAD 的全部改动",
-        "range": f"{base}...HEAD",
-    }.get(scope, scope)
-    parts = [f"分支 {branch}", scope_label]
-    if excludes:
-        parts.append("已排除 " + "、".join(excludes))
+        "head": "相对 HEAD 的全部改动" if scope.has_head else "全部改动（按索引计）",
+        "range": f"{scope.base}...HEAD",
+    }.get(scope.name, scope.name)
+    parts = [f"分支 {branch}" if branch else "尚无提交", scope_label]
+    if scope.excludes:
+        parts.append("已排除 " + "、".join(scope.excludes))
     else:
         parts.append("未排除任何路径")
     return " · ".join(parts)
@@ -790,12 +892,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         excludes = list(args.exclude or [])
         if not args.include_tests:
             excludes = [*DEFAULT_EXCLUDES, *excludes]
-        diff_text = _run_git(repo, build_diff_args(args.scope, args.base, excludes))
+        scope = DiffScope(
+            name=args.scope,
+            base=args.base,
+            excludes=tuple(excludes),
+            has_head=has_head_commit(repo),
+        )
+        diff_text = _run_git(repo, build_diff_args(scope))
         files = parse_diff(diff_text)
         summaries = load_summaries(args.summaries)
         title = args.title or summaries.get("title") or f"{repo.name} 改动报告"
         meta_line = summaries.get("meta_line") or build_meta_line(
-            args.scope, args.base, excludes, current_branch(repo)
+            scope, branch=current_branch(repo)
         )
         page = render_page(files=files, summaries=summaries, title=title, meta_line=str(meta_line))
         out_path = Path(args.out).expanduser() if args.out else default_output_path(repo)
