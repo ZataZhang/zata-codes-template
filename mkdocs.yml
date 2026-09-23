@@ -61,6 +61,7 @@ nav:
       - 前端 i18n（中英文双语）: guides/i18n.md
       - 部署指南: guides/deployment.md
       - 可观测性: guides/observability.md
+      - Run 执行轨迹: guides/run-tracing.md
       - 备份与恢复: guides/backup.md
       - 沙箱执行后端: guides/sandbox-runtime.md
       - 想法 Inbox: guides/idea-inbox.md
@@ -76,6 +77,7 @@ nav:
       - PRD Demo UI: prototypes/prd-demo.html
       - 登录页: prototypes/login-demo.md
       - 只读文件与改动查看器: prototypes/file-viewer-interactive.md
+      - Run 执行轨迹: prototypes/run-tracing.md
       - Assets 命名规范: prototypes/assets/README.md
   - 核心概念:
       - Prompt 工程: core/prompt_engineering.md

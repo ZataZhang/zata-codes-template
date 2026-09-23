@@ -5,8 +5,8 @@
 隔离等语义在 SQLite / 内存替身下无法复现）。本模块为这类测试提供三类能力：
 
 - ``TrackedEntityRegistry``：登记测试创建的实体 ID，teardown 时按精确 ID
-  删除。模板当前只有 ``admin_user`` / ``public_user`` 两张无关联的用户表，
-  删除无需考虑外键顺序；新增带外键的表时应按外键逆序扩展清理逻辑。
+  删除。实体间存在外键（``run_event`` / ``run_export_audit`` → ``run``）时按
+  外键逆序删除。
 - ``TrackedTestClient``：包装 ``TestClient``，把创建型接口
   （``/auth/register``）响应中的用户 ID 自动登记进注册表。
 - ``residue_table_models`` / ``snapshot_residue_tables`` /
@@ -49,10 +49,18 @@ def _orm_models():
     """
     from backend.infrastructure.persistence.models.admin_user import AdminUserModel
     from backend.infrastructure.persistence.models.public_user import PublicUserModel
+    from backend.infrastructure.persistence.models.run import (
+        RunEventModel,
+        RunExportAuditModel,
+        RunModel,
+    )
 
     return {
         "public_user": PublicUserModel,
         "admin_user": AdminUserModel,
+        "run": RunModel,
+        "run_event": RunEventModel,
+        "run_export_audit": RunExportAuditModel,
     }
 
 
@@ -143,21 +151,38 @@ class TrackedEntityRegistry:
     Attributes:
         admin_user_ids: 种入或注册的管理员 ID 列表。
         public_user_ids: 注册的用户 ID 列表。
+        run_ids: 创建的 Canonical Run ID 列表；删除时会一并清理其事件与导出审计。
     """
 
     admin_user_ids: list[str] = field(default_factory=list)
     public_user_ids: list[str] = field(default_factory=list)
+    run_ids: list[str] = field(default_factory=list)
 
     def delete_tracked_entities(self) -> None:
         """删除登记的全部实体，缺失行按 no-op 处理。
 
-        绝不按名称前缀匹配，避免误伤真实数据。当前两张用户表无关联，无需
-        外键顺序；新增带外键的表时应按外键逆序删除。
+        绝不按名称前缀匹配，避免误伤真实数据。带外键的表按逆序删除：
+        ``run_export_audit`` / ``run_event`` 先于 ``run``。
         """
         orm_models = _orm_models()
         with _session_factory().begin() as database_session:
             _delete_where(database_session, orm_models["public_user"], self.public_user_ids)
             _delete_where(database_session, orm_models["admin_user"], self.admin_user_ids)
+            _delete_runs(database_session, orm_models, self.run_ids)
+
+
+def _delete_runs(database_session, orm_models: dict[str, type], run_ids: list[str]) -> None:
+    """按外键逆序删除 Run 及其事件、导出审计。"""
+    if not run_ids:
+        return
+    run_model = orm_models["run"]
+    run_event_model = orm_models["run_event"]
+    run_export_audit_model = orm_models["run_export_audit"]
+    database_session.execute(
+        delete(run_export_audit_model).where(run_export_audit_model.run_id.in_(run_ids))
+    )
+    database_session.execute(delete(run_event_model).where(run_event_model.run_id.in_(run_ids)))
+    database_session.execute(delete(run_model).where(run_model.id.in_(run_ids)))
 
 
 class TrackedTestClient:

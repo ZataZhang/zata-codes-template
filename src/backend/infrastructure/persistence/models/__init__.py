@@ -23,10 +23,14 @@
 from .admin_user import AdminUserModel
 from .base import CreatedAtMixin, TimestampMixin
 from .public_user import PublicUserModel
+from .run import RunEventModel, RunExportAuditModel, RunModel
 
 __all__ = [
     "AdminUserModel",
     "CreatedAtMixin",
     "PublicUserModel",
+    "RunEventModel",
+    "RunExportAuditModel",
+    "RunModel",
     "TimestampMixin",
 ]

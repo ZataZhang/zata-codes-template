@@ -127,3 +127,10 @@ log_format = "text"
 service_name = "my-app-backend"
 service_version = "0.1.0"
 deployment_environment = "development"
+
+# Run 执行轨迹的 OTLP 导出参数（非密钥默认值）。Trace URL 属于可能携带凭据的
+# 部署值，不放这里，只用 .env 的 OTEL_EXPORTER_OTLP_TRACES_ENDPOINT /
+# OTEL_EXPORTER_OTLP_ENDPOINT 声明；未设置时完全不装配 exporter。
+otlp_export_timeout_seconds = 10.0
+otlp_export_batch_size = 512
+otlp_export_schedule_delay_ms = 5000

@@ -135,6 +135,43 @@ metrics_enabled = false
 request_id_enabled = true
 ```
 
+## Run 执行轨迹（可选 OTLP 导出）
+
+除日志与指标外，模板还提供一个**领域无关的 Run 执行轨迹**子系统：把一次 Run 的
+canonical 事件投影成管理端可读的诊断树，并可 best-effort 上报到任意 OTLP/HTTP
+Trace 接收端（如阿里云 ARMS）。完整的事件语义、诊断 code 与接入方式见
+[Run 执行轨迹](run-tracing.md)，这里只说明它与可观测性配置的关系。
+
+导出默认关闭：只有配置了 Trace URL 才会装配 exporter，且它是**可选依赖**。
+
+```bash
+# 装配 OTLP exporter 需要先安装可选依赖
+uv sync --extra tracing
+```
+
+```dotenv
+# .env：两个变量都属于可能携带凭据的 URL，按密钥类变量处理
+# traces 专用变量优先，原样使用（SDK 不追加 /v1/traces）
+OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=https://example.invalid/arms/traces
+# 或只给通用基础地址，自动补 /v1/traces（已以 /traces 结尾则原样使用）
+OTEL_EXPORTER_OTLP_ENDPOINT=
+```
+
+```toml
+# config.toml：只放非密钥的导出参数
+[observability]
+otlp_export_timeout_seconds = 10.0
+otlp_export_batch_size = 512
+otlp_export_schedule_delay_ms = 5000
+```
+
+约定：
+
+- exporter 只消费**已提交**事件的 trace/span ID，因此云端 trace 与本地诊断树逐节点一致。
+- 导出是 best-effort：超时、被拒绝、队列满或关停 flush 失败都只记录告警，不回滚事件、
+  不改变 Run 终态。未配置 endpoint 时不产生任何网络请求。
+- 若 `[observability]` 的 `enabled = false`，即使配了 endpoint 也不装配 exporter。
+
 ## 本地可观测性栈（自包含模式）
 
 使用 `docker-compose.monitoring.yml` 启动一个完整的本地监控栈：

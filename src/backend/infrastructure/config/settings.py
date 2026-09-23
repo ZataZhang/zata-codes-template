@@ -31,7 +31,7 @@ from typing import Any
 from urllib.parse import quote_plus
 
 from dotenv import dotenv_values
-from pydantic import Field, SecretStr
+from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
@@ -144,6 +144,42 @@ class ObservabilitySettings(BaseSettings):
     service_name: str = Field(default="app-backend")
     service_version: str = Field(default="0.1.0")
     deployment_environment: str = Field(default="development")
+    # Run 执行轨迹的可选外部导出。endpoint 由部署方提供，通常是可能携带凭据的
+    # 完整 Trace URL，因此只从环境变量读取（见 .env.example），不写进 config.toml。
+    otlp_endpoint: str = Field(
+        default="",
+        validation_alias=AliasChoices("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "otlp_endpoint"),
+    )
+    otlp_base_endpoint: str = Field(
+        default="",
+        validation_alias=AliasChoices("OTEL_EXPORTER_OTLP_ENDPOINT", "otlp_base_endpoint"),
+    )
+    otlp_export_timeout_seconds: float = Field(default=10.0)
+    otlp_export_batch_size: int = Field(default=512)
+    otlp_export_schedule_delay_ms: int = Field(default=5000)
+
+    @property
+    def otlp_traces_endpoint(self) -> str:
+        """解析最终 Trace URL。
+
+        traces 专用变量优先并原样使用；只有通用基础地址时，若其已指向 ``/traces``
+        则原样使用，否则按 OTLP 约定补 ``/v1/traces``。两者都为空时返回空串，
+        表示不装配外部导出。
+        """
+        explicit_endpoint: str = self.otlp_endpoint.strip()
+        if explicit_endpoint:
+            return explicit_endpoint
+        base_endpoint: str = self.otlp_base_endpoint.strip().rstrip("/")
+        if not base_endpoint:
+            return ""
+        if base_endpoint.endswith("/traces"):
+            return base_endpoint
+        return f"{base_endpoint}/v1/traces"
+
+    @property
+    def otlp_export_enabled(self) -> bool:
+        """是否应装配 OTLP 导出：总开关开启且解析出了非空 Trace URL。"""
+        return self.enabled and bool(self.otlp_traces_endpoint)
 
     @classmethod
     def settings_customise_sources(
@@ -377,6 +413,62 @@ def load_primary_model_settings() -> PrimaryModelSettings | None:
     )
 
 
+# ---------------------------------------------------------------------------
+# Run 执行轨迹配置（可选外部 OTLP 导出）
+# ---------------------------------------------------------------------------
+# 与主模型端点同理：模板只做解析，不内置任何 OTLP 客户端。派生项目配置
+# ``OTEL_EXPORTER_OTLP_TRACES_ENDPOINT``（或通用基础地址）后，已提交的 canonical
+# 事件才会 best-effort 上报；未配置时本地诊断完全可用。
+
+
+@dataclass(frozen=True)
+class RunTracingSettings:
+    """Run 执行轨迹的运行时配置。
+
+    Attributes:
+        enabled (bool): 是否装配外部导出：可观测性总开关开启且解析出非空 Trace URL。
+        endpoint (str): 已解析完成的最终 Trace URL，原样交给 OTLP exporter。
+        timeout_seconds (float): 单次导出的网络超时。
+        batch_size (int): 批量导出的单批 span 上限。
+        schedule_delay_ms (int): 批量导出的调度间隔。
+        service_name (str): 写入 resource attributes 的服务标识。
+        service_version (str): 写入 resource attributes 的服务版本。
+        deployment_environment (str): 写入 resource attributes 的部署环境。
+    """
+
+    enabled: bool
+    endpoint: str
+    timeout_seconds: float
+    batch_size: int
+    schedule_delay_ms: int
+    service_name: str
+    service_version: str
+    deployment_environment: str
+
+
+def load_run_tracing_settings() -> RunTracingSettings:
+    """从 ``[observability]`` 解析 Run 执行轨迹配置。
+
+    与 :func:`load_primary_model_settings` 一样，把配置解析收敛到一个函数，
+    composition root 只消费结果，测试可替换 ``config.observability`` 而不触碰全局。
+
+    Returns:
+        RunTracingSettings: 解析后的导出配置；endpoint 为空时 ``enabled`` 为假，
+        调用方据此跳过 exporter 装配。
+    """
+    observability_settings: ObservabilitySettings = config.observability
+    return RunTracingSettings(
+        enabled=observability_settings.otlp_export_enabled,
+        endpoint=observability_settings.otlp_traces_endpoint,
+        timeout_seconds=observability_settings.otlp_export_timeout_seconds,
+        batch_size=observability_settings.otlp_export_batch_size,
+        schedule_delay_ms=observability_settings.otlp_export_schedule_delay_ms,
+        service_name=observability_settings.service_name,
+        service_version=observability_settings.service_version,
+        deployment_environment=observability_settings.deployment_environment,
+    )
+
+
 def _ensure_no_proxy_for_local_services() -> None:
     """确保本地服务（localhost/127.0.0.1）不经过系统 HTTP 代理。"""
     existing_no_proxy: str = os.getenv("NO_PROXY", "")
@@ -407,6 +499,8 @@ __all__ = [
     "PrimaryModelConfigError",
     "PrimaryModelSettings",
     "RedisSettings",
+    "RunTracingSettings",
     "config",
     "load_primary_model_settings",
+    "load_run_tracing_settings",
 ]

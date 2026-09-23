@@ -13,6 +13,7 @@ import {
   Command,
   GalleryVerticalEnd,
   Briefcase,
+  Activity,
 } from 'lucide-react'
 import { type NavGroup, type Team, type User } from '../types'
 
@@ -70,6 +71,11 @@ export function createNavGroups(t: TFunction): NavGroup[] {
           title: t('nav.users'),
           url: '/users',
           icon: Users,
+        },
+        {
+          title: t('nav.runTracing'),
+          url: '/run-tracing',
+          icon: Activity,
         },
       ],
     },
