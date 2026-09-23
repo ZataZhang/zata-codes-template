@@ -218,6 +218,10 @@ docker compose -f docker-compose.yml -f deploy/sandbox/docker-compose.sandbox.ym
 `deploy/sandbox/docker-compose.sandbox.yml` 是可选编排片段，默认部署不引入它，服务
 拓扑与端口映射保持不变。
 
+后端直接跑在宿主、不启动应用 compose 时，可改用 `zata-ops` 测试中间件里的同名出站代理
+（`just testing up sandbox-egress-proxy`）：容器名与网络名与本 overlay 一致，`config.toml`
+无需区分两种来源。两边二选一，不要同时启动（同名网络会冲突）。
+
 出站代理仅在启用 Docker 档时需要；它不承载业务逻辑，但位于安全路径上——代理失效会让
 沙箱完全无法出站（失败方向安全），配置错误则可能放行过宽。放行清单（`squid.conf` 与
 `config.toml` 的 `allowed_domains`）应纳入变更审查。

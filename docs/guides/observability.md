@@ -165,6 +165,10 @@ otlp_export_batch_size = 512
 otlp_export_schedule_delay_ms = 5000
 ```
 
+本地开发需要真实接收端时，可在 `zata-ops` 仓库的测试中间件里启动 Jaeger
+（`just testing up jaeger`，UI 在 http://localhost:16686），endpoint 指向
+`http://localhost:4318/v1/traces`。
+
 约定：
 
 - exporter 只消费**已提交**事件的 trace/span ID，因此云端 trace 与本地诊断树逐节点一致。
