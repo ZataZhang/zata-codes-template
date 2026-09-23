@@ -45,6 +45,9 @@ _STATIC_CONTENT_TYPES_BY_FILENAME = {
     "index.html": "text/html; charset=utf-8",
     "viewer.css": "text/css; charset=utf-8",
     "viewer.js": "application/javascript; charset=utf-8",
+    # 第三方产物（mermaid 的官方压缩包），只在页面真的遇到 mermaid 围栏时才按需取。
+    # 版本、来源与校验和见 assets/viewer.js 顶部的说明。
+    "mermaid.min.js": "application/javascript; charset=utf-8",
 }
 
 _READ_METHOD_HANDLER_PREFIX = "do_"
@@ -339,9 +342,10 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
         """按固定文件名白名单返回静态资源。
 
         资源名来自请求路径，因此这里用白名单而不是拼接路径：没有可以拼接的路径，就
-        没有可以逃逸的路径。查看器自身只有这三个固定资源，所以白名单足够；仓库内
-        文件的按路径取用走另一条路由（见 :meth:`_serve_raw_file`），那里的防护是
-        解析成绝对路径之后再断言。
+        没有可以逃逸的路径。查看器自己的页面资源是手写的三个文件，加上一份第三方
+        产物（mermaid，见 :data:`_STATIC_CONTENT_TYPES_BY_FILENAME`），数量固定，
+        所以白名单足够；仓库内文件的按路径取用走另一条路由（见
+        :meth:`_serve_raw_file`），那里的防护是解析成绝对路径之后再断言。
         """
         content_type = _STATIC_CONTENT_TYPES_BY_FILENAME.get(asset_name)
         if content_type is None:

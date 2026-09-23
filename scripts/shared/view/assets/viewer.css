@@ -123,7 +123,27 @@ button, input, select { font: inherit; color: inherit; }
 .tree-head b { color: var(--foreground); font-weight: 650; }
 /* 文件数推到右缘，栏宽开关跟在它后面。 */
 .tree-note { margin-left: auto; }
-.tree-width-toggle { width: 20px; font-size: 12px; }
+/* 栏宽开关：22px 的方形描边按钮（不是一枚裸箭头字符——那读起来像正文里的标点，不像能点的
+   东西）。常态是「往右撑开」，加宽后换成「收回去」并保持一层淡底，状态一眼可见。 */
+.tree-width-toggle {
+  display: inline-flex; flex: none; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border: 1px solid var(--border); border-radius: 6px;
+  background: transparent; color: var(--muted-foreground); cursor: pointer;
+}
+.tree-width-toggle:hover { background: var(--secondary); color: var(--foreground); }
+.tree-width-toggle:focus-visible { border-color: var(--ring); outline: none; }
+.tree-width-toggle[aria-pressed='true'] {
+  border-color: color-mix(in oklab, var(--primary) 30%, var(--border));
+  background: color-mix(in oklab, var(--primary) 10%, transparent);
+  color: var(--primary);
+}
+.tree-width-toggle svg {
+  width: 14px; height: 14px; fill: none; stroke: currentColor;
+  stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+}
+.tree-width-toggle .icon-narrow { display: none; }
+.tree-width-toggle[aria-pressed='true'] .icon-widen { display: none; }
+.tree-width-toggle[aria-pressed='true'] .icon-narrow { display: block; }
 .tree-body { min-height: 0; flex: 1; overflow: auto; padding: 6px; }
 /* 服务退出后左侧只剩最后一次成功读取的结果，不可再点击 */
 .tree-body.is-stale { opacity: .45; pointer-events: none; }
@@ -178,7 +198,8 @@ button, input, select { font: inherit; color: inherit; }
 .node-row { display: flex; align-items: center; gap: 2px; }
 .node-row .node { width: auto; min-width: 0; flex: 1; }
 
-/* 左树里的小图标按钮：暂存加号与树头的加宽箭头共用外观，各自只加尺寸差异。 */
+/* 左树里的小图标按钮：暂存加号与树头的栏宽开关共用排版，各自的描边、底色与尺寸分开写
+   ——加号是嵌在列表行里的低调字符按钮，栏宽开关是一个独立的小按钮。 */
 .tree-icon-button {
   display: inline-flex; flex: none; align-items: center; justify-content: center;
   height: 18px; border: 1px solid transparent; border-radius: 5px;
@@ -301,6 +322,15 @@ button, input, select { font: inherit; color: inherit; }
 .preview.markdown th { background: var(--secondary); font-weight: 650; }
 .preview.markdown img { max-width: 100%; }
 .preview.markdown hr { border: 0; border-top: 1px solid var(--border); margin: 1.7em 0; }
+
+/* mermaid 图：页面里的 mermaid.js 会把 `<pre class="mermaid">` 的内容换成它画的 SVG（服务端
+   只负责把围栏换成这个块）。外框沿用上面的代码块做法，只把图居中。画不出来时——资源没取到、
+   或图本身语法有错——块里留着的就是围栏源码，所以字体按代码块给等宽，降级形态与别的围栏一致。 */
+.preview.markdown pre.mermaid {
+  text-align: center;
+  font-family: var(--mono); font-size: 12.5px;
+}
+.preview.markdown pre.mermaid svg { max-width: 100%; height: auto; }
 
 /* 图片预览：撑满可用宽度、超出就纵向滚动。刻意不按视口高度缩放——整页截图缩到一屏里会
    小到看不清，滚动比缩更可用。 */
