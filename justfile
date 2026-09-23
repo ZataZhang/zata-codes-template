@@ -749,6 +749,19 @@ ops action *args="":
     esac
 
 
+# ── Sandbox ───────────────────────────────────────────────────────────────────
+# 沙箱执行后端（可选能力）。按 config.toml 的 [sandbox_agent] 段装配后端，跑一次
+# 命令与文件往返；三档后端（filesystem / docker / e2b）都适用。
+# 未配置该段时以非零退出码结束并提示如何启用。
+# 使用说明见 docs/guides/sandbox-runtime.md。
+
+# 沙箱执行后端冒烟
+# Usage:
+#   just sandbox-smoke
+sandbox-smoke:
+    uv run python scripts/dev/sandbox_smoke.py
+
+
 # Sync skills from the local project to the AI assistant's skill directory.
 # Usage:
 #   just sync-local-skills

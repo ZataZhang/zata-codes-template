@@ -72,6 +72,25 @@ def test_upload_list_and_download_round_trip(
     assert downloaded_reads[0].error is None
 
 
+def test_relative_workspace_root_still_lists_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``workspace_root`` 为相对路径时枚举仍可用。
+
+    配置里的默认值是相对路径，而路径校验与枚举产出绝对路径；两种表示混用曾让
+    :meth:`list_files` 抛 ``ValueError``。
+    """
+    monkeypatch.chdir(tmp_path)
+    sandbox_provider = FilesystemSandboxProvider(Path("sandbox-workspace"))
+    sandbox_session = sandbox_provider.acquire("thread-a")
+    sandbox_session.upload_files(
+        [SandboxFileWrite(sandbox_path="/workspace/outputs/report.txt", content=b"hello")]
+    )
+
+    assert sandbox_session.list_files("/workspace/outputs") == ["/workspace/outputs/report.txt"]
+    assert Path(sandbox_session.session_key).is_absolute()
+
+
 def test_list_files_returns_empty_for_missing_directory(
     sandbox_provider: FilesystemSandboxProvider,
 ) -> None:

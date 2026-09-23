@@ -170,6 +170,23 @@ Docker 档需要安装可选 extra：
 uv sync --extra sandbox-docker
 ```
 
+### 最小可跑消费示例
+
+`scripts/dev/sandbox_smoke.py` 是本端口的可执行消费示例，走的是真实装配路径
+（`build_sandbox_provider()` → `acquire` → `execute` → 文件写入/枚举/读回 → `destroy`），
+不是另一条旁路：
+
+```bash
+just sandbox-smoke
+```
+
+三档后端都适用。`filesystem` 档会在"执行命令"这一步拿到契约性的拒绝结果（该档不提供
+命令执行能力，也不回落到宿主执行），脚本把该拒绝视为正确结果而不是失败；文件往返照常
+完成。结束时会销毁会话环境，不留容器或云沙箱。
+
+未配置 `[sandbox_agent]` 段时脚本以非零退出码结束并打印启用步骤——"没有沙箱可测"不应该
+看起来像"测过了且通过"。
+
 ## 部署接入
 
 Docker 档要求 backend 进程能访问 Docker daemon；**云沙箱档不需要**——执行面在云端，

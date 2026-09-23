@@ -28,10 +28,14 @@ class FilesystemSandboxSession:
     def __init__(self, session_root: Path) -> None:
         """绑定会话根目录。
 
+        根目录在此规范化为绝对路径:配置里的 ``workspace_root`` 允许是相对路径
+        (相对 backend 工作目录解析),而路径校验与枚举都产出绝对路径。两种表示
+        混用会让 :meth:`list_files` 的相对路径计算抛 ``ValueError``。
+
         Args:
             session_root (Path): 该会话的隔离根目录;所有路径都被限制在其内。
         """
-        self._session_root = session_root
+        self._session_root = session_root.resolve()
 
     @property
     def session_key(self) -> str:
