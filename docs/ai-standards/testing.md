@@ -30,6 +30,18 @@
 - 需要凭据、沙箱账号或外部服务时，验证命令必须用环境变量显式开启，并记录无凭据时仍需通过的 fallback 验证。
 - PRD 或 planning 任务必须写明真实入口、mock 边界、数据/环境需求、命令或人工沙箱流程，以及该验证是否阻塞验收。
 
+## PostgreSQL / MySQL Validation
+
+模板声明 PostgreSQL 与 MySQL 为受支持的持久层方言。涉及 ORM 查询、数据库类型、事务、
+约束或 Alembic migration 的变更，必须考虑两种方言的行为差异。
+
+- CI 对两种数据库分别运行迁移升级与迁移相关集成测试；只在 SQLite 上通过不构成这两种
+  方言的兼容性证据。
+- 新增/修改 migration 时，至少验证两种数据库上的 `upgrade head`、关键数据结果与可支持
+  的 downgrade。数据库专属分支要由对应服务实际执行，不能只 mock dialect 名称。
+- 某个方言的全套测试尚不能运行时，不得因此取消它的迁移 smoke test；报告清楚未覆盖的
+  测试范围和阻塞原因。
+
 ## Test Double Boundaries
 
 替身（fake server、stub、注入的 completion callable）可以替掉慢、贵或不稳定的依赖，但**不得替一个不受我们控制的外部系统凭空断言它的输出形状**。

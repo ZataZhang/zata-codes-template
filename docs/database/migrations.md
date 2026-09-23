@@ -1,6 +1,8 @@
 # 迁移规范
 
 当前模板通过 SQLAlchemy `Base.metadata.create_all` 演示表结构初始化，适合作为快速起步。
+模板持久层目标支持 PostgreSQL 与 MySQL；进入 Alembic 迁移阶段后，两种数据库都属于
+必须验证的目标，不能只在 SQLite 或单一生产数据库上验证迁移。
 
 ## 推荐迁移策略
 
@@ -19,6 +21,21 @@
 - 每次迁移保持目标单一，避免一次改动过大。
 - 在迁移说明中写明回滚方案。
 - 对大表结构修改做好锁表与耗时评估。
+- 迁移代码默认保持 PostgreSQL / MySQL 兼容：优先使用 Alembic 与 SQLAlchemy API，避免裸写某一数据库专属语法。
+- 确需使用方言专属 SQL 时，按 `op.get_bind().dialect.name` 分支实现等价行为，并在两种数据库上执行迁移验证。
+- 新迁移应在 PostgreSQL 与 MySQL 上验证 `upgrade head`、关键回填结果及可支持的 downgrade；CI 矩阵是最终兼容性证据。
+
+### PostgreSQL / MySQL 兼容性检查
+
+审查迁移时至少检查以下项目：
+
+1. `INSERT` 冲突语法、布尔值、JSON、日期时间、默认值和标识符引用是否依赖某个方言。
+2. 索引、唯一约束、外键与列类型的 DDL 是否在两种数据库都支持，是否有名称长度或在线改表差异。
+3. UPDATE/DELETE 回填是否参数化、可重跑，并避免违反立即检查的唯一约束。
+4. upgrade 与 downgrade 是否都处理“目标行已存在”“源数据为空”和“部分执行后重跑”等状态。
+5. 在 PostgreSQL 与 MySQL CI job 中实际执行迁移集成测试；SQLite 仅用于快速逻辑测试，不能替代这两个数据库的验证。
+
+例如，要幂等创建由迁移拥有的固定 ID 行，可先 `SELECT` 检查该 ID，再用绑定参数插入；不要直接在公共路径写 PostgreSQL `ON CONFLICT` 或 MySQL `ON DUPLICATE KEY`。
 
 ## 文件命名规范
 

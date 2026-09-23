@@ -2,6 +2,35 @@
 
 本页定义本仓库 Alembic 迁移脚本的命名、生成约束与 docstring 写法。
 
+## Supported Database Dialects
+
+模板的应用持久层与迁移目标同时支持 **PostgreSQL 和 MySQL**。新增或修改迁移必须在两种
+方言上都能升级；需要可回滚的迁移也必须在两种方言上验证 downgrade。不能因为本地或当前
+CI 默认使用 PostgreSQL，就把 PostgreSQL 语法当作通用 SQL。
+
+迁移实现约定：
+
+- 优先使用 Alembic Operations、SQLAlchemy schema API 和有绑定参数的 `sa.text()`。
+- 避免在共用迁移路径直接写单一方言语法，例如 PostgreSQL `ON CONFLICT`、`ILIKE`、
+  `DISTINCT ON`，或 MySQL `ON DUPLICATE KEY UPDATE`、`INSERT IGNORE`、反引号标识符。
+- 若确实需要方言专属 DDL/DML，必须通过 `op.get_bind().dialect.name` 显式分支，并让
+  两个分支表达相同的迁移语义；不能以“另一个方言不会走到这里”为由省略实现。
+- 对于“仅当某个稳定主键不存在时插入”的迁移数据，优先先查询再插入。迁移运行由
+  Alembic 单实例串行负责时，这种写法能保持跨方言且便于重跑；若场景可能有并发写者，
+  应按方言分支实现冲突处理，并分别验证并发与重跑行为。
+- 使用 SQLAlchemy 的绑定参数，不要把数据值拼进 SQL 字符串。标识符不能绑定时，必须
+  来自迁移内固定常量，不能来自用户输入。
+
+验证要求：
+
+- CI 必须分别在 PostgreSQL 与 MySQL 服务上运行 `uv run alembic upgrade head`。
+- 迁移相关集成测试必须在两种数据库服务上运行；新增或修改迁移后，至少覆盖升级、关键
+  存量数据回填结果和重跑/回滚契约。
+- 本地仅有一种数据库时，可以先运行该方言的定向测试，但交付状态要注明另一种方言尚待
+  CI 验证；不得把 SQLite 迁移测试当作 PostgreSQL/MySQL 兼容性证明。
+- 如果当前变更让全套应用测试暂时无法在某一方言运行，必须保留该方言的迁移 smoke test，
+  并记录未通过的既有测试与修复跟踪，不能悄悄把该数据库从 CI 矩阵移除。
+
 ## File Name Format
 
 新生成的迁移脚本必须使用：
