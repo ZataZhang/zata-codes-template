@@ -19,6 +19,9 @@
  * 两个视图各自记一份「上一次看的那一个」（成功读到内容才记），切视图时还原，而不是每次
  * 都回到空态。改动视图头部的「查看文件」是显式指定，优先于记忆。
  *
+ * 左树宽度由树头的方向开关切换：`>` 把左栏放宽到放得下最长的那一行（上限视口 60%、下限
+ * 340px），按钮随之变成 `<`。它只改布局，不取任何数据，也不参与任何一次渲染路径。
+ *
  * 预览的默认值按文件类型定：Markdown 直接进预览（源码是一次显式切换），图片直接显示（没有
  * 源码可切），其它文本文件与 HTML 默认源码。Markdown 的渲染结果由服务端给出、由「预览」开关
  * 按需取回；图片与 HTML 都指向服务端原样供出的 `/raw/`（HTML 在新标签页里打开，不内联渲染）。
@@ -69,7 +72,9 @@
     refreshTimer: document.getElementById("refresh-timer"),
     treeTitle: document.getElementById("tree-title"),
     treeNote: document.getElementById("tree-note"),
+    treeWidthToggle: document.getElementById("tree-width-toggle"),
     treeBody: document.getElementById("tree-body"),
+    bodyGrid: document.querySelector(".body-grid"),
     viewerPath: document.getElementById("viewer-path"),
     copyPathButton: document.getElementById("copy-path"),
     previewSwitch: document.getElementById("preview-switch"),
@@ -108,6 +113,8 @@
      * 分段是整段一起收起来的那一层——目录折叠管段内，这一层管段本身。
      */
     changeGroupExpansion: new Map(),
+    /** 左树是否加宽（树头那个方向开关）。只影响布局，不参与任何取数。 */
+    isTreeWide: false,
     filterText: "",
     filePaths: [],
     changedSections: [],
@@ -380,6 +387,7 @@
    */
   async function initializeViewer() {
     applyInitialQueryParameters();
+    renderTreeWidth();
     const didLoad = await guardAgainstServiceExit(async () => {
       const infoResponse = await requestJson("/api/info");
       elements.repoName.textContent = infoResponse.body.repo_name;
@@ -601,6 +609,23 @@
     const treeTitleNode = document.createElement("b");
     treeTitleNode.textContent = isDiffView ? "改动文件" : "文件树";
     elements.treeTitle.replaceChildren(treeTitleNode);
+  }
+
+  /**
+   * 渲染左树的栏宽开关。
+   *
+   * 加宽只改布局：不取数据、不重渲染树，所以它不走 renderTree——树的每一次重渲染都只写
+   * 列表内容，栏宽是页面级的显示状态。箭头说的是「点下去会怎样」：窄栏时是 `>`（往右
+   * 撑开），加宽后是 `<`（收回去），两者都配合 title / aria-label 说明动作。
+   */
+  function renderTreeWidth() {
+    const isWide = viewState.isTreeWide;
+    elements.bodyGrid.classList.toggle("is-tree-wide", isWide);
+    elements.treeWidthToggle.textContent = isWide ? "<" : ">";
+    elements.treeWidthToggle.setAttribute("aria-pressed", String(isWide));
+    const toggleLabel = isWide ? "恢复默认栏宽" : "加宽左侧栏，显示完整文件名";
+    elements.treeWidthToggle.title = toggleLabel;
+    elements.treeWidthToggle.setAttribute("aria-label", toggleLabel);
   }
 
   /**
@@ -865,8 +890,8 @@
     const stageButtonNode = document.createElement("button");
     stageButtonNode.type = "button";
     stageButtonNode.className = stageButtonInput.isSectionLevel
-      ? "stage-button section-level"
-      : "stage-button";
+      ? "tree-icon-button stage-button section-level"
+      : "tree-icon-button stage-button";
     stageButtonNode.title = stageButtonInput.title;
     stageButtonNode.setAttribute("aria-label", stageButtonInput.title);
     stageButtonNode.textContent = stageButtonInput.label;
@@ -1650,6 +1675,10 @@
 
   elements.tabFiles.addEventListener("click", () => {
     void switchView(FILES_VIEW);
+  });
+  elements.treeWidthToggle.addEventListener("click", () => {
+    viewState.isTreeWide = !viewState.isTreeWide;
+    renderTreeWidth();
   });
   elements.copyPathButton.addEventListener("click", () => {
     void copyCurrentViewerPath();

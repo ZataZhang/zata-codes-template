@@ -53,7 +53,10 @@
     <aside class="surface tree">
       <div class="tree-head">
         <span id="tree-title"><b>文件树</b></span>
-        <span id="tree-note">加载中…</span>
+        <span class="tree-note" id="tree-note">加载中…</span>
+        <!-- 栏宽开关：`>` 把左栏放宽到放得下完整文件名，展开后自己变成 `<`。 -->
+        <button type="button" class="tree-icon-button tree-width-toggle" id="tree-width-toggle"
+                aria-pressed="false" title="加宽左侧栏，显示完整文件名">&gt;</button>
       </div>
       <div class="tree-body" id="tree-body" role="tree" aria-label="文件树"></div>
     </aside>
