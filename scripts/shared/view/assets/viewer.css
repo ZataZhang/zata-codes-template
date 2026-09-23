@@ -108,15 +108,22 @@ button, input, select { font: inherit; color: inherit; }
 .body-grid {
   display: grid; min-height: 0; grid-template-columns: minmax(240px, 320px) minmax(0, 1fr); gap: 8px;
 }
+/* 加宽左树（树头那个方向按钮）：宽到放得下最长的那一行，但不少于 340px、不超过视口的 60%
+   ——长路径可以撑开左栏，却永远不该把内容区挤没。 */
+.body-grid.is-tree-wide { grid-template-columns: fit-content(60%) minmax(0, 1fr); }
+.body-grid.is-tree-wide .tree { min-width: 340px; }
 
 /* 3. 文件树 */
 .tree { display: flex; min-height: 0; flex-direction: column; }
 .tree-head {
-  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  display: flex; align-items: center; gap: 8px;
   border-bottom: 1px solid var(--border); padding: 9px 12px;
   font-size: 11.5px; color: var(--muted-foreground);
 }
 .tree-head b { color: var(--foreground); font-weight: 650; }
+/* 文件数推到右缘，栏宽开关跟在它后面。 */
+.tree-note { margin-left: auto; }
+.tree-width-toggle { width: 20px; font-size: 12px; }
 .tree-body { min-height: 0; flex: 1; overflow: auto; padding: 6px; }
 /* 服务退出后左侧只剩最后一次成功读取的结果，不可再点击 */
 .tree-body.is-stale { opacity: .45; pointer-events: none; }
@@ -171,16 +178,18 @@ button, input, select { font: inherit; color: inherit; }
 .node-row { display: flex; align-items: center; gap: 2px; }
 .node-row .node { width: auto; min-width: 0; flex: 1; }
 
-/* 暂存加号：标题上那一个与每个文件旁那一个共用外观，后者更小、更淡，只在悬停时提亮。 */
-.stage-button {
+/* 左树里的小图标按钮：暂存加号与树头的加宽箭头共用外观，各自只加尺寸差异。 */
+.tree-icon-button {
   display: inline-flex; flex: none; align-items: center; justify-content: center;
-  width: 18px; height: 18px; border: 1px solid transparent; border-radius: 5px;
+  height: 18px; border: 1px solid transparent; border-radius: 5px;
   background: transparent; color: color-mix(in oklab, var(--muted-foreground) 70%, transparent);
-  font-family: var(--mono); font-size: 13px; font-weight: 700; line-height: 1; cursor: pointer;
+  font-family: var(--mono); font-weight: 700; line-height: 1; cursor: pointer;
 }
-.stage-button:hover { background: var(--secondary); color: var(--foreground); }
-.stage-button:focus-visible { border-color: var(--ring); outline: none; }
-/* 标题上那一个推到行尾（VSCode 的位置），文件旁那一个跟在条目后面。 */
+.tree-icon-button:hover { background: var(--secondary); color: var(--foreground); }
+.tree-icon-button:focus-visible { border-color: var(--ring); outline: none; }
+
+/* 暂存加号：文件旁那一个固定 18px 宽；标题上那一个文字更大、推到行尾（VSCode 的位置）。 */
+.stage-button { width: 18px; font-size: 13px; }
 .stage-button.section-level { width: auto; margin-left: auto; padding: 0 6px; font-size: 14px; }
 
 .tree-empty { padding: 18px 12px; color: var(--muted-foreground); font-size: 12.5px; line-height: 1.7; }
@@ -394,4 +403,8 @@ button, input, select { font: inherit; color: inherit; }
 
 @media (max-width: 860px) {
   .body-grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: 216px minmax(0, 1fr); }
+  /* 窄窗口下左树本来就占满整屏宽（文件名放得下），栏宽开关既不显示，也不该留下加宽态。 */
+  .body-grid.is-tree-wide { grid-template-columns: minmax(0, 1fr); }
+  .body-grid.is-tree-wide .tree { min-width: 0; }
+  .tree-width-toggle { display: none; }
 }
