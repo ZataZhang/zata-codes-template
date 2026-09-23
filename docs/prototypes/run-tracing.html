@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Run 执行轨迹 · 交互原型</title>
+<!--
+  Run 执行轨迹（Admin）交互原型
+
+  来源（真实实现，非臆造）：
+  - 页面结构: frontend-admin/src/features/run-tracing/index.tsx
+  - 节点树:   frontend-admin/src/features/run-tracing/trace-tree.tsx
+  - 文案:     frontend-admin/src/locales/zh.json 的 runTracing 命名空间
+  - 接口契约: backend admin /admin/run-traces（list / detail / export）
+  - 设计令牌: frontend-admin/src/styles/index.css
+
+  验证层级: interactive prototype（component preview），不构成功能验收证据。
+  数据为本地 fixture，未接入任何生产 API。
+-->
+<style>
+  :root {
+    --background: oklch(0.99 0.002 286);
+    --foreground: oklch(0.16 0.01 286);
+    --card: oklch(1 0 0);
+    --muted: oklch(0.965 0.004 286);
+    --muted-foreground: oklch(0.52 0.02 286);
+    --border: oklch(0.9 0.006 286);
+    --primary: oklch(0.55 0.2 285);
+    --success: oklch(0.6 0.15 150);
+    --danger: oklch(0.58 0.22 27);
+    --warn: oklch(0.75 0.15 75);
+    --radius: 0.625rem;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--font); background: var(--background); color: var(--foreground); font-size: 14px; }
+  .prototype-utility {
+    position: sticky; top: 0; z-index: 10; display: flex; gap: 10px; align-items: center;
+    padding: 8px 16px; background: oklch(0.22 0.02 286); color: white; font-size: 12px;
+  }
+  .prototype-utility a, .prototype-utility button {
+    color: white; background: transparent; border: 1px solid oklch(1 0 0 / 0.3);
+    border-radius: 6px; padding: 3px 8px; cursor: pointer; font-size: 12px; text-decoration: none;
+  }
+  .prototype-utility .label { font-weight: 700; letter-spacing: .06em; }
+  .page { max-width: 1360px; margin: 0 auto; padding: 20px 24px 48px; }
+  .page-head { display: flex; flex-wrap: wrap; gap: 16px; justify-content: space-between; align-items: flex-start; }
+  .page-head h1 { font-size: 22px; margin: 0 0 4px; }
+  .page-head p { margin: 0; color: var(--muted-foreground); }
+  .live { display: flex; align-items: center; gap: 6px; color: var(--success); font-weight: 600; font-size: 13px; }
+  .live .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); }
+  .live small { color: var(--muted-foreground); font-weight: 400; }
+  .filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 14px; }
+  .filters input, .filters select {
+    border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 10px;
+    background: var(--card); font: inherit; font-size: 13px;
+  }
+  .filters input { min-width: 240px; flex: 1 1 240px; }
+  .btn {
+    border: 1px solid var(--border); border-radius: var(--radius); background: var(--card);
+    padding: 8px 12px; font: inherit; font-size: 13px; cursor: pointer;
+  }
+  .btn[disabled] { opacity: .5; cursor: not-allowed; }
+  .workspace {
+    display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 0;
+    border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--card);
+  }
+  @media (max-width: 900px) { .workspace { grid-template-columns: 1fr; } }
+  .run-panel { border-right: 1px solid var(--border); background: var(--muted); padding: 16px; }
+  .run-panel h2 { font-size: 15px; margin: 0 0 2px; }
+  .run-panel .count { color: var(--muted-foreground); font-size: 12px; margin: 0 0 12px; }
+  .run-list { display: flex; flex-direction: column; gap: 6px; max-height: 560px; overflow: auto; }
+  .run-row {
+    display: grid; grid-template-columns: 10px minmax(0,1fr) auto; gap: 10px; align-items: start;
+    text-align: left; width: 100%; padding: 10px; border: 1px solid transparent; border-radius: 10px;
+    background: transparent; cursor: pointer; font: inherit;
+  }
+  .run-row:hover { border-color: var(--border); background: var(--card); }
+  .run-row[aria-current="true"] { border-color: var(--border); background: var(--card); box-shadow: 0 1px 2px oklch(0 0 0 / .05); }
+  .run-row .dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; background: var(--muted-foreground); }
+  .run-row .dot.ok { background: var(--success); }
+  .run-row .dot.bad { background: var(--danger); }
+  .run-row .dot.run { background: var(--primary); }
+  .run-row .id { font-family: var(--mono); font-size: 12px; font-weight: 700; display: block; }
+  .run-row .meta, .run-row .when { color: var(--muted-foreground); font-size: 11px; }
+  .run-row .meta { display: block; margin-top: 2px; }
+  .detail { padding: 18px 20px; min-width: 0; }
+  .detail-head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+  .detail-head h2 { font-family: var(--mono); font-size: 15px; margin: 0; }
+  .detail-head p { margin: 6px 0 0; color: var(--muted-foreground); font-size: 12px; }
+  .badge { display: inline-block; border: 1px solid var(--border); border-radius: 999px; padding: 1px 9px; font-size: 11px; font-weight: 600; }
+  .badge.ok { color: var(--success); border-color: color-mix(in oklab, var(--success) 45%, white); }
+  .badge.bad { color: var(--danger); border-color: color-mix(in oklab, var(--danger) 45%, white); }
+  .badge.warn { color: oklch(0.5 0.12 70); border-color: color-mix(in oklab, var(--warn) 55%, white); }
+  .badge.muted { color: var(--muted-foreground); }
+  .summary { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--border); border-radius: 10px; margin-top: 14px; overflow: hidden; }
+  .summary div { padding: 10px 12px; border-right: 1px solid var(--border); }
+  .summary div:last-child { border-right: 0; }
+  .summary span { display: block; color: var(--muted-foreground); font-size: 11px; }
+  .summary strong { font-size: 17px; }
+  .context {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px;
+    padding: 8px 12px; border-radius: 10px; background: var(--muted); font-size: 12px; color: var(--muted-foreground);
+  }
+  .context code { font-family: var(--mono); color: var(--foreground); }
+  .context .spacer { margin-left: auto; }
+  .tree { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+  .node { display: grid; grid-template-columns: 22px minmax(0,1fr) auto; gap: 12px; align-items: start;
+    border: 1px solid var(--border); border-radius: 10px; background: var(--card); padding: 10px 12px; }
+  .node.depth-1 { margin-left: 22px; }
+  .node.depth-2 { margin-left: 44px; }
+  .node.failed { border-color: color-mix(in oklab, var(--danger) 35%, white); background: color-mix(in oklab, var(--danger) 6%, white); }
+  .node.fallback { border-color: color-mix(in oklab, var(--warn) 45%, white); background: color-mix(in oklab, var(--warn) 10%, white); }
+  .node .kind { width: 20px; height: 20px; border-radius: 6px; display: grid; place-items: center;
+    font-size: 10px; font-weight: 800; background: oklch(0.94 0.03 285); color: oklch(0.45 0.16 285); }
+  .node.failed .kind { background: color-mix(in oklab, var(--danger) 15%, white); color: var(--danger); }
+  .node.fallback .kind { background: color-mix(in oklab, var(--warn) 22%, white); color: oklch(0.45 0.12 70); }
+  .node .title { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-weight: 600; font-size: 13px; }
+  .node .facts { margin-top: 3px; color: var(--muted-foreground); font-size: 11px; }
+  .node .note { margin-top: 6px; font-size: 11px; }
+  .node .note.fallback { color: oklch(0.45 0.1 70); }
+  .node .note.error { color: oklch(0.5 0.18 27); }
+  .node .dur { font-family: var(--mono); font-size: 11px; color: var(--muted-foreground); }
+  .notice { margin-top: 14px; border: 1px dashed var(--border); border-radius: 10px; padding: 22px; text-align: center; color: var(--muted-foreground); }
+  .notice strong { display: block; color: var(--foreground); margin-bottom: 6px; }
+  .run-diagnostics { margin: 12px 0 0; padding-left: 18px; color: oklch(0.45 0.1 70); font-size: 11px; }
+  .prototype-toast {
+    position: fixed; right: 20px; bottom: 20px; background: oklch(0.2 0.02 286); color: white;
+    padding: 10px 14px; border-radius: 10px; font-size: 12px;
+  }
+</style>
+</head>
+<body>
+<nav class="prototype-utility" aria-label="原型评审工具">
+  <span class="label">原型</span>
+  <a href="./prototype-hub.html">⌂ Hub</a>
+  <a href="./run-tracing.md">≡ 说明</a>
+  <button type="button" id="resetPrototypeButton">↺ 重置演示</button>
+</nav>
+
+<main class="page">
+  <div class="page-head">
+    <div>
+      <h1>执行轨迹</h1>
+      <p>从 Canonical Run/Event 回看模型轮次、工具调用、耗时与失败位置。</p>
+    </div>
+    <div class="live"><span class="dot"></span>本地诊断可用 <small>OTLP 导出不影响本页</small></div>
+  </div>
+
+  <section class="filters" aria-label="执行轨迹筛选">
+    <input id="runSearchInput" type="search" placeholder="搜索 Run ID 或主体…" aria-label="搜索 Run ID 或主体" />
+    <label><span hidden>状态</span>
+      <select id="statusFilter">
+        <option value="all">全部</option>
+        <option value="succeeded">成功</option>
+        <option value="failed">失败</option>
+        <option value="running">运行中</option>
+        <option value="legacy">历史受限</option>
+      </select>
+    </label>
+    <label><span hidden>时间范围</span>
+      <select id="timeRangeFilter"><option>最近 24 小时</option><option>最近 7 天</option></select>
+    </label>
+    <button class="btn" type="button" id="refreshButton">↻ 刷新</button>
+    <button class="btn" type="button" id="downloadButton" disabled>⭳ 下载原始事件</button>
+  </section>
+
+  <div class="workspace">
+    <section class="run-panel" aria-label="最近 Runs">
+      <h2>最近 Runs</h2>
+      <p class="count" id="runCountLabel">0 条记录</p>
+      <div class="run-list" id="runList"></div>
+    </section>
+
+    <section class="detail" id="traceDetail" aria-live="polite"></section>
+  </div>
+</main>
+
+<div class="prototype-toast" id="prototypeToast" role="status" hidden></div>
+
+<script>
+  // 本地 fixture：四个 Run 覆盖默认详情、失败节点、历史受限与空轨迹四种状态。
+  const RUNS = [
+    { run_id: 'run_8f31c2', subject_name: 'freight-agent', status: 'succeeded', visibility: 'full',
+      started: '今天 16:42:08', duration: '12.4s', tokens: '1,486', models: 2, tools: 2, diagnostics: 1,
+      trace_id: '61d9…9ac2', state: 'default' },
+    { run_id: 'run_76a9bd', subject_name: 'sandbox-agent', status: 'failed', visibility: 'full',
+      started: '今天 15:10:41', duration: '8.7s', tokens: '622', models: 1, tools: 0, diagnostics: 0,
+      trace_id: 'a4b1…77e0', state: 'failed' },
+    { run_id: 'run_19c04a', subject_name: 'legacy-subject', status: 'cancelled', visibility: 'limited',
+      started: '昨天 09:22:10', duration: '—', tokens: '—', models: 0, tools: 1, diagnostics: 1,
+      trace_id: '7c02…1d55', state: 'limited' },
+    { run_id: 'run_empty', subject_name: 'bootstrap-subject', status: 'succeeded', visibility: 'full',
+      started: '昨天 08:00:00', duration: '400ms', tokens: '18', models: 0, tools: 0, diagnostics: 0,
+      trace_id: '0e11…9a3f', state: 'empty' },
+  ]
+
+  const STATUS_LABEL = { queued: '排队中', running: '运行中', cancelling: '取消中', succeeded: '成功',
+    failed: '失败', cancelled: '已取消', interrupted: '已中断' }
+  const NODE_STATUS = { running: '执行中', completed: '成功', failed: '失败', incomplete: '未完成' }
+  const DIAGNOSTIC = {
+    parent_source_unavailable: 'parent_source_unavailable · 未猜测模型父级，已挂到 Run 根节点',
+    unknown_parent: 'unknown_parent · 父节点不在本次事件范围内',
+    started_without_completion: 'started_without_completion · 只有开始事件，未见完成',
+    missing_span_id: 'missing_span_id · 事件缺少 span ID，已按来源调用 ID 派生',
+    no_tracing_events: 'no_tracing_events · 该 Run 没有 tracing 事件',
+  }
+
+  const root = (children) => ({ label: 'RUN ROOT', kind: 'R', status: 'completed', duration: '12.4s', children })
+  const DETAILS = {
+    default: {
+      nodes: [root([
+        { label: 'LLM turn 1 · qwen3-max', kind: 'M', status: 'completed', facts: '成功 · turn 0 · qwen3-max · 932 token · tool_calls', duration: '2.1s', depth: 1 },
+        { label: 'read_attachment', kind: 'T', status: 'completed', facts: '成功 · read_attachment · len 2048 · sha abc12345', duration: '6.8s', depth: 2 },
+        { label: 'lookup_rate', kind: 'T', status: 'incomplete', facts: '未完成 · lookup_rate · len 128 · sha ff00aa11', duration: '1.2s', depth: 1,
+          fallback: true, diagnostics: ['parent_source_unavailable'] },
+        { label: 'LLM turn 2 · qwen3-max', kind: 'M', status: 'completed', facts: '成功 · turn 1 · qwen3-max · 674 token · stop', duration: '2.3s', depth: 1 },
+      ])],
+    },
+    failed: {
+      nodes: [root([
+        { label: 'LLM turn 1 · qwen3-max', kind: 'M', status: 'failed', facts: '失败 · turn 0 · qwen3-max · 622 token', duration: '4.4s', depth: 1,
+          error: 'provider_timeout · 未收到 completed 事件' },
+      ])],
+    },
+    limited: { limited: true, nodes: [] },
+    empty: {
+      nodes: [root([])],
+      empty: true,
+    },
+  }
+
+  const state = { selected: RUNS[0].run_id, keyword: '', status: 'all' }
+  let toastTimer
+
+  function showToast(message) {
+    const toast = document.getElementById('prototypeToast')
+    toast.textContent = message
+    toast.hidden = false
+    clearTimeout(toastTimer)
+    toastTimer = setTimeout(() => { toast.hidden = true }, 2000)
+  }
+
+  function visibleRuns() {
+    const keyword = state.keyword.trim().toLowerCase()
+    return RUNS.filter((run) => {
+      if (state.status === 'legacy' && run.visibility !== 'limited') return false
+      if (state.status !== 'all' && state.status !== 'legacy' && run.status !== state.status) return false
+      if (!keyword) return true
+      return `${run.run_id} ${run.subject_name}`.toLowerCase().includes(keyword)
+    })
+  }
+
+  function statusClass(run) {
+    if (run.visibility === 'limited') return 'muted'
+    if (run.status === 'succeeded') return 'ok'
+    if (run.status === 'failed') return 'bad'
+    return 'run'
+  }
+
+  function renderList() {
+    const runs = visibleRuns()
+    document.getElementById('runCountLabel').textContent = `${runs.length} 条记录`
+    const list = document.getElementById('runList')
+    if (runs.length === 0) {
+      list.innerHTML = '<div class="notice"><strong>没有匹配的 Run</strong>调整搜索词或状态筛选。</div>'
+      return
+    }
+    list.innerHTML = runs.map((run) => `
+      <button type="button" class="run-row" data-run-id="${run.run_id}" aria-current="${run.run_id === state.selected}">
+        <span class="dot ${statusClass(run)}"></span>
+        <span><span class="id">${run.run_id}</span>
+          <span class="meta">${run.subject_name} · ${run.visibility === 'limited' ? '历史受限' : STATUS_LABEL[run.status]} · ${run.duration}</span></span>
+        <span class="when">${run.started}</span>
+      </button>`).join('')
+  }
+
+  function renderNode(node) {
+    const classes = ['node']
+    if (node.depth) classes.push(`depth-${node.depth}`)
+    if (node.status === 'failed') classes.push('failed')
+    else if (node.fallback) classes.push('fallback')
+    const diagnostics = (node.diagnostics || []).map((code) =>
+      `<span class="badge warn">诊断: ${DIAGNOSTIC[code] || code}</span>`).join(' ')
+    const childrenMarkup = (node.children || []).map(renderNode).join('')
+    return `
+      <article class="${classes.join(' ')}">
+        <span class="kind">${node.kind}</span>
+        <div>
+          <div class="title">${node.label}
+            ${node.status === 'running' ? '<span class="badge">执行中</span>' : ''}
+            ${node.status === 'failed' ? '<span class="badge bad">失败</span>' : ''}
+            ${diagnostics}</div>
+          <div class="facts">${node.facts || ''}</div>
+          ${node.fallback ? '<div class="note fallback">父级来源不可确认，已挂到 Run 根节点</div>' : ''}
+          ${node.error ? `<div class="note error">错误: ${node.error}</div>` : ''}
+        </div>
+        <span class="dur">${node.duration || ''}</span>
+      </article>` + childrenMarkup
+  }
+
+  function renderDetail() {
+    const detail = document.getElementById('traceDetail')
+    const run = RUNS.find((item) => item.run_id === state.selected)
+    if (!run) {
+      detail.innerHTML = '<p class="count">请选择左侧的一个 Run 以查看执行轨迹。</p>'
+      return
+    }
+    const fixture = DETAILS[run.state]
+    const limited = Boolean(fixture.limited)
+    const limitedNotice = `
+      <div class="notice"><strong>此 Run 的诊断信息有限</strong>
+        该记录创建于模型生命周期事件之前。仍可查看已提交的工具与终态事件，但系统不会猜测或回填模型 span。</div>`
+    const emptyNotice = `
+      <div class="notice"><strong>没有模型或工具步骤</strong>
+        该 Run 在初始化后直接完成，仅保留 Run 根节点和终态。</div>`
+    const runLevelDiagnostics = limited
+      ? '<ul class="run-diagnostics"><li>no_tracing_events · 该 Run 没有 tracing 事件</li></ul>'
+      : ''
+    detail.innerHTML = `
+      <div class="detail-head">
+        <div>
+          <div class="title" style="display:flex;gap:10px;align-items:center">
+            <h2>${run.run_id}</h2>
+            <span class="badge ${limited ? 'muted' : run.status === 'failed' ? 'bad' : 'ok'}">
+              ${limited ? '历史受限' : STATUS_LABEL[run.status]}</span>
+          </div>
+          <p>${run.subject_name} · ${run.started} · ${run.duration}</p>
+        </div>
+        <button class="btn" type="button" id="copyRunIdButton">复制 Run ID</button>
+      </div>
+      <div class="summary">
+        <div><span>模型调用</span><strong>${run.models}</strong></div>
+        <div><span>工具调用</span><strong>${run.tools}</strong></div>
+        <div><span>Token</span><strong>${run.tokens}</strong></div>
+        <div><span>诊断</span><strong>${run.diagnostics}</strong></div>
+      </div>
+      <div class="context"><span style="font-weight:700">TRACE</span><code>${run.trace_id}</code>
+        <span class="spacer">内容策略</span><strong>metadata-only</strong></div>
+      ${limited ? limitedNotice : `<div class="tree">${fixture.nodes.map(renderNode).join('')}</div>${fixture.empty ? emptyNotice : ''}`}
+      ${runLevelDiagnostics}`
+    document.getElementById('downloadButton').disabled = !['succeeded', 'failed', 'cancelled', 'interrupted'].includes(run.status)
+  }
+
+  function render() {
+    renderList()
+    renderDetail()
+  }
+
+  document.getElementById('runList').addEventListener('click', (event) => {
+    const row = event.target.closest('[data-run-id]')
+    if (!row) return
+    state.selected = row.dataset.runId
+    render()
+  })
+  document.getElementById('runSearchInput').addEventListener('input', (event) => {
+    state.keyword = event.target.value
+    renderList()
+  })
+  document.getElementById('statusFilter').addEventListener('change', (event) => {
+    state.status = event.target.value
+    renderList()
+  })
+  document.getElementById('refreshButton').addEventListener('click', () => {
+    showToast('已刷新（原型静态数据）')
+    render()
+  })
+  document.getElementById('downloadButton').addEventListener('click', (event) => {
+    if (event.currentTarget.disabled) return
+    showToast(`已下载 run-${state.selected}.json（原型不产生真实文件）`)
+  })
+  document.getElementById('traceDetail').addEventListener('click', (event) => {
+    if (event.target.id === 'copyRunIdButton') showToast(`已复制 ${state.selected}`)
+  })
+  document.getElementById('resetPrototypeButton').addEventListener('click', () => {
+    state.selected = RUNS[0].run_id
+    state.keyword = ''
+    state.status = 'all'
+    document.getElementById('runSearchInput').value = ''
+    document.getElementById('statusFilter').value = 'all'
+    render()
+  })
+
+  render()
+</script>
+</body>
+</html>

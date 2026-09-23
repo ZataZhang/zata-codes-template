@@ -32,6 +32,13 @@ dependencies = [
 # 因此裸 `uv sync` 装不出它也不会破坏 import；仅在启用 Docker 档时安装：
 #   uv sync --extra sandbox-docker
 sandbox-docker = ["docker>=7.1,<8"]
+# Run 执行轨迹的可选 OTLP 导出。exporter 内部按需导入，未安装时装配降级为不导出，
+# 本地诊断不受影响；需要上报到阿里云 ARMS 等外部 trace 服务时安装本 extra：
+#   uv sync --extra tracing
+tracing = [
+    "opentelemetry-sdk>=1.20.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.20.0",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

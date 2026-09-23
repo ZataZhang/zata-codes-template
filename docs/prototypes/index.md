@@ -19,6 +19,7 @@
 - [PRD Demo 可交互原型](prd-demo.html)
 - [登录页交互原型](login-demo.md)
 - [只读文件与改动查看器交互原型](file-viewer-interactive.md)
+- [Run 执行轨迹交互原型](run-tracing.md)
 - [Assets 命名规范](assets/README.md)
 
 ## 设计约束

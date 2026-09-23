@@ -38,6 +38,8 @@ services:
       - MODEL_API_KEY=${MODEL_API_KEY:-}
       - MODEL_NAME=${MODEL_NAME:-}
       - E2B_API_KEY=${E2B_API_KEY:-}
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     volumes:
       - zata-codes-template-backend-logs:/app/logs
       - zata-codes-template-backend-data:/app/data

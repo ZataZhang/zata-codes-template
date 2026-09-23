@@ -37,6 +37,7 @@ _REALDB_TEST_FILES: frozenset[str] = frozenset(
     {
         "tests/backend/test_admin_user_management.py",
         "tests/backend/test_auth_domains.py",
+        "tests/backend/test_admin_run_trace_api.py",
     }
 )
 
@@ -73,6 +74,21 @@ def pytest_xdist_make_scheduler(config, log) -> "_RealDbLoadScopeScheduling | No
     if config.getoption("dist") != "loadgroup":
         return None
     return _RealDbLoadScopeScheduling(config, log)
+
+
+@pytest.fixture(autouse=True)
+def _disable_otlp_trace_export(monkeypatch: pytest.MonkeyPatch) -> None:
+    """默认关闭 Run 轨迹的 OTLP 导出，避免测试向真实接收端发送轨迹。
+
+    导出失败被设计成静默，其他用例不会因外发而变红，因此必须有一条会失败的守卫：
+    ``tests/backend/test_run_otlp_exporter.py`` 断言进程内配置单例处于关闭态。
+    开发机 ``.env.local`` 里若配了 ``OTEL_EXPORTER_OTLP_ENDPOINT``，删掉本 fixture
+    会让该用例变红；否则「测试不外发」只是一个无法失败的说法。
+    """
+    from backend.infrastructure.config.settings import config
+
+    monkeypatch.setattr(config.observability, "otlp_endpoint", "")
+    monkeypatch.setattr(config.observability, "otlp_base_endpoint", "")
 
 
 @pytest.fixture(autouse=True)

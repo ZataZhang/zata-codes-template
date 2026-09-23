@@ -12,6 +12,7 @@ from starlette.status import HTTP_401_UNAUTHORIZED
 from backend.core.auth.directory import PublicUserDirectory
 from backend.core.auth.models import AuthenticatedPrincipal
 from backend.core.auth.service import AuthService
+from backend.core.run_tracing import RunTraceUseCase
 
 # 两域会话 Cookie 名是接入层契约常量；配置仅在 composition root 使用。
 PUBLIC_SESSION_COOKIE_NAME: str = "session_id"
@@ -31,6 +32,11 @@ def get_admin_auth_service(request: Request) -> AuthService:
 def get_public_user_directory(request: Request) -> PublicUserDirectory:
     """从应用状态获取 public 用户管理目录（供 admin 域使用）。"""
     return request.app.state.public_user_directory
+
+
+def get_run_trace_use_case(request: Request) -> RunTraceUseCase:
+    """从应用状态获取 Run 执行轨迹诊断用例（admin 域专用）。"""
+    return request.app.state.run_trace_use_case
 
 
 def _resolve_principal(

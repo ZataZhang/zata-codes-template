@@ -9,7 +9,7 @@ from typing import Any
 
 from fastapi import FastAPI
 
-from backend.api.admin import admin_auth_router, admin_user_router
+from backend.api.admin import admin_auth_router, admin_user_router, run_trace_router
 from backend.api.auth_router import router as auth_router
 from backend.api.health_router import health_router
 from backend.api.metrics_router import metrics_router
@@ -17,6 +17,7 @@ from backend.api.middleware.prometheus_metrics import PrometheusMetricsMiddlewar
 from backend.api.middleware.request_context import RequestContextMiddleware
 from backend.composition.auth_wiring import build_auth_components
 from backend.composition.bootstrap import run_migrations, seed_admin_user, seed_public_user
+from backend.composition.run_tracing_wiring import build_run_tracing_components
 from backend.infrastructure.auth.redis_client import create_redis_client
 from backend.infrastructure.config.settings import config
 from backend.infrastructure.logger import logger
@@ -62,6 +63,9 @@ def create_app(
     fastapi_app.state.admin_auth_service = auth_components.admin_auth_service
     fastapi_app.state.public_user_directory = auth_components.public_user_directory
 
+    run_tracing_components = build_run_tracing_components(session_factory)
+    fastapi_app.state.run_trace_use_case = run_tracing_components.run_trace_use_case
+
     seed_admin_user(
         auth_components.admin_user_repository,
         auth_components.password_hasher,
@@ -75,6 +79,7 @@ def create_app(
         auth_router,
         admin_auth_router,
         admin_user_router,
+        run_trace_router,
         health_router,
     ):
         fastapi_app.include_router(api_router)
