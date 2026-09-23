@@ -70,6 +70,55 @@ name = "app_database"
 driver = "psycopg2"
 
 # =============================================================================
+# Sandbox Execution Backend (optional)
+# =============================================================================
+# 整段可选。**未配置 `[sandbox_agent]` 段时沙箱后端不注册**：`build_sandbox_provider()`
+# 返回 None，调用方在装配期即拿到"没有沙箱可执行面"的明确结果，而不是运行到一半才失败。
+#
+# 三档 provider：
+#   - filesystem : 只提供隔离的会话目录，**不执行命令**（execute 直接拒绝，不静默回落
+#                  到宿主执行）；适合纯文件任务与本地开发。
+#   - docker     : 每会话一个受限容器；需要宿主能访问 Docker daemon，并安装
+#                  `--extra sandbox-docker`。
+#   - e2b        : 每会话一个阿里云函数计算「云沙箱」；执行面在云端，后端主机无需
+#                  Docker daemon。
+#
+# 启用即取消注释并按需调整。docker 档的隔离参数（不注入宿主环境变量、不挂载宿主目录
+# 与 Docker socket、以 uid 65534 运行、cap_drop=ALL、no-new-privileges、限制内存/CPU/
+# 进程数）是安全边界，不是可调项。详见 docs/guides/sandbox-runtime.md。
+#
+# [sandbox_agent]
+# provider = "docker"
+# image = "zata-sandbox:latest"
+# command_timeout_seconds = 120
+# memory_limit = "1g"
+# # 仅 filesystem 档使用；其余档忽略。
+# workspace_root = "sandbox-workspace"
+# # 可信宿主 Skill 来源目录；为空（默认）表示不暴露任何 Skill。只有消费 Skill 运行
+# # 资产的执行器装配后才生效；声明了不存在的目录会在启动期 fail-fast。
+# skills_paths = []
+#
+# [sandbox_agent.egress]
+# # 三档：none 完全断网 / allowlist 按域名放行（默认）/ open 直连外网（仅本地开发）。
+# # allowlist 档要求 proxy_url、network_name 与非空 allowed_domains，缺一即启动期失败。
+# mode = "allowlist"
+# proxy_url = "http://zata-sandbox-egress-proxy:3128"
+# network_name = "zata-sandbox-egress"
+# allowed_domains = ["pypi.tuna.tsinghua.edu.cn"]
+#
+# # 云沙箱档。端点与模板属于非密钥配置；凭据只写环境变量**别名**，真实值由
+# # .env / .env.local 注入。缺少 api_url / template_id 会启动期 fail-fast；
+# # 凭据变量为空时该后端不注册（应用照常启动）。
+# [sandbox_agent.e2b]
+# api_url = "https://api.cn-beijing.e2b.fc.aliyuncs.com"
+# api_key_env = "E2B_API_KEY"
+# template_id = "zata-sandbox"
+# timeout_seconds = 900
+# username = "user"
+# # 生产必须 false（默认 false）；仅本地排障可临时打开。
+# allow_internet_access = false
+
+# =============================================================================
 [observability]
 enabled = true
 metrics_enabled = true

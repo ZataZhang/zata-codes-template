@@ -12,6 +12,10 @@ dependencies = [
     "alembic>=1.18.4",
     "bcrypt>=4.1.0",
     "fastapi>=0.115.0",
+    # 沙箱执行后端的云沙箱档（e2b_provider / e2b_control_plane /
+    # e2b_execution_channel）在模块级 import httpx。它是运行期依赖，不是测试依赖：
+    # 只留在 dev group 会让 `uv sync --no-dev` 的部署在 import 阶段就 ModuleNotFoundError。
+    "httpx>=0.27.0",
     "pre-commit>=4.5.1",
     "prometheus-client>=0.20.0",
     "psycopg2-binary>=2.9.9",
@@ -23,17 +27,23 @@ dependencies = [
     "uvicorn[standard]>=0.30.0",
 ]
 
+[project.optional-dependencies]
+# Docker 沙箱后端（sandbox-docker）所需的 SDK。它的 import 是延迟的（函数体内），
+# 因此裸 `uv sync` 装不出它也不会破坏 import；仅在启用 Docker 档时安装：
+#   uv sync --extra sandbox-docker
+sandbox-docker = ["docker>=7.1,<8"]
+
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [dependency-groups]
 dev = [
     "fakeredis>=2.21.0",
-    # starlette.testclient / fastapi.testclient 在 import 阶段就硬性要求 httpx，
-    # tests/ 下还直接用 httpx 的 ASGITransport / AsyncClient / Response。它曾经
-    # 只作为已摘除的 LLM 依赖的传递依赖被装进来，声明缺口被开发机 .venv 残留掩盖，
-    # 裸 `uv sync --frozen` 的 CI 才在 collection 阶段全灭。socks extra 顺带提供
-    # socksio，因此不再单独声明后者。
+    # httpx 已经在 [project.dependencies] 中作为运行期依赖声明（沙箱云后端模块级
+    # import）。这里额外声明 socks extra：starlette.testclient / fastapi.testclient
+    # 在 import 阶段就硬性要求 httpx，tests/ 下还直接用其 ASGITransport /
+    # AsyncClient / Response，部分用例经 socks 代理。socks extra 顺带提供 socksio，
+    # 因此不再单独声明后者。
     "httpx[socks]>=0.27.0",
     "pre-commit>=4.5.1",
     "pylint>=3.2.0",

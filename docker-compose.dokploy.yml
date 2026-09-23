@@ -47,6 +47,7 @@ services:
       - MODEL_BASE_URL
       - MODEL_API_KEY
       - MODEL_NAME
+      - E2B_API_KEY
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]

@@ -57,6 +57,9 @@ Thumbs.db
 *.db
 *.db-journal
 
+# Sandbox execution backend — filesystem 档的会话目录（默认 workspace_root）
+sandbox-workspace/
+
 # Claude planning session archives (local state, not for VCS)
 
 # Realistic Validation evidence packages — local PRD flow (`just ai implement`).

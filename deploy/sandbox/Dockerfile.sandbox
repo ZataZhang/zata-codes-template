@@ -1,0 +1,60 @@
+# 沙箱 Agent Runtime 的执行镜像。
+#
+# 设计取向：预装常用库，让运行时安装成为少数路径。放行的清华镜像是公共源的完整
+# 镜像，放行它等于允许安装其上任意包——预装得越全，这条残留供应链面被触达得越少。
+#
+# 镜像本身不含任何凭据：容器创建时不注入宿主环境变量，出站由代理按域名放行。
+
+FROM python:3.13-slim
+
+# capsh 供隔离验证探测特权能力（rv-2）；curl 供出站放行验证（rv-6）；
+# coreutils 提供 timeout，命令超时靠它在容器内生效而不是靠客户端放弃等待。
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        libcap2-bin \
+        curl \
+        coreutils \
+    && rm -rf /var/lib/apt/lists/*
+
+# 固化包索引：只放行清华镜像而不改 pip 默认源的话，pip 会先去未放行的官方源，
+# 请求被代理拒绝后安装直接失败。
+#
+# HOME 必须指向可写目录：沙箱用户写不了系统 site-packages，pip 会自动回落到
+# user 安装，而 user site-packages 派生自 HOME。缺省主目录 /nonexistent 不可写，
+# 运行时安装会以 Permission denied 失败；指向 /tmp/agent 后安装成功，且 Run 结束
+# 的 pip freeze（包级审计）与安装使用同一 HOME，新增包因此必然落入差异记录。
+ENV PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    HOME=/tmp/agent
+
+RUN printf '[global]\nindex-url = %s\n' "${PIP_INDEX_URL}" > /etc/pip.conf
+
+# 表格与数据处理常用库。新增库走镜像更新流程，优于让 agent 每次运行时现装。
+RUN pip install --no-cache-dir \
+        openpyxl==3.1.5 \
+        pandas==2.2.3 \
+        python-dateutil==2.9.0.post0
+
+# 记录基线包清单：Run 结束时与容器内实际已安装包比对，差集即本次运行新增的依赖。
+# 出站流量加密，代理只能看到域名，这份基线是包级审计的实际来源。
+RUN mkdir -p /assets \
+    && pip freeze > /assets/baseline-packages.txt
+
+# 工作区目录归 nobody；容器以非 root 运行，弃全部 Linux 特权能力。
+#
+# /large_tool_results 与 /conversation_history 是 agent 执行框架的中间产物目录约定：
+# execute 的大输出经 capture-at-source 卸载到前者，对话历史摘要卸载到后者。
+# 二者位于容器根下，而根目录归 root、沙箱用户无法创建——必须在镜像构建期
+# （仍以 root 身份）建好并归属沙箱用户，否则容器内所有经包装的命令都会因无法
+# 创建输出文件而以非零退出码失败。会话沙箱即使不接入该框架，预建目录也无副作用。
+RUN mkdir -p /workspace/inputs /workspace/outputs /tmp/agent \
+        /large_tool_results /conversation_history \
+    && chown -R 65534:65534 /workspace /assets /tmp/agent \
+        /large_tool_results /conversation_history
+
+WORKDIR /workspace
+USER 65534:65534
+
+CMD ["sleep", "infinity"]

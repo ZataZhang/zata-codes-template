@@ -1,0 +1,39 @@
+# 沙箱 Runtime 的可选编排片段。
+#
+# 仅在启用 Docker 沙箱后端时需要；默认部署（filesystem 档）不引入本文件，
+# 服务拓扑与端口映射保持不变。
+#
+# 用法：
+#   docker compose -f docker-compose.yml -f deploy/sandbox/docker-compose.sandbox.yml up -d
+#
+# ⚠️ 明确不做的事：不给任何应用容器挂载 /var/run/docker.sock。该 socket 是未认证的
+# root 等价接口，挂给自主运行的进程等于抹掉容器边界。backend 访问 Docker daemon 的
+# 方式见 docs/guides/sandbox-runtime.md 的「部署接入」一节。
+
+services:
+  sandbox-egress-proxy:
+    image: ubuntu/squid:latest
+    container_name: zata-sandbox-egress-proxy
+    restart: unless-stopped
+    volumes:
+      - ./deploy/sandbox/egress-proxy/squid.conf:/etc/squid/squid.conf:ro
+      # 出站访问日志是审计凭据；squid 以 proxy 用户运行、写不了 /dev/stdout，
+      # 因此落到卷里。排查命令见 docs/guides/sandbox-runtime.md。
+      - sandbox-egress-logs:/var/log/squid
+    networks:
+      # 同时接内部网络（收沙箱流量）与默认网络（出站到放行域名）。
+      - sandbox-egress
+      - default
+
+volumes:
+  sandbox-egress-logs:
+
+networks:
+  sandbox-egress:
+    name: zata-sandbox-egress
+    # internal 让沙箱容器无法直连外网，只能经代理出站。
+    # 这是"按域名放行"能成立的前提，不是可选优化。
+    internal: true
+    # 刻意不指定 subnet：宿主上通常已有多个 Docker 项目，固定网段会与它们冲突
+    # （实测该机器 172.17–172.31 的 /16 已全部占用）。由 Docker 自动分配，
+    # squid 侧用私有网段 ACL 兜底即可——网络本身是 internal，可达性已经受限。

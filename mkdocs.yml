@@ -62,6 +62,7 @@ nav:
       - 部署指南: guides/deployment.md
       - 可观测性: guides/observability.md
       - 备份与恢复: guides/backup.md
+      - 沙箱执行后端: guides/sandbox-runtime.md
       - 想法 Inbox: guides/idea-inbox.md
       - 只读文件与改动查看器: guides/file-viewer.md
       - Review Workflow: guides/review-workflow.md
