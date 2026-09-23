@@ -400,18 +400,21 @@ def render_tree(
     node: dict[str, Any],
     summaries: dict[str, Any],
     files: Sequence[dict[str, Any]],
-) -> str:
-    """递归渲染文件树 HTML。"""
+) -> tuple[str, list[int]]:
+    """递归渲染文件树 HTML，并返回与可见顺序相同的文件索引。"""
     rows: list[str] = []
+    file_indexes: list[int] = []
     for dir_name in sorted(node["dirs"]):
         label, child = collapse_chain(dir_name, node["dirs"][dir_name])
+        child_html, child_indexes = render_tree(child, summaries, files)
         rows.append(
             '<details class="node dir" open>'
             f'<summary class="dir-row"><span class="dir-name">{esc(label)}</span>'
             f'<span class="dir-count">{count_files(child)}</span></summary>'
-            f'<div class="children">{render_tree(child, summaries, files)}</div>'
+            f'<div class="children">{child_html}</div>'
             "</details>"
         )
+        file_indexes.extend(child_indexes)
     for leaf in sorted(node["leaves"], key=lambda item: item["name"]):
         file_entry = files[leaf["index"]]
         path = str(file_entry["path"])
@@ -429,7 +432,8 @@ def render_tree(
             f'<span class="file-summary">{esc(summary)}</span>'
             f"{move_html}</a>"
         )
-    return "".join(rows)
+        file_indexes.append(leaf["index"])
+    return "".join(rows), file_indexes
 
 
 def count_files(node: dict[str, Any]) -> int:
@@ -633,7 +637,7 @@ STYLE = """
     overflow: hidden; display: -webkit-box; -webkit-line-clamp: 4;
     -webkit-box-orient: vertical;
   }
-  .file-row.active .file-summary { -webkit-line-clamp: unset; color: #b3c0d4; }
+  .file-row.active .file-summary { color: #b3c0d4; }
 
   /* ── 文件移动（重命名）───────────────────────────────── */
   .moves-card {
@@ -764,10 +768,12 @@ SCRIPT = """
 
     if (Date.now() - sidebarTouchedAt < 1200) { return; }
 
-    var box = active.getBoundingClientRect();
+    var rowBox = active.getBoundingClientRect();
     var asideBox = aside.getBoundingClientRect();
-    if (box.top < asideBox.top + 8 || box.bottom > asideBox.bottom - 8) {
-      active.scrollIntoView({ block: 'nearest' });
+    if (rowBox.top < asideBox.top + 8) {
+      aside.scrollTop -= asideBox.top + 8 - rowBox.top;
+    } else if (rowBox.bottom > asideBox.bottom - 8) {
+      aside.scrollTop += rowBox.bottom - (asideBox.bottom - 8);
     }
   }
   window.addEventListener('scroll', function () {
@@ -788,10 +794,11 @@ def render_page(
     """组装完整 HTML 页面。"""
     total_added = sum(count_changes(file_entry)[0] for file_entry in files)
     total_removed = sum(count_changes(file_entry)[1] for file_entry in files)
-    tree_html = render_tree(build_tree(files), summaries, files)
-    moves_html = render_moves_card(files)
+    tree_html, display_indexes = render_tree(build_tree(files), summaries, files)
+    display_files = [files[file_index] for file_index in display_indexes]
+    moves_html = render_moves_card(display_files)
     sections = "".join(
-        render_section(index, file_entry, summaries) for index, file_entry in enumerate(files)
+        render_section(file_index, files[file_index], summaries) for file_index in display_indexes
     )
     if not files:
         sections = '<p class="empty">没有匹配的改动。</p>'
