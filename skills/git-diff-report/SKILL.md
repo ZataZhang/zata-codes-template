@@ -75,7 +75,9 @@ allowed-tools:
 - 不编造 diff 里没有的动机。看不出来就写事实（"拆出 X 以便复用"→ 只在 diff 确实体现复用时才这么写）。
 - 不要给测试文件写摘要（它们通常已被排除）；被排除的文件不出现在报告里，写了也不会生效。
 
-### 4. 渲染
+### 4. 渲染并自动打开
+
+报告生成后必须自动调用系统默认浏览器打开，命令始终带 `--open`。生成成功后确认报告路径；打开器不可用或打开失败时，明确告知用户并提供 HTML 文件路径。
 
 ```bash
 python3 scripts/render_diff_report.py \
@@ -126,7 +128,7 @@ await b.close();
 | `--summaries FILE` | — | 摘要 JSON（上面的 schema） |
 | `--title TEXT` | `<仓库名> 改动报告` | 页面标题 |
 | `--out FILE` | `/tmp/<repo>-diff-report.html` | 输出路径 |
-| `--open` | 关 | 生成后用系统默认浏览器打开（macOS `open` / Linux `xdg-open`） |
+| `--open` | 关 | 生成后用系统默认浏览器打开（macOS `open` / Linux `xdg-open`）；本技能每次生成报告都必须传入 |
 
 脚本内部按 `scope` 直接调用 `git diff`，报告里的增删行数、文件树、diff 内容都来自 git 输出，不做二次推断。
 
