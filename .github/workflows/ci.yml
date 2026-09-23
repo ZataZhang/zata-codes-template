@@ -83,12 +83,19 @@ jobs:
         run: pnpm run build
 
   validate-template:
-    name: Validate Template
+    name: Validate Template (${{ matrix.database }})
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - database: PostgreSQL
+            database_url: postgresql+psycopg2://postgres@localhost:5432/app_database
+          - database: MySQL
+            database_url: mysql+pymysql://root:root@localhost:3306/app_database
     services:
-      # 后端测试通过 settings 默认解析落到 localhost PostgreSQL（config.toml
-      # [database]），用 service 容器提供真实数据库；trust 认证免密码。
+      # 两个服务与 job matrix 对应：每个 matrix job 对自己的数据库运行迁移和测试。
       postgres:
         image: postgres:17-alpine
         env:
@@ -101,6 +108,18 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: app_database
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping --silent -h 127.0.0.1 -uroot -proot"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -139,14 +158,14 @@ jobs:
         # 先在这里把 schema 升到 head，worker 进入 run_migrations() 时 alembic
         # 看到 alembic_version 已存在且为 head，会直接 no-op，从而打破竞争。
         env:
-          DATABASE_URL: postgresql+psycopg2://postgres@localhost:5432/app_database
+          DATABASE_URL: ${{ matrix.database_url }}
         run: uv run alembic upgrade head
 
       - name: Run local test suite
         # Matches the default addopts filters in pyproject.toml.
         env:
-          # 显式指向 job 内的 postgres service；postgres 超级用户由镜像默认创建
-          DATABASE_URL: postgresql+psycopg2://postgres@localhost:5432/app_database
+          # 显式指向当前 matrix job 的真实数据库服务。
+          DATABASE_URL: ${{ matrix.database_url }}
         run: uv run pytest tests/ -v -m "not slow and not real_api and not redis"
 
       - name: Build documentation
