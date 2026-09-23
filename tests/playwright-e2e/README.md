@@ -147,7 +147,10 @@ PLAYWRIGHT_ADMIN_PASSWORD=<密码>
 
 ```bash
 # 安装依赖
-pnpm install
+# 本包位于仓库根 pnpm workspace 之内但不是它的成员，必须带 --ignore-workspace：
+# 否则 pnpm 会把 workspace 根当成项目，去装 frontend-admin / frontend-public，
+# 这里一个依赖都不落地（且退出码为 0，看不出失败）。
+pnpm install --ignore-workspace
 pnpm exec playwright install chromium
 
 # 运行所有测试（默认走 docker stack mode；需要 docker-compose.yml）

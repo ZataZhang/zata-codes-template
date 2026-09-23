@@ -1542,8 +1542,11 @@ test type="local": _check-completion
 
 
 # Install E2E dependencies and Playwright browsers (first time only).
+# tests/playwright-e2e 位于仓库根 pnpm workspace 之内但不是其成员，必须用
+# --ignore-workspace 让 pnpm 把该目录当作项目根；否则 pnpm 去装 workspace 成员包，
+# 这里一个依赖都不会落地，且退出码仍为 0。
 e2e-install:
-    cd "{{justfile_directory()}}/tests/playwright-e2e" && pnpm install
+    cd "{{justfile_directory()}}/tests/playwright-e2e" && pnpm install --ignore-workspace
     cd "{{justfile_directory()}}/tests/playwright-e2e" && pnpm exec playwright install chromium
 
 # Run E2E tests locally, starting services with `just run` if not already running.

@@ -162,7 +162,7 @@ base 取 `--base`；未传时读 `KODA_WORKTREE_BASE_BRANCH`，再退回 `main`�
 `just worktree`（底层实现位于 `scripts/shared/worktree/create.sh`）在创建 worktree 后会自动执行两类依赖准备：
 
 - Python：如果仓库根目录存在 `pyproject.toml`，则运行 `uv sync --all-extras`。
-- Frontend：扫描 worktree 根目录及其子目录中的 `package.json`，并在每个前端项目目录内按锁文件选择对应安装命令，例如 `npm ci`、`pnpm install`、`yarn install` 或 `bun install`。
+- Frontend：扫描 worktree 根目录及其子目录中的 `package.json`，并在每个前端项目目录内按锁文件选择对应安装命令，例如 `npm ci`、`pnpm install`、`yarn install` 或 `bun install`。若某个目录位于某 pnpm workspace 之内却不是它的成员（本模板的 `tests/playwright-e2e/` 即属此类），安装时以 `--ignore-workspace` 把该目录当作项目根，确保依赖装进这个目录自己而不是 workspace 根。
 
 这意味着像 `demo-frontend/`、`admin-frontend/` 这类把 `package.json` 放在子目录里的前端项目，也会在新 worktree 中自动完成依赖安装。
 
