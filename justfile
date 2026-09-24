@@ -769,7 +769,7 @@ sync-local-skills:
     ./scripts/sync_template.sh --local-skills
 
 
-# Copy template to a new directory (excluding .git, caches, and generated dependencies/build outputs)
+# Copy template to a new directory (excluding .git, caches, build outputs, and template-maintainer local state)
 # Usage: just copy <new-directory-name|target-directory-path> [--force]
 copy name force='':
     #!/usr/bin/env bash
@@ -827,6 +827,12 @@ copy name force='':
     # （含仓库身份 id / remote / verification_commands），派生项目应自建；
     # zata_code_template.zip 是含加密 .env.local 备份的历史产物，不应分发。
     #
+    # 模板维护者的本机状态同样不分发：.iar/ 与 .iar-worktrees/ 是 IAR runner 的
+    # 会话记忆与 worktree（可能带着某个 Issue 的上下文），.workbuddy-ai/ 是 AI
+    # 工具的记忆笔记。三者都在 .gitignore 里，但 rsync 不读 .gitignore，
+    # 不显式排除就会随 copy 落进派生项目；sync_template.sh 走 git clone，
+    # 天然看不到未跟踪目录，因此无需（也无法）在那里登记。
+    #
     # 注意：以下 --exclude 列表靠反斜杠续行，中间不能插入注释行。
     # `\` 会把注释行并入同一逻辑行，`#` 之后的源和目标路径会被整段丢弃，
     # rsync 因缺少参数直接报 usage 错误。
@@ -857,6 +863,9 @@ copy name force='':
         --exclude='docker-compose.testing.yml' \
         --exclude='.claude/planning' \
         --exclude='/.iar.toml' \
+        --exclude='/.iar/' \
+        --exclude='/.iar-worktrees/' \
+        --exclude='/.workbuddy-ai/' \
         --exclude='/zata_code_template.zip' \
         "$TEMPLATE_DIR/" "$NEW_DIR/"
 
