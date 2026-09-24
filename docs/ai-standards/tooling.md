@@ -59,6 +59,17 @@
 
 这条约定是 `just ai commit` / `just ai push` 生成提交信息时的默认行为（见 `justfile.shared` 中 `_ai_commit` / `_ai_push` 的 prompt），也是人工提交与各 AI 入口的共同基准。仓库目前**没有** `commit-msg` hook 或 commitlint 强制校验，因此需要自觉遵守；`frontend-admin/cz.yaml` 只配置了 commitizen 的 Conventional Commits 模板，不做语言检查。
 
+## CI 全红时先确认 job 真的跑了
+
+PR 的 check 全部失败、而每个 job 都是 0 个步骤、几秒就结束时，原因通常不在代码里。先看 job 的步骤数，再读 check-run 的 annotations：
+
+```bash
+gh run view <run-id> --json jobs --jq '.jobs[] | "\(.name) steps=\(.steps | length) id=\(.databaseId)"'
+gh api repos/<owner>/<repo>/check-runs/<job-id>/annotations --jq '.[].message'
+```
+
+常见结论是 GitHub Actions 的账单或额度问题（"The job was not started because recent account payments have failed or your spending limit needs to be increased"）。这时对照默认分支最近几次运行确认是同一原因，在 PR 里写明、以本地门禁结果为准，并交给有权限的人处理账单；不要为了让 CI 变绿去改代码或反复重推。
+
 ## Justfile Layering
 
 仓库根目录下的 `just` 入口被拆分为两层，分别由模板上游和派生项目自己拥有：

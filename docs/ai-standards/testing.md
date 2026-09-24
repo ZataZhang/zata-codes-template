@@ -11,6 +11,8 @@
 - 后端行为变更跑对应的 `pytest`
 - 会改变 API、CLI、前端流程、后台任务、持久化、启动或部署行为时，补充最高可行保真度的真实入口验证
 
+门禁失败时，先确认是不是本次改动引入的：在 `git archive HEAD | tar -x -C <临时目录>` 导出的干净副本里跑同一条命令，结果相同就是既有问题——交付说明里写明复现方式，另开任务处理，不混进当前改动。不要用 `git stash` 做这个对照：stash 栈在同一仓库的所有 worktree 之间共享，可能弹出别的会话的改动。
+
 ## Realistic Validation
 
 测试分层应覆盖“逻辑正确”和“真实入口可用”两件事。
@@ -290,7 +292,7 @@ HTML 报告仍固定在 `tests/playwright-e2e/playwright-report/`，可用 `just
 流程：
 
 1. **生成验证计划**：executor 在 `tasks/evidence/<prd-basename>/<prd-basename>.verification-plan.md` 中列出每条验收项对应的可执行验证命令或 e2e 用例。
-2. **先写 oracle 再写实现**：验收项对应的测试必须在实现之前写好并跑红，那次红色运行就是最诚实的负控。测试留到最后写，失败的多半是脚手架（响应结构猜错、缺 fixture、collection marker、测试数据撞库），而那时修复最贵。
+2. **先写 oracle 再写实现**：验收项对应的测试必须在实现之前写好并跑红，那次红色运行就是最诚实的负控。测试留到最后写，失败的多半是脚手架（响应结构猜错、缺 fixture、collection marker、测试数据撞库），而那时修复最贵。跑红之后逐条核对失败原因，红得对才算负控；断言里若有「健康对照」（另一条本应照常工作的数据、服务或子进程），还要单独确认对照在当前环境真能跑通——对照自己起不来时，修复后照样会红，红绿都不再有判别力。
 3. **收集证据**：executor 执行验证命令，把命令输出、测试日志、截图、录屏按 `rv-id` 命名保存到 `tasks/evidence/<prd-basename>/`。所有验证命令第一次跑就 `tee` 进证据目录——原始日志是跑命令的副产品，不是事后补的独立任务。
 4. **写证据报告**：executor 在 `<prd-basename>.evidence-report.md` 中解释每条证据对应哪个验收项、证据显示了什么、为什么能证明验收项成立。
 5. **提交前脱敏扫描**：`just ai implement` 在进入 verifier 之前运行 `scripts/shared/just/scan_evidence_secrets.sh`，命中即失败。凭据泄漏是机械可判的，绝不该消耗一整轮验证。一次性凭据（邀请链接、重置链接、token）不要截图，先关掉 reveal 再拍状态视图。
