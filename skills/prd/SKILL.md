@@ -384,15 +384,18 @@ Review-altitude only. Must include, in order:
 - `### Problem Statement` — the pain, who feels it, why the current behavior is insufficient, and at least one concrete repository-observable current-state fact when available. Problem only; no solution, mechanism, files, or commands.
 - `### Interpretation (解读回显)` — the Agent's reading of the request (from Phase 0), in a form the human can correct rather than merely nod at. This is the up-front approval target, the first of the two human touches, and the only gate that can catch a wrong interpretation. It must contain, in order:
 
-  1. a **行为样例** table of 3-7 rows, including at least one edge case and one failure case:
+  1. a **行为样例** table of 3-7 current, accepted-behavior rows, including at least one edge case and one failure case. Put a conspicuous verification marker in the first column:
 
      ```markdown
-     | 输入 / 操作 | 期望观察到的结果 |
-     |---|---|
-     | [concrete action in the reader's domain language] | [exact observable result] |
+     | 验证方式 | 输入 / 操作 | 期望观察到的结果 |
+     |---|---|---|
+     | 👀 人审 + 自动验证 | [concrete action in the reader's domain language] | [exact observable result] |
+     | 🤖 自动验证 | [edge or failure action] | [exact observable result] |
      ```
 
-     Follow the table with one line stating that these rows become the acceptance oracles verbatim, so correcting a cell corrects the acceptance criteria.
+     Use `👀 人审 + 自动验证` when the human must inspect a user-perceivable result as well as the automated assertions; its Section 7.6 oracle uses `reviewer: human` and includes a concrete `presentation`. Use `🤖 自动验证` when executable assertions and verifier evidence are sufficient; its oracle uses `reviewer: verifier`, with no Human-Confirmed product-review checkbox. The marker is review metadata, not behavior: copy each row's action and expected observation into the matching Section 7.6 oracle without changing their meaning; keep commands, evidence-chain details, and `rv-id` references in Part B.
+
+     Include only behaviors that remain accepted. When repository evidence or a later decision shows that an example is obsolete or superseded, remove it from this table and replace it with the current behavior if known; do not leave it as a struck-through, crossed-out, or `superseded` oracle. Keep a short historical explanation only in the relevant reconciliation/change-log section when traceability matters. Follow the table with one line stating that its active behavior rows become the acceptance oracles, so correcting a behavior cell corrects the acceptance criteria.
 
   2. **Decisions taken silently (`我默默定了这些`)** — a scannable list of every ambiguity resolved without asking, one line each, each naming the answer chosen. Use the Chinese text as the emitted heading in Chinese PRDs.
   3. **Read as out of scope (`我理解为不做`)** — 2-3 things the reader might plausibly have wanted that this PRD reads as excluded. Use the Chinese text as the emitted heading in Chinese PRDs.
@@ -675,7 +678,7 @@ Read [references/prd-content-rules.md](references/prd-content-rules.md) before g
 * [ ] Before archive, flipped the Acceptance Status Banner to `✅ 可归档` only after every §9 checkbox was checked; `🧍 待人工验收` was used exactly when only `Human-Confirmed` items remained unchecked
 * [ ] When the banner flipped to `🧍 待人工验收`, materialized `tasks/evidence/<prd-stem>/human-review-checklist.md` (open items in review order, each decision-first with the consequence of judging wrong, PRD statement quoted verbatim, stable `§` anchor instead of line number, visual evidence inline-rendered, explicit reply format, jargon glossed at first use; interactive `human-review-checklist.html` companion when screenshots or choice items are involved) and pointed the user at it with `just prd review <prd-file>`
 * [ ] Section 1 stays review-altitude: Problem Statement, `Interpretation (解读回显)`, What The User Gets, and Measurable Objectives only — no proposed solution summary, validation commands, or delivery-dependency metadata
-* [ ] **BLOCKER:** The `Interpretation (解读回显)` is correctable, not just readable — a behavior-example table of ≥3 rows (with an edge case and a failure case) whose rows become the Section 7.6 oracles verbatim, a `Decisions taken silently` list (`我默默定了这些` in Chinese PRDs), a `Read as out of scope` list (`我理解为不做` in Chinese PRDs), and the falsifiable prose reading. Enforced by `scripts/check_prd_acceptance_checklist.py`
+* [ ] **BLOCKER:** The `Interpretation (解读回显)` is correctable, not just readable — a behavior-example table of 3–7 current rows (with an edge case and a failure case), a first-column verification marker (`👀 人审 + 自动验证` or `🤖 自动验证`) consistent with each Section 7.6 oracle's `reviewer`, behavior/outcome matching those oracles, no obsolete or superseded examples, a `Decisions taken silently` list (`我默默定了这些` in Chinese PRDs), a `Read as out of scope` list (`我理解为不做` in Chinese PRDs), and the falsifiable prose reading. The checker enforces the basic structural blocks; the author must also check row status and reviewer-marker consistency.
 * [ ] Problem Statement includes a concrete repository-observable current-state fact when available; Measurable Objectives are pass/fail outcomes rather than unqualified maintainability claims
 * [ ] **BLOCKER:** Section 2 Human Review Map presents only concrete human decisions, each with a plain-language recommendation/risk explanation, an explicit `请确认：` question, and a short observable `验收：` statement; it does not expose the fixed-zone menu, hit/miss bookkeeping, classification tables, commands, file paths, or `rv-id` values
 * [ ] Section 2 ends with a compact automated-gate summary and explicit non-scope; schema changes surface the relevant ER diagram with the decision that approves them
