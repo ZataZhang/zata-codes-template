@@ -1,6 +1,6 @@
 ---
 name: git-diff-report
-description: "[Updated 2026-09-23] Render git changes into a self-contained HTML report: a collapsible file tree on the left with per-file summaries and +/− counts, a dedicated panel for renamed/moved files (old path → new path + similarity), and the full highlighted diff on the right, with click-to-jump and scroll sync. Use when the user asks to 展示当前改动, 看改了什么, 生成改动预览页, 改动可视化, diff 报告, or wants a reviewable HTML overview of a working tree, branch diff, or staged changes."
+description: "[Updated 2026-09-24] Render git changes into a self-contained HTML report: a collapsible file tree on the left with per-file summaries and +/− counts, a dedicated panel for renamed/moved files, and a highlighted diff viewer with sticky collapsible file headers, click-to-jump, and scroll sync. Use when the user asks to 展示当前改动, 看改了什么, 生成改动预览页, 改动可视化, diff 报告, or wants a reviewable HTML overview of a working tree, branch diff, or staged changes."
 user-invocable: true
 allowed-tools:
   - Read
@@ -16,7 +16,7 @@ allowed-tools:
 
 - **左侧**：可折叠的改动文件树，每个文件带 `+N -M` 统计与一句话中文总结，点击跳转、滚动联动高亮；
 - **左侧顶部**：有重命名（`git mv`）时自动出现「文件移动」汇总面板，逐条列出 `← 旧路径` / `→ 新路径` 与相似度，可点击跳转——纯搬迁类改动一眼能看清搬了什么；
-- **右侧**：全部文件的完整高亮 diff，逐 hunk 展开，可一路下滑；重命名文件在 diff 顶部显示移动横幅，而不是原来那行低对比度的灰色元信息；
+- **右侧**：全部文件的完整高亮 diff，逐 hunk 展开，可一路下滑；每个文件标题栏可点击折叠，滚动时吸附在当前文件顶部并在文件内容结束时自然离开；重命名文件在 diff 顶部显示移动横幅，而不是原来那行低对比度的灰色元信息；
 - 单文件、无外部依赖（CSS/JS 全内联），可直接发给他人或用浏览器打开。
 
 渲染器维护左侧文件树与右侧 diff 的顺序一致：右侧区块必须按文件树递归展示的同一组索引输出。自动高亮需要滚动当前文件时，只调整 `aside.scrollTop`，不要对文件行调用 `scrollIntoView()`，否则浏览器可能连页面一起滚动；激活态也不要展开摘要造成侧栏行高突变。

@@ -111,6 +111,7 @@ def _build_e2b_provider(sandbox_config: SandboxAgentConfig) -> SandboxProvider |
     return E2bSandboxProvider(
         config=E2bEndpointConfig(
             api_url=e2b_settings.api_url,
+            sandbox_url=e2b_settings.sandbox_url,
             api_key=api_key,
             domain="",
             template_id=e2b_settings.template_id,

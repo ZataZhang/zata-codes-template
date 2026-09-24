@@ -1,8 +1,7 @@
-"""云沙箱执行通道客户端:命令执行与文件读写。
+"""E2B 执行通道客户端:命令执行与文件读写。
 
-执行通道是沙箱内真正干活的那一半,经 envd 网关访问,鉴权用创建响应里拿到的
-``envdAccessToken``。它和控制面共享同一份端点配置,但传输、错误分类与超时语义
-各自独立。
+执行通道经 envd 网关访问,鉴权使用创建响应中的 ``envdAccessToken``。云端通过
+沙箱域名直连;E2B Embed 则经 client-proxy 并附带沙箱 ID 和 envd 端口路由头。
 
 经实测确认的契约(2026-09-21):
 
@@ -29,6 +28,7 @@ import httpx
 
 from backend.infrastructure.sandbox.e2b_protocol import (
     CONNECT_END_STREAM_FLAG,
+    ENVD_PORT,
     E2bExecOutcome,
     E2bProtocolError,
     E2bSandboxHandle,
@@ -98,9 +98,10 @@ class E2bExecutionChannel:
             {"process": {"cmd": "/bin/sh", "args": ["-lc", bounded_command], "cwd": cwd}}
         ).encode("utf-8")
         try:
+            request_url, request_headers = self._request_target(_EXEC_PATH)
             exec_response = self._http_client.post(
-                f"{self._handle.envd_base_url}{_EXEC_PATH}",
-                headers={**self._access_headers(), "Content-Type": _CONNECT_CONTENT_TYPE},
+                request_url,
+                headers={**request_headers, "Content-Type": _CONNECT_CONTENT_TYPE},
                 content=encode_connect_frame(request_body),
                 timeout=timeout_seconds + _EXEC_TIMEOUT_MARGIN_SECONDS,
             )
@@ -131,10 +132,11 @@ class E2bExecutionChannel:
             E2bProtocolError: 传输失败或服务端返回非成功状态。
         """
         try:
+            request_url, request_headers = self._request_target(_FILES_PATH)
             write_response = self._http_client.post(
-                f"{self._handle.envd_base_url}{_FILES_PATH}",
+                request_url,
                 params={"path": sandbox_path, "username": self._username},
-                headers=self._access_headers(),
+                headers=request_headers,
                 files={
                     "file": (
                         PurePosixPath(sandbox_path).name,
@@ -167,10 +169,11 @@ class E2bExecutionChannel:
             E2bProtocolError: 传输失败、文件不存在或服务端返回非成功状态。
         """
         try:
+            request_url, request_headers = self._request_target(_FILES_PATH)
             read_response = self._http_client.get(
-                f"{self._handle.envd_base_url}{_FILES_PATH}",
+                request_url,
                 params={"path": sandbox_path, "username": self._username},
-                headers=self._access_headers(),
+                headers=request_headers,
             )
         except httpx.HTTPError as transport_error:
             raise build_transport_error(action="读取文件", transport_error=transport_error) from (
@@ -188,6 +191,17 @@ class E2bExecutionChannel:
     def _access_headers(self) -> dict[str, str]:
         """返回执行通道鉴权头;令牌只进请求头,不进日志与异常消息。"""
         return {_ACCESS_TOKEN_HEADER: self._handle.access_token}
+
+    def _request_target(self, request_path: str) -> tuple[str, dict[str, str]]:
+        """为直连或 E2B client-proxy 构造请求地址与鉴权路由头。"""
+        if self._handle.sandbox_proxy_url is None:
+            return f"{self._handle.envd_base_url}{request_path}", self._access_headers()
+        request_headers = {
+            **self._access_headers(),
+            "E2b-Sandbox-Id": self._handle.sandbox_id,
+            "E2b-Sandbox-Port": str(ENVD_PORT),
+        }
+        return f"{self._handle.sandbox_proxy_url.rstrip('/')}{request_path}", request_headers
 
 
 def _decode_exec_response(*, response_body: bytes, max_output_bytes: int) -> E2bExecOutcome:

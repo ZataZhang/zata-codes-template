@@ -557,10 +557,13 @@ def render_section(index: int, file_entry: dict[str, Any], summaries: dict[str, 
     summary_html = f'<p class="summary">{esc(summary)}</p>' if summary else ""
     return (
         f'<section class="file" id="f{index}">'
-        f'<header class="file-head"><h2>{esc(path)}</h2>'
-        f'<div class="stats"><span class="add-stat">+{added}</span>'
-        f'<span class="del-stat">-{removed}</span></div></header>'
-        f"{summary_html}{''.join(blocks)}</section>"
+        f'<button class="file-head" type="button" aria-expanded="true" '
+        f'aria-controls="content-f{index}"><h2>{esc(path)}</h2>'
+        f'<span class="stats"><span class="add-stat">+{added}</span>'
+        f'<span class="del-stat">-{removed}</span></span>'
+        '<span class="file-chevron" aria-hidden="true">▾</span></button>'
+        f'<div class="file-content" id="content-f{index}">'
+        f"{summary_html}{''.join(blocks)}</div></section>"
     )
 
 
@@ -687,7 +690,22 @@ STYLE = """
     background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
     padding: 16px 18px; margin-bottom: 26px; scroll-margin-top: 20px;
   }
-  .file-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .file-head {
+    position: sticky; top: 0; z-index: 3;
+    display: flex; width: calc(100% + 36px); justify-content: space-between;
+    align-items: baseline; gap: 12px; margin: -16px -18px 12px; padding: 12px 18px;
+    border: 0; border-bottom: 1px solid #3a5277; border-radius: 10px 10px 0 0;
+    color: #f3f7ff; background: #202c43; text-align: left;
+    box-shadow: 0 5px 12px rgba(0, 0, 0, .28); cursor: pointer;
+  }
+  .file-head:hover { background: #293a57; }
+  .file-head:focus-visible { outline: 2px solid #8dbaff; outline-offset: -3px; }
+  .file-head h2 { color: #f3f7ff; }
+  .file-chevron { flex: 0 0 auto; color: #b9d2f7; font-size: 13px;
+    transition: transform .12s ease; }
+  .file.is-collapsed .file-chevron { transform: rotate(-90deg); }
+  .file.is-collapsed .file-content { display: none; }
+  .file-content { min-width: 0; }
   .file h2 {
     font-size: 15px; margin: 0;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -728,9 +746,42 @@ SCRIPT = """
   // 缩进交给 .children 的层级 margin，这里只负责滚动高亮
   var rows = Array.prototype.slice.call(document.querySelectorAll('.file-row'));
   var sections = Array.prototype.slice.call(document.querySelectorAll('main .file'));
+  var fileToggles = Array.prototype.slice.call(document.querySelectorAll('.file-head'));
   var aside = document.querySelector('aside');
   var byIndex = {};
   rows.forEach(function (row) { byIndex[row.dataset.index] = row; });
+
+  fileToggles.forEach(function (toggle) {
+    toggle.addEventListener('click', function () {
+      var section = toggle.closest('.file');
+      var expanded = toggle.getAttribute('aria-expanded') === 'true';
+      toggle.setAttribute('aria-expanded', String(!expanded));
+      section.classList.toggle('is-collapsed', expanded);
+      if (expanded) {
+        // 折叠后把后续文件放到查看区顶部，避免浏览器滚动锚定将其留在视口上方。
+        var nextSection = section.nextElementSibling;
+        while (nextSection && !nextSection.classList.contains('file')) {
+          nextSection = nextSection.nextElementSibling;
+        }
+        if (nextSection) {
+          window.requestAnimationFrame(function () {
+            var top = nextSection.getBoundingClientRect().top;
+            window.scrollTo({ top: window.scrollY + top - 20, behavior: 'instant' });
+          });
+        }
+      }
+    });
+  });
+
+  rows.forEach(function (row) {
+    row.addEventListener('click', function () {
+      var target = document.querySelector(row.getAttribute('href'));
+      if (!target) { return; }
+      target.classList.remove('is-collapsed');
+      var toggle = target.querySelector('.file-head');
+      if (toggle) { toggle.setAttribute('aria-expanded', 'true'); }
+    });
+  });
 
   var ticking = false;
   var activeId = null;
@@ -747,9 +798,10 @@ SCRIPT = """
     ticking = false;
     var bestId = null;
     var bestDelta = Infinity;
-    sections.forEach(function (sec, i) {
+    sections.forEach(function (sec) {
       var delta = Math.abs(sec.getBoundingClientRect().top - 24);
-      if (delta < bestDelta) { bestDelta = delta; bestId = String(i); }
+      // 右侧按文件树顺序渲染，但文件索引仍是原始 diff 索引；必须从 section id 取原始索引。
+      if (delta < bestDelta) { bestDelta = delta; bestId = sec.id.slice(1); }
     });
     var active = byIndex[bestId];
     if (!active) { return; }

@@ -29,7 +29,7 @@ root、按域名放行出站的独立容器或远端沙箱"。
 |---|---|---|
 | `filesystem` | 只提供隔离的会话目录，**不执行命令**（`execute` 直接拒绝，不静默回落到宿主执行） | 纯文件任务；本地开发 |
 | `docker` | 每会话一个受限容器 | 需要命令执行能力、且宿主有 Docker daemon |
-| `e2b` | 每会话一个阿里云函数计算「云沙箱」 | 后端主机没有 Docker daemon；执行面需要弹性 |
+| `e2b` | 每会话一个 E2B Firecracker 沙箱 | 本地使用官方 E2B Embed，云端可使用兼容控制面 |
 
 Docker 档的隔离参数是安全边界，不是可调项：不注入宿主环境变量（模型 API 密钥就在
 其中）、不挂载宿主目录与 Docker socket、以 uid 65534 运行、`cap_drop=ALL`、
@@ -110,6 +110,40 @@ NumPy、SciPy。Node 基础镜像已占用 uid 1000，因此 envd 注入的 `use
 **模板未发布时该后端不可用**——`is_available()` 只探测控制面，模板是否存在要到创建
 沙箱时才暴露（控制面会以 `template is CREATE_FAILED` 拒绝），表现为运行失败而不是
 "没有产物但成功"。
+
+### 本地 E2B Embed
+
+本地开发可以运行 E2B 官方 Embed 栈：控制面创建 Firecracker microVM，命令与文件请求
+再经官方 client-proxy 和 E2B envd 协议到达该 microVM。应用仍使用同一个 `e2b`
+provider，不会退回宿主 shell 或 Docker 命令执行。
+
+本仓的 `config.toml` 预先注册 E2B 环境变量别名，但默认不启用沙箱。启动 Embed 并写入
+本地应用配置：
+
+```bash
+cd ../zata-ops
+just e2b-embed up ../zata_code_template/.env.local
+```
+
+脚本会为 E2B Embed 下载固定版本的官方 Compose 文件，在隔离的 Lima Linux VM 内启动，
+然后把生成的 `E2B_API_KEY`、控制面/代理地址、`SANDBOX_AGENT_PROVIDER=e2b` 和
+`E2B_TEMPLATE_ID=base` 写入应用 `.env.local`。之后照常启动后端即可。`base` 模板足以
+走通控制面、E2B Connect 命令执行及文件读写协议；业务若需要额外 Python/Node 依赖，再
+从官方 Embed 模板流程构建本地模板并调整 `E2B_TEMPLATE_ID`。
+
+在 M 系列 Mac 上 Lima 使用 Apple Virtualization.framework 的嵌套虚拟化能力。Embed 所需
+的 KVM、TUN、内核模块、huge pages、iptables 规则和 Docker 都只作用于这台专用 VM；VM
+不挂载宿主目录，只把控制面 `3000`、Dashboard `3001`、数据代理 `3002` 转发到宿主
+`127.0.0.1`。不需要、也不应该把 E2B API 或代理端口暴露到局域网。
+
+```bash
+just e2b-embed status
+just e2b-embed logs
+just e2b-embed down
+```
+
+`down` 会停掉 Compose 服务并保留模板、数据库和本地 API key；再次执行 `up` 会复用它们。
+完整配置与兼容条件见 `zata-ops/docs/guides/e2b-embed.md`。
 
 ### 出站网络三档
 

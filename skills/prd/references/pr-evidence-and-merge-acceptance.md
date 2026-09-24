@@ -7,6 +7,7 @@ Read this reference when a PRD implementation is delivered through a pull reques
 - [Acceptance Event](#acceptance-event)
 - [PR Body](#pr-body)
 - [Evidence Publication](#evidence-publication)
+- [Local Review Bundle](#local-review-bundle)
 - [Frontend Prototype Comparison](#frontend-prototype-comparison)
 - [Evidence Identity](#evidence-identity)
 - [Post-Merge Reconciliation](#post-merge-reconciliation)
@@ -18,7 +19,7 @@ A merge is a valid human acceptance event only when all of these are true before
 
 1. The PR body uniquely names the pending PRD path.
 2. The PR body explicitly says that merging accepts the listed human decisions and visible outcomes and authorizes post-merge archival.
-3. Every `reviewer: human` presentation from PRD Section 9.1 is visible in the PR body or a stable PR evidence comment. The reviewer must not need a local checkout or an absolute local path.
+3. Every `reviewer: human` presentation from PRD Section 9.1 is available through the PR body or stable evidence comment. Prefer an in-PR browser presentation. When repository privacy or hosting limits make that unavailable, a complete local review bundle is valid if the PR gives one actionable worktree/open path and the reviewer does not have to fetch or download each artifact separately.
 4. The independent verifier and every required CI/delivery gate are green.
 5. Evidence is bound to the reviewed Git tree and has not gone stale after a later push.
 
@@ -57,7 +58,7 @@ Linked PRD: `tasks/pending/<prd-file>.md`
 - Verified tree: `<git-tree-oid>`
 ```
 
-The decision list and visible outcomes are projections of the PRD, not a second source of truth. Regenerate the PR body when those sections change.
+The decision list and visible outcomes are projections of the PRD, not a second source of truth. Regenerate the PR body when those sections change. The body or stable comment must name the review mode and tell the user how to reach it. Publish the review surface before asking the user to accept it.
 
 ## Evidence Publication
 
@@ -102,9 +103,26 @@ Use a stable marker so later pushes update the same comment instead of creating 
 
 Keep evidence reachable for the repository's audit horizon. Do not delete an evidence branch immediately after merge if doing so would break the archived PRD's PR links; apply an explicit retention or snapshot policy instead.
 
+## Local Review Bundle
+
+Use a local bundle when the repository is private and no authenticated browser host is available, or when inline PR comments force reviewers to download recordings one by one. Keep the human review in one self-contained HTML page, such as `tasks/evidence/<prd-stem>/human-review-checklist.html` or the evidence branch's `index.html`, with media and still images beside it and linked by relative paths.
+
+The page should:
+
+- include a native `<video controls>` player for each acceptance-critical recording;
+- render still images inline with captions naming the state and validation level;
+- show the key observed values, exact expected outcome, mock boundary, and relevant gate status next to the evidence;
+- link to traces, complete reports, manifest, and checksums as supporting material rather than making each raw file a separate review stop.
+
+Before asking for review, ensure every relative asset resolves from the page. If a matching implementation worktree already exists, give the direct `open <path>` command for the local review page. If it does not, give copy-paste commands to fetch the implementation and evidence branches, create the needed worktrees, and open the page. The commands must name the actual remote, branch, and path when known. Starting the application is not required to view captured evidence; use the repository's real run command only when live reproduction is part of the requested review.
+
+Do not expose private repository evidence through a public GitHub Pages site, gist, or other public host just to avoid downloads. Use authenticated hosting if already available; otherwise use the local bundle. A local bundle is delivered only when its page, assets, and open instructions are all present and the reviewer can reach it from the stated worktree setup.
+
+The PR body and stable comment should stay decision-oriented: summarize the outcomes and gate state, link the evidence branch, and provide the single local open route. Do not paste full traces into the PR body or imply that a GitHub `blob` link renders the HTML page.
+
 ## Frontend Prototype Comparison
 
-Every user-visible frontend change must let the reviewer compare design intent with the delivered result without leaving the PR. For each acceptance-critical state, publish this pair in order:
+Every user-visible frontend change must let the reviewer compare design intent with the delivered result in the PR or the local review page. For each acceptance-critical state, publish this pair in order:
 
 1. **Target prototype — design intent:** an image rendered from the approved prototype artifact, with its prototype form and provenance link.
 2. **Implemented UI — runtime evidence:** a screenshot from the real production entry at the highest feasible validation level, with the route/action used to reach it.
@@ -130,7 +148,7 @@ Recommended PR comment shape:
 
 The prototype image is not functional evidence and must never be labeled `production composition`, `real user flow`, or `live integration`. The implementation screenshot is not a prototype and must come from the real page/composition required by the repository's frontend validation rules. Both files follow the same evidence hashing, secret scanning, stable-link, and retention rules as other PR artifacts.
 
-If the PR changes frontend code but has no user-visible visual or interaction effect, add a concise waiver to the PR evidence comment naming the affected files and observable reason, for example: `Prototype image waiver: generated TypeScript API types only; rendered UI and interaction are unchanged.` A generic “not needed” waiver is invalid.
+If no approved target prototype exists for a user-visible change, create or update the smallest useful target prototype through the repository's prototype workflow and present its rendered image with provenance; do not silently omit the comparison. If the PR changes frontend code but has no user-visible visual or interaction effect, add a concise waiver to the PR evidence surface naming the affected files and observable reason, for example: `Prototype image waiver: generated TypeScript API types only; rendered UI and interaction are unchanged.` A generic “not needed” waiver is invalid.
 
 ## Evidence Identity
 

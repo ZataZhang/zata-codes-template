@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import os
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -42,6 +43,7 @@ class E2bSandboxSettings:
 
     Attributes:
         api_url (str): 控制面基地址。
+        sandbox_url (str | None): 可选的数据面代理基地址;用于 E2B Embed 本地 client-proxy。
         api_key_env (str): 控制面凭据所在的环境变量名。
         template_id (str): 平台自建执行模板标识。
         timeout_seconds (int): 新建沙箱的存活窗口秒数。
@@ -55,6 +57,7 @@ class E2bSandboxSettings:
     timeout_seconds: int
     username: str
     allow_internet_access: bool
+    sandbox_url: str | None = None
 
 
 @dataclass(frozen=True)
@@ -112,7 +115,19 @@ def load_sandbox_agent_config(
     if not isinstance(sandbox_section, dict):
         return None
 
-    configured_provider = str(sandbox_section.get("provider", "filesystem"))
+    e2b_section = sandbox_section.get("e2b")
+    provider_env_override = _environment_override(e2b_section, "provider_env")
+    raw_provider = _optional_str(sandbox_section.get("provider"))
+    if provider_env_override:
+        configured_provider = provider_env_override
+    elif raw_provider:
+        configured_provider = raw_provider
+    elif isinstance(e2b_section, dict):
+        # 配置文件可以注册 E2B 环境变量别名而不启用沙箱;本地环境显式设置 provider
+        # 后才会装配,默认启动行为仍保持未注册。
+        return None
+    else:
+        configured_provider = "filesystem"
     if configured_provider not in _SUPPORTED_PROVIDERS:
         raise SandboxAgentConfigError(
             "[sandbox_agent] provider 只支持 "
@@ -157,20 +172,38 @@ def _build_e2b_settings(sandbox_section: dict[str, Any]) -> E2bSandboxSettings:
             '[sandbox_agent] provider = "e2b" 必须提供 [sandbox_agent.e2b] 段，'
             "至少包含 api_url 与 template_id。"
         )
-    api_url = _optional_str(e2b_section.get("api_url"))
-    template_id = _optional_str(e2b_section.get("template_id"))
+    api_url = _environment_override(e2b_section, "api_url_env") or _optional_str(
+        e2b_section.get("api_url")
+    )
+    sandbox_url = _environment_override(e2b_section, "sandbox_url_env") or _optional_str(
+        e2b_section.get("sandbox_url")
+    )
+    template_id = _environment_override(e2b_section, "template_id_env") or _optional_str(
+        e2b_section.get("template_id")
+    )
     if not api_url:
         raise SandboxAgentConfigError("[sandbox_agent.e2b] 缺少 api_url")
     if not template_id:
         raise SandboxAgentConfigError("[sandbox_agent.e2b] 缺少 template_id")
     return E2bSandboxSettings(
         api_url=api_url.rstrip("/"),
+        sandbox_url=sandbox_url.rstrip("/") if sandbox_url else None,
         api_key_env=str(e2b_section.get("api_key_env", _DEFAULT_E2B_API_KEY_ENV)),
         template_id=template_id,
         timeout_seconds=int(e2b_section.get("timeout_seconds", _DEFAULT_E2B_TIMEOUT_SECONDS)),
         username=str(e2b_section.get("username", _DEFAULT_E2B_USERNAME)),
         allow_internet_access=bool(e2b_section.get("allow_internet_access", False)),
     )
+
+
+def _environment_override(e2b_section: Any, alias_setting: str) -> str | None:
+    """按 ``config.toml`` 中的变量别名读取可选运行环境覆盖值。"""
+    if not isinstance(e2b_section, dict):
+        return None
+    environment_variable_name = _optional_str(e2b_section.get(alias_setting))
+    if not environment_variable_name:
+        return None
+    return _optional_str(os.getenv(environment_variable_name))
 
 
 def _resolve_skills_paths(sandbox_section: dict[str, Any]) -> tuple[str, ...]:

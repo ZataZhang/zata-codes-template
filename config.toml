@@ -80,8 +80,7 @@ driver = "psycopg2"
 #                  到宿主执行）；适合纯文件任务与本地开发。
 #   - docker     : 每会话一个受限容器；需要宿主能访问 Docker daemon，并安装
 #                  `--extra sandbox-docker`。
-#   - e2b        : 每会话一个阿里云函数计算「云沙箱」；执行面在云端，后端主机无需
-#                  Docker daemon。
+#   - e2b        : 每会话一个 E2B Firecracker 沙箱；可连接阿里云云沙箱或本地 E2B Embed。
 #
 # 启用即取消注释并按需调整。docker 档的隔离参数（不注入宿主环境变量、不挂载宿主目录
 # 与 Docker socket、以 uid 65534 运行、cap_drop=ALL、no-new-privileges、限制内存/CPU/
@@ -106,17 +105,21 @@ driver = "psycopg2"
 # network_name = "zata-sandbox-egress"
 # allowed_domains = ["pypi.tuna.tsinghua.edu.cn"]
 #
-# # 云沙箱档。端点与模板属于非密钥配置；凭据只写环境变量**别名**，真实值由
-# # .env / .env.local 注入。缺少 api_url / template_id 会启动期 fail-fast；
-# # 凭据变量为空时该后端不注册（应用照常启动）。
-# [sandbox_agent.e2b]
-# api_url = "https://api.cn-beijing.e2b.fc.aliyuncs.com"
-# api_key_env = "E2B_API_KEY"
-# template_id = "zata-sandbox"
-# timeout_seconds = 900
-# username = "user"
-# # 生产必须 false（默认 false）；仅本地排障可临时打开。
-# allow_internet_access = false
+# E2B 连接别名常驻于配置中，但不会默认启用。设置 .env.local 中的
+# SANDBOX_AGENT_PROVIDER=e2b 后，应用通过 E2B 控制面创建真实 Firecracker 沙箱。
+# 本地 Embed 的 api_url/sandbox_url/template_id 由 .env.local 覆盖；E2B_API_KEY
+# 只存实际密钥。云端可移除相应覆盖或设置为云端地址与自建模板。
+[sandbox_agent.e2b]
+provider_env = "SANDBOX_AGENT_PROVIDER"
+api_url = "https://api.cn-beijing.e2b.fc.aliyuncs.com"
+api_url_env = "E2B_API_URL"
+api_key_env = "E2B_API_KEY"
+template_id = "zata-sandbox"
+template_id_env = "E2B_TEMPLATE_ID"
+sandbox_url_env = "E2B_SANDBOX_URL"
+timeout_seconds = 900
+username = "user"
+allow_internet_access = false
 
 # =============================================================================
 [observability]

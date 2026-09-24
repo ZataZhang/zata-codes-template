@@ -90,13 +90,24 @@ class E2bControlPlane:
         sandbox_id = str(created_payload.get("sandboxID") or "")
         access_token = str(created_payload.get("envdAccessToken") or "")
         response_domain = str(created_payload.get("domain") or "") or self._config.domain
-        if not sandbox_id or not access_token or not response_domain:
-            raise E2bProtocolError("云沙箱创建响应缺少 sandboxID / envdAccessToken / domain 字段")
+        if (
+            not sandbox_id
+            or not access_token
+            or (not response_domain and not self._config.sandbox_url)
+        ):
+            raise E2bProtocolError(
+                "沙箱创建响应缺少 sandboxID / envdAccessToken / domain 字段," "且未配置 sandbox_url"
+            )
         return E2bSandboxHandle(
             sandbox_id=sandbox_id,
-            envd_base_url=build_envd_base_url(sandbox_id=sandbox_id, domain=response_domain),
+            envd_base_url=(
+                build_envd_base_url(sandbox_id=sandbox_id, domain=response_domain)
+                if response_domain
+                else ""
+            ),
             access_token=access_token,
             timeout_seconds=self._config.timeout_seconds,
+            sandbox_proxy_url=self._config.sandbox_url,
         )
 
     def renew_sandbox(self, sandbox_id: str, *, timeout_seconds: int) -> None:

@@ -1,8 +1,8 @@
-"""阿里云 FC 云沙箱 E2B 兼容协议底座。
+"""E2B 沙箱协议底座。
 
-云沙箱对外暴露 E2B 协议,但官方 SDK 没有任何可用版本能对接该端点(新版走未实现的
-``/v2/sandboxes``、中间版本把沙箱标识拼成 ``{id}-{accountID}`` 导致执行通道全程
-404、旧版走不通的传输方式),因此在基础设施层内按协议直接实现。
+实现同时支持阿里云 FC 云沙箱的直连域名,以及 E2B Embed 的本地 client-proxy 路由。
+控制面和 envd 通道复用 E2B API/Connect 协议;本模块只放错误类型、跨平面值对象与
+Connect 分帧编解码。
 
 本模块只放三样东西:错误类型、跨平面共用的值对象、Connect 协议分帧编解码。控制面
 与执行通道各自成模块(``e2b_control_plane`` / ``e2b_execution_channel``),共享这里
@@ -25,8 +25,11 @@ CONNECT_DATA_FLAG: int = 0x00
 CONNECT_END_STREAM_FLAG: int = 0x02
 """Connect 流式响应里终止帧的标记;其载荷为 ``{}`` 或错误对象。"""
 
-ENVD_HTTPS_PORT: int = 49983
-"""envd 网关在沙箱域名上暴露的 HTTPS 端口。"""
+ENVD_PORT: int = 49983
+"""envd 网关端口。"""
+
+ENVD_HTTPS_PORT: int = ENVD_PORT
+"""云端沙箱域名使用的 HTTPS 端口,保留为兼容别名。"""
 
 _CONNECT_FRAME_HEADER_BYTES = 5
 _CONNECT_MAX_FRAME_BYTES = 8 * 1024 * 1024
@@ -53,6 +56,8 @@ class E2bEndpointConfig:
 
     Attributes:
         api_url (str): 控制面基地址。
+        sandbox_url (str | None): 可选的数据面代理基地址;设置后请求通过 E2B client-proxy
+            并携带沙箱路由头,用于 E2B Embed。
         api_key (str): 控制面凭据;该字段不进 ``repr``,避免对象被随手打进日志。
         domain (str): envd 网关域名;为空时以创建响应中的 ``domain`` 为准。
         template_id (str): 平台自建执行模板标识。
@@ -68,6 +73,7 @@ class E2bEndpointConfig:
     timeout_seconds: int
     username: str
     allow_internet_access: bool
+    sandbox_url: str | None = None
 
 
 @dataclass(frozen=True)
@@ -79,12 +85,14 @@ class E2bSandboxHandle:
         envd_base_url (str): 该沙箱执行通道的基地址。
         access_token (str): 执行通道访问令牌;该字段不进 ``repr``。
         timeout_seconds (int): 创建时生效的存活窗口秒数。
+        sandbox_proxy_url (str | None): E2B Embed client-proxy 地址;未设置时按云端域名直连。
     """
 
     sandbox_id: str
     envd_base_url: str
     access_token: str = field(repr=False)
     timeout_seconds: int
+    sandbox_proxy_url: str | None = None
 
 
 @dataclass(frozen=True)
@@ -165,7 +173,7 @@ def build_envd_base_url(*, sandbox_id: str, domain: str) -> str:
     """
     if not sandbox_id or not domain:
         raise ValueError("云沙箱标识与网关域名都不能为空")
-    return f"https://{ENVD_HTTPS_PORT}-{sandbox_id}.{domain}"
+    return f"https://{ENVD_PORT}-{sandbox_id}.{domain}"
 
 
 def decode_json_object(*, response_text: str, action: str) -> dict[str, object]:
@@ -268,6 +276,7 @@ def build_transport_error(*, action: str, transport_error: Exception) -> E2bProt
 __all__ = [
     "CONNECT_DATA_FLAG",
     "CONNECT_END_STREAM_FLAG",
+    "ENVD_PORT",
     "ENVD_HTTPS_PORT",
     "E2bEndpointConfig",
     "E2bExecOutcome",
