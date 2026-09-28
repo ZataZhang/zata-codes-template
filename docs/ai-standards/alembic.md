@@ -153,6 +153,8 @@ PostgreSQL 没有这个坑：PostgreSQL 的外键约束只要求**被引用**（
 
 `tests/guards/shared/test_migration_foreign_key_index_drop_order.py` 对"表存活"这一种形状做静态 AST 检查（同一个 `upgrade()`/`downgrade()` 函数内，同一张表只要同时出现显式外键约束删除与索引/唯一约束删除，就要求前者的源码行号更靠前），作为默认门禁在每次改动时自动生效，且不需要连接数据库。
 
+该守卫随 sync 分发到派生项目，而 `alembic/versions` 是项目自有对象：仓库里还没有任何迁移（目录为空或不存在，或项目根本不用 Alembic）时没有可检查的对象，守卫会 `pytest.skip` 跳过，而不是失败——"没有迁移"不等于"违反约定"。跳过在测试报告里显式可见，避免"守卫没生效"被误读成"守卫通过"。
+
 这条静态检查目前是这类缺陷**唯一**的自动化防线：本仓库 CI 的 `validate-template` job 虽然对 PostgreSQL 与 MySQL 服务都跑了迁移，但只执行 `alembic upgrade head`，没有 `downgrade` 步骤；仓库自身的 `tests/guards/test_migrations.py::test_migrations_upgrade_downgrade_upgrade` 虽然会做 upgrade→downgrade→upgrade 回环，但固定使用 SQLite（通过 `monkeypatch.setenv("DATABASE_URL", ...)` 覆盖成临时文件），不随 CI matrix 的真实 `DATABASE_URL` 切换到 MySQL，因此结构性地测不到这个坑。
 
 "索引删除后紧跟整表 drop_table"这一种形状**没有**静态检查覆盖：能否安全删除取决于被删索引的列是否恰好是某个外键约束的列，仅按"这张表在别处有没有任意外键"做表级粗判会产生真实误报（同一张表完全可能既有外键约束、又有一批与该外键无关的普通索引，这些索引被删后紧跟整表 drop_table，全程无 1553 风险）。要安全覆盖这一种形状需要把外键约束与索引各自的列集合做静态交叉比对，复杂度与误判面显著高于收益，因此暂不做。这一种形状的回归需要真实 MySQL 的 `upgrade head -> downgrade base -> upgrade head` 回环验证兜底——若要补齐，需先让 round-trip 测试改用 CI matrix 的真实 `DATABASE_URL` 而非硬编码 SQLite。

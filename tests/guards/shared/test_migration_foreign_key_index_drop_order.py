@@ -41,6 +41,12 @@ downgrade() 里被删、随后整表被删除，全程不会触发 1553（DROP T
 ``sa.ForeignKey``/``ForeignKeyConstraint`` 等多种写法），复杂度与误判面显著
 高于收益，因此本文件不做这一种检查；这一种形状的回归需要真实 MySQL 的
 upgrade→downgrade→upgrade 回环验证兜底。
+
+本文件随 sync 分发到派生项目，而 ``alembic/versions`` 是项目自有对象：派生项目
+可能尚未引入任何迁移，或压根不用 Alembic。这种仓库没有可检查的对象，"没有迁移"
+并不等于"违反约定"，因此仓库扫描在找不到任何迁移文件时**跳过**而不是判失败——
+否则每个还没写迁移的派生项目都会在默认门禁下平白变红。跳过用 ``pytest.skip``
+显式呈现，使"守卫暂未生效"在测试报告里可见，而不是静默通过。
 """
 
 from __future__ import annotations
@@ -48,6 +54,8 @@ from __future__ import annotations
 import ast
 from dataclasses import dataclass
 from pathlib import Path
+
+import pytest
 
 REPO_ROOT_PATH = Path(__file__).resolve().parents[3]
 VERSIONS_DIR_PATH = REPO_ROOT_PATH / "alembic" / "versions"
@@ -382,7 +390,8 @@ def test_migration_index_drops_do_not_precede_their_foreign_key_drops() -> None:
     每次改动时自动生效；检查范围的刻意收窄见模块 docstring。
     """
     migration_file_paths = sorted(VERSIONS_DIR_PATH.glob("*.py"))
-    assert migration_file_paths, f"{VERSIONS_DIR_PATH} 下没有找到任何迁移文件"
+    if not migration_file_paths:
+        pytest.skip(f"{VERSIONS_DIR_PATH} 下没有迁移文件，无待检查对象")
 
     all_violation_reports: list[str] = []
     for migration_file_path in migration_file_paths:
