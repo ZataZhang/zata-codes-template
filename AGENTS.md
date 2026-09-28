@@ -53,7 +53,7 @@
 - 变更代码时同步更新 `docs/` 与 `mkdocs.yml`
 - 守卫测试（`tests/guards/`，文件头标注"守卫测试（guard test）"）失败时，修复触发它的源代码或配置，不要修改守卫测试本身让测试通过；仅当约定本身变更时才改守卫测试，并同步更新对应文档。修改 `tests/guards/**` 需 `GUARD_UPDATE_ACK=1 git commit`。新增守卫测试按被测对象归位：守护 upstream-owned 代码（`hooks/shared`、`scripts/shared` 等）的放 `tests/guards/shared/`（随 sync 分发），守护项目自有对象的放根目录
 - 新增给密钥类的配置变量（密钥别名、端点注册信息等）应放到 `config.toml`，实际密钥值仍由 `.env/.env.local` 注入；默认 env 未填写时，配置加载仍须正常完成
-- `.env.example` 中非密钥类变量应保持 `# KEY=默认值` 的注释状态，仅作为示例；密钥类变量（含 API key、密码、token，以及可能携带凭据的连接字符串如 `DATABASE_URL`、`REDIS_URL`）保留未注释的空值（如 `MODEL_API_KEY=`），确保变量名可见且不会误用默认值
+- `.env.example` 按默认启用状态表达必填性：默认流程必填的变量保留未注释；可选功能或发布流程才需要的变量保持注释，仅作提示。密钥变量真实值始终留空；默认流程必填的密钥变量用未注释空值（如 `MODEL_API_KEY=`），可选密钥变量用注释形式（如 `# OPTIONAL_API_KEY=`）。
 - 需要调用大模型的项目，用 `.env` 的 `MODEL_BASE_URL` / `MODEL_API_KEY` / `MODEL_NAME` 三件套声明端点，经 `load_primary_model_settings()` 读取；模板不内置 LLM 客户端也不维护 provider 目录，接哪个 SDK 由派生项目决定。详见 `docs/guides/configuration.md`
 - `tests/playwright-e2e/` 是独立 TypeScript/Node 包，使用 `npm`，不强制套用 Python SSA 命名规范
 
