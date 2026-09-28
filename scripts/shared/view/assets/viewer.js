@@ -929,7 +929,7 @@
    *
    * 行本身是一个 `<button>`，因此那个加号**不能**嵌在它里面（按钮套按钮不是合法 HTML，键盘
    * 用户也分不出两者）。它作为兄弟节点放在外层容器里，各点各的。
-   * @param {{path: string, status: string, add: number|null, del: number|null, section: string, statsAvailable: boolean}} changedFile 改动文件（含底层分区与统计可用性）。
+   * @param {{path: string, status: string, rename_from?: string|null, add: number|null, del: number|null, section: string, statsAvailable: boolean}} changedFile 改动文件（含底层分区与统计可用性）。
    * @param {number} depth 缩进层级。
    * @returns {HTMLElement} 条目节点。
    */
@@ -938,7 +938,9 @@
     rowButton.type = "button";
     rowButton.className = "node";
     rowButton.style.paddingLeft = `${8 + depth * 14}px`;
-    rowButton.title = changedFile.path;
+    rowButton.title = changedFile.rename_from
+      ? `${changedFile.path}\n重命名自 ${changedFile.rename_from}`
+      : changedFile.path;
     rowButton.setAttribute(
       "aria-selected",
       String(
@@ -959,6 +961,14 @@
     nameNode.textContent =
       lastSlashIndex >= 0 ? changedFile.path.slice(lastSlashIndex + 1) : changedFile.path;
     rowButton.append(nameNode);
+
+    if (changedFile.rename_from) {
+      const renameSourceNode = document.createElement("span");
+      renameSourceNode.className = "rename-source";
+      renameSourceNode.textContent = `← ${changedFile.rename_from}`;
+      renameSourceNode.setAttribute("aria-label", `重命名自 ${changedFile.rename_from}`);
+      rowButton.append(renameSourceNode);
+    }
 
     if (changedFile.statsAvailable) {
       const statNode = document.createElement("span");

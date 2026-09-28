@@ -729,10 +729,10 @@ def _collect_index_section_files(
     """
     section_arguments = _SECTION_DIFF_ARGUMENT_PREFIXES[section_name]
     status_entry_by_path = _parse_status_entries(
-        _run_git(repository_root, *section_arguments, "--name-status", "-z")
+        _run_git(repository_root, *section_arguments, "-M", "--name-status", "-z")
     )
     numstat_by_path = _parse_numstat_entries(
-        _run_git(repository_root, *section_arguments, "--numstat", "-z")
+        _run_git(repository_root, *section_arguments, "-M", "--numstat", "-z")
     )
 
     changed_files: list[dict[str, object]] = []
@@ -742,6 +742,7 @@ def _collect_index_section_files(
             {
                 "path": changed_path,
                 "status": status_entry_by_path[changed_path][0],
+                "rename_from": status_entry_by_path[changed_path][1],
                 "add": added_count,
                 "del": deleted_count,
             }

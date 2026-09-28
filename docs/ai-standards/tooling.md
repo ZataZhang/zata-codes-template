@@ -43,7 +43,7 @@
 | `just worktree --prune [--dry-run\|--yes\|--force] [--base <branch>]` | 批量删除已并入 base 的本地分支及其 worktree；默认列计划并确认一次，gone 但有独有提交的分支需 `--force` |
 | `just test` | 运行本地测试 |
 | `just bench-test` | 验证 warm / after-edit 场景的 `just test` 是否满足 30 秒预算 |
-| `just view [路径]` | 打开本机改动查看器（默认改动视图，按 `Staged Changes` / `Changes` 两段列出，后者由未暂存与未跟踪合并而来；`--files` 切文件视图；`Changes` 旁的加号可 `git add`）；第二条命令起复用常驻实例（秒开） |
+| `just view [路径]` | 打开本机改动查看器（默认改动视图，按 `Staged Changes` / `Changes` 两段列出，后者由未暂存与未跟踪合并而来；Git 可识别的重命名合并为一条 `R` 项并标出旧路径；`--files` 切文件视图；`Changes` 旁的加号可 `git add`）；第二条命令起复用常驻实例（秒开） |
 | `just diff` | `just view --diff` 的薄别名 |
 | `uv run mkdocs build` | 验证文档站点 |
 | `just docs-serve` | 本地预览文档 |
