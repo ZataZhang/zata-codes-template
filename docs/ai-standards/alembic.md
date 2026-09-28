@@ -133,3 +133,26 @@ if "uq_xxx" not in refreshed_constraint_names:
 ```
 
 不涉及唯一约束的回填，也要保证重跑幂等：赋值在重跑时不变，或用 `WHERE col = <default>` 只处理未回填的行。downgrade 同样要可重跑。
+
+## Foreign Key and Index Drop Order
+
+`downgrade()`（有时也包括 `upgrade()` 里的回滚分支）在同一张表上既要删外键约束、又要删索引或唯一约束时，两者的相对顺序**在 MySQL 上**是硬约束；这条陷阱只影响 MySQL 方言，PostgreSQL 不受影响。
+
+### 外键约束依赖下的索引删除陷阱（仅 MySQL）
+
+MySQL 8 InnoDB 拒绝删除仍被外键约束依赖的索引：`DROP INDEX`/`ALTER TABLE ... DROP KEY` 在该索引还支撑着一个 FOREIGN KEY 时报 1553（`Cannot drop index 'X': needed in a foreign key constraint`）。这条约束只在索引所在表本身**存活**时才会触发——如果该表随后整体 `drop_table`，DROP TABLE 是单条 DDL，会原子性地连同索引与外键约束一起清除，不受这条限制。
+
+PostgreSQL 没有这个坑：PostgreSQL 的外键约束只要求**被引用**（父表）一侧存在唯一索引/约束，对**引用**（子表）一侧的普通索引没有目录级依赖（`pg_depend` 不会把子表索引挂在 FK 约束上），子表索引删除顺序与该表是否有外键约束无关。这条约定因此不需要、也不应该套到 PostgreSQL 分支上。
+
+这个坑在 SQLite 上同样不可见：Alembic 的 `batch_alter_table` 在 SQLite 上走"整表重建"策略（建临时表 -> 拷贝数据 -> 删旧表 -> 改名），不会对旧表执行真正的 `DROP INDEX`。修法分两种：
+
+- **表最终被整体 drop_table**：前面对该表索引的单独 `drop_index` 调用是多余的，直接删掉即可（索引会随 `drop_table` 一并清除）。
+- **表本身存活，只做列级手术**：必须先 `drop_constraint(..., type_="foreignkey")`，再 `drop_index(...)`/`drop_constraint(..., type_="unique")`，顺序不能反。
+
+### 自动化覆盖范围
+
+`tests/guards/shared/test_migration_foreign_key_index_drop_order.py` 对"表存活"这一种形状做静态 AST 检查（同一个 `upgrade()`/`downgrade()` 函数内，同一张表只要同时出现显式外键约束删除与索引/唯一约束删除，就要求前者的源码行号更靠前），作为默认门禁在每次改动时自动生效，且不需要连接数据库。
+
+这条静态检查目前是这类缺陷**唯一**的自动化防线：本仓库 CI 的 `validate-template` job 虽然对 PostgreSQL 与 MySQL 服务都跑了迁移，但只执行 `alembic upgrade head`，没有 `downgrade` 步骤；仓库自身的 `tests/guards/test_migrations.py::test_migrations_upgrade_downgrade_upgrade` 虽然会做 upgrade→downgrade→upgrade 回环，但固定使用 SQLite（通过 `monkeypatch.setenv("DATABASE_URL", ...)` 覆盖成临时文件），不随 CI matrix 的真实 `DATABASE_URL` 切换到 MySQL，因此结构性地测不到这个坑。
+
+"索引删除后紧跟整表 drop_table"这一种形状**没有**静态检查覆盖：能否安全删除取决于被删索引的列是否恰好是某个外键约束的列，仅按"这张表在别处有没有任意外键"做表级粗判会产生真实误报（同一张表完全可能既有外键约束、又有一批与该外键无关的普通索引，这些索引被删后紧跟整表 drop_table，全程无 1553 风险）。要安全覆盖这一种形状需要把外键约束与索引各自的列集合做静态交叉比对，复杂度与误判面显著高于收益，因此暂不做。这一种形状的回归需要真实 MySQL 的 `upgrade head -> downgrade base -> upgrade head` 回环验证兜底——若要补齐，需先让 round-trip 测试改用 CI matrix 的真实 `DATABASE_URL` 而非硬编码 SQLite。
