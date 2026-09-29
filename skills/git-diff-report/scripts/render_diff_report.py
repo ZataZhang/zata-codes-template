@@ -2,7 +2,8 @@
 """把 git 工作区改动渲染成一份自包含的 HTML 报告。
 
 左侧是改动文件树（可折叠、带改动总结与 +/− 统计，点击跳转、滚动联动），
-右侧是全部文件的完整高亮 diff。所有资源内联在单个 HTML 文件里，无外部依赖。
+右侧是全部文件的完整 diff：浅色主题与 just view 同源，逐行带新旧行号双列，
+长行折行不横滚。所有资源内联在单个 HTML 文件里，无外部依赖。
 
 用法示例：
 
@@ -457,17 +458,55 @@ def esc(text: str) -> str:
     return html.escape(text, quote=True)
 
 
-def render_line(line: str) -> str:
-    """渲染单行 diff，按增/删/上下文/元信息着色。"""
+def render_line(line: str, *, old_show: str = "", new_show: str = "") -> str:
+    """渲染单行 diff：新旧行号双列 + 按增/删/上下文/元信息着色。
+
+    行号口径与 ``git diff`` 的 hunk 头一致：增行只显示新侧行号、删行只显示旧侧
+    行号、上下文行两侧都显示，与 just view 改动视图同款。
+    """
     if line.startswith("+"):
         css_class, body = "add", line[1:]
     elif line.startswith("-"):
         css_class, body = "del", line[1:]
     elif line.startswith("\\"):
         css_class, body = "meta", line
+    elif line.startswith(" "):
+        css_class, body = "ctx", line[1:]
     else:
+        # 无前缀的正文（meta-only 块里的 "new file mode" 等元信息行）原样保留。
         css_class, body = "ctx", line
-    return f'<div class="line {css_class}"><span class="txt">{esc(body) or "&nbsp;"}</span></div>'
+    return (
+        f'<div class="line {css_class}">'
+        f'<span class="lineno"><span>{old_show}</span><em></em><span>{new_show}</span></span>'
+        f'<span class="txt">{esc(body) or "&nbsp;"}</span></div>'
+    )
+
+
+def render_hunk_rows(hunk: dict[str, Any]) -> str:
+    """渲染一个 hunk 的全部行，按 hunk 头给出的起始行号推进新旧行号。
+
+    行号推进规则来自 unified diff 本身：``-`` 行消耗旧侧号、``+`` 行消耗新侧号、
+    上下文行两边同时消耗；``\\`` 行（如 "No newline at end of file"）不属于任何
+    一侧，不显示行号。
+    """
+    old_number = int(hunk["old_start"])
+    new_number = int(hunk["new_start"])
+    rows: list[str] = []
+    for line in hunk["lines"]:
+        if line.startswith("+"):
+            rendered = render_line(line, new_show=str(new_number))
+            new_number += 1
+        elif line.startswith("-"):
+            rendered = render_line(line, old_show=str(old_number))
+            old_number += 1
+        elif line.startswith("\\"):
+            rendered = render_line(line)
+        else:
+            rendered = render_line(line, old_show=str(old_number), new_show=str(new_number))
+            old_number += 1
+            new_number += 1
+        rows.append(rendered)
+    return "".join(rows)
 
 
 def move_lines_html(pair_path: str, path: str) -> str:
@@ -526,10 +565,7 @@ def render_section(index: int, file_entry: dict[str, Any], summaries: dict[str, 
     blocks: list[str] = []
 
     if file_entry["meta"]:
-        meta_html = "".join(
-            f'<div class="line meta"><span class="txt">{esc(line)}</span></div>'
-            for line in file_entry["meta"]
-        )
+        meta_html = "".join(render_line(line) for line in file_entry["meta"])
         blocks.append(f'<div class="hunk-body meta-only">{meta_html}</div>')
 
     moved_from = moved_from_path(file_entry)
@@ -539,12 +575,11 @@ def render_section(index: int, file_entry: dict[str, Any], summaries: dict[str, 
     for hunk_index, hunk in enumerate(file_entry["hunks"]):
         note = hunk_note(summaries, path, hunk_index)
         note_html = f'<div class="hunk-note">{esc(note)}</div>' if note else ""
-        lines_html = "".join(render_line(line) for line in hunk["lines"])
         blocks.append(
             f'<div class="hunk">{note_html}'
             f'<div class="hunk-head">@@ -{hunk["old_start"]} +{hunk["new_start"]} @@ '
             f'{esc(hunk["label"])}</div>'
-            f'<div class="hunk-body">{lines_html}</div></div>'
+            f'<div class="hunk-body">{render_hunk_rows(hunk)}</div></div>'
         )
 
     if not file_entry["hunks"]:
@@ -572,182 +607,267 @@ def render_section(index: int, file_entry: dict[str, Any], summaries: dict[str, 
 # ─────────────────────────────────────────────────────────────────────────────
 
 STYLE = """
+  /* 设计令牌与 just view（scripts/shared/view/assets/viewer.css）同源，观感保持一致。 */
   :root {
-    --bg: #0f1420; --panel: #161d2d; --panel2: #1b2334; --line: #263148;
-    --fg: #d7dee9; --muted: #8b98ad; --add: #1f3a2c; --add-fg: #7ee2a8;
-    --del: #3d2230; --del-fg: #ff9aa8; --accent: #6aa9ff;
+    /* 报告是自包含文件，可能被任意 webview 打开：钉死浅色 color-scheme，
+       防止深色系统下 UA 用深色画布 + 白字兜底（不支持 oklch/color-mix 的旧内核）。 */
+    color-scheme: light;
+    --radius: 0.625rem;
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.129 0.042 264.695);
+    --card: oklch(1 0 0);
+    --primary: oklch(0.208 0.042 265.755);
+    --primary-foreground: oklch(0.984 0.003 247.858);
+    --secondary: oklch(0.968 0.007 247.896);
+    --muted-foreground: oklch(0.554 0.046 257.417);
+    --destructive: oklch(0.577 0.245 27.325);
+    --border: oklch(0.929 0.013 255.508);
+    --ring: oklch(0.704 0.04 256.788);
+    --add: oklch(0.72 0.14 152 / 22%);
+    --del: oklch(0.62 0.2 25 / 16%);
+    --add-mark: oklch(0.5 0.13 152);
+    --del-mark: oklch(0.52 0.2 25);
+    --rename: oklch(0.62 0.11 256 / 18%);
+    --rename-mark: oklch(0.48 0.13 256);
+    --code-bg: oklch(0.995 0.002 250);
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
   }
   * { box-sizing: border-box; }
-  html { scroll-behavior: smooth; }
   body {
-    margin: 0; background: var(--bg); color: var(--fg);
-    font-family: -apple-system, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
-    font-size: 14px; line-height: 1.6;
+    margin: 0; padding: 10px; height: 100svh;
+    background: color-mix(in oklab, var(--secondary) 60%, var(--background));
+    color: var(--foreground);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+      "Microsoft YaHei", sans-serif;
+    font-size: 13.5px; line-height: 1.5;
   }
-  .layout { display: grid; grid-template-columns: 470px 1fr; min-height: 100vh; }
+  button { font: inherit; color: inherit; }
+
+  /* ── 应用骨架：顶栏 + 左树/右 diff 两个独立滚动面 ─────── */
+  .app { display: grid; height: 100%; grid-template-rows: auto minmax(0, 1fr); gap: 8px; }
+  .body-grid {
+    display: grid; min-height: 0; gap: 8px;
+    grid-template-columns: minmax(320px, 440px) minmax(0, 1fr);
+  }
+  .surface {
+    overflow: hidden; border: 1px solid var(--border);
+    border-radius: calc(var(--radius) + 2px); background: var(--card);
+  }
+
+  /* ── 顶栏 ─────────────────────────────────────────────── */
+  .topbar { display: flex; align-items: center; gap: 10px; padding: 9px 14px; }
+  .repo-mark {
+    display: grid; width: 24px; height: 24px; flex: none; place-items: center;
+    border-radius: 7px; background: var(--primary); color: var(--primary-foreground);
+    font-family: var(--mono); font-size: 12px; font-weight: 700;
+  }
+  .title-block { min-width: 0; }
+  .topbar h1 {
+    margin: 0; font-size: 15px; font-weight: 650;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .meta-line {
+    color: var(--muted-foreground); font-size: 12px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .spacer { flex: 1; }
+  .totals {
+    flex: none; color: var(--muted-foreground); font-family: var(--mono);
+    font-size: 12px; font-variant-numeric: tabular-nums;
+  }
 
   /* ── 左侧改动树 ───────────────────────────────────────── */
-  aside {
-    position: sticky; top: 0; height: 100vh; overflow-y: auto;
-    background: var(--panel); border-right: 1px solid var(--line);
-    padding: 16px 12px 40px;
-    /* 侧栏滚到底后不再把滚动链给页面，否则联动高亮会把侧栏拽回上方 */
-    overscroll-behavior: contain;
+  aside.surface {
+    display: flex; min-height: 0; flex-direction: column;
+    padding: 10px 8px 12px; gap: 10px;
   }
-  aside h1 { font-size: 15px; margin: 0 0 4px 4px; }
-  aside .meta-line { color: var(--muted); font-size: 12px; margin: 0 0 4px 4px; }
-  aside .totals { font-size: 12px; color: var(--muted); margin: 0 0 14px 4px; }
-  .tree { display: flex; flex-direction: column; }
+  .tree { flex: 1; min-height: 0; overflow-y: auto; padding: 0 2px; overscroll-behavior: contain; }
 
   details.dir { margin: 0; }
   details.dir > summary {
     list-style: none; cursor: pointer; display: flex; align-items: center;
     gap: 6px; padding: 5px 8px; border-radius: 6px; font-size: 13px;
-    font-weight: 600; color: #b9c6db;
+    font-weight: 600; color: var(--foreground);
   }
   details.dir > summary::-webkit-details-marker { display: none; }
-  details.dir > summary:hover { background: var(--panel2); }
+  details.dir > summary:hover { background: var(--secondary); }
   details.dir > summary::before {
-    content: "\25B8"; color: var(--muted); font-size: 10px; width: 10px;
+    content: "\25B8"; color: var(--muted-foreground); font-size: 10px; width: 10px;
     transition: transform .12s ease;
   }
   details.dir[open] > summary::before { transform: rotate(90deg); }
   .dir-row { padding-left: 8px; }
-  .dir-name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .dir-name { font-family: var(--mono); }
   .dir-count {
-    margin-left: auto; color: var(--muted); font-size: 11px; font-weight: 400;
-    background: var(--panel2); border-radius: 8px; padding: 0 6px;
+    margin-left: auto; color: var(--muted-foreground); font-size: 11px; font-weight: 400;
+    background: var(--secondary); border-radius: 8px; padding: 0 6px;
   }
-  .children { border-left: 1px dashed var(--line); margin-left: 8px; }
+  .children { border-left: 1px dashed var(--border); margin-left: 8px; }
 
   .file-row {
     display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px;
-    text-decoration: none; color: var(--fg); padding: 6px 8px;
+    text-decoration: none; color: var(--foreground); padding: 6px 8px;
     border-radius: 6px; border-left: 2px solid transparent; padding-left: 8px;
   }
-  .file-row:hover { background: var(--panel2); }
-  .file-row.active { background: var(--panel2); border-left-color: var(--accent); }
+  .file-row:hover { background: var(--secondary); }
+  .file-row.active {
+    background: color-mix(in oklab, var(--primary) 10%, transparent);
+    border-left-color: var(--primary); color: var(--primary); font-weight: 620;
+  }
   .file-name {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 12.5px; overflow-wrap: anywhere; white-space: normal; min-width: 0;
+    font-family: var(--mono); font-size: 12.5px;
+    overflow-wrap: anywhere; white-space: normal; min-width: 0;
   }
   .file-hit {
     font-variant-numeric: tabular-nums; font-size: 11px; white-space: nowrap;
-    display: flex; gap: 5px;
+    display: flex; gap: 5px; font-family: var(--mono);
   }
   .file-summary {
-    grid-column: 1 / -1; color: var(--muted); font-size: 12px; line-height: 1.5;
+    grid-column: 1 / -1; color: var(--muted-foreground); font-size: 12px; line-height: 1.5;
     overflow: hidden; display: -webkit-box; -webkit-line-clamp: 4;
     -webkit-box-orient: vertical;
   }
-  .file-row.active .file-summary { color: #b3c0d4; }
+  .file-row.active .file-summary { color: var(--foreground); opacity: .8; }
 
   /* ── 文件移动（重命名）───────────────────────────────── */
   .moves-card {
-    margin: 0 4px 12px; padding: 9px 11px; background: var(--panel2);
-    border: 1px solid var(--line); border-radius: 8px;
+    flex: none; margin: 0 2px; padding: 9px 11px; background: var(--secondary);
+    border: 1px solid var(--border); border-radius: 8px;
   }
   .moves-title {
     display: flex; align-items: center; gap: 6px; margin-bottom: 8px;
-    font-size: 12px; font-weight: 600; color: #b9c6db;
+    font-size: 12px; font-weight: 600; color: var(--foreground);
   }
   .moves-list {
     list-style: none; margin: 0; padding: 0;
     display: flex; flex-direction: column; gap: 9px;
   }
-  .moves-list a { text-decoration: none; display: block; border-radius: 5px; padding: 2px 3px; }
-  .moves-list a:hover { background: var(--panel); }
-  .moves-list a:hover .mv-new { color: #a8cdff; }
+  .moves-list a {
+    text-decoration: none; display: block; color: inherit;
+    border-radius: 5px; padding: 2px 3px;
+  }
+  .moves-list a:hover { background: var(--card); }
+  .moves-list a:hover .mv-new { color: var(--primary); }
   .mv-line {
     display: flex; gap: 6px; align-items: baseline;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 10.5px; line-height: 1.45; overflow-wrap: anywhere;
+    font-family: var(--mono); font-size: 10.5px; line-height: 1.45; overflow-wrap: anywhere;
   }
-  .mv-glyph { flex: 0 0 9px; color: var(--muted); font-weight: 700; }
-  .mv-old { color: var(--muted); text-decoration: line-through; text-decoration-color: #4a586f; }
-  .mv-new { color: var(--accent); }
-  .mv-sim { display: block; margin-left: 15px; color: var(--muted); font-size: 10px; }
+  .mv-glyph { flex: 0 0 9px; color: var(--muted-foreground); font-weight: 700; }
+  .mv-old { color: var(--muted-foreground); text-decoration: line-through; }
+  .mv-new { color: var(--rename-mark); }
+  .mv-sim { display: block; margin-left: 15px; color: var(--muted-foreground); font-size: 10px; }
 
   .move-badge {
     font-size: 10px; font-weight: 600; letter-spacing: .3px;
-    background: #24344f; color: #9dc0ff; border: 1px solid #35507a;
+    background: var(--rename); color: var(--rename-mark);
+    border: 1px solid color-mix(in oklab, var(--rename-mark) 25%, transparent);
     border-radius: 4px; padding: 0 5px; white-space: nowrap;
   }
   .file-move-path {
-    grid-column: 1 / -1; color: var(--muted); opacity: .85; font-size: 10.5px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    overflow-wrap: anywhere;
+    grid-column: 1 / -1; color: var(--muted-foreground); font-size: 10.5px;
+    font-family: var(--mono); overflow-wrap: anywhere;
   }
   .move-banner {
     display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline;
-    background: #172439; border: 1px solid #2f4a72; border-radius: 8px;
-    padding: 10px 12px; margin-bottom: 8px;
+    background: var(--rename);
+    border: 1px solid color-mix(in oklab, var(--rename-mark) 25%, transparent);
+    border-radius: 8px; padding: 10px 12px; margin-bottom: 8px;
   }
 
   /* ── 右侧全部文件 ─────────────────────────────────────── */
-  main { padding: 24px 28px 80px; max-width: 1100px; }
+  main.surface { display: flex; min-height: 0; flex-direction: column; }
+  .viewer-body {
+    flex: 1; min-height: 0; overflow-y: auto; background: var(--code-bg);
+    padding: 14px 16px 60px; scroll-behavior: smooth;
+  }
   .file {
-    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
-    padding: 16px 18px; margin-bottom: 26px; scroll-margin-top: 20px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    margin-bottom: 14px; scroll-margin-top: 12px;
   }
   .file-head {
     position: sticky; top: 0; z-index: 3;
-    display: flex; width: calc(100% + 36px); justify-content: space-between;
-    align-items: baseline; gap: 12px; margin: -16px -18px 12px; padding: 12px 18px;
-    border: 0; border-bottom: 1px solid #3a5277; border-radius: 10px 10px 0 0;
-    color: #f3f7ff; background: #202c43; text-align: left;
-    box-shadow: 0 5px 12px rgba(0, 0, 0, .28); cursor: pointer;
+    display: flex; width: 100%; justify-content: space-between;
+    align-items: baseline; gap: 12px; margin: 0; padding: 10px 14px;
+    border: 0; border-bottom: 1px solid var(--border); border-radius: 10px 10px 0 0;
+    color: var(--foreground); background: var(--card); text-align: left; cursor: pointer;
   }
-  .file-head:hover { background: #293a57; }
-  .file-head:focus-visible { outline: 2px solid #8dbaff; outline-offset: -3px; }
-  .file-head h2 { color: #f3f7ff; }
-  .file-chevron { flex: 0 0 auto; color: #b9d2f7; font-size: 13px;
-    transition: transform .12s ease; }
+  .file-head:hover { background: var(--secondary); }
+  .file-head:focus-visible { outline: 2px solid var(--ring); outline-offset: -3px; }
+  .file-chevron {
+    flex: 0 0 auto; color: var(--muted-foreground); font-size: 13px;
+    transition: transform .12s ease;
+  }
   .file.is-collapsed .file-chevron { transform: rotate(-90deg); }
+  .file.is-collapsed .file-head { border-radius: 10px; border-bottom-color: transparent; }
   .file.is-collapsed .file-content { display: none; }
-  .file-content { min-width: 0; }
+  .file-content { min-width: 0; padding: 12px 14px 14px; }
   .file h2 {
-    font-size: 15px; margin: 0;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 13.5px; margin: 0; min-width: 0; overflow-wrap: anywhere;
+    font-family: var(--mono); font-weight: 600;
   }
-  .stats span { font-variant-numeric: tabular-nums; font-size: 12px; margin-left: 8px; }
-  .add-stat { color: var(--add-fg); }
-  .del-stat { color: var(--del-fg); }
+  .stats span {
+    font-variant-numeric: tabular-nums; font-size: 12px; margin-left: 8px;
+    font-family: var(--mono);
+  }
+  .add-stat { color: var(--add-mark); }
+  .del-stat { color: var(--del-mark); }
   .summary {
-    color: #b6c2d6; background: var(--panel2); border-left: 3px solid var(--accent);
-    padding: 9px 12px; border-radius: 0 6px 6px 0; margin: 12px 0 16px; font-size: 13px;
+    color: var(--foreground); background: var(--secondary); border-left: 3px solid var(--primary);
+    padding: 9px 12px; border-radius: 0 6px 6px 0; margin: 0 0 12px; font-size: 13px;
   }
-  .empty-hunk { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
+  .empty-hunk { color: var(--muted-foreground); font-size: 12px; margin: 8px 0 0; }
   .hunk { margin-bottom: 14px; }
-  .hunk-note { font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+  .hunk-note { font-size: 12px; color: var(--muted-foreground); margin-bottom: 5px; }
   .hunk-head {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
-    color: var(--accent); background: #131a28; padding: 4px 10px;
-    border-radius: 6px 6px 0 0; border: 1px solid var(--line); border-bottom: none;
+    font-family: var(--mono); font-size: 11.5px;
+    color: var(--muted-foreground); background: var(--secondary); padding: 4px 14px;
+    border: 1px solid var(--border); border-bottom: none;
+    border-radius: 8px 8px 0 0;
   }
   .hunk-body {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px;
-    border: 1px solid var(--line); border-radius: 0 0 6px 6px; overflow-x: auto;
-    background: #111826;
+    font-family: var(--mono); font-size: 12.5px; line-height: 1.65;
+    border: 1px solid var(--border); border-radius: 0 0 8px 8px;
+    background: var(--code-bg); padding: 4px 0;
   }
-  .hunk-body.meta-only { border-radius: 6px; margin-bottom: 8px; }
-  .line { display: flex; white-space: pre; }
-  .line .txt { padding: 0 12px 0 14px; width: 100%; }
+  .hunk-body.meta-only { border-radius: 8px; margin-bottom: 8px; }
+  /* 行号双列 + 正文：正文折行而不横向滚动，口径同 just view 的改动视图。 */
+  .line { display: grid; grid-template-columns: 78px minmax(0, 1fr); }
+  .line .lineno {
+    display: flex; justify-content: flex-end; align-items: baseline;
+    padding-right: 12px; user-select: none;
+    color: color-mix(in oklab, var(--muted-foreground) 75%, transparent);
+  }
+  .line .lineno em {
+    font-style: normal; width: 8px;
+    color: color-mix(in oklab, var(--muted-foreground) 48%, transparent);
+  }
+  .line .txt {
+    min-width: 0; padding-right: 18px;
+    white-space: pre-wrap; word-break: break-word;
+  }
   .line.add { background: var(--add); }
-  .line.add .txt { color: var(--add-fg); }
+  .line.add .txt::before { color: var(--add-mark); content: '+'; margin-right: 6px; }
   .line.del { background: var(--del); }
-  .line.del .txt { color: var(--del-fg); }
-  .line.ctx .txt { color: #aab6c8; }
-  .line.meta .txt { color: var(--muted); }
-  .empty { padding: 40px; color: var(--muted); }
+  .line.del .txt::before { color: var(--del-mark); content: "\2212"; margin-right: 6px; }
+  .line.ctx .txt::before { content: ' '; margin-right: 6px; }
+  .line.meta .txt { color: var(--muted-foreground); }
+  .empty { padding: 40px; color: var(--muted-foreground); }
+
+  @media (max-width: 900px) {
+    .body-grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: 240px minmax(0, 1fr); }
+  }
 """
 
 SCRIPT = """
-  // 缩进交给 .children 的层级 margin，这里只负责滚动高亮
+  // 缩进交给 .children 的层级 margin，这里只负责滚动高亮。
+  // 左右两栏各自独立滚动：右侧滚动容器是 .viewer-body，联动高亮挂它的 scroll 事件。
   var rows = Array.prototype.slice.call(document.querySelectorAll('.file-row'));
-  var sections = Array.prototype.slice.call(document.querySelectorAll('main .file'));
+  var sections = Array.prototype.slice.call(document.querySelectorAll('.file'));
   var fileToggles = Array.prototype.slice.call(document.querySelectorAll('.file-head'));
   var aside = document.querySelector('aside');
+  var scroller = document.querySelector('.viewer-body');
+  // 侧栏的滚动面是内层 .tree，而不是 aside 本身（aside 只是 flex 外壳，overflow: hidden）。
+  var treeScroller = document.querySelector('.tree');
   var byIndex = {};
   rows.forEach(function (row) { byIndex[row.dataset.index] = row; });
 
@@ -766,7 +886,8 @@ SCRIPT = """
         if (nextSection) {
           window.requestAnimationFrame(function () {
             var top = nextSection.getBoundingClientRect().top;
-            window.scrollTo({ top: window.scrollY + top - 20, behavior: 'instant' });
+            var base = scroller.getBoundingClientRect().top;
+            scroller.scrollTo({ top: scroller.scrollTop + top - base - 12, behavior: 'instant' });
           });
         }
       }
@@ -798,8 +919,10 @@ SCRIPT = """
     ticking = false;
     var bestId = null;
     var bestDelta = Infinity;
+    // 锚点取滚动容器自身顶部下方 16px，而不是视口顶部：右栏在页面里也有偏移。
+    var anchor = scroller.getBoundingClientRect().top + 16;
     sections.forEach(function (sec) {
-      var delta = Math.abs(sec.getBoundingClientRect().top - 24);
+      var delta = Math.abs(sec.getBoundingClientRect().top - anchor);
       // 右侧按文件树顺序渲染，但文件索引仍是原始 diff 索引；必须从 section id 取原始索引。
       if (delta < bestDelta) { bestDelta = delta; bestId = sec.id.slice(1); }
     });
@@ -821,14 +944,14 @@ SCRIPT = """
     if (Date.now() - sidebarTouchedAt < 1200) { return; }
 
     var rowBox = active.getBoundingClientRect();
-    var asideBox = aside.getBoundingClientRect();
-    if (rowBox.top < asideBox.top + 8) {
-      aside.scrollTop -= asideBox.top + 8 - rowBox.top;
-    } else if (rowBox.bottom > asideBox.bottom - 8) {
-      aside.scrollTop += rowBox.bottom - (asideBox.bottom - 8);
+    var treeBox = treeScroller.getBoundingClientRect();
+    if (rowBox.top < treeBox.top + 8) {
+      treeScroller.scrollTop -= treeBox.top + 8 - rowBox.top;
+    } else if (rowBox.bottom > treeBox.bottom - 8) {
+      treeScroller.scrollTop += rowBox.bottom - (treeBox.bottom - 8);
     }
   }
-  window.addEventListener('scroll', function () {
+  scroller.addEventListener('scroll', function () {
     if (!ticking) { ticking = true; window.requestAnimationFrame(syncActive); }
   }, { passive: true });
   window.addEventListener('load', syncActive);
@@ -858,21 +981,30 @@ def render_page(
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>{esc(title)}</title>
 <style>{STYLE}</style>
 </head>
 <body>
-<div class="layout">
-  <aside>
-    <h1>{esc(title)}</h1>
-    <div class="meta-line">{esc(meta_line)}</div>
-    <div class="totals">{len(files)} 个文件 ·
+<div class="app">
+  <header class="topbar surface">
+    <span class="repo-mark">±</span>
+    <div class="title-block">
+      <h1>{esc(title)}</h1>
+      <div class="meta-line">{esc(meta_line)}</div>
+    </div>
+    <span class="spacer"></span>
+    <span class="totals">{len(files)} 个文件 ·
       <span class="add-stat">+{total_added}</span>
-      <span class="del-stat">-{total_removed}</span></div>
-    {moves_html}
-    <div class="tree">{tree_html}</div>
-  </aside>
-  <main>{sections}</main>
+      <span class="del-stat">-{total_removed}</span></span>
+  </header>
+  <div class="body-grid">
+    <aside class="surface">
+      {moves_html}
+      <div class="tree">{tree_html}</div>
+    </aside>
+    <main class="surface"><div class="viewer-body">{sections}</div></main>
+  </div>
 </div>
 <script>{SCRIPT}</script>
 </body>
