@@ -81,13 +81,14 @@ export default defineConfig({
     // are also used to record demo / acceptance videos. Pair with a local
     // `humanPause(page, ms)` helper inside tests for extra dwell time on key
     // steps (e.g. after a form fill or before an assertion).
+    // CI 里没有人看录像，slowMo 只会白白拉长耗时，因此 CI 下取 0，本地保持 200。
     {
       name: 'no-auth',
       testMatch: /.*\.no-auth\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 1440, height: 1200 },
-        launchOptions: { slowMo: 200 },
+        launchOptions: { slowMo: process.env.CI ? 0 : 200 },
       },
     },
 
