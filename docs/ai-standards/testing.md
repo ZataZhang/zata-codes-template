@@ -120,6 +120,19 @@
    - ``tests/guards/test_realdb_xdist_manifest.py``：静态声明的
      ``_REALDB_TEST_FILES`` 清单必须与实际的模块级 realdb 标记一致。
 
+### 表结构只由迁移提供
+
+测试库的 schema 只由 Alembic 迁移链建立。``tests/backend/conftest.py`` 的会话级
+``_setup_backend_database`` 调 ``create_tables()``（内部即 ``alembic upgrade
+head``，与 ``create_app()`` 走同一个迁移操作），不再用
+``Base.metadata.create_all`` 从模型建表——这里只是把迁移提前到会话开始，不多做一步。
+
+禁止在共享真实库上用 ``create_all`` 的原因：它对已存在的表一律跳过、只建缺失的
+新表。当模型新增了表、而迁移尚未应用时，它会先建出新表、却补不上旧表的新列，
+造出「新表已建、旧表缺列」的半成品 schema；紧随其后的 ``create_app()`` 迁移在
+重建那张新表时就撞 ``DuplicateTable``，把库卡在迁移不完整的状态。建在一次性
+SQLite 引擎（``sqlite://``）上的测试库不受此限，仍可用 ``create_all``。
+
 ### 判定 realdb 标记的陷阱
 
 pytest 9 起 ``Mark.__eq__`` 不再与字符串相等、且 ``Mark`` 不可哈希，所以

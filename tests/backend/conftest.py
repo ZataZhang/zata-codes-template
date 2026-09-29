@@ -1,7 +1,8 @@
 """Backend 测试共享 fixture。
 
-统一管理后端测试的数据库建表与 Redis 替身：
-- 用真实测试数据库（由 ``DATABASE_URL`` 指向）建表，会话级、幂等、不删表以兼容并行；
+统一管理后端测试的数据库迁移与 Redis 替身：
+- 用真实测试数据库（由 ``DATABASE_URL`` 指向），经 Alembic 迁移到 head，会话级、
+  幂等、不删表以兼容并行；
 - 用进程内 fakeredis 替换装配中的 Redis 客户端，使认证 / 会话测试无需真实 Redis。
 
 数据残留防护
@@ -26,7 +27,7 @@ from fastapi.testclient import TestClient
 
 import backend.infrastructure.persistence.models  # noqa: F401  注册模型到 Base.metadata
 from backend.infrastructure.auth.bcrypt_password_hasher import BcryptPasswordHasher
-from backend.infrastructure.persistence.database import Base, SessionLocal, engine
+from backend.infrastructure.persistence.database import SessionLocal, create_tables
 from backend.infrastructure.persistence.models.admin_user import AdminUserModel
 from tests.realdb_test_support import (
     TrackedEntityRegistry,
@@ -39,8 +40,15 @@ _REGISTRY_CLEANUP_FAILURE_KEY = pytest.StashKey[str]()
 
 @pytest.fixture(scope="session", autouse=True)
 def _setup_backend_database() -> Iterator[None]:
-    """为后端测试建立数据库表（会话级、幂等、不删表）。"""
-    Base.metadata.create_all(bind=engine)
+    """为后端测试把真实数据库迁移到 head（会话级、幂等、不删表）。
+
+    schema 只由 Alembic 迁移链提供，不用 ``Base.metadata.create_all`` 从模型建表：
+    后者对已存在的表一律跳过、只建缺失的新表，会在「新模型已加、迁移尚未应用」时
+    造出「新表已建、旧表缺列」的半成品 schema，让紧随其后的 ``create_app()`` 迁移
+    在重建新表时撞 ``DuplicateTable``。模型与迁移的一致性由
+    ``tests/guards/test_migrations.py`` 守护，因此迁移即可完整建出全部表。
+    """
+    create_tables()
     yield
 
 
