@@ -191,7 +191,7 @@ pnpm report
 
 ### no-auth project 与演示/验收视频
 
-`no-auth` project 在 `playwright.config.ts` 里默认配置了 `launchOptions: { slowMo: 200 }`，让每次点击、输入都有约 200ms 的间隔，录制出来的视频不会是一瞬间完成的操作流。
+`no-auth` project 在 `playwright.config.ts` 里默认配置了 `launchOptions: { slowMo: 200 }`，让每次点击、输入都有约 200ms 的间隔，录制出来的视频不会是一瞬间完成的操作流。设置了 `CI` 环境变量时（如 GitHub Actions）该延迟取 0：CI 里没有人看录像，延迟只会拉长耗时；本地录制仍保留演示节奏。
 
 如果某些关键步骤需要额外停留（例如填完表单后让观众看清），在测试里引入共享 helper：
 
