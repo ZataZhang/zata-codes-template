@@ -102,6 +102,12 @@ tests/playwright-e2e/test-results/2026-07-02T11-31-08/
 
 HTML 报告仍固定在 `tests/playwright-e2e/playwright-report/`，方便 `just e2e-report` 直接打开。
 
+`playwright.config.ts` 里 `use.video` 按 `process.env.CI` 取值：本地 `on`（录 demo/验收视频用），
+CI 用 `retain-on-failure`。CI 若也录全程，每次失败都会把**所有**用例的 `video.webm` 一起打进
+`playwright-report-*` 制品（实测每份 ~20MB），很快吃满账户的 Actions 存储配额；失败证据本来
+就由 `trace: 'retain-on-failure'` 与截图提供。注意 Playwright CLI 不接受 `--video` 参数，
+视频模式只能由配置决定。
+
 ## 按 PRD 收集 E2E 证据
 
 通用收集器会读取 PRD 中的 `Realistic Validation Plan`，执行对应 oracle，并把日志、HTML 报告、失败视频收集到 `tasks/evidence/<prd-basename>/`。

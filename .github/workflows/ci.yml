@@ -351,6 +351,8 @@ jobs:
           # The no-auth smoke tests only require the two frontends in this job;
           # the backend is not started, so health-check the frontend root.
           PLAYWRIGHT_HEALTH_URL: "http://127.0.0.1:3000"
+        # 不在此处传视频参数：Playwright CLI 不接受 --video，视频模式由
+        # playwright.config.ts 按 CI 环境变量收敛（CI 只留失败视频，本地录全程）。
         run: pnpm exec playwright test --project=no-auth
 
       - name: Stop frontend dev servers
