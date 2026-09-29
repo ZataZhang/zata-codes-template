@@ -86,6 +86,11 @@ jobs:
     name: Validate Template (${{ matrix.database }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # job 级 permissions 会整体替换 workflow 级声明，所以 contents:read 要重写。
+    # actions:write 只被下面的制品清理步骤用到（删除制品的 REST 调用）。
+    permissions:
+      contents: read
+      actions: write
     strategy:
       fail-fast: false
       matrix:
@@ -196,18 +201,68 @@ jobs:
           # 不受此处影响。retention-days 仅作 prune 步骤失败时的兜底。
           retention-days: 3
 
-      - name: Prune old template-release artifacts (keep latest 3)
+      - name: Prune old CI artifacts (keep latest 3 per prefix)
         # 数量封顶：无论 CI 频率多高，同前缀制品只保留最新 3 份。
-        # 按天数保留在高频 CI 下仍会累积吃满账户存储配额，故上传后
-        # 立即按数量裁剪；本步骤失败不影响 CI 结论。
+        # 按天数保留在高频 CI 下仍会累积吃满账户存储配额，故上传后立即裁剪。
+        # 走 REST 而不是 gh：自建 runner 上没装 gh，而旧写法 `gh api ... | xargs -r`
+        # 在 `gh: command not found` 时依然以退出码 0 结束（xargs 收到空输入），
+        # 于是这一步长期表现为绿灯但一个制品都没删。
+        # 本步骤失败不阻断 CI 结论，但会打印 live/keep/deleted 计数，空转不再隐形。
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
+          ARTIFACT_PREFIXES: "template-release-,playwright-report-"
+          ARTIFACT_KEEP: "3"
         run: |
-          gh api "repos/${{ github.repository }}/actions/artifacts?per_page=100" --paginate \
-            --jq '.artifacts[] | select(.expired==false) | select(.name | startswith("template-release-")) | "\(.created_at)\t\(.id)"' \
-            | sort -r | tail -n +4 | cut -f2 \
-            | xargs -r -I{} gh api -X DELETE "repos/${{ github.repository }}/actions/artifacts/{}"
+          python3 - <<'PY'
+          import json, os, urllib.request
+
+          BASE = "{}/repos/{}/actions/artifacts".format(
+              os.environ["GITHUB_API_URL"].rstrip("/"), os.environ["GITHUB_REPOSITORY"]
+          )
+          HEADERS = {
+              "Authorization": "Bearer " + os.environ["GH_TOKEN"],
+              "Accept": "application/vnd.github+json",
+              "User-Agent": "ci-artifact-prune",
+          }
+          KEEP = int(os.environ.get("ARTIFACT_KEEP", "3"))
+          PREFIXES = [p for p in os.environ.get("ARTIFACT_PREFIXES", "").split(",") if p]
+
+
+          def call(url, method="GET"):
+              request = urllib.request.Request(url, method=method, headers=HEADERS)
+              with urllib.request.urlopen(request) as response:
+                  return None if response.status == 204 else json.load(response)
+
+
+          live = []
+          page = 1
+          while True:
+              payload = call("{}?per_page=100&page={}".format(BASE, page))
+              batch = payload["artifacts"]
+              live += [a for a in batch if not a["expired"] and a["name"].startswith(tuple(PREFIXES))]
+              if len(batch) < 100 or page * 100 >= payload["total_count"]:
+                  break
+              page += 1
+
+          deleted = 0
+          for prefix in PREFIXES:
+              group = sorted(
+                  (a for a in live if a["name"].startswith(prefix)),
+                  key=lambda a: a["created_at"],
+                  reverse=True,
+              )
+              for stale in group[KEEP:]:
+                  try:
+                      call("{}/{}".format(BASE, stale["id"]), method="DELETE")
+                  except OSError as error:
+                      print("::warning::删除 {} (id={}) 失败: {}".format(stale["name"], stale["id"], error))
+                      continue
+                  deleted += 1
+                  print("pruned {} (id={})".format(stale["name"], stale["id"]))
+
+          print("prefixes={} live={} keep={} deleted={}".format(PREFIXES, len(live), KEEP, deleted))
+          PY
 
   e2e:
     name: Playwright E2E (no-auth)
