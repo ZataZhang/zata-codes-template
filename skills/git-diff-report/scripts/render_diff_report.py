@@ -785,21 +785,29 @@ def render_move_banner(file_entry: dict[str, Any], moved_from: str) -> str:
     )
 
 
-def render_moves_card(files: Sequence[dict[str, Any]]) -> str:
-    """渲染左侧栏顶部的「文件移动」汇总卡；没有移动时返回空串。"""
+def render_moves_card(files: Sequence[dict[str, Any]], display_indexes: Sequence[int]) -> str:
+    """渲染左侧栏顶部的「文件移动」汇总卡；没有移动时返回空串。
+
+    ``display_indexes`` 是树中可见顺序下的文件索引（``render_tree`` 的返回值）。
+    锚点 ``#f<N>`` 用的是文件在 ``files`` 里的原始索引，因此必须取
+    ``display_indexes`` 里的真实索引，而不是显示位置 ``enumerate`` 出来的序号——
+    两者在显示顺序不同于原始顺序时并不相等，用错会跳到别的文件。
+    """
     moved_entries = [
-        (index, file_entry) for index, file_entry in enumerate(files) if moved_from_path(file_entry)
+        (file_index, files[file_index])
+        for file_index in display_indexes
+        if moved_from_path(files[file_index])
     ]
     if not moved_entries:
         return ""
     items: list[str] = []
-    for index, file_entry in moved_entries:
+    for file_index, file_entry in moved_entries:
         added, removed = count_changes(file_entry)
         detail = "内容未变更" if added + removed == 0 else f"另有 {added + removed} 行改动"
         similarity = file_entry.get("similarity")
         detail_text = f"相似度 {esc(str(similarity))} · {detail}" if similarity else detail
         items.append(
-            f'<li><a href="#f{index}">'
+            f'<li><a href="#f{file_index}">'
             f"{move_lines_html(moved_from_path(file_entry), str(file_entry['path']))}"
             f'<span class="mv-sim">{detail_text}</span></a></li>'
         )
@@ -1714,8 +1722,7 @@ def render_page(
     total_added = sum(count_changes(file_entry)[0] for file_entry in files)
     total_removed = sum(count_changes(file_entry)[1] for file_entry in files)
     tree_html, display_indexes = render_tree(build_tree(files), summaries, files)
-    display_files = [files[file_index] for file_index in display_indexes]
-    moves_html = render_moves_card(display_files)
+    moves_html = render_moves_card(files, display_indexes)
     sections = "".join(
         render_section(file_index, files[file_index], summaries) for file_index in display_indexes
     )
