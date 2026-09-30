@@ -184,7 +184,7 @@ function renderOverviewViewHtml() {
       <section class="card">
         <div class="inline-row">
           <span class="badge badge-info">reference package</span>
-          <span class="muted">This prototype is aligned with real files in <span class="mono">/home/atahang/.cc-switch/skills/planning-with-files/</span>.</span>
+          <span class="muted">This prototype is aligned with real skill package files in the repository.</span>
         </div>
       </section>
 
