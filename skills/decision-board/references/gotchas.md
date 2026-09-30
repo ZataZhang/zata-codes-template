@@ -33,6 +33,20 @@ agent 没有可被外部推的入口，只有两个输入通道：对话本身�
 - 渲染一律 `textContent` + `white-space:pre-wrap`。用户在提问框里敲 `<img onerror=...>`、agent 回答里带尖括号，都不该被解析成 HTML。
 - board JSON 内嵌进 `<script>` 时，`json.dumps(...).replace("</", "<\\/")` 是必需的：正文里出现 `</script>` 会直接截断脚本块。JSON 字符串里 `<\/` 与 `</` 等价，不影响解析。
 
+## 不要写死宿主 agent 的名字（这里出过 bug）
+
+`board.html` 的文案与气泡说话人原先把宿主 agent 写成了具体产品名（"Qoder"）。这个 skill 会被多个 CLI 加载（CodeBuddy / Qoder / Claude / Codex …），写死一个产品名在别的宿主里就是错的。统一用中性称呼「助手」。新增文案或气泡时不要引入具体产品名。
+
+## 提问框必须对输入法友好（这里出过 bug）
+
+`#input` 的 Enter 处理一开始只判断 `e.key==='Enter' && !e.shiftKey`，于是**中文/日文输入法组字时按回车选词，会把候选词当成问题直接发出去**（用户报的：中文输入法下敲英文，回车选词的同时就发送了）。修法是在 keydown 里先排除组字态：
+
+```js
+if(e.isComposing || e.keyCode===229) return;   // 229 兜老 Safari，它在提交那一帧不给 isComposing
+```
+
+改这段时不要退回只看 `e.key`。验证要用 CDP 的 `Input.imeSetComposition` 造真实组字态——只发合成 `KeyboardEvent` 测不出浏览器差异。
+
 ## 滚动策略（这里出过 bug）
 
 轮询每次重画会话区，早期实现无条件 `scrollTop = scrollHeight`，用户往上翻历史最多 2.5 秒就被拽回底部。现在的规则：

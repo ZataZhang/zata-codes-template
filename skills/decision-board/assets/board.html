@@ -70,7 +70,7 @@
   .dock header .x{margin-left:auto;cursor:pointer;color:var(--dim);font-weight:400}
   .dock header .st{font-size:11.5px;font-weight:500;color:var(--dim)}
   .thread{max-height:46vh;overflow-y:auto;padding:10px 14px}
-  .thread:empty::after{content:"还没有提问。写下问题，回车发送，Qoder 会在这条对话里回答。";
+  .thread:empty::after{content:"还没有提问。写下问题，回车发送，助手会在这条对话里回答。";
     color:var(--dim);font-size:13px}
   .msg{margin-bottom:11px}
   .msg .who{font-size:11px;font-weight:700;letter-spacing:.04em;color:var(--dim);margin-bottom:2px}
@@ -100,7 +100,7 @@
   <div class="stat" id="stat"></div>
   <label class="confirm"><input type="checkbox" id="ack"> 我已逐项过目，未改动的即接受推荐</label>
   <button class="ghost" id="allrec">全部重置为推荐</button>
-  <button id="submit" disabled>提交给 Qoder</button>
+  <button id="submit" disabled>提交给助手</button>
 </div></div>
 <div id="out"></div>
 <button class="fab" id="fab">提问</button>
@@ -137,7 +137,7 @@ QS.forEach(q=>{
     <div class="row"><span class="k cost">代价 / 连带改动</span>${q.cost}</div>
     ${q.sub?`<div class="row"><span class="k ask">附加待定</span>${q.sub}</div>`:''}
   </div>
-  <textarea id="note-${q.id}" placeholder="要反问 Qoder 的、或要补的条件（可留空）"></textarea>`;
+  <textarea id="note-${q.id}" placeholder="要反问助手的、或要补的条件（可留空）"></textarea>`;
   c.innerHTML = h;
   root.appendChild(c);
 });
@@ -191,7 +191,7 @@ document.getElementById('submit').onclick = async ()=>{
     if(!r.ok) throw new Error('HTTP '+r.status);
     btn.textContent='已提交 ✓'; btn.disabled=true;
     document.getElementById('out').innerHTML =
-      `<div class="ok" style="padding:14px 4px">✓ 已回传，无需复制粘贴。回到对话里跟 Qoder 说一声「看完了」即可。</div>`;
+      `<div class="ok" style="padding:14px 4px">✓ 已回传，无需复制粘贴。回到对话里跟助手说一声「看完了」即可。</div>`;
   }catch(e){
     btn.textContent='提交失败 ↓ 请复制';
     document.getElementById('out').innerHTML =
@@ -232,8 +232,8 @@ function render(){
   let waiting=0;
   ids.forEach(id=>{
     thread.appendChild(bubble('你', seen[id].question, 'me'));
-    if(seen[id].reply) thread.appendChild(bubble('Qoder', seen[id].reply, 'ai'));
-    else { waiting++; thread.appendChild(bubble('Qoder','· 已送达，等待回答…','ai pending')); }
+    if(seen[id].reply) thread.appendChild(bubble('助手', seen[id].reply, 'ai'));
+    else { waiting++; thread.appendChild(bubble('助手','· 已送达，等待回答…','ai pending')); }
   });
   lastSig=sig;
   if(nearBottom){ thread.scrollTop=thread.scrollHeight; pendingJump=false; }
@@ -263,7 +263,13 @@ async function send(){
   input.value=''; render(); poll();
 }
 document.getElementById('send').onclick=send;
-input.addEventListener('keydown',e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); send(); } });
+input.addEventListener('keydown',e=>{
+  if(e.key!=='Enter'||e.shiftKey) return;
+  // 输入法组字中：中文/日文 IME 的回车是「选词」而不是发送。
+  // keyCode 229 兜老 Safari，它在这一帧不给 isComposing。
+  if(e.isComposing||e.keyCode===229) return;
+  e.preventDefault(); send();
+});
 render(); poll(); setInterval(poll, 2500);
 
 refresh();

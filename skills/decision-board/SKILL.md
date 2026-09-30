@@ -88,7 +88,7 @@ printf '%s' "回答正文" | python3 <skill>/scripts/qa.py --dir <workdir> answe
 
 ## Resources
 
-- `scripts/serve_board.py` — 渲染页面 + 接收提交/提问，含 board 校验；改题目内容不需要重启动服务（每次 GET 重读模板与 board 文件）。
+- `scripts/serve_board.py` — 渲染页面 + 接收提交/提问，含 board 校验。**改 `board.json` 后必须重启服务**：board 只在启动时读进内存，每次 GET 只重读 `assets/board.html` 模板。
 - `scripts/qa.py` — `list` 看待答问题，`answer <id>` 从 stdin 追加回答。
 - `assets/board.html` — 页面模板，占位符 `__DATA__` / `__TITLE__` / `__SOURCE__` / `__INTRO__`。
 - `references/gotchas.md` — 为什么问题与回答是两个只追加文件、贴底跟随的滚动策略、`</` 转义、通知不是批准、以及验证方法（起服务后必须用真浏览器跑一遍）。改动模板前必读。
