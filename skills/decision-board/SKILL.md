@@ -20,7 +20,7 @@ argument-hint: "<含待决问题的文档路径>"
 - 页面每题预选**本 agent 的推荐项**，用户只改不同意的——改动过的卡片高亮；
 - 每题必须带 agent 的看法（`why`）与代价（`cost`），没有观点的问题不许上页；
 - 用户点「提交」→ 选择落盘 `answers.json`，agent 直接读文件，**不需要复制粘贴**；
-- 页面右下角有实时提问框，用户提问 → 落盘 `questions.jsonl` → `tail -F` 事件唤醒 agent → 回答追加 `answers.jsonl` → 页面轮询显示；
+- 页面右下角有实时提问框，用户提问 → 落盘 `questions.jsonl` → `tail -F` 事件唤醒 agent → 回答追加 `answers.jsonl` → 页面轮询显示；抽屉右上角「清空」把问答记录**归档**到 `<workdir>/_cleared/`（不删除，也不动 `answers.json`）；
 - 单文件页面、零外部依赖、只监听 127.0.0.1。
 
 ## Hard Boundaries

@@ -67,7 +67,9 @@
   .dock.open{display:flex}
   .dock header{display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid var(--line);
     font-size:13.5px;font-weight:600}
-  .dock header .x{margin-left:auto;cursor:pointer;color:var(--dim);font-weight:400}
+  .dock header .acts{margin-left:auto;display:flex;gap:10px;align-items:center;font-weight:400}
+  .dock header .x,.dock header .clr{cursor:pointer;color:var(--dim);font-weight:400}
+  .dock header .x:hover,.dock header .clr:hover{color:var(--fg)}
   .dock header .st{font-size:11.5px;font-weight:500;color:var(--dim)}
   .thread{max-height:46vh;overflow-y:auto;padding:10px 14px}
   .thread:empty::after{content:"还没有提问。写下问题，回车发送，助手会在这条对话里回答。";
@@ -105,7 +107,9 @@
 <div id="out"></div>
 <button class="fab" id="fab">提问</button>
 <div class="dock" id="dock">
-  <header>实时提问 <span class="st" id="qa-st"></span><span class="x" id="close">✕</span></header>
+  <header>实时提问 <span class="st" id="qa-st"></span>
+    <span class="acts"><span class="clr" id="clear">清空</span><span class="x" id="close">✕</span></span>
+  </header>
   <div class="thread" id="thread"></div>
   <div class="composer">
     <textarea id="input" placeholder="回车发送，Shift+回车换行"></textarea>
@@ -211,6 +215,15 @@ const seen={};
 const openDock=(v)=>{ dock.classList.toggle('open', v!==false); if(v!==false) input.focus(); };
 fab.onclick=()=>openDock();
 document.getElementById('close').onclick=()=>openDock(false);
+document.getElementById('clear').onclick=async ()=>{
+  if(!confirm('清空问答记录？\n\n记录会归档到产物目录的 _cleared/ 下（不删除）；本轮选择 answers.json 不受影响。')) return;
+  let res=null;
+  try{ res=await fetch('/qa/clear',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}); }catch(e){ res=null; }
+  if(!res || !res.ok){ qast.textContent='· 清空失败，请回对话里说一声'; return; }
+  Object.keys(seen).forEach(key=>delete seen[key]);
+  lastSig=''; pendingJump=false; jump.style.display='none';
+  render(); poll();
+};
 document.querySelectorAll('.ask').forEach(b=>b.onclick=()=>{
   const q=QS.find(x=>x.id===b.dataset.ask);
   openDock(); input.value=`关于 ${q.id}（${q.t}）：`; input.focus();

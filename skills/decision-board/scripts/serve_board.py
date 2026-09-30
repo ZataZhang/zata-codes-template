@@ -100,6 +100,34 @@ def append_jsonl(jsonl_path: Path, record: dict) -> None:
         jsonl_file.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
+def archive_qa_files(questions_path: Path, replies_path: Path) -> list[str]:
+    """把问答流移入 ``_cleared/`` 归档，返回被移动的文件名。
+
+    清空**不能**用 truncate：``tail -F`` 在监听的文件被截断或替换后会重新打开，
+    服务侧再往同名文件追加时事件流会与旧内容混在一起。归档则两个文件都消失、
+    由服务在下次追加时新建，监听端看到的是干净的新文件。归档而非删除，是为了
+    让页面的「清空」可回溯。
+
+    Args:
+        questions_path (Path): 页面提问（questions.jsonl）。
+        replies_path (Path): 对话侧回答（answers.jsonl）。
+
+    Returns:
+        list[str]: 被移动的归档文件名。
+    """
+    cleared_dir = questions_path.parent / "_cleared"
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+    moved: list[str] = []
+    for source_path in (questions_path, replies_path):
+        if not source_path.is_file():
+            continue
+        cleared_dir.mkdir(parents=True, exist_ok=True)
+        destination = cleared_dir / f"{stamp}-{source_path.name}"
+        source_path.replace(destination)
+        moved.append(destination.name)
+    return moved
+
+
 class Handler(BaseHTTPRequestHandler):
     """提供渲染后的页面，并接收选择提交与提问。"""
 
@@ -155,7 +183,15 @@ class Handler(BaseHTTPRequestHandler):
             self._write(404, b"not found", "text/plain; charset=utf-8")
 
     def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler 约定
-        """接收选择提交（/answers）与提问（/ask），追加落盘。"""
+        """接收选择提交（/answers）、提问（/ask）与清空（/qa/clear），落盘。"""
+        if self.path == "/qa/clear":
+            moved_files = archive_qa_files(self.paths.questions, self.paths.replies)
+            self._write(
+                200,
+                json.dumps({"ok": True, "archived": moved_files}, ensure_ascii=False).encode(),
+                "application/json; charset=utf-8",
+            )
+            return
         if self.path == "/answers":
             payload = self._json_body()
             if payload is None:
