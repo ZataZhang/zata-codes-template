@@ -10,16 +10,22 @@ import sys
 from pathlib import Path
 from typing import Iterable
 
+# PRD 格式的解析实现收在兄弟模块 prd_contract.py（Machine Contract 的唯一实现），
+# 本脚本只负责"交付物 PRD 是否合规"的裁决。两个文件必须同目录安装。
+_SIBLING_SCRIPT_DIR = str(Path(__file__).resolve().parent)
+if _SIBLING_SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, _SIBLING_SCRIPT_DIR)
+
+from prd_contract import (  # noqa: E402  (兄弟模块，运行时按脚本所在目录解析)
+    ACCEPTANCE_CHECKLIST_HEADING_RE,
+    TOP_LEVEL_HEADING_RE,
+    parse_checklist,
+)
+
 ACTIVE_PRD_PATH_RE = re.compile(r"^tasks/([^/]+-prd-[^/]+|P[0-3]-[A-Z]+-\d{8}-\d{6}-[^/]+)\.md$")
 ARCHIVED_PRD_PATH_RE = re.compile(
     r"^tasks/archive/([^/]+-prd-[^/]+|P[0-3]-[A-Z]+-\d{8}-\d{6}-[^/]+)\.md$"
 )
-ACCEPTANCE_CHECKLIST_HEADING_RE = re.compile(
-    r"^##\s+(?:\d+\.\s+)?(?:Acceptance Checklist\b.*|验收清单.*)\s*$"
-)
-TOP_LEVEL_HEADING_RE = re.compile(r"^##\s+")
-CHECKBOX_RE = re.compile(r"^\s*[-*+]\s+\[(?P<mark>[ xX])\]\s*(?P<label>.*)$")
-CODE_FENCE_RE = re.compile(r"^\s*(?:```|~~~)")
 REALISTIC_VALIDATION_HEADING_RE = re.compile(r"^###\s+(?:7\.6\s+)?Realistic Validation Plan\b")
 THIRD_LEVEL_HEADING_RE = re.compile(r"^###\s+")
 YAML_FENCE_START_RE = re.compile(r"^\s*```ya?ml\s*$", re.IGNORECASE)
@@ -255,27 +261,6 @@ def _candidate_prd_paths(
     return discovered_paths
 
 
-def _section_bounds(lines: list[str]) -> tuple[int, int] | None:
-    """Return the line bounds for the Acceptance Checklist section."""
-
-    start_index: int | None = None
-    for line_index, line in enumerate(lines):
-        if ACCEPTANCE_CHECKLIST_HEADING_RE.match(line):
-            start_index = line_index
-            break
-
-    if start_index is None:
-        return None
-
-    end_index = len(lines)
-    for line_index in range(start_index + 1, len(lines)):
-        if TOP_LEVEL_HEADING_RE.match(lines[line_index]):
-            end_index = line_index
-            break
-
-    return start_index + 1, end_index
-
-
 def _required_section_issues(file_content: str) -> list[tuple[int, str]]:
     """Return missing or out-of-order required PRD section issues."""
 
@@ -434,30 +419,17 @@ def _archive_reconciliation_issues(file_content: str) -> list[tuple[int, str]]:
 
 
 def _unchecked_items_in_acceptance_section(file_content: str) -> list[tuple[int, str]]:
-    """Return unchecked checklist items found in the acceptance section."""
+    """Return unchecked checklist items found in the acceptance section.
 
-    lines = file_content.splitlines()
-    section_bounds = _section_bounds(lines)
-    if section_bounds is None:
+    解析复用 :func:`prd_contract.parse_checklist`（PRD 格式的唯一实现）。这里刻意
+    **不做**人属分组豁免：本脚本裁决的是"交付物 PRD 的清单是否填完"，而
+    Human-Confirmed 组的放行判定属于执行工具的门禁语义，不在本 checker 职责内。
+    """
+
+    checklist = parse_checklist(file_content)
+    if not checklist.section_found:
         return [(-1, "Missing Acceptance Checklist section")]
-
-    start_index, end_index = section_bounds
-    unchecked_items: list[tuple[int, str]] = []
-    in_code_block = False
-
-    for line_index in range(start_index, end_index):
-        line = lines[line_index]
-        if CODE_FENCE_RE.match(line):
-            in_code_block = not in_code_block
-            continue
-        if in_code_block:
-            continue
-
-        checkbox_match = CHECKBOX_RE.match(line)
-        if checkbox_match and checkbox_match.group("mark") == " ":
-            unchecked_items.append((line_index + 1, line.rstrip()))
-
-    return unchecked_items
+    return [(item.line, item.text) for item in checklist.unchecked_items]
 
 
 def _interpretation_echo_issues(file_content: str) -> list[tuple[int, str]]:
