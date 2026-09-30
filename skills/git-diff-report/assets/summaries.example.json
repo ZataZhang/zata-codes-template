@@ -1,17 +1,60 @@
 {
   "title": "示例仓库改动报告",
   "meta_line": "分支 main · 已暂存改动 · 已排除 tests/**",
+  "overview": [
+    "## 这个功能改了什么",
+    "",
+    "一句话：**给配置仓储加了一道删除校验**——删除时只摘条目并返回被删视图，同时拒绝同一路径被多个 ID 占用。",
+    "",
+    "### 1. 仓储层",
+    "",
+    "- `src/backend/core/use_cases/example.py`：新增 remove_example() 与 _find_entry_by_path() 路径占用校验。",
+    "",
+    "### 2. 收尾",
+    "",
+    "- `justfile`：run 增加作业控制，避免孙进程残留。"
+  ],
+  "reading_path": [
+    {
+      "label": "先看删除入口与返回的被删条目视图",
+      "refs": ["src/backend/core/use_cases/example.py:120"]
+    },
+    {
+      "label": "再看路径占用校验为什么必须放在 add 里",
+      "refs": ["src/backend/core/use_cases/example.py:64"]
+    }
+  ],
   "files": {
     "src/backend/core/use_cases/example.py": {
       "summary": "新增 remove_example()：只删除配置条目，返回被删条目视图；同时补上同一路径不被多个 ID 占用校验。",
+      "role": "核心逻辑",
+      "must_read": true,
+      "key_hunks": [1, 2],
       "hunk_notes": [
         "补充模块不变量说明",
         "新增 _find_entry_by_path",
         "新增 remove_example"
       ]
     },
+    "src/backend/engines/decision/tool_risk_gate.py": {
+      "summary": "新增功能主实现，整篇是 1 个 hunk（新建文件），靠 focus_ranges 把注意力收到两段。",
+      "focus_ranges": [
+        {
+          "start": 141,
+          "end": 244,
+          "label": "ToolRiskGate 契约与 evaluate_tool_call；末段是 fail-open 降级路径"
+        },
+        {
+          "start": 305,
+          "end": 346,
+          "label": "ToolRiskGateMiddleware：挂 pre-tool-call 边界，拦截即回流"
+        }
+      ]
+    },
     "justfile": {
       "summary": "run 增加 set -m 开启作业控制，清理时按进程组 TERM→KILL，避免孙进程残留。",
+      "role": "配置",
+      "must_read": false,
       "hunk_notes": ["开启作业控制", "新增 kill_tree"]
     }
   }
