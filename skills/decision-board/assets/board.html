@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel2:#1d212a; --line:#2a2f3a;
+    --fg:#e6e9ef; --dim:#9aa4b2; --rec:#3fb950; --ask:#d29922; --danger:#f85149;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font:15px/1.65 -apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif}
+  .wrap{max-width:920px;margin:0 auto;padding:28px 20px 140px}
+  h1{font-size:22px;margin:0 0 6px}
+  .sub{color:var(--dim);font-size:13.5px;margin-bottom:18px}
+  .howto{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--rec);
+    border-radius:8px;padding:12px 14px;margin-bottom:22px;font-size:13.5px;color:var(--dim)}
+  .howto b{color:var(--fg)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-bottom:16px}
+  .card.answered{border-color:#2f6f3f}
+  .card.changed{border-color:var(--ask)}
+  .qid{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px}
+  .qid .tag{font-weight:700;font-size:13px;color:var(--dim);letter-spacing:.04em}
+  .qid h2{font-size:16.5px;margin:0;font-weight:600}
+  .ev{color:var(--dim);font-size:13px;margin:6px 0 12px;padding-left:10px;border-left:2px solid var(--line)}
+  label.opt{display:block;background:var(--panel2);border:1px solid var(--line);border-radius:8px;
+    padding:10px 12px;margin:7px 0;cursor:pointer;transition:.12s}
+  label.opt:hover{border-color:#3b4250}
+  label.opt input{margin-right:9px;vertical-align:-2px}
+  label.opt.on{border-color:var(--rec);background:#16251a}
+  label.opt.rec{border-color:#2f6f3f}
+  .badge{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:20px;
+    background:#1d3521;color:var(--rec);margin-left:6px;vertical-align:1px}
+  .badge.alt{background:#3a2d16;color:var(--ask)}
+  .opinion{margin-top:10px;font-size:13.5px}
+  .opinion .row{margin:4px 0;padding:8px 11px;background:var(--panel2);border-radius:7px}
+  .opinion .k{font-weight:700;color:var(--rec);margin-right:6px}
+  .opinion .k.cost{color:var(--ask)}
+  .opinion .k.ask{color:var(--danger)}
+  textarea{width:100%;margin-top:9px;background:#12151b;color:var(--fg);border:1px solid var(--line);
+    border-radius:7px;padding:8px 10px;font:inherit;font-size:13.5px;min-height:34px;resize:vertical}
+  ::placeholder{color:#5b6472}
+  .bar{position:fixed;left:0;right:0;bottom:0;background:#12141ae8;backdrop-filter:blur(8px);
+    border-top:1px solid var(--line);padding:12px 20px}
+  .bar .in{max-width:920px;margin:0 auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .stat{font-size:13.5px;color:var(--dim);flex:1;min-width:200px}
+  .stat b{color:var(--fg)}
+  button{background:var(--rec);color:#062109;border:0;border-radius:8px;padding:10px 20px;
+    font:inherit;font-weight:700;cursor:pointer}
+  button:disabled{background:#2a2f3a;color:#5b6472;cursor:not-allowed}
+  button.ghost{background:transparent;color:var(--dim);border:1px solid var(--line);font-weight:500;padding:10px 14px}
+  .confirm{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--dim);cursor:pointer}
+  .confirm input{width:auto;margin:0}
+  #out{margin-top:12px}
+  #out textarea{min-height:120px;font-family:ui-monospace,Menlo,monospace;font-size:12px}
+  .ok{color:var(--rec);font-weight:700}
+  /* 实时提问抽屉 */
+  .fab{position:fixed;right:22px;bottom:86px;z-index:20;background:var(--panel2);color:var(--fg);
+    border:1px solid var(--line);border-radius:24px;padding:9px 16px;font-weight:600;font-size:13.5px;cursor:pointer}
+  .fab:hover{border-color:#3b4250}
+  .fab .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--rec);margin-left:6px;vertical-align:1px}
+  .dock{position:fixed;right:22px;bottom:86px;z-index:21;width:400px;max-width:calc(100vw - 44px);
+    background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    box-shadow:0 12px 40px #0008;display:none;flex-direction:column;overflow:hidden}
+  .dock.open{display:flex}
+  .dock header{display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid var(--line);
+    font-size:13.5px;font-weight:600}
+  .dock header .x{margin-left:auto;cursor:pointer;color:var(--dim);font-weight:400}
+  .dock header .st{font-size:11.5px;font-weight:500;color:var(--dim)}
+  .thread{max-height:46vh;overflow-y:auto;padding:10px 14px}
+  .thread:empty::after{content:"还没有提问。写下问题，回车发送，Qoder 会在这条对话里回答。";
+    color:var(--dim);font-size:13px}
+  .msg{margin-bottom:11px}
+  .msg .who{font-size:11px;font-weight:700;letter-spacing:.04em;color:var(--dim);margin-bottom:2px}
+  .msg.me .who{color:var(--ask)}
+  .msg .bub{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;
+    font-size:13.5px;white-space:pre-wrap;word-break:break-word}
+  .msg.ai .bub{background:#16251a;border-color:#2f6f3f}
+  .msg.pending .bub{color:var(--dim);font-style:italic;background:transparent;border-style:dashed}
+  .composer{display:flex;gap:8px;padding:10px 12px 12px;border-top:1px solid var(--line)}
+  .jump{display:block;width:calc(100% - 24px);margin:0 12px;background:#1d3521;color:var(--rec);
+    border:1px solid #2f6f3f;border-radius:7px;padding:6px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
+  .composer textarea{margin:0;min-height:38px;max-height:120px;flex:1;font-size:13.5px}
+  .composer button{padding:0 14px;font-size:13.5px}
+  .ask{float:right;font-size:12px;color:var(--dim);background:transparent;border:1px solid var(--line);
+    border-radius:14px;padding:2px 10px;cursor:pointer;font-weight:500}
+  .ask:hover{color:var(--fg);border-color:#3b4250}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>__TITLE__</h1>
+  <div class="sub">__SOURCE__</div>
+  <div class="howto">__INTRO__</div>
+  <div id="qs"></div>
+</div>
+<div class="bar"><div class="in">
+  <div class="stat" id="stat"></div>
+  <label class="confirm"><input type="checkbox" id="ack"> 我已逐项过目，未改动的即接受推荐</label>
+  <button class="ghost" id="allrec">全部重置为推荐</button>
+  <button id="submit" disabled>提交给 Qoder</button>
+</div></div>
+<div id="out"></div>
+<button class="fab" id="fab">提问</button>
+<div class="dock" id="dock">
+  <header>实时提问 <span class="st" id="qa-st"></span><span class="x" id="close">✕</span></header>
+  <div class="thread" id="thread"></div>
+  <div class="composer">
+    <textarea id="input" placeholder="回车发送，Shift+回车换行"></textarea>
+    <button id="send">发送</button>
+  </div>
+</div>
+
+<script>
+const DATA = __DATA__;
+const QS = DATA.questions || [];
+
+const state = {};
+const root = document.getElementById('qs');
+QS.forEach(q=>{
+  state[q.id] = q.rec;
+  const c = document.createElement('div');
+  c.className='card'; c.id='card-'+q.id;
+  let h = `<div class="qid"><span class="tag">${q.id}</span><h2>${q.t}</h2>
+      <button class="ask" data-ask="${q.id}" style="margin-left:auto">就这题问</button></div>
+    <div class="ev"><b>PRD 证据</b>　${q.ev}</div>`;
+  q.opts.forEach(([k,label])=>{
+    const isRec = k===q.rec;
+    h += `<label class="opt${isRec?' rec':''}" data-q="${q.id}" data-k="${k}">
+      <input type="radio" name="${q.id}" value="${k}"${isRec?' checked':''}>
+      <b>${k}</b>　${label}${isRec?'<span class="badge">推荐</span>':''}</label>`;
+  });
+  h += `<div class="opinion">
+    <div class="row"><span class="k">我的看法</span>${q.why}</div>
+    <div class="row"><span class="k cost">代价 / 连带改动</span>${q.cost}</div>
+    ${q.sub?`<div class="row"><span class="k ask">附加待定</span>${q.sub}</div>`:''}
+  </div>
+  <textarea id="note-${q.id}" placeholder="要反问 Qoder 的、或要补的条件（可留空）"></textarea>`;
+  c.innerHTML = h;
+  root.appendChild(c);
+});
+
+function refresh(){
+  let answered=0, changed=0;
+  QS.forEach(q=>{
+    const sel = document.querySelector(`input[name="${q.id}"]:checked`);
+    const card = document.getElementById('card-'+q.id);
+    document.querySelectorAll(`label.opt[data-q="${q.id}"]`).forEach(l=>l.classList.remove('on'));
+    if(sel){
+      answered++; changed += (sel.value!==q.rec?1:0);
+      document.querySelector(`label.opt[data-q="${q.id}"][data-k="${sel.value}"]`).classList.add('on');
+      card.classList.add('answered');
+      card.classList.toggle('changed', sel.value!==q.rec);
+    } else {
+      card.classList.remove('answered','changed');
+    }
+  });
+  document.getElementById('stat').innerHTML =
+    `已选 <b>${answered}/${QS.length}</b>　·　改动推荐 <b>${changed}</b> 项　·　追问 <b>${
+      QS.filter(q=>document.getElementById('note-'+q.id).value.trim()).length}</b> 条`;
+  document.getElementById('submit').disabled = !(answered===QS.length && document.getElementById('ack').checked);
+}
+document.addEventListener('change', refresh);
+document.addEventListener('input', refresh);
+document.getElementById('allrec').onclick = ()=>{
+  QS.forEach(q=>{ document.querySelector(`input[name="${q.id}"][value="${q.rec}"]`).checked=true;
+    document.getElementById('note-'+q.id).value=''; });
+  refresh();
+};
+
+function payload(){
+  const picks={}, notes={};
+  QS.forEach(q=>{
+    picks[q.id]=document.querySelector(`input[name="${q.id}"]:checked`).value;
+    const n=document.getElementById('note-'+q.id).value.trim();
+    if(n) notes[q.id]=n;
+  });
+  return {answers:picks, notes:notes,
+    changed:Object.keys(picks).filter(k=>picks[k]!==QS.find(q=>q.id===k).rec),
+    accepted_recommendations:Object.keys(picks).filter(k=>picks[k]===QS.find(q=>q.id===k).rec).length,
+    submitted_at:new Date().toISOString()};
+}
+
+document.getElementById('submit').onclick = async ()=>{
+  const body = JSON.stringify(payload(), null, 2);
+  const btn = document.getElementById('submit');
+  try{
+    const r = await fetch('/answers', {method:'POST', headers:{'Content-Type':'application/json'}, body});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    btn.textContent='已提交 ✓'; btn.disabled=true;
+    document.getElementById('out').innerHTML =
+      `<div class="ok" style="padding:14px 4px">✓ 已回传，无需复制粘贴。回到对话里跟 Qoder 说一声「看完了」即可。</div>`;
+  }catch(e){
+    btn.textContent='提交失败 ↓ 请复制';
+    document.getElementById('out').innerHTML =
+      `<div class="sub" style="padding:14px 4px">本机服务不可达（${e.message}），请把下面内容复制回对话：</div>
+       <textarea readonly onclick="this.select()">${body.replace(/</g,'&lt;')}</textarea>`;
+  }
+};
+/* ---------- 实时提问 ---------- */
+const dock=document.getElementById('dock'), fab=document.getElementById('fab'),
+      thread=document.getElementById('thread'), input=document.getElementById('input'),
+      qast=document.getElementById('qa-st');
+const jump=document.createElement('button');
+jump.className='jump'; jump.textContent='↓ 有新内容'; jump.style.display='none';
+jump.onclick=()=>{ thread.scrollTop=thread.scrollHeight; jump.style.display='none'; pendingJump=false; };
+dock.insertBefore(jump, document.querySelector('.composer'));
+const seen={};
+const openDock=(v)=>{ dock.classList.toggle('open', v!==false); if(v!==false) input.focus(); };
+fab.onclick=()=>openDock();
+document.getElementById('close').onclick=()=>openDock(false);
+document.querySelectorAll('.ask').forEach(b=>b.onclick=()=>{
+  const q=QS.find(x=>x.id===b.dataset.ask);
+  openDock(); input.value=`关于 ${q.id}（${q.t}）：`; input.focus();
+});
+function bubble(who,text,cls){
+  const wrap=document.createElement('div'); wrap.className='msg '+cls;
+  const lab=document.createElement('div'); lab.className='who'; lab.textContent=who;
+  const bub=document.createElement('div'); bub.className='bub'; bub.textContent=text;
+  wrap.append(lab,bub); return wrap;
+}
+let lastSig='', pendingJump=false;
+function render(){
+  const ids=Object.keys(seen).sort((a,b)=>parseInt(a.slice(1))-parseInt(b.slice(1)));
+  // 用户往上翻看历史时，轮询不得把他拽回底部：只在原本就贴底时跟随
+  const nearBottom = thread.scrollHeight - thread.scrollTop - thread.clientHeight < 60;
+  const sig = ids.length + ':' + ids.filter(id=>seen[id].reply).length;
+  const grew = sig !== lastSig;
+  thread.textContent='';
+  let waiting=0;
+  ids.forEach(id=>{
+    thread.appendChild(bubble('你', seen[id].question, 'me'));
+    if(seen[id].reply) thread.appendChild(bubble('Qoder', seen[id].reply, 'ai'));
+    else { waiting++; thread.appendChild(bubble('Qoder','· 已送达，等待回答…','ai pending')); }
+  });
+  lastSig=sig;
+  if(nearBottom){ thread.scrollTop=thread.scrollHeight; pendingJump=false; }
+  else if(grew) pendingJump=true;
+  jump.style.display = pendingJump ? 'block' : 'none';
+  fab.innerHTML = waiting ? '提问<span class="dot"></span>' : '提问';
+  qast.textContent = waiting ? `· ${waiting} 条待答` : (ids.length ? '· 全部已答' : '');
+}
+async function poll(){
+  try{
+    const list=await (await fetch('/qa',{cache:'no-store'})).json();
+    list.forEach(rec=>{
+      const prev=seen[rec.id]||{};
+      seen[rec.id]={question:rec.question??prev.question, reply:rec.reply??prev.reply};
+    });
+    render();
+  }catch(e){ qast.textContent='· 服务不可达，请回对话里问'; }
+}
+async function send(){
+  const text=input.value.trim(); if(!text) return;
+  let res=null;
+  try{ res=await fetch('/ask',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({question:text})}); }catch(e){ res=null; }
+  if(!res || !res.ok){ qast.textContent='· 发送失败，请回对话里问'; return; }
+  const rec=await res.json();
+  seen[rec.id]={question:text, reply:null};
+  input.value=''; render(); poll();
+}
+document.getElementById('send').onclick=send;
+input.addEventListener('keydown',e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); send(); } });
+render(); poll(); setInterval(poll, 2500);
+
+refresh();
+</script>
+</body>
+</html>
