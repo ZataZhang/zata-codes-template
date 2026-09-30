@@ -557,13 +557,13 @@ Rules:
 
 ---
 
-## Machine Contract (v3)
+## Machine Contract (v4)
 
-Machine-Contract-Version: 3
+Machine-Contract-Version: 4
 
 This section is a **versioned, stable contract** that execution tooling (daemon-style agent runners, delivery gates, verifier tooling) may depend on:
 
-- The contract is exactly the content of this section, identified by the standalone `Machine-Contract-Version: 3` marker line above (parse with `Machine-Contract-Version:\s*(\d+)`).
+- The contract is exactly the content of this section, identified by the standalone `Machine-Contract-Version: 4` marker line above (parse with `Machine-Contract-Version:\s*(\d+)`).
 - Any change to this section's content MUST bump the version number. Tooling pins a supported major version and fails loudly on mismatch instead of silently drifting.
 - Everything in this skill **outside** this section may evolve freely without a version bump.
 - These formats match what machine parsers actually accept. When prose elsewhere in this skill disagrees with this section on machine-checked behavior, this section wins.
@@ -593,6 +593,8 @@ Change Log entries are parsed mechanically (entry counting, per-field completene
 ### 2. Acceptance Checklist Checkbox Syntax
 
 - Checkboxes live in the `## Acceptance Checklist`（或 `## 验收清单`，允许编号前缀）section, which ends at the next `##` heading. Checkboxes inside fenced code blocks are ignored.
+- **Groups.** Sub-sections inside the checklist are expressed as `###`–`######` headings; an item belongs to the innermost heading above it, and the heading text may carry a trailing note — the prd template writes `### Human-Confirmed (来自 Part A 风险地图)`. A parser must therefore match a group label by **prefix**, not by exact equality.
+- **The human-owned group.** Its label starts with `Human-Confirmed` (case-insensitive). Its `- [ ]` items are the human reviewer's to answer: tooling must never tick them and never rewrite them as `[~]`. A tool that gates on this checklist treats them as outside its own mandate — such a gate is about the work the executing agent owes, not about questions the human has not answered yet, so it must be able to tell the two apart instead of reporting them as "unchecked work".
 - Only two marks are checkboxes: `- [ ]`（未完成）and `- [x]` / `- [X]`（已完成）。Bullet marker may be `-`, `*`, or `+`.
 - `[~]` is deliberately **not** a checkbox: the parser ignores the line, so the item counts as resolved rather than unchecked. Use it exclusively for runner-owned gates the executing agent can never tick — items waiting on the runner's independent verifier, PR creation/review, or archive, which run *after* the agent's own delivery gate. Rewrite such items as:
   `- [~] <original text> — runner-owned gate: <which gate>`

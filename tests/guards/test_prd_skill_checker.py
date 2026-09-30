@@ -9,6 +9,8 @@
 from __future__ import annotations
 
 import importlib.util
+import re
+import sys
 from pathlib import Path
 
 CHECKER_PATH = (
@@ -23,6 +25,38 @@ assert CHECKER_SPEC is not None
 assert CHECKER_SPEC.loader is not None
 PRD_CHECKER = importlib.util.module_from_spec(CHECKER_SPEC)
 CHECKER_SPEC.loader.exec_module(PRD_CHECKER)
+
+CONTRACT_MODULE_PATH = CHECKER_PATH.parent / "prd_contract.py"
+SKILL_MD_PATH = CHECKER_PATH.parents[1] / "SKILL.md"
+# 取的正是 checker 运行时加载的那一份（它按脚本所在目录 import 兄弟模块），
+# 而不是再加载一次——同一个文件加载两遍会得到两个不同的模块对象。
+PRD_CONTRACT = sys.modules.get("prd_contract")
+assert PRD_CONTRACT is not None, "checker 未能加载兄弟模块 prd_contract"
+
+
+def test_machine_contract_version_matches_the_parser() -> None:
+    """SKILL.md 的契约版本标记必须与 prd_contract 的实现版本一致。
+
+    两侧各写各的版本号正是这个仓库踩过的坑：契约文本说的形式与真正执行的解析器
+    不一致，于是"照着模板写却过不了门禁"。改契约必须同时改实现，本测试就是那道锁。
+    """
+
+    marker = re.search(
+        r"Machine-Contract-Version:\s*(\d+)", SKILL_MD_PATH.read_text(encoding="utf-8")
+    )
+    assert marker is not None, "SKILL.md 缺少 Machine-Contract-Version 标记"
+    assert int(marker.group(1)) == PRD_CONTRACT.CONTRACT_VERSION
+
+
+def test_checker_reuses_the_shared_contract_parser() -> None:
+    """checker 必须复用 prd_contract 的解析，不得自带第二份实现。
+
+    同目录安装是硬要求：checker 通过脚本所在目录 import 兄弟模块，拆开安装会
+    ImportError（而不是静默用一份陈旧的内联实现）。
+    """
+
+    assert CONTRACT_MODULE_PATH.exists(), "prd_contract.py 必须与 checker 同目录安装"
+    assert PRD_CHECKER.parse_checklist is PRD_CONTRACT.parse_checklist
 
 
 def _complete_prd(*, include_reconciliation: bool = False) -> str:
