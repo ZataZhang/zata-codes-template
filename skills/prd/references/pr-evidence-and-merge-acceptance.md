@@ -2,6 +2,8 @@
 
 Read this reference when a PRD implementation is delivered through a pull request. It defines how the PR becomes the human review surface and how a merge can replace a second confirmation in chat without weakening evidence or archival integrity.
 
+The PRD is archived **inside the delivering PR**, at `🧍 待人工验收` while `Human-Confirmed` items remain open (Machine Contract §8): archive records that the executor's work is complete and lands with the code, and the human's acceptance is a separate record written after the merge. The merge therefore lands code and PRD together, and post-merge work never moves the PRD.
+
 ## Contents
 
 - [Acceptance Event](#acceptance-event)
@@ -17,8 +19,8 @@ Read this reference when a PRD implementation is delivered through a pull reques
 
 A merge is a valid human acceptance event only when all of these are true before merge:
 
-1. The PR body uniquely names the pending PRD path.
-2. The PR body explicitly says that merging accepts the listed human decisions and visible outcomes and authorizes post-merge archival.
+1. The PR body uniquely names the linked PRD path — the archived path, because the PRD is archived inside the PR.
+2. The PR body explicitly says that merging accepts the listed human decisions and visible outcomes and authorizes post-merge acceptance recording.
 3. Every `reviewer: human` presentation from PRD Section 9.1 is available through the PR body or stable evidence comment. Prefer an in-PR browser presentation. When repository privacy or hosting limits make that unavailable, a complete local review bundle is valid if the PR gives one actionable worktree/open path and the reviewer does not have to fetch or download each artifact separately.
 4. The independent verifier and every required CI/delivery gate are green.
 5. Evidence is bound to the reviewed Git tree and has not gone stale after a later push.
@@ -32,12 +34,13 @@ This rule does not broaden authorization: create or update a PR only when the us
 Keep the body decision-oriented. Do not paste full logs into it. Use this shape or a repository-native equivalent:
 
 ```markdown
-## Human Acceptance And PRD Archive
+## Human Acceptance And PRD Record
 
-Linked PRD: `tasks/pending/<prd-file>.md`
+Linked PRD: `tasks/archive/<prd-file>.md`
 
 > Merging this PR means that the merger accepts the decisions and human-visible
-> outcomes below and authorizes post-merge archival of the linked PRD, provided
+> outcomes below and authorizes post-merge acceptance recording on the linked PRD
+> (its Human-Confirmed items are ticked and its banner becomes ✅ 已验收), provided
 > the required gates remain green and the merged Git tree matches the verified tree.
 
 ### Decisions Being Accepted
@@ -55,7 +58,7 @@ Linked PRD: `tasks/pending/<prd-file>.md`
 - Independent verifier: PASS
 - Required CI: PASS
 - Evidence: <stable evidence comment link>
-- Verified tree: `<git-tree-oid>`
+- Verified tree (record paths excluded): `<git-tree-oid>`
 ```
 
 The decision list and visible outcomes are projections of the PRD, not a second source of truth. Regenerate the PR body when those sections change. The body or stable comment must name the review mode and tell the user how to reach it. Publish the review surface before asking the user to accept it.
@@ -101,7 +104,7 @@ Use a stable marker so later pushes update the same comment instead of creating 
 <!-- prd:validation-evidence version=1 prd=<prd-stem> tree=<git-tree-oid> -->
 ```
 
-Keep evidence reachable for the repository's audit horizon. Do not delete an evidence branch immediately after merge if doing so would break the archived PRD's PR links; apply an explicit retention or snapshot policy instead.
+Keep evidence reachable for the repository's audit horizon. Do not delete an evidence branch immediately after merge if doing so would break the archived PRD's PR links; apply an explicit retention or snapshot policy instead. The `tree=` in the marker is the record-excluded `verified_tree_sha` (see Evidence Identity), so archiving the PRD inside the PR after the verifier's `PASS` does not stale this comment.
 
 ## Local Review Bundle
 
@@ -162,17 +165,28 @@ evidence_manifest_sha256
 
 The Git tree is the authoritative content identity for merge acceptance. Squash and rebase create a new commit SHA even when the resulting files are identical; their tree remains equal. After any implementation push, repair commit, rebase, conflict resolution, generated-file update, or evidence-affecting change, recompute the tree and republish/reverify affected evidence.
 
-Evidence is current only when the PR's reviewable head tree equals `verified_tree_sha`. Required checks must apply to that same head or a repository merge-queue result whose final tree is subsequently checked.
+**Record paths are excluded from the tree identity.** The independent verifier's verdict is written into the evidence reports, and the PRD is ticked, reconciled, and archived *after* that verdict, all inside the same PR. A tree that included those files could never equal the tree the verifier saw — the verdict would have to describe itself. So `verified_tree_sha` is the Git tree of the PR head with the **delivery-record paths** removed: `tasks/pending/<prd-file>.md`, `tasks/archive/<prd-file>.md`, and `tasks/evidence/<prd-stem>/`. A temporary index computes it without touching the work tree:
+
+```bash
+GIT_INDEX_FILE="$tmp_index" git read-tree <head-sha>
+GIT_INDEX_FILE="$tmp_index" git rm -r -q --cached --ignore-unmatch -- \
+  "tasks/pending/<prd-file>.md" "tasks/archive/<prd-file>.md" "tasks/evidence/<prd-stem>"
+GIT_INDEX_FILE="$tmp_index" git write-tree
+```
+
+Changes confined to the record paths — ticking items, Final Reconciliation, the banner, the archive move, the Change Log, the review checklist — never stale the evidence. Any change outside them still does.
+
+Evidence is current only when the PR head's record-excluded tree equals `verified_tree_sha`. Required checks must apply to the same head (or a repository merge-queue result whose final tree is subsequently checked), and CI always runs on the head that includes the archive commit.
 
 ## Post-Merge Reconciliation
 
-On a merged PR, repository automation should:
+On a merged PR, repository automation should record the acceptance. The PRD is already archived, so this writes the acceptance record only (Machine Contract §8) — it never moves the PRD and never edits anything else:
 
-1. Resolve the unique linked pending PRD.
+1. Resolve the unique linked PRD (it sits in `tasks/archive/`).
 2. Confirm the PR contained the acceptance declaration and stable evidence presentation.
 3. Confirm verifier and required checks passed for the accepted tree.
 4. Read the final merge commit and its Git tree.
-5. Compare the final tree with `verified_tree_sha`. If they differ, stop and require validation on the final tree.
+5. Compare the final tree, record paths excluded, with `verified_tree_sha`. If they differ, stop: record no acceptance and require validation on the final tree. The archived `PASS` does not describe the main line until the final tree is revalidated; when it cannot be, reopen the PRD.
 6. Record:
    - PR number and URL;
    - merger identity;
@@ -182,20 +196,19 @@ On a merged PR, repository automation should:
    - final merge commit SHA and tree;
    - verifier and CI conclusions.
 7. Check the matching `Human-Confirmed` items and the Section 9.1 surface-review item using the merge event as their evidence.
-8. Update the Acceptance Status Banner to `✅ 可归档` when no checkbox remains.
-9. Complete Section 13 Final Reconciliation against the merged tree.
-10. Move the PRD from `tasks/pending/` to `tasks/archive/` and commit the archival record.
+8. Update the Acceptance Status Banner to `✅ 已验收` when no `Human-Confirmed` checkbox remains.
+9. Append a Change Log entry (Machine Contract §1) naming the PR and the merge event as the acceptance record.
 
-Prefer a restricted GitHub App or workflow identity that can write only the required archive paths. If branch protection forbids a direct archival commit, create a metadata-only archival PR and auto-merge it after deterministic checks; do not require a second human click for the same acceptance decision.
+Prefer a restricted GitHub App or workflow identity that can write only the linked PRD's acceptance record. If branch protection forbids a direct commit, create a metadata-only acceptance PR and auto-merge it after deterministic checks; do not require a second human click for the same acceptance decision.
 
 ## Failure And Fallback Behavior
 
-- **PR closed without merge:** leave `Human-Confirmed` open and the PRD pending.
+- **PR closed without merge:** leave `Human-Confirmed` open. The archived PRD never lands on the main line, so the main line keeps the PRD in `tasks/pending/`.
 - **Evidence comment missing or stale:** block merge-as-acceptance; republish evidence for the current tree.
 - **Verifier or required CI not green:** block merge-as-acceptance even if GitHub technically permits merge.
-- **Substantive acceptance failure:** keep or create a Draft PR when safe reviewable commits exist; mark it blocked, keep the PRD pending, and publish the failed `rv-id`, observed result, missing presentations, and concrete unblock action. Do not present the PR as acceptance-ready.
+- **Substantive acceptance failure:** keep or create a Draft PR when safe reviewable commits exist; mark it blocked, keep the PRD in `tasks/pending/` (the archive gate needs a verifier `PASS`), and publish the failed `rv-id`, observed result, missing presentations, and concrete unblock action. Do not present the PR as acceptance-ready.
 - **Review incident / inconclusive verdict:** a timeout, malformed verdict, unavailable review tool, unsupported evidence modality, broken review environment, or independently demonstrated reviewer error is not a product failure. Retry within the bounded review budget, preserve diagnostics, then keep or create a blocked Draft PR whose stable status section names the incident and the missing adjudication. Never set verifier-passed, auto-sign off, merge automatically, or archive until a valid verdict or explicit human adjudication exists.
-- **Final tree differs after merge:** do not archive; validate the final tree and then reconcile.
-- **No post-merge writer exists:** the merge is still a durable acceptance record when all preconditions were present, but keep the PRD pending until an agent pulls the merged tree, records the audit fields, updates the checklist/banner/reconciliation, and archives it.
-- **No PR delivery:** use the existing chat or `just prd review` human-confirmation path; this reference adds a PR-native option rather than removing the fallback.
+- **Final tree differs after merge:** do not record acceptance; validate the final tree and then record it, or reopen the PRD when the final tree cannot be validated.
+- **No post-merge writer exists:** the merge is still a durable acceptance record when all preconditions were present, but the PRD simply stays archived at `🧍 待人工验收` — visible as awaiting acceptance — until an agent pulls the merged tree, records the audit fields, ticks the `Human-Confirmed` items, flips the banner to `✅ 已验收`, and appends the Change Log entry.
+- **No PR delivery:** the PRD is still archived in the delivering change; use the existing chat or `just prd review` human-confirmation path, and write the human's answers as the acceptance record afterwards. This reference adds a PR-native option rather than removing the fallback.
 - **User-visible frontend evidence lacks a prototype pair:** do not present the PR as ready for human acceptance; create or update the target prototype, render it, and republish the paired comparison.

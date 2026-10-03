@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Check deliverable PRD checklists and validation-evidence oracle integrity."""
+"""Check deliverable PRD checklists and validation-evidence oracle integrity.
+
+归档门禁（Machine Contract §8）：执行侧欠的活做完即可归档——``Human-Confirmed``
+组内的空框是留给人的待答项，不拦归档；它们的去向由验收状态横幅承接，横幅必须与
+§9 对得上，否则一条"已归档但仍欠人一个确认"的 PRD 会从所有待办视图里消失。
+"""
 
 from __future__ import annotations
 
@@ -18,7 +23,11 @@ if _SIBLING_SCRIPT_DIR not in sys.path:
 
 from prd_contract import (  # noqa: E402  (兄弟模块，运行时按脚本所在目录解析)
     ACCEPTANCE_CHECKLIST_HEADING_RE,
+    ACCEPTANCE_STATUS_ACCEPTED,
+    ACCEPTANCE_STATUS_AWAITING_HUMAN,
+    ACCEPTANCE_STATUS_NOT_STARTED,
     TOP_LEVEL_HEADING_RE,
+    find_acceptance_banner,
     parse_checklist,
 )
 
@@ -419,17 +428,81 @@ def _archive_reconciliation_issues(file_content: str) -> list[tuple[int, str]]:
 
 
 def _unchecked_items_in_acceptance_section(file_content: str) -> list[tuple[int, str]]:
-    """Return unchecked checklist items found in the acceptance section.
+    """Return unchecked checklist items the executing agent still owes.
 
-    解析复用 :func:`prd_contract.parse_checklist`（PRD 格式的唯一实现）。这里刻意
-    **不做**人属分组豁免：本脚本裁决的是"交付物 PRD 的清单是否填完"，而
-    Human-Confirmed 组的放行判定属于执行工具的门禁语义，不在本 checker 职责内。
+    解析复用 :func:`prd_contract.parse_checklist`（PRD 格式的唯一实现）。只报
+    **执行侧欠的活**：``Human-Confirmed`` 组内的空框是人的待答项，执行工具不得代勾，
+    也不该拦归档（契约 §8）——它们是否还欠着，交给 :func:`_acceptance_banner_issues`
+    核对横幅。
     """
 
     checklist = parse_checklist(file_content)
     if not checklist.section_found:
         return [(-1, "Missing Acceptance Checklist section")]
-    return [(item.line, item.text) for item in checklist.unchecked_items]
+    return [(item.line, item.text) for item in checklist.execution_unchecked_items]
+
+
+def _acceptance_banner_issues(file_content: str) -> list[tuple[int, str]]:
+    """Return issues where the Acceptance Status Banner disagrees with §9 at archive.
+
+    归档不再等人工验收，"这条 PRD 还欠人一个确认"于是只能靠横幅承接：横幅缺失、
+    停在 ``未开工`` 或与 §9 对不上，一条已归档却仍待人确认的 PRD 就看不见了。
+    规则（契约 §8）：§9 里 ``Human-Confirmed`` 组还有空框 → 横幅必须是
+    ``🧍 待人工验收``；一个都不剩 → 必须是 ``✅ 已验收``；``⬜ 未开工`` 永远不可归档。
+    """
+
+    checklist = parse_checklist(file_content)
+    if not checklist.section_found:
+        # 缺清单章节已由 _unchecked_items_in_acceptance_section 报告，这里不重复。
+        return []
+
+    banner = find_acceptance_banner(file_content)
+    if banner is None:
+        return [
+            (
+                1,
+                "Missing Acceptance Status Banner under the title: archive hands the human "
+                "review off to this banner, so it must state 🧍 待人工验收 (Human-Confirmed "
+                "items still open) or ✅ 已验收 (none open). See 'Acceptance Status Banner' "
+                "in the PRD skill.",
+            )
+        ]
+    if not banner.status:
+        return [
+            (
+                banner.line,
+                "Acceptance Status Banner state is not recognised: use exactly one of "
+                "⬜ 未开工 / 🧍 待人工验收 / ✅ 已验收.",
+            )
+        ]
+    if banner.status == ACCEPTANCE_STATUS_NOT_STARTED:
+        return [
+            (
+                banner.line,
+                "Acceptance Status Banner still says ⬜ 未开工 but the PRD is being archived: "
+                "set 🧍 待人工验收 while Human-Confirmed items remain open, else ✅ 已验收.",
+            )
+        ]
+
+    open_human_count = len(checklist.human_unchecked_items)
+    if banner.status == ACCEPTANCE_STATUS_AWAITING_HUMAN and open_human_count == 0:
+        return [
+            (
+                banner.line,
+                "Acceptance Status Banner says 🧍 待人工验收 but §9 has no open Human-Confirmed "
+                "item: flip it to ✅ 已验收.",
+            )
+        ]
+    if banner.status == ACCEPTANCE_STATUS_ACCEPTED and open_human_count:
+        return [
+            (
+                banner.line,
+                f"Acceptance Status Banner says ✅ 已验收 but {open_human_count} Human-Confirmed "
+                "item(s) in §9 are still unchecked: set 🧍 待人工验收 (only the human may tick "
+                "them).",
+            )
+        ]
+    return []
 
 
 def _interpretation_echo_issues(file_content: str) -> list[tuple[int, str]]:
@@ -776,6 +849,7 @@ def _validate_file(
     )
     if require_archive_reconciliation:
         issues += _archive_reconciliation_issues(file_content)
+        issues += _acceptance_banner_issues(file_content)
     return issues
 
 
@@ -811,8 +885,9 @@ def _build_parser() -> argparse.ArgumentParser:
         "--archive-ready",
         action="store_true",
         help=(
-            "Require Final Reconciliation for explicitly provided PRDs that are "
-            "being prepared for archive. Requires --check-provided."
+            "Require Final Reconciliation and a consistent Acceptance Status Banner "
+            "for explicitly provided PRDs that are being prepared for archive. "
+            "Human-Confirmed items may stay open. Requires --check-provided."
         ),
     )
     parser.add_argument("paths", nargs="*", type=Path, help="PRD files to validate.")

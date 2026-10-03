@@ -312,7 +312,7 @@ HTML 报告仍固定在 `tests/playwright-e2e/playwright-report/`，可用 `just
 6. **独立 verifier 审查**：`just ai implement` 自动启动一个 verifier Agent，默认使用与 executor 不同的 AI 工具；verifier 只读审查证据与 PRD 验收项的匹配度，输出 `<prd-basename>.verifier-report.md`，结论为 `PASS` 或 `REJECT`。
 7. **finding 分级**：verifier 的每条 finding 必须标 `BLOCKER` / `NON-BLOCKING` / `SECURITY`，判据只有一句——**这条补齐后，结论有可能从 PASS 翻成 FAIL 吗？** 只有 `BLOCKER` 才 REJECT。缺原始日志、命名不整齐、已通过测试的对称变体、没有验收项声明的额外覆盖，都是 `NON-BLOCKING`，记录后带走，不消耗轮次。多条 `NON-BLOCKING` 不能叠加成 `BLOCKER`。
 8. **轮次上限**：最多 2 轮。第 2 轮 verifier 只复查第 1 轮的 `BLOCKER` 和证据变更带来的新 `BLOCKER`，不对已接受的证据开新的 `NON-BLOCKING` 战线。2 轮后仍有 `BLOCKER` 时流程停止，在证据报告里写 `Open Items For Human Review` 交人决定——没有第 3 轮。轮次计数落在 `<evidence-dir>/.verifier-round`。
-9. **回填验收清单**：独立 verifier 返回 `PASS` 后，executor 必须把证据报告已建立对应关系、证据足以支持且没有相关 `BLOCKER` 的非人工验收项更新为 `[x]`，并在条目旁标注对应证据文件。不得因为等待人工终点审查而把这些机器可验证项留空；只有明确标记为 `Human-Confirmed` 的项目可以继续保持未勾选。人工确认可以来自对话/审查清单，也可以来自一个事先明确声明“合并即验收”、唯一关联 PRD、完整呈递证据且门禁全绿的 PR merge；后者必须在合并后记录 PR、合并人、时间、verified tree 与 final tree，确认 tree 相等后才勾选。证据文件仅仅存在但没有验收项映射、未获 verifier `PASS`、仍有相关 `BLOCKER`，或只是打开/批准了尚未合并的 PR 时，不得勾选。
+9. **回填验收清单并归档**：独立 verifier 返回 `PASS` 后，executor 必须把证据报告已建立对应关系、证据足以支持且没有相关 `BLOCKER` 的非人工验收项更新为 `[x]`，并在条目旁标注对应证据文件。不得因为等待人工终点审查而把这些机器可验证项留空；只有明确标记为 `Human-Confirmed` 的项目保持未勾选——它们是人的验收记录，**不阻塞归档**。随后完成 Final Reconciliation，让验收状态横幅与 §9 对齐（`Human-Confirmed` 仍有空框 → `🧍 待人工验收`，一个也没有 → `✅ 已验收`），并随交付改动一并把 PRD 从 `tasks/pending/` 移到 `tasks/archive/`；归档只代表执行侧交付完成。人工确认发生在归档之后，可以来自对话/审查清单，也可以来自一个事先明确声明“合并即验收”、唯一关联 PRD、完整呈递证据且门禁全绿的 PR merge；后者必须在合并后记录 PR、合并人、时间、verified tree 与 final tree，确认 tree 相等后才勾选 `Human-Confirmed` 并把横幅改为 `✅ 已验收`。证据文件仅仅存在但没有验收项映射、未获 verifier `PASS`、仍有相关 `BLOCKER`，或只是打开/批准了尚未合并的 PR 时，不得勾选。
 10. **前端强制视觉证据**：如果 PRD 涉及 `frontend-admin/` 或 `frontend-public/` 的用户可见改动，证据目录必须同时包含目标原型图与至少一个真实实现 `.png` / `.jpg` / `.webm`，并按验收关键状态形成可对照配对；纯非视觉改动必须写具体 waiver。通过 PR 交付时，两类图片必须直接呈递在 PR 证据评论中。
 11. **图必须就地嵌进报告**：证据目录里的每张静态图（`.png` / `.jpg`）都必须在 `<prd-basename>.evidence-report.md` 里用 `![<说明>](<相对路径>)` 嵌入——报告与图片同目录，本地 Markdown 预览直接渲染。图片被 `.gitignore` 排除、在 GitHub 上是坏图，所以嵌图旁要标注「本地图片」并附 `open "<绝对路径>"`；标注与命令是嵌图的补充，不是替代品。只写一行 `open` 命令、让人粘完命令才看得见截图，不算呈递。录屏无法内联渲染，免嵌图。
 12. **最终校验**：verifier 通过后，`just ai implement` 运行 `scripts/shared/just/check_prd_evidence.sh`，确认静态图都已就地嵌入、且前端视觉证据存在，缺任一项都阻止流程结束。
@@ -336,7 +336,7 @@ HTML 报告仍固定在 `tests/playwright-e2e/playwright-report/`，可用 `just
 - 写 API 返回成功后，必须用新的 browser/request/process/DB session 经消费者入口读取，证明事务提交与持久化已经完成。
 - 前端流程必须断言浏览器实际请求的 canonical path、method 与 contract；已知 legacy/重复前缀需有负断言。
 - 影响入口、关键值构造、代理/路由、事务、存储、消费者或断言的相关改动会使旧证据失效，必须在最终代码树重新收集。
-- 真实运行或现场报告反驳已归档的 verifier `PASS` 时，旧验收立即失效；重开或创建关联回归 PRD，修复并重新独立验收后才能再次归档。
+- 真实运行或现场报告反驳已归档的 verifier `PASS` 时，旧验收立即失效；重开或创建关联回归 PRD，修复并重新独立验收后才能再次归档。人工验收时发现 PRD 自身的 oracle / 范围未达成同属此类：把 PRD 移回 `tasks/pending/` 重开（横幅 `⬜ 未开工`、Change Log 记录发现了什么）；交付与 PRD 一致但需求本身变了，则保留已归档 PRD 作交付记录、新开关联 PRD。归档后只允许写验收记录，不原地修补。
 
 **禁止为了可测性修改生产代码。** 不得为了让负控能变红而往 `src/` 或前端 app 加故障注入开关、失败模式、test-only 配置项、计数器或观测钩子。合法来源依次是：实现之前先跑红的那次运行、测试边界打桩（`monkeypatch` / fixture / 依赖覆盖）、`tests/` 下的 fake 或子类。都不行就记 `negative_control: not feasible — <原因>`——"做不到"是被接受的结论，不构成为测试重塑产品的许可。
 

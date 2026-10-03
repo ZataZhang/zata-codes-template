@@ -219,6 +219,8 @@ It is the single completion artifact and also serves as the overall delivery-rea
 
 The machine-facing package follows as `### 9.2 Acceptance Evidence Package` — risk-ordered and evidence-chain-bearing. The grouped subsections below follow 9.2. The `Human-Confirmed` group covers the Section 2 decisions and the 9.1 surface review only; "oracle X ran green" is a machine-layer prerequisite verified by the Agent and the verifier, and never appears as a human checkbox.
 
+`Human-Confirmed` is the human's acceptance record, and it does not gate archive: the archive gate (Machine Contract §8) exempts exactly this group and requires every other checkbox to be `[x]` or `[~]`. Two consequences when writing the checklist: anything only a human can answer MUST be filed under `Human-Confirmed` (an open human-only item anywhere else blocks archive forever), and an executor-owed item MUST NOT be filed there to dodge the gate.
+
 Use grouped subsections. For architecture-heavy or refactor work, prefer:
 
 - `Architecture Acceptance`
