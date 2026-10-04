@@ -4,6 +4,21 @@
 正确做法是修复触发它的源代码或配置，而不是修改本文件让测试通过；仅当约定
 本身需要变更时才改本文件，并同步更新相关约定文档。详见
 ``docs/ai-standards/testing.md`` 的 Guard Tests 小节。
+
+被测对象：``skills/prd/scripts/`` 下的 checker 与契约解析器。核心不变量：
+
+1. **证据链与格式单一来源。** oracle 必须写清值来源、必经边界与 fresh-state；契约版本
+   标记必须等于解析器的实现版本，checker 只复用 ``prd_contract`` 的解析。
+2. **归档只代表执行侧交付完成。** 归档门禁只数 ``Human-Confirmed`` 之外的空框：人的
+   确认是归档**之后**的验收记录，不拦归档；"还欠人一个确认"改由验收状态横幅承接，
+   所以归档时横幅必须存在、可识别，且与 §9 对得上（``🧍 待人工验收`` ⟺ 人属组还有
+   空框，``✅ 已验收`` ⟺ 一个不剩，``⬜ 未开工`` 永不可归档）。横幅一旦漂掉，一条
+   已归档却仍待人确认的 PRD 就会从所有看板里消失。
+3. **三份解析器逐例等价。** 随模板同步的 hook（``hooks/shared``）与状态看板的读取副本
+   （``scripts/shared/just/prd_acceptance.py``，看板与执行锁共用）不能 import 可选安装
+   的 skill，只能各自带一份轻量实现；等价性只能由这里（模板仓库内部、能同时看到三者）
+   来锁。除"哪些空框是执行侧欠的"与横幅三态之外，看板的勾选进度计数（``checked/total``）
+   也锁在这里：改分组、横幅或计数口径时三处必须一起改，否则这里变红。
 """
 
 from __future__ import annotations
@@ -13,13 +28,10 @@ import re
 import sys
 from pathlib import Path
 
-CHECKER_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "skills"
-    / "prd"
-    / "scripts"
-    / "check_prd_acceptance_checklist.py"
-)
+import pytest
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+CHECKER_PATH = REPO_ROOT / "skills" / "prd" / "scripts" / "check_prd_acceptance_checklist.py"
 CHECKER_SPEC = importlib.util.spec_from_file_location("prd_skill_checker", CHECKER_PATH)
 assert CHECKER_SPEC is not None
 assert CHECKER_SPEC.loader is not None
@@ -28,10 +40,37 @@ CHECKER_SPEC.loader.exec_module(PRD_CHECKER)
 
 CONTRACT_MODULE_PATH = CHECKER_PATH.parent / "prd_contract.py"
 SKILL_MD_PATH = CHECKER_PATH.parents[1] / "SKILL.md"
+PRD_TEMPLATE_PATH = CHECKER_PATH.parents[1] / "templates" / "prd-visual-template.md"
 # 取的正是 checker 运行时加载的那一份（它按脚本所在目录 import 兄弟模块），
 # 而不是再加载一次——同一个文件加载两遍会得到两个不同的模块对象。
 PRD_CONTRACT = sys.modules.get("prd_contract")
 assert PRD_CONTRACT is not None, "checker 未能加载兄弟模块 prd_contract"
+
+# 另两份随模板同步的解析实现，与 skill 的契约解析互为镜像（见模块 docstring 第 3 条）。
+HOOK_PATH = REPO_ROOT / "hooks" / "shared" / "check_prd_acceptance_checklist.py"
+HOOK_SPEC = importlib.util.spec_from_file_location("prd_acceptance_hook", HOOK_PATH)
+assert HOOK_SPEC is not None
+assert HOOK_SPEC.loader is not None
+PRD_HOOK = importlib.util.module_from_spec(HOOK_SPEC)
+HOOK_SPEC.loader.exec_module(PRD_HOOK)
+
+# prd_acceptance.py 不是包的一部分，import 前需把它所在目录放到 sys.path。
+_JUST_SCRIPTS_PATH = REPO_ROOT / "scripts" / "shared" / "just"
+if str(_JUST_SCRIPTS_PATH) not in sys.path:
+    sys.path.insert(0, str(_JUST_SCRIPTS_PATH))
+
+import prd_acceptance  # noqa: E402
+
+# 清单作用域的用例表与 hook 的守卫测试共用一份（见该模块 docstring），同样按路径放进 sys.path。
+_SHARED_GUARDS_PATH = REPO_ROOT / "tests" / "guards" / "shared"
+if str(_SHARED_GUARDS_PATH) not in sys.path:
+    sys.path.insert(0, str(_SHARED_GUARDS_PATH))
+
+from prd_checklist_scope_cases import (  # noqa: E402
+    CHECKLIST_SCOPE_PARAMS,
+    open_item_labels,
+    prd_with_checklist_body,
+)
 
 
 def test_machine_contract_version_matches_the_parser() -> None:
@@ -421,6 +460,248 @@ def test_archive_validation_requires_complete_final_reconciliation() -> None:
     )
 
 
+_NOT_STARTED_BANNER_LINE = "> ⬜ **验收状态**：未开工。"
+_AWAITING_BANNER_LINE = "> 🧍 **验收状态**：待人工验收 — 仅剩 Human-Confirmed 项未确认。"
+_ACCEPTED_BANNER_LINE = "> ✅ **验收状态**：已验收 — Human-Confirmed 项均已确认。"
+_HUMAN_ITEM_LABEL = "人工确认：切换后的文案读起来通顺"
+_EXECUTION_ITEM_LABEL = "最小验收项已完成"
+
+
+def _archive_candidate_prd(
+    banner_line: str | None,
+    *,
+    human_item_mark: str = " ",
+    execution_item_mark: str = "x",
+) -> str:
+    """构造只有验收清单与横幅可变、其余都满足归档校验的 PRD。
+
+    §9 拆成执行侧一项与 ``Human-Confirmed`` 分组一项；横幅插在交付前置横幅之后，与
+    模板同形。
+
+    Args:
+        banner_line: 横幅首行（含行首 ``> ``）；``None`` 表示不写横幅。
+        human_item_mark: ``Human-Confirmed`` 组内那一项的勾选标记。
+        execution_item_mark: 执行侧那一项的勾选标记。
+    """
+
+    prd_text = _complete_prd(include_reconciliation=True).replace(
+        f"- [x] {_EXECUTION_ITEM_LABEL}\n",
+        f"- [{execution_item_mark}] {_EXECUTION_ITEM_LABEL}\n"
+        "\n"
+        "### Human-Confirmed\n"
+        "\n"
+        f"- [{human_item_mark}] {_HUMAN_ITEM_LABEL}\n",
+        1,
+    )
+    if banner_line is None:
+        return prd_text
+    return prd_text.replace(
+        "> 结构化声明见 §8 Delivery Dependencies，**那里是唯一事实源**。\n",
+        "> 结构化声明见 §8 Delivery Dependencies，**那里是唯一事实源**。\n"
+        "\n"
+        f"{banner_line}\n"
+        "> 本行是 §9 Acceptance Checklist 的投影，**那里是唯一事实源**。\n",
+        1,
+    )
+
+
+def _archive_gate_issues(tmp_path: Path, prd_text: str) -> list[tuple[int, str]]:
+    """把 PRD 落盘后按"准备归档"的口径校验，返回全部问题。"""
+
+    prd_path = tmp_path / "archive-candidate.md"
+    prd_path.write_text(prd_text, encoding="utf-8")
+    return PRD_CHECKER._validate_file(prd_path, require_archive_reconciliation=True)
+
+
+def test_archive_gate_lets_open_human_confirmed_items_through(tmp_path: Path) -> None:
+    """归档只代表执行侧交付完成：Human-Confirmed 组里的空框不拦归档。
+
+    这是语义变更的核心。以前归档要等人工验收做完；现在人的确认是归档**之后**的
+    验收记录，由横幅 ``🧍 待人工验收`` 承接，不再借"清单没勾完"来拦提交。
+    """
+
+    prd_text = _archive_candidate_prd(_AWAITING_BANNER_LINE)
+    assert PRD_CONTRACT.parse_checklist(
+        prd_text
+    ).human_unchecked_items, "夹具必须真的留着人属空框，否则下面的断言是假通过"
+
+    assert _archive_gate_issues(tmp_path, prd_text) == []
+
+
+def test_archive_gate_accepts_accepted_banner_once_every_human_item_is_ticked(
+    tmp_path: Path,
+) -> None:
+    """人确认完（回填验收记录）之后的终态：全勾 + ``✅ 已验收`` 照样合法。"""
+
+    prd_text = _archive_candidate_prd(_ACCEPTED_BANNER_LINE, human_item_mark="x")
+
+    assert _archive_gate_issues(tmp_path, prd_text) == []
+
+
+def test_archive_gate_reads_legacy_ready_to_archive_banner_as_accepted(tmp_path: Path) -> None:
+    """v4 及以前的 ``✅ 可归档`` 就是现在的 ``✅ 已验收``：存量 PRD 不必回头改文件。"""
+
+    legacy_banner_line = "> ✅ **验收状态**：可归档 — 验收清单已全部完成。"
+    prd_text = _archive_candidate_prd(legacy_banner_line, human_item_mark="x")
+
+    assert _archive_gate_issues(tmp_path, prd_text) == []
+
+
+def test_archive_gate_still_blocks_open_execution_items(tmp_path: Path) -> None:
+    """执行侧欠的活照旧拦归档；同一份 PRD 里的人属空框不跟着被报。"""
+
+    prd_text = _archive_candidate_prd(_AWAITING_BANNER_LINE, execution_item_mark=" ")
+
+    issues = _archive_gate_issues(tmp_path, prd_text)
+
+    assert len(issues) == 1
+    assert _EXECUTION_ITEM_LABEL in issues[0][1]
+    assert _HUMAN_ITEM_LABEL not in issues[0][1]
+
+
+def test_archive_gate_requires_the_acceptance_status_banner(tmp_path: Path) -> None:
+    """没有横幅就不能归档：人工验收的交接点缺了，待确认项会从看板里消失。"""
+
+    issues = _archive_gate_issues(tmp_path, _archive_candidate_prd(None))
+
+    assert len(issues) == 1
+    assert "Missing Acceptance Status Banner" in issues[0][1]
+
+
+@pytest.mark.parametrize(
+    ("banner_line", "human_item_mark", "expected_message"),
+    [
+        pytest.param(
+            _NOT_STARTED_BANNER_LINE,
+            " ",
+            "still says ⬜ 未开工",
+            id="not-started-with-open-human-item",
+        ),
+        pytest.param(
+            _NOT_STARTED_BANNER_LINE,
+            "x",
+            "still says ⬜ 未开工",
+            id="not-started-even-when-every-human-item-is-ticked",
+        ),
+        pytest.param(
+            "> 🔶 **验收状态**：已完成。",
+            " ",
+            "not recognised",
+            id="unrecognised-state-word",
+        ),
+        pytest.param(
+            _AWAITING_BANNER_LINE,
+            "x",
+            "no open Human-Confirmed",
+            id="awaiting-human-with-nothing-left-to-confirm",
+        ),
+        pytest.param(
+            _ACCEPTED_BANNER_LINE,
+            " ",
+            "still unchecked",
+            id="accepted-while-human-items-are-open",
+        ),
+    ],
+)
+def test_archive_gate_rejects_a_banner_that_disagrees_with_the_checklist(
+    tmp_path: Path, banner_line: str, human_item_mark: str, expected_message: str
+) -> None:
+    """横幅是 §9 的投影：缺、认不出、停在未开工或与人属空框对不上都必须拒收。
+
+    每种错位只报一条，且锚在横幅所在行，作者能直接定位。
+    """
+
+    prd_text = _archive_candidate_prd(banner_line, human_item_mark=human_item_mark)
+
+    issues = _archive_gate_issues(tmp_path, prd_text)
+
+    assert len(issues) == 1
+    assert expected_message in issues[0][1]
+    assert issues[0][0] == prd_text.splitlines().index(banner_line) + 1
+
+
+def _write_prd(repo_root: Path, relative_path: str, prd_text: str) -> None:
+    """把 PRD 写到仓库内的相对路径（按需建目录）。"""
+
+    prd_path = repo_root / relative_path
+    prd_path.parent.mkdir(parents=True, exist_ok=True)
+    prd_path.write_text(prd_text, encoding="utf-8")
+
+
+def test_archived_path_is_held_to_the_archive_gate_without_a_flag(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """已在 ``tasks/archive/`` 下的 PRD 自动按归档口径校验，不靠 ``--archive-ready``。"""
+
+    archived_path = "tasks/archive/P2-FEAT-20260101-000000-sample.md"
+    _write_prd(tmp_path, archived_path, _archive_candidate_prd(None))
+
+    exit_code = PRD_CHECKER.main(["--repo-root", str(tmp_path), "--check-provided", archived_path])
+
+    assert exit_code == 1
+    assert "Missing Acceptance Status Banner" in capsys.readouterr().out
+
+
+def test_archive_ready_flag_holds_a_pending_prd_to_the_archive_gate(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """``--archive-ready`` 让 pending 下的 PRD 提前过一遍归档门禁，横幅与 §9 对得上才放行。"""
+
+    pending_path = "tasks/pending/P2-FEAT-20260101-000000-sample.md"
+    prd_check_argv = [
+        "--repo-root",
+        str(tmp_path),
+        "--check-provided",
+        "--archive-ready",
+        pending_path,
+    ]
+
+    _write_prd(tmp_path, pending_path, _archive_candidate_prd(_ACCEPTED_BANNER_LINE))
+    assert PRD_CHECKER.main(prd_check_argv) == 1
+    assert "still unchecked" in capsys.readouterr().out
+
+    _write_prd(tmp_path, pending_path, _archive_candidate_prd(_AWAITING_BANNER_LINE))
+    assert PRD_CHECKER.main(prd_check_argv) == 0
+
+
+def test_pending_prd_is_not_held_to_the_banner_gate(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """没提归档的 pending PRD 不要求横幅：横幅只在归档交接时才有"必须对得上"的义务。"""
+
+    pending_path = "tasks/pending/P2-FEAT-20260101-000000-sample.md"
+    _write_prd(tmp_path, pending_path, _archive_candidate_prd(None))
+
+    exit_code = PRD_CHECKER.main(["--repo-root", str(tmp_path), "--check-provided", pending_path])
+
+    assert exit_code == 0
+    assert "PASS" in capsys.readouterr().out
+
+
+def test_prd_template_default_banner_reads_as_not_started() -> None:
+    """模板自带的横幅必须读作 ``未开工``：括号说明里提到的另外两个状态词不得抢占。
+
+    读状态取标记之后**最先出现**的状态词，这条规则只有在模板本身的写法上被证明过才算数。
+    """
+
+    template_text = PRD_TEMPLATE_PATH.read_text(encoding="utf-8")
+
+    assert PRD_CONTRACT.parse_acceptance_status(template_text) == "not_started"
+
+
+def test_describe_prd_payload_exposes_banner_and_the_human_split() -> None:
+    """``--json`` 载荷要把横幅状态与"执行 / 人属"两路空框原样给到下游消费方。"""
+
+    payload = PRD_CONTRACT.describe_prd(_archive_candidate_prd(_AWAITING_BANNER_LINE), path="x.md")
+
+    checklist_payload = payload["checklist"]
+    assert payload["acceptance_status"] == "awaiting_human"
+    assert checklist_payload["execution_unchecked"] == []
+    assert [entry["text"] for entry in checklist_payload["human_unchecked"]] == [
+        f"- [ ] {_HUMAN_ITEM_LABEL}"
+    ]
+
+
 def _with_delivery_dependencies(prd_text: str, depends_on_line: str) -> str:
     """把结构化依赖字段填进夹具里空着的 §8。
 
@@ -578,3 +859,149 @@ def test_verifier_reviewer_does_not_require_presentation() -> None:
 """
 
     assert PRD_CHECKER._oracle_schema_issues(verifier_prd) == []
+
+
+# ---------------------------------------------------------------------------
+# 三份解析器的逐例等价（模块 docstring 第 3 条）
+# ---------------------------------------------------------------------------
+
+_BANNER_SHAPE_CASES = [
+    pytest.param("> ⬜ **验收状态**：未开工。\n", "not_started", id="not-started"),
+    pytest.param("> 🧍 **验收状态**：待人工验收 — 仅剩 1 项。\n", "awaiting_human", id="awaiting"),
+    pytest.param("> ✅ **验收状态**：已验收 — 全部确认。\n", "accepted", id="accepted"),
+    pytest.param("> ✅ **验收状态**：可归档。\n", "accepted", id="legacy-ready-to-archive"),
+    pytest.param(
+        "> ⬜ **验收状态**：未开工。（归档时与 §9 对齐：Human-Confirmed 仍有空框 → "
+        "🧍 待人工验收，全部由人确认后 → ✅ 已验收；⬜ 不可归档）\n",
+        "not_started",
+        id="template-parenthetical-names-the-other-states",
+    ),
+    pytest.param(
+        "> 🧍 **验收状态**：待人工验收（人确认后改为已验收）\n",
+        "awaiting_human",
+        id="first-state-word-wins-over-a-later-mention",
+    ),
+    pytest.param(
+        "> ✅ **验收状态**：已验收（此前：未开工）\n",
+        "accepted",
+        id="first-state-word-wins-over-a-trailing-history-note",
+    ),
+    pytest.param("> **Acceptance Status**: 已验收\n", "accepted", id="english-marker"),
+    pytest.param("> ⬜ **ACCEPTANCE STATUS**：未开工\n", "not_started", id="marker-is-case-blind"),
+    pytest.param("  > ⬜ **验收状态**：未开工\n", "not_started", id="indented-quote"),
+    pytest.param(
+        "> **验收状态**：（待填）\n> ✅ **验收状态**：已验收\n",
+        "",
+        id="first-banner-line-wins-even-when-unreadable",
+    ),
+    pytest.param("> 🔶 **验收状态**：已完成。\n", "", id="unrecognised-state-word"),
+    pytest.param("**验收状态**：已验收\n", "", id="not-a-quote-line"),
+    pytest.param("# PRD: x\n\n## 1. Introduction\n\n正文。\n", "", id="no-banner"),
+]
+
+
+@pytest.mark.parametrize(("banner_text", "expected_status"), _BANNER_SHAPE_CASES)
+def test_banner_parsers_agree_on_every_banner_shape(banner_text: str, expected_status: str) -> None:
+    """skill 的契约解析与看板侧的 prd_acceptance 解析必须逐例等价，且都落在期望值上。
+
+    两侧各带一份实现是同步边界逼出来的；这条测试是把它们锁在一起的唯一一把锁——
+    只比"二者相等"会放过两边一起漂，所以同时钉死期望值。
+    """
+
+    prd_text = f"# PRD: x\n\n{banner_text}\n## 9. Acceptance Checklist\n"
+
+    assert PRD_CONTRACT.parse_acceptance_status(prd_text) == expected_status
+    assert prd_acceptance.parse_acceptance_status(prd_text) == expected_status
+
+
+@pytest.mark.parametrize(("checklist_body", "expected_open_labels"), CHECKLIST_SCOPE_PARAMS)
+def test_checklist_scanners_agree_on_which_open_items_the_executor_owes(
+    checklist_body: str, expected_open_labels: list[str]
+) -> None:
+    """hook 的轻量扫描与契约解析逐例等价，且都只报执行侧欠的空框。
+
+    ``Human-Confirmed`` 作用范围的判定（嵌套、同级关闭、前缀匹配、围栏代码块）是两份
+    实现最容易悄悄走样的地方，所以每个形态都钉死期望值，而不只比较二者相等。
+    """
+
+    prd_text = prd_with_checklist_body(checklist_body)
+    contract_state = PRD_CONTRACT.parse_checklist(prd_text)
+
+    hook_items = PRD_HOOK._unchecked_items_in_acceptance_section(prd_text)
+    checker_items = PRD_CHECKER._unchecked_items_in_acceptance_section(prd_text)
+
+    assert hook_items == checker_items
+    assert open_item_labels(hook_items) == expected_open_labels
+    # 执行侧与人属两路合起来恰好是全部空框：不重不漏，横幅才有据可依。
+    assert len(contract_state.execution_unchecked_items) + len(
+        contract_state.human_unchecked_items
+    ) == len(contract_state.unchecked_items)
+    assert not set(contract_state.execution_unchecked_items) & set(
+        contract_state.human_unchecked_items
+    )
+
+
+@pytest.mark.parametrize(("checklist_body", "_expected_open_labels"), CHECKLIST_SCOPE_PARAMS)
+def test_progress_counter_agrees_with_the_contract_on_every_scope_shape(
+    checklist_body: str, _expected_open_labels: list[str]
+) -> None:
+    """看板与执行锁共用的勾选计数和契约解析逐例等价：分组、围栏、``[~]`` 都不改口径。
+
+    进度是"全部复选框里勾了几个"，与分组无关；``[~]`` 既不算已勾也不算未勾，围栏代码块
+    内的框不算。两侧各写一份读法时最容易悄悄走样的正是这几处，所以按作用域用例表逐形态
+    比对，而不只信任某一份实现。
+    """
+
+    prd_text = prd_with_checklist_body(checklist_body)
+    contract_state = PRD_CONTRACT.parse_checklist(prd_text)
+    checked_count = len(contract_state.checked_items)
+
+    assert prd_acceptance.count_checklist_items(prd_text) == (
+        checked_count,
+        checked_count + len(contract_state.unchecked_items),
+    )
+
+
+def test_checklist_scanners_agree_when_the_section_is_missing() -> None:
+    """缺验收清单章节时两侧给出同一条报告，而不是一边静默通过。"""
+
+    prd_text = "# PRD: x\n\n## 8. Delivery Dependencies\n\n- [ ] not-a-checklist\n"
+    expected_issues = [(-1, "Missing Acceptance Checklist section")]
+
+    assert PRD_HOOK._unchecked_items_in_acceptance_section(prd_text) == expected_issues
+    assert PRD_CHECKER._unchecked_items_in_acceptance_section(prd_text) == expected_issues
+
+
+def _real_prd_paths() -> list[Path]:
+    """本仓库 ``tasks/`` 下所有真实存在的 PRD / 想法文档（递归）。"""
+
+    return sorted((REPO_ROOT / "tasks").rglob("*.md"))
+
+
+def test_parsers_agree_on_every_prd_in_the_repository() -> None:
+    """在真实语料上做差分：三份解析器对仓库里每一份文档的读法必须一致。
+
+    手写的形态再全也比不过真实 PRD 的写法多样；语料随仓库增长，等价性随之被持续检验。
+    只比较、不设期望值，所以语料里有历史写法（旧称横幅、缺章节）也不会误伤。
+    """
+
+    prd_paths = _real_prd_paths()
+    if not prd_paths:
+        pytest.skip("仓库里没有 tasks/ 文档可供差分")
+
+    for prd_path in prd_paths:
+        prd_text = prd_path.read_text(encoding="utf-8")
+        relative_path = prd_path.relative_to(REPO_ROOT).as_posix()
+
+        assert PRD_HOOK._unchecked_items_in_acceptance_section(
+            prd_text
+        ) == PRD_CHECKER._unchecked_items_in_acceptance_section(prd_text), relative_path
+        assert PRD_CONTRACT.parse_acceptance_status(
+            prd_text
+        ) == prd_acceptance.parse_acceptance_status(prd_text), relative_path
+        contract_state = PRD_CONTRACT.parse_checklist(prd_text)
+        checked_count = len(contract_state.checked_items)
+        assert prd_acceptance.count_checklist_items(prd_text) == (
+            checked_count,
+            checked_count + len(contract_state.unchecked_items),
+        ), relative_path

@@ -73,6 +73,13 @@ If a real run or field report contradicts an archived verifier `PASS`:
 4. Re-run the repaired flow from the critical value source through a fresh-state probe.
 5. Archive again only after independent verification passes on the repaired final tree.
 
+A human rejecting an archived PRD at acceptance (the banner is `🧍 待人工验收` and a `Human-Confirmed` item is answered "no") is the same kind of contradiction. Split by what failed:
+
+- **The PRD's own oracles or scope were not met** — the delivered behavior does not do what the PRD said it would. The archived `PASS` is refuted: reopen by moving the PRD back to `tasks/pending/`, setting the banner to `⬜ 未开工`, un-ticking every §9 item whose evidence the finding invalidates (a box left ticked on refuted evidence would let the next archive attempt pass without redoing the work), and appending a Change Log entry that states what the human found; then continue from step 3.
+- **The requirement itself changed** — the delivery matches the PRD but the human now wants something else. The archived PRD stays as the record of what was delivered; open a linked follow-up PRD for the new requirement.
+
+Do not patch an archived PRD in place to absorb either outcome: after archive the only permitted edits are the acceptance record (Machine Contract §8).
+
 ## Verifier Questions
 
 The verifier must answer all of these for each required `rv-id`:
