@@ -165,14 +165,20 @@ evidence_manifest_sha256
 
 The Git tree is the authoritative content identity for merge acceptance. Squash and rebase create a new commit SHA even when the resulting files are identical; their tree remains equal. After any implementation push, repair commit, rebase, conflict resolution, generated-file update, or evidence-affecting change, recompute the tree and republish/reverify affected evidence.
 
-**Record paths are excluded from the tree identity.** The independent verifier's verdict is written into the evidence reports, and the PRD is ticked, reconciled, and archived *after* that verdict, all inside the same PR. A tree that included those files could never equal the tree the verifier saw — the verdict would have to describe itself. So `verified_tree_sha` is the Git tree of the PR head with the **delivery-record paths** removed: `tasks/pending/<prd-file>.md`, `tasks/archive/<prd-file>.md`, and `tasks/evidence/<prd-stem>/`. A temporary index computes it without touching the work tree:
+**Record paths are excluded from the tree identity.** The independent verifier's verdict is written into the evidence reports, and the PRD is ticked, reconciled, and archived *after* that verdict, all inside the same PR. A tree that included those files could never equal the tree the verifier saw — the verdict would have to describe itself. So `verified_tree_sha` is the Git tree of the PR head with the **delivery-record paths** removed: `tasks/pending/<prd-file>.md`, `tasks/archive/<prd-file>.md`, and `tasks/evidence/<prd-stem>/`. A temporary index computes it for any commit, from any checkout, without touching the work tree or the real index:
 
 ```bash
-GIT_INDEX_FILE="$tmp_index" git read-tree <head-sha>
-GIT_INDEX_FILE="$tmp_index" git rm -r -q --cached --ignore-unmatch -- \
-  "tasks/pending/<prd-file>.md" "tasks/archive/<prd-file>.md" "tasks/evidence/<prd-stem>"
-GIT_INDEX_FILE="$tmp_index" git write-tree
+tmp_index="$(mktemp)"
+GIT_INDEX_FILE="$tmp_index" git read-tree <commit> &&
+  GIT_INDEX_FILE="$tmp_index" git rm -r -q -f --cached --ignore-unmatch -- \
+    "tasks/pending/<prd-file>.md" "tasks/archive/<prd-file>.md" "tasks/evidence/<prd-stem>" &&
+  GIT_INDEX_FILE="$tmp_index" git write-tree
 ```
+
+`<commit>` is the PR head when you record `verified_tree_sha`; during Post-Merge Reconciliation it is the final merge commit, which need not be the commit that is checked out. Both safeguards in the block matter:
+
+- **`-f`** keeps the result independent of the checkout. Without it, `git rm` refuses — exit 1, "staged content different from both the file and the HEAD" — whenever a record file at `<commit>` differs from both the checked-out `HEAD` and its work-tree copy. With `--cached` and the temporary `GIT_INDEX_FILE`, forcing touches only the temporary index.
+- **`&&`** stops at the first failure without printing a tree. Unchained, a failed `git rm` falls through to `git write-tree`, which prints the unfiltered tree and exits 0, so a command error looks like a tree mismatch.
 
 Changes confined to the record paths — ticking items, Final Reconciliation, the banner, the archive move, the Change Log, the review checklist — never stale the evidence. Any change outside them still does.
 
@@ -186,7 +192,7 @@ On a merged PR, repository automation should record the acceptance. The PRD is a
 2. Confirm the PR contained the acceptance declaration and stable evidence presentation.
 3. Confirm verifier and required checks passed for the accepted tree.
 4. Read the final merge commit and its Git tree.
-5. Compare the final tree, record paths excluded, with `verified_tree_sha`. If they differ, stop: record no acceptance and require validation on the final tree. The archived `PASS` does not describe the main line until the final tree is revalidated; when it cannot be, reopen the PRD.
+5. Compute the final tree, record paths excluded, with the [Evidence Identity](#evidence-identity) command, passing the merge commit as `<commit>` whatever is checked out, and compare it with `verified_tree_sha`. A failed command prints no tree: fix and rerun it, recording nothing meanwhile; it is not a mismatch. If the trees differ, stop: record no acceptance and require validation on the final tree. The archived `PASS` does not describe the main line until the final tree is revalidated; when it cannot be, reopen the PRD.
 6. Record:
    - PR number and URL;
    - merger identity;
