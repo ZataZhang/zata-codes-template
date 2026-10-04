@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>人工审查 · &lt;主题&gt;（Issue #&lt;N&gt;）</title>
+<!--
+  人工审查清单（交互 HTML）模板 —— 复制本文件到
+  tasks/evidence/<prd-stem>/human-review-checklist.html，然后只改两处：
+
+  1) 头部与 <body> 的数据属性：把 &lt;主题&gt; / &lt;N&gt; / &lt;prd-stem&gt; 换成真实值。
+  2) <main> 里的卡片：每个决定一张 <section class="card">，最后一张是结果卡。
+     卡片内容可自由增删（h2 / p.lead / div.decide / blockquote / figure / p / div.opts /
+     label.field），但每张决定卡必须有：
+       - 一个 <h2>（会被逐字抄进 markdown 结果）
+       - 一组 <div class="opts"> 里的单选（name 在本卡内唯一即可）
+       - 一个 <textarea>（补充说明，可留空）
+     结果卡结构不要改（它的 id 被脚本引用）。
+
+  下面的脚本是固定的：导航、进度点、localStorage 持久化、生成 markdown 全部读 DOM，
+  不需要为每个 PRD 改动。所有语句以分号结尾，且没有以 [ 或 ( 开头的续行，避免
+  automatic semicolon insertion 把两行连成一句（曾因此整段脚本 SyntaxError、页面全空）。
+
+  自检（必须做，见 skills/prd/SKILL.md）：用真实浏览器打开本页，确认控制台零
+  pageerror、首屏卡片可见、能翻页并在末页生成 markdown，再把它交给用户。
+-->
+<style>
+:root{--bg:#f8fafc;--card:#fff;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;--brand:#4f46e5;--warn:#b45309}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.65 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+header{background:var(--card);border-bottom:1px solid var(--line);padding:18px 24px}
+header h1{margin:0;font-size:17px}
+header p{margin:4px 0 0;color:var(--muted);font-size:12.5px}
+main{max-width:900px;margin:24px auto 80px;padding:0 20px}
+.progress{display:flex;gap:8px;margin-bottom:18px}
+.dot{flex:1;height:4px;border-radius:999px;background:var(--line)}
+.dot.on{background:var(--brand)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 22px;margin-bottom:16px;display:none}
+.card.active{display:block}
+h2{font-size:16px;margin:0 0 6px}
+.lead{color:var(--muted);margin:0 0 14px}
+.decide{border-left:3px solid var(--warn);background:#fffbeb;padding:10px 12px;border-radius:0 8px 8px 0;margin:0 0 14px}
+.decide b{color:var(--warn)}
+blockquote{margin:0 0 14px;padding:10px 14px;background:#f1f5f9;border-radius:8px;color:#334155;font-size:13px}
+figure{margin:14px 0}
+figure img{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff}
+figcaption{color:var(--muted);font-size:12px;margin-top:6px}
+.opts{margin:14px 0 4px}
+label.opt{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer}
+label.opt:hover{border-color:var(--brand)}
+label.opt:has(input:checked){border-color:var(--brand);background:#eef2ff}
+label.opt input{margin-top:3px}
+label.field{display:block;color:var(--muted);font-size:12.5px;margin-top:10px}
+textarea{width:100%;min-height:76px;border:1px solid var(--line);border-radius:10px;padding:10px;font:inherit;margin-top:4px}
+nav{display:flex;justify-content:space-between;gap:10px;margin-top:18px}
+button{border:0;border-radius:10px;padding:10px 16px;font:inherit;font-weight:600;cursor:pointer;background:var(--brand);color:#fff}
+button.ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}
+button:disabled{opacity:.45;cursor:not-allowed}
+pre{background:#0f172a;color:#e2e8f0;padding:14px;border-radius:10px;white-space:pre-wrap;word-break:break-word;font-size:12.5px}
+code{background:#e2e8f0;padding:1px 5px;border-radius:4px;font-size:12.5px}
+.tag{display:inline-block;font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:1px 8px;margin-left:6px}
+</style>
+</head>
+<body data-review-key="iar-review-&lt;issue-slug&gt;" data-markdown-title="人工审查结果 · &lt;主题&gt;（Issue #&lt;N&gt;）">
+<header>
+  <h1>人工审查清单 · &lt;主题&gt;<span class="tag">Issue #&lt;N&gt;</span><span class="tag">PRD &lt;prd-stem&gt;</span></h1>
+  <p>共 &lt;N&gt; 项决定。答案保存在本机浏览器（localStorage），最后一步生成可复制的 Markdown 回复给 agent。静态底稿：同目录 <code>human-review-checklist.md</code>。</p>
+</header>
+<main>
+  <div class="progress" id="progress"></div>
+
+  <!-- 决定卡 1（完整形态示例：术语 / 决定 / 原文引用 / 连图 / 证据 / 选项 / 备注） -->
+  <section class="card">
+    <h2>第 1 项 · &lt;标题&gt;</h2>
+    <p class="lead">术语：<b>&lt;术语&gt;</b> = &lt;一句话白话解释&gt;。</p>
+    <div class="decide"><b>你在决定什么：</b>&lt;这个决定的内容&gt;。<b>如果判错：</b>&lt;判错的后果&gt;。</div>
+    <blockquote>&lt;逐字引用 PRD 原文&gt;（PRD §&lt;x&gt;，&lt;日期&gt;）</blockquote>
+    <figure><img src="../../../.iar/evidence/&lt;截图&gt;.png" alt="&lt;图注&gt;"><figcaption>&lt;图注&gt;（local-only 采集物）。</figcaption></figure>
+    <p>证据文件：<code>tasks/evidence/&lt;prd-stem&gt;/&lt;文件&gt;</code>、离线复跑命令 <code>&lt;命令&gt;</code>。</p>
+    <div class="opts">
+      <label class="opt"><input type="radio" name="q1" value="0"><span>同意：&lt;选项 0&gt;</span></label>
+      <label class="opt"><input type="radio" name="q1" value="1"><span>不同意，改为：&lt;选项 1&gt;</span></label>
+    </div>
+    <label class="field">补充说明（可选）<textarea placeholder="例如：抽屉里可以显，但导出文件希望加 masking"></textarea></label>
+  </section>
+
+  <!-- 决定卡 2（最小形态示例；要几项就复制几张，删掉用不上的可选块） -->
+  <section class="card">
+    <h2>第 2 项 · &lt;标题&gt;</h2>
+    <div class="decide"><b>你在决定什么：</b>&lt;这个决定的内容&gt;。<b>如果判错：</b>&lt;判错的后果&gt;。</div>
+    <blockquote>&lt;逐字引用 PRD 原文&gt;（PRD §&lt;x&gt;，&lt;日期&gt;）</blockquote>
+    <div class="opts">
+      <label class="opt"><input type="radio" name="q2" value="0"><span>已逐项过目，界面事实确认</span></label>
+      <label class="opt"><input type="radio" name="q2" value="1"><span>&lt;有问题时选这项，并在备注里写清怎么改&gt;</span></label>
+    </div>
+    <label class="field">哪一项有问题 / 怎么改（可选）<textarea></textarea></label>
+  </section>
+
+  <!-- 结果卡：结构固定，不要把 id 改名 -->
+  <section class="card">
+    <h2>审查结果（复制下面这段回给 agent）</h2>
+    <p class="lead">合并方式：把结果粘进对话，或重新运行 <code>just prd review &lt;prd-file&gt;</code> 回到本页继续修改。</p>
+    <pre id="result"></pre>
+    <nav><button class="ghost" id="prev2">上一步</button><button id="copy">复制 Markdown</button></nav>
+  </section>
+
+  <nav>
+    <button class="ghost" id="prev" disabled>上一步</button>
+    <button id="next">下一步</button>
+  </nav>
+</main>
+<script>
+/* 固定脚本：只读 DOM，不解析任何内嵌数据。改内容不需要动这里。 */
+const STORAGE_KEY = document.body.dataset.reviewKey || 'iar-review';
+const cards = Array.from(document.querySelectorAll('.card'));
+const RESULT_INDEX = cards.length - 1;
+const progress = document.getElementById('progress');
+
+function readState() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+  } catch (error) {
+    return {};
+  }
+}
+const state = Object.assign({ step: 0, picks: {}, notes: {} }, readState());
+if (typeof state.step !== 'number' || state.step < 0 || state.step > RESULT_INDEX) {
+  state.step = 0;
+}
+function save() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (error) {
+    /* file:// 或隐私模式下 localStorage 可能被拒；交互仍可用，只是不持久化。 */
+  }
+}
+function cardIndexOf(element) {
+  return cards.indexOf(element ? element.closest('.card') : null);
+}
+function buildMarkdown() {
+  const title = document.body.dataset.markdownTitle || document.title;
+  const lines = ['# ' + title, ''];
+  cards.forEach(function (card, index) {
+    if (index === RESULT_INDEX) {
+      return;
+    }
+    const heading = card.querySelector('h2');
+    const label = heading ? heading.textContent.trim() : ('第 ' + (index + 1) + ' 项');
+    const checked = card.querySelector('input[type=radio]:checked');
+    const span = checked ? checked.closest('label').querySelector('span') : null;
+    const answer = span ? span.textContent.trim() : '（未选择）';
+    lines.push(label + '：' + answer);
+    const note = String(state.notes[index] || '').trim();
+    if (note) {
+      lines.push('  补充：' + note);
+    }
+  });
+  lines.push('', '审查时间：' + new Date().toLocaleString('zh-CN'));
+  return lines.join('\n');
+}
+function render() {
+  cards.forEach(function (card, index) {
+    card.classList.toggle('active', index === state.step);
+  });
+  Array.from(progress.children).forEach(function (dot, index) {
+    dot.classList.toggle('on', index <= state.step);
+  });
+  const prevButton = document.getElementById('prev');
+  const nextButton = document.getElementById('next');
+  const onResult = state.step === RESULT_INDEX;
+  prevButton.disabled = state.step === 0;
+  prevButton.style.display = onResult ? 'none' : '';
+  nextButton.style.display = onResult ? 'none' : '';
+  if (onResult) {
+    document.getElementById('result').textContent = buildMarkdown();
+  }
+  window.scrollTo({ top: 0 });
+}
+function copyText(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    return navigator.clipboard.writeText(text);
+  }
+  /* file:// 下 navigator.clipboard 可能不可用，退回 execCommand。 */
+  const scratch = document.createElement('textarea');
+  scratch.value = text;
+  scratch.style.position = 'fixed';
+  scratch.style.opacity = '0';
+  document.body.appendChild(scratch);
+  scratch.select();
+  document.execCommand('copy');
+  document.body.removeChild(scratch);
+  return Promise.resolve();
+}
+
+cards.forEach(function (card, index) {
+  const dot = document.createElement('div');
+  dot.className = 'dot';
+  progress.appendChild(dot);
+  const savedPick = state.picks[index];
+  if (savedPick !== undefined) {
+    const input = card.querySelector('input[type=radio][value="' + savedPick + '"]');
+    if (input) {
+      input.checked = true;
+    }
+  }
+  const notesBox = card.querySelector('textarea');
+  if (notesBox && state.notes[index] !== undefined) {
+    notesBox.value = state.notes[index];
+  }
+});
+document.addEventListener('change', function (event) {
+  const target = event.target;
+  if (target && target.type === 'radio') {
+    const index = cardIndexOf(target);
+    if (index >= 0) {
+      state.picks[index] = target.value;
+      save();
+    }
+  }
+});
+document.addEventListener('input', function (event) {
+  const target = event.target;
+  if (target && target.tagName === 'TEXTAREA') {
+    const index = cardIndexOf(target);
+    if (index >= 0) {
+      state.notes[index] = target.value;
+      save();
+    }
+  }
+});
+document.getElementById('next').addEventListener('click', function () {
+  if (state.step < RESULT_INDEX) {
+    state.step += 1;
+    save();
+    render();
+  }
+});
+document.getElementById('prev').addEventListener('click', function () {
+  if (state.step > 0) {
+    state.step -= 1;
+    save();
+    render();
+  }
+});
+document.getElementById('prev2').addEventListener('click', function () {
+  state.step = RESULT_INDEX - 1;
+  save();
+  render();
+});
+document.getElementById('copy').addEventListener('click', function () {
+  const button = document.getElementById('copy');
+  copyText(buildMarkdown()).then(function () {
+    button.textContent = '已复制 ✓';
+    window.setTimeout(function () {
+      button.textContent = '复制 Markdown';
+    }, 1600);
+  });
+});
+render();
+</script>
+</body>
+</html>
