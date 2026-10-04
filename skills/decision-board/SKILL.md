@@ -19,7 +19,7 @@ argument-hint: "<含待决问题的文档路径>"
 
 - 页面每题预选**本 agent 的推荐项**，用户只改不同意的——改动过的卡片高亮；
 - 每题必须带 agent 的看法（`why`）与代价（`cost`），没有观点的问题不许上页；
-- 用户点「提交」→ 选择落盘 `answers.json`，agent 直接读文件，**不需要复制粘贴**；
+- 用户点「提交」→ 选择落盘 `answers.json`，agent 直接读文件，**不需要复制粘贴**；注意提交**不产生任何事件通知**——agent 必须自己监听 `answers.json` 才会知道用户已提交（见步骤 3 的双通道监听）；
 - 页面右下角有实时提问框，用户提问 → 落盘 `questions.jsonl` → `tail -F` 事件唤醒 agent → 回答追加 `answers.jsonl` → 页面轮询显示；抽屉右上角「清空」把问答记录**归档**到 `<workdir>/_cleared/`（不删除，也不动 `answers.json`）；
 - 单文件页面、零外部依赖、只监听 127.0.0.1。
 
@@ -64,14 +64,16 @@ mkdir -p .iar/decisions
 python3 <skill>/scripts/serve_board.py --board .iar/decisions/board.json --port 8765 &
 ```
 
-脚本先校验 board（错误逐条带 `questions[i](Qn).字段` 定位，非零退出），再起服务；启动行会打印三个产物文件路径。**必须用 `Monitor` 挂上提问通道**，否则用户在页面里提问不会唤醒你：
+脚本先校验 board（错误逐条带 `questions[i](Qn).字段` 定位，非零退出），再起服务；启动行会打印三个产物文件路径。**必须用 `Monitor` 同时挂两个通道**——提问通道与提交通知。提交（`POST /submit`）只写 `answers.json`，**不产生任何其他事件**；只挂提问通道的话，用户点「提交」后 agent 处于空闲态不会被唤醒（用户会以为 agent 没收到，实际文件早已写好）：
 
 ```
 Monitor(command="tail -n 0 -F <workdir>/questions.jsonl", persistent=true,
         description="决策页的新提问")
+Monitor(command="tail -n 0 -F <workdir>/answers.json", persistent=true,
+        description="决策页的提交结果（answers.json 首次写入即触发）")
 ```
 
-`-n 0` 保证历史行不重放。把 URL 与「延迟取决于 agent 当前轮次是否空闲」一起告诉用户——页面显示的是「已送达，等待回答」，不是「正在输入」。
+`-n 0` 保证历史行不重放；`tail -F` 对尚不存在的 `answers.json` 也会等待其创建。把 URL 与「延迟取决于 agent 当前轮次是否空闲」一起告诉用户——页面显示的是「已送达，等待回答」，不是「正在输入」。
 
 ### 4. 回答提问
 
