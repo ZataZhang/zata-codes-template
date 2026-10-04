@@ -781,6 +781,12 @@ def _delivery_gate_banner_issues(file_content: str) -> list[tuple[int, str]]:
     return []
 
 
+def _heading_level(line: str) -> int:
+    """Return the ATX heading level (count of leading ``#``); 0 if not a heading."""
+
+    return len(line) - len(line.lstrip("#"))
+
+
 def _declared_delivery_dependency_refs(file_content: str) -> set[str]:
     """Return upstream refs declared under Section 8 'Depends on tasks/issues'.
 
@@ -796,11 +802,19 @@ def _declared_delivery_dependency_refs(file_content: str) -> set[str]:
     if section_start is None:
         return set()
 
+    # 规范形状在 ``## 8. Delivery Dependencies`` 之下还会再套一层
+    # ``### Delivery Dependencies`` 子标题（见 SKILL.md 的 "Use this shape"）。以匹配到的
+    # 那级标题为基准判定节边界：只在遇到同级或更高级标题时停止，否则那层子标题会被当成
+    # 下一节而提前 break，依赖字段全部读不到、被误判成「无依赖」，横幅校验随之要求填「无」。
+    section_heading_level = _heading_level(lines[section_start])
+
     refs: set[str] = set()
     inside_depends_field = False
     for line in lines[section_start + 1 :]:
         if line.startswith("#"):
-            break
+            if _heading_level(line) <= section_heading_level:
+                break
+            continue
         stripped = line.strip()
         if re.match(r"^-\s*Depends on tasks/issues\s*:", stripped, re.IGNORECASE):
             inside_depends_field = True

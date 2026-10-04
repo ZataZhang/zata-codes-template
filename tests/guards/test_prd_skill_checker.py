@@ -769,6 +769,60 @@ def test_delivery_gate_banner_tolerates_none_with_rationale() -> None:
     assert PRD_CHECKER._delivery_gate_banner_issues(with_rationale) == []
 
 
+def _with_canonical_delivery_dependencies(prd_text: str, depends_on_line: str) -> str:
+    """按 SKILL.md 的规范形状填入 §8 依赖字段。
+
+    规范形状在 ``## 8. Delivery Dependencies`` 之下还会再套一层
+    ``### Delivery Dependencies`` 子标题。回归：checker 曾把紧跟在 ``## 8.`` 之后的
+    这层子标题当成下一节而提前 ``break``，依赖被读成空、横幅被迫要求写「无」。夹具必须
+    带上这层子标题才能锁住它；``_with_delivery_dependencies`` 是扁平形状，覆盖不到。
+    """
+
+    return prd_text.replace(
+        "## 8. Delivery Dependencies\n",
+        "## 8. Delivery Dependencies\n\n"
+        "### Delivery Dependencies\n\n"
+        "- Group: none\n"
+        "- Depends on tasks/issues:\n"
+        f"  - {depends_on_line}\n"
+        "- Gate type: none\n"
+        "- Notes: none\n",
+        1,
+    )
+
+
+def test_delivery_dependencies_read_through_canonical_subheading() -> None:
+    """§8 下的 ``### Delivery Dependencies`` 子标题不得结束本节的依赖声明。"""
+
+    prd_text = _with_canonical_delivery_dependencies(
+        _complete_prd(), "`P1-FEAT-20260101-000000-upstream.md`"
+    )
+
+    assert PRD_CHECKER._declared_delivery_dependency_refs(prd_text) == {
+        "P1-FEAT-20260101-000000-upstream.md"
+    }
+
+
+def test_delivery_gate_banner_uses_canonical_subheading_dependencies() -> None:
+    """规范形状下横幅仍须点全 §8 声明的上游，而不是被迫写「无」。"""
+
+    blocked_prd = _with_canonical_delivery_dependencies(
+        _complete_prd(), "`P1-FEAT-20260101-000000-upstream.md`"
+    )
+
+    issues = PRD_CHECKER._delivery_gate_banner_issues(blocked_prd)
+    assert any(
+        "P1-FEAT-20260101-000000-upstream.md" in message for _, message in issues
+    ), "规范形状下的依赖必须被读到；横幅仍写「无」应当判负"
+
+    accepted_prd = blocked_prd.replace(
+        "> ✅ **交付前置**：无，可立即开工。",
+        "> ⛔ **交付前置**：排在 `P1-FEAT-20260101-000000-upstream.md` 之后开工。",
+        1,
+    )
+    assert PRD_CHECKER._delivery_gate_banner_issues(accepted_prd) == []
+
+
 def test_oracle_reviewer_is_required() -> None:
     """oracle 必须声明证据受众；缺失时按缺少必填字段拒绝。"""
 

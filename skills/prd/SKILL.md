@@ -1,6 +1,6 @@
 ---
 name: prd
-description: "[Updated 2026-10-03] Generate an architecture-aware technical PRD split into two altitudes — a human review layer (Part A) and an executor build layer (Part B) — with a decision-oriented human review map, a front-loaded interpretation lock, a bounded design-challenge pass, and a risk-ordered acceptance evidence package that can be presented and accepted directly in an explicitly linked pull request. Triggers on: create a prd, write prd for, plan this feature. Prioritizes reuse, minimal-change plans, evidence-chain integrity, required output compliance, realistic validation, and conditional web research."
+description: "[Updated 2026-10-04] Generate an architecture-aware technical PRD split into two altitudes — a human review layer (Part A) and an executor build layer (Part B) — with a decision-oriented human review map, a front-loaded interpretation lock, a bounded design-challenge pass, and a risk-ordered acceptance evidence package that can be presented and accepted directly in an explicitly linked pull request. Triggers on: create a prd, write prd for, plan this feature. Prioritizes reuse, minimal-change plans, evidence-chain integrity, required output compliance, realistic validation, and conditional web research."
 ---
 
 # PRD Generator (Architecture-First)
