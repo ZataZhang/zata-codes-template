@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """决策收集页的本地服务：读取 board.json，渲染页面并接收选择与提问。
 
-用法：``python3 serve_board.py --board <board.json> [--port 8765]``
+用法：``python3 serve_board.py --board <board.json> [--port 8765] [--open]``
+``--open`` 会额外用系统默认浏览器打开页面；默认不开，避免自检时弹窗。
 
 只监听 127.0.0.1。产出三个文件，落在 board.json 同目录（或 --workdir）：
 ``answers.json`` 是九项选择结果（每次提交覆盖），``questions.jsonl`` 是页面提问
@@ -12,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -126,6 +128,31 @@ def archive_qa_files(questions_path: Path, replies_path: Path) -> list[str]:
         source_path.replace(destination)
         moved.append(destination.name)
     return moved
+
+
+def open_in_browser(page_url: str) -> None:
+    """用系统默认浏览器打开页面，失败只告警、不影响服务。
+
+    按平台选择系统自带的 opener：macOS ``open``、Linux ``xdg-open``、
+    Windows ``cmd /c start``。以 ``Popen`` 分离启动，不等待也不占用服务进程。
+
+    Args:
+        page_url (str): 要打开的页面地址，如 ``http://127.0.0.1:8765/``。
+    """
+    if sys.platform == "darwin":
+        open_command = ["open", page_url]
+    elif sys.platform.startswith("win"):
+        open_command = ["cmd", "/c", "start", "", page_url]
+    else:
+        open_command = ["xdg-open", page_url]
+    try:
+        subprocess.Popen(
+            open_command,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except OSError as exc:
+        print(f"⚠ 无法自动打开浏览器（{exc}）：请手动访问 {page_url}", file=sys.stderr)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -243,6 +270,7 @@ def main() -> int:
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--host", default="127.0.0.1", help="仅建议 127.0.0.1")
     parser.add_argument("--workdir", type=Path, default=None, help="产物目录，默认 board 同目录")
+    parser.add_argument("--open", action="store_true", help="启动后用系统默认浏览器打开页面")
     args = parser.parse_args()
 
     if not TEMPLATE.is_file():
@@ -279,13 +307,19 @@ def main() -> int:
             f"⚠ 正在监听 {args.host}：页面内容会离开本机回环，确认这是你想要的。",
             file=sys.stderr,
         )
-    print(f"board: {len(board['questions'])} 项待决 · http://{args.host}:{args.port}/")
-    print(f"提问 → {args.questions}    回答 → {args.replies}    选择 → {args.answers}")
     try:
-        ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()
+        httpd = ThreadingHTTPServer((args.host, args.port), Handler)
     except OSError as exc:
         print(f"❌ 端口 {args.port} 起不来：{exc}", file=sys.stderr)
         return 1
+
+    board_url = f"http://{args.host}:{httpd.server_address[1]}/"
+    print(f"board: {len(board['questions'])} 项待决 · {board_url}")
+    print(f"提问 → {args.questions}    回答 → {args.replies}    选择 → {args.answers}")
+    if args.open:
+        open_in_browser(board_url)
+    try:
+        httpd.serve_forever()
     except KeyboardInterrupt:
         print("已停止。")
     return 0

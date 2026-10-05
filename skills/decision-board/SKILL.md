@@ -1,6 +1,6 @@
 ---
 name: decision-board
-description: "[Updated 2026-09-30] 把一份文档里「需要人拍板的 N 个问题」变成本地可交互决策页：每题单选 + 预选推荐 + 我的看法与代价、改动高亮、实时提问回传、结果落盘 JSON。Use when 用户面对 PRD/评审/方案里一组待决问题说 让我选 / 给我选项 / 开工前需要我问的问题列出来 / 每个问题给我你的看法 / 有没有办法我选了自动回给你 / 做一个决策页/问卷/评审确认页, 或需要用浏览器输入框实时向 agent 提问并等待回答的任意场景。"
+description: "[Updated 2026-10-05] 把一份文档里「需要人拍板的 N 个问题」变成本地可交互决策页：每题单选 + 预选推荐 + 我的看法与代价、改动高亮、实时提问回传、结果落盘 JSON。Use when 用户面对 PRD/评审/方案里一组待决问题说 让我选 / 给我选项 / 开工前需要我问的问题列出来 / 每个问题给我你的看法 / 有没有办法我选了自动回给你 / 做一个决策页/问卷/评审确认页, 或需要用浏览器输入框实时向 agent 提问并等待回答的任意场景；也当 agent 自行判断有需要用户拍板/确认的问题时主动使用（多方案取舍、开工前关键澄清、涉及不可逆或共享状态变更的确认等），此时应生成决策页集中收集选择，而不要用纯文本逐条追问或 AskUserQuestion。"
 user-invocable: true
 allowed-tools:
   - Read
@@ -61,8 +61,10 @@ argument-hint: "<含待决问题的文档路径>"
 
 ```bash
 mkdir -p .iar/decisions
-python3 <skill>/scripts/serve_board.py --board .iar/decisions/board.json --port 8765 &
+python3 <skill>/scripts/serve_board.py --board .iar/decisions/board.json --port 8765 --open &
 ```
+
+`--open` 让脚本在服务起来后用系统默认浏览器（macOS `open`、Linux `xdg-open`）打开页面，用户不用自己点链接；**只在正式交付时带**，浏览器自检与渲染验证起服务时不要带，否则每验一次弹一个窗口。打开失败只告警，不影响服务。
 
 脚本先校验 board（错误逐条带 `questions[i](Qn).字段` 定位，非零退出），再起服务；启动行会打印三个产物文件路径。**必须用 `Monitor` 同时挂两个通道**——提问通道与提交通知。提交（`POST /submit`）只写 `answers.json`，**不产生任何其他事件**；只挂提问通道的话，用户点「提交」后 agent 处于空闲态不会被唤醒（用户会以为 agent 没收到，实际文件早已写好）：
 
