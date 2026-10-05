@@ -12,7 +12,9 @@
 from __future__ import annotations
 
 import argparse
+import html
 import json
+import re
 import subprocess
 import sys
 from datetime import datetime
@@ -21,6 +23,13 @@ from pathlib import Path
 
 TEMPLATE = Path(__file__).resolve().parent.parent / "assets" / "board.html"
 QUESTION_MAX_CHARS = 4000
+#: 卡片纯文本字段里绝不该出现的 raw-text/容器标签：原样注入会吞掉后续 DOM
+#: （含 note-<id> 备注框），使 refresh() 抛错、提交按钮永久禁用。
+_SWALLOWING_TAG_RE = re.compile(
+    r"<\s*/?\s*(script|style|textarea|title|xmp|noscript|iframe)\b", re.IGNORECASE
+)
+#: 会经 innerHTML 注入的纯文本字段；intro 例外（文档化的 HTML 字段）。
+_PLAIN_TEXT_FIELDS = ("t", "ev", "why", "cost", "sub")
 
 
 def validate_board(board: dict) -> tuple[list[str], dict]:
@@ -33,9 +42,15 @@ def validate_board(board: dict) -> tuple[list[str], dict]:
         tuple[list[str], dict]: 错误为空时第二个元素可直接渲染。
     """
     errors_list: list[str] = []
+    for field_text in ("title", "source"):
+        if _SWALLOWING_TAG_RE.search(str(board.get(field_text, ""))):
+            errors_list.append(
+                f"{field_text} 含会被当作 HTML 标签解析的片段（如 `<script>`），"
+                f"请移除；如需富文本请用 intro。"
+            )
     questions_list = board.get("questions")
     if not isinstance(questions_list, list) or not questions_list:
-        return ["questions 必须是非空数组"], board
+        return [*errors_list, "questions 必须是非空数组"], board
     seen_ids = set()
     for index, question in enumerate(questions_list):
         where = f"questions[{index}]"
@@ -65,6 +80,19 @@ def validate_board(board: dict) -> tuple[list[str], dict]:
         for field_text in ("why", "cost"):
             if not str(question.get(field_text, "")).strip():
                 errors_list.append(f"{where}.{field_text} 必填（你的看法与代价）")
+        for field_text in _PLAIN_TEXT_FIELDS:
+            field_value = str(question.get(field_text, ""))
+            if _SWALLOWING_TAG_RE.search(field_value):
+                errors_list.append(
+                    f"{where}.{field_text} 含会被当作 HTML 标签解析的片段（如 `<script>`），"
+                    f"它会吞掉卡片后续元素并使提交按钮失效；请改写为无尖括号表述。"
+                )
+        for opt in options_list:
+            option_text = str(opt[1]) if isinstance(opt, list) and len(opt) >= 2 else ""
+            if _SWALLOWING_TAG_RE.search(option_text):
+                errors_list.append(
+                    f"{where}.opts 的选项文案含 HTML 标签片段（如 `<script>`），请移除。"
+                )
     return errors_list, board
 
 
@@ -74,8 +102,8 @@ def render_page(board: dict) -> bytes:
     payload_text = json.dumps(board, ensure_ascii=False).replace("</", "<\\/")
     for placeholder_text, value_text in (
         ("__DATA__", payload_text),
-        ("__TITLE__", str(board.get("title", "待决项"))),
-        ("__SOURCE__", str(board.get("source", ""))),
+        ("__TITLE__", html.escape(str(board.get("title", "待决项")))),
+        ("__SOURCE__", html.escape(str(board.get("source", "")))),
         ("__INTRO__", str(board.get("intro", ""))),
     ):
         html_text = html_text.replace(placeholder_text, value_text)

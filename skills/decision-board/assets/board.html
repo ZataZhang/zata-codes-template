@@ -121,25 +121,30 @@
 const DATA = __DATA__;
 const QS = DATA.questions || [];
 
+// 卡片字段一律按纯文本转义后再 innerHTML：正文里的 `<`（如 `<script>`、`a < b`）
+// 若原样注入会被浏览器当作标签，raw-text 元素（script/style/textarea/title）会
+// 吞掉后续节点（含 note-<id> 备注框），导致 refresh() 抛错、提交按钮永久禁用。
+const esc = s => String(s == null ? '' : s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
 const state = {};
 const root = document.getElementById('qs');
 QS.forEach(q=>{
   state[q.id] = q.rec;
   const c = document.createElement('div');
   c.className='card'; c.id='card-'+q.id;
-  let h = `<div class="qid"><span class="tag">${q.id}</span><h2>${q.t}</h2>
+  let h = `<div class="qid"><span class="tag">${q.id}</span><h2>${esc(q.t)}</h2>
       <button class="ask" data-ask="${q.id}" style="margin-left:auto">就这题问</button></div>
-    <div class="ev"><b>PRD 证据</b>　${q.ev}</div>`;
+    <div class="ev"><b>PRD 证据</b>　${esc(q.ev)}</div>`;
   q.opts.forEach(([k,label])=>{
     const isRec = k===q.rec;
     h += `<label class="opt${isRec?' rec':''}" data-q="${q.id}" data-k="${k}">
       <input type="radio" name="${q.id}" value="${k}"${isRec?' checked':''}>
-      <b>${k}</b>　${label}${isRec?'<span class="badge">推荐</span>':''}</label>`;
+      <b>${esc(k)}</b>　${esc(label)}${isRec?'<span class="badge">推荐</span>':''}</label>`;
   });
   h += `<div class="opinion">
-    <div class="row"><span class="k">我的看法</span>${q.why}</div>
-    <div class="row"><span class="k cost">代价 / 连带改动</span>${q.cost}</div>
-    ${q.sub?`<div class="row"><span class="k ask">附加待定</span>${q.sub}</div>`:''}
+    <div class="row"><span class="k">我的看法</span>${esc(q.why)}</div>
+    <div class="row"><span class="k cost">代价 / 连带改动</span>${esc(q.cost)}</div>
+    ${q.sub?`<div class="row"><span class="k ask">附加待定</span>${esc(q.sub)}</div>`:''}
   </div>
   <textarea id="note-${q.id}" placeholder="要反问助手的、或要补的条件（可留空）"></textarea>`;
   c.innerHTML = h;

@@ -36,10 +36,21 @@ agent 没有可被外部推的入口，只有两个输入通道：对话本身�
 
 浏览器不接受推送，除非 WebSocket 或 SSE。页面每 2.5 秒 `fetch('/qa')`，零额外机制。升级成 SSE 可行（长连接 + 生成器），收益只是省掉最多 2.5 秒抖动，代价是那条连接得和 `tail -F` 一样活着。
 
-## 两处注入面
+## 注入面
 
 - 渲染一律 `textContent` + `white-space:pre-wrap`。用户在提问框里敲 `<img onerror=...>`、agent 回答里带尖括号，都不该被解析成 HTML。
 - board JSON 内嵌进 `<script>` 时，`json.dumps(...).replace("</", "<\\/")` 是必需的：正文里出现 `</script>` 会直接截断脚本块。JSON 字符串里 `<\/` 与 `</` 等价，不影响解析。
+- 卡片字段（`t`/`ev`/`why`/`cost`/`sub` 与选项 label）走 `c.innerHTML = h` 注入，**必须先 `esc()` 转义**（`&`/`<`/`>`）。`title`/`source` 由服务端 `html.escape` 转义。只有 `intro` 是文档化的 HTML 字段，保持原样。
+  - `serve_board.py` 的 `validate_board` 会对这些纯文本字段做 fail-fast：出现 `<\s*/?\s*(script|style|textarea|title|xmp|noscript|iframe)\b` 直接报错退出（带 `questions[i](Qn).字段` 定位）。注意 `a < b` 这类合法的纯文本 `<` 不拦，靠 `esc()` 渲染成文本即可。
+
+## innerHTML 未转义会让提交按钮永久变灰（这里出过 bug）
+
+卡片 HTML 由 `c.innerHTML = h` 拼出，字段原先未转义。作者在某题的「我的看法」里写了 `pnpm <script>`，浏览器把 `<script>` 当**真标签**解析，**吞掉该卡片后续节点**（含 `note-<id>` 备注框）→ `refresh()` 在 `getElementById('note-Q4').value` 处抛 `Cannot read properties of null (reading 'value')` → `submit.disabled` 永远没被清零，用户只看到「按钮点不了」，页面不报错。
+
+- 诊断：headless chromium 起页 → `page.on('pageerror')` 抓该 TypeError（stack 指向 `refresh` 的 stat 模板行）→ 数 `textarea[id^=note-]` 是否少一个。
+- 判据：`curl -s localhost:PORT/ | grep -c "</script>"` 只能为 1；对 board.json `grep -n "<"` 逐个排除。
+- 修法（已落地）：`board.html` 加 `esc()` 包住所有纯文本字段；`serve_board.py` 的 `validate_board` 对吞内容的 raw-text 标签 fail-fast。改完 board.json 或模板**必须重启服务**（board 仅在启动时读入），并用 headless 复验：勾选 `#ack` 后 `submit.disabled === false`。
+
 
 ## 不要写死宿主 agent 的名字（这里出过 bug）
 
