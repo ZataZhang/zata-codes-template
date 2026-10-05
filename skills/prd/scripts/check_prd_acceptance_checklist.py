@@ -824,7 +824,7 @@ def _declared_delivery_dependency_refs(file_content: str) -> set[str]:
             continue
         if re.match(r"^-\s*\w", stripped) and not stripped.startswith("- "):
             inside_depends_field = False
-        elif re.match(r"^-\s*(Group|Gate type|Notes)\s*:", stripped, re.IGNORECASE):
+        elif re.match(r"^-\s*(Gate type|Notes)\s*:", stripped, re.IGNORECASE):
             inside_depends_field = False
         elif inside_depends_field and stripped.startswith("-"):
             refs.update(_delivery_ref_tokens(stripped.lstrip("- ").strip()))
