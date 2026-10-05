@@ -29,7 +29,7 @@ _SWALLOWING_TAG_RE = re.compile(
     r"<\s*/?\s*(script|style|textarea|title|xmp|noscript|iframe)\b", re.IGNORECASE
 )
 #: 会经 innerHTML 注入的纯文本字段；intro 例外（文档化的 HTML 字段）。
-_PLAIN_TEXT_FIELDS = ("t", "ev", "why", "cost", "sub")
+_PLAIN_TEXT_FIELDS = ("t", "ev", "why", "cost", "sub", "scenario", "badge")
 
 
 def validate_board(board: dict) -> tuple[list[str], dict]:
@@ -88,11 +88,14 @@ def validate_board(board: dict) -> tuple[list[str], dict]:
                     f"它会吞掉卡片后续元素并使提交按钮失效；请改写为无尖括号表述。"
                 )
         for opt in options_list:
-            option_text = str(opt[1]) if isinstance(opt, list) and len(opt) >= 2 else ""
-            if _SWALLOWING_TAG_RE.search(option_text):
-                errors_list.append(
-                    f"{where}.opts 的选项文案含 HTML 标签片段（如 `<script>`），请移除。"
-                )
+            # 选项可为 [key, label] 或 [key, label, consequence]；两处文案都会被注入。
+            option_texts = [str(part) for part in opt[1:3]] if isinstance(opt, list) else []
+            for option_text in option_texts:
+                if _SWALLOWING_TAG_RE.search(option_text):
+                    errors_list.append(
+                        f"{where}.opts 的选项文案含 HTML 标签片段（如 `<script>`），请移除。"
+                    )
+                    break
     return errors_list, board
 
 

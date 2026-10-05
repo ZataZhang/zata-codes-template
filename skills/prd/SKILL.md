@@ -503,6 +503,7 @@ Use this shape:
 - Depends on tasks/issues:
   - none
 - Gate type: none
+- Sequence: via-main
 - Notes: [Use tool-neutral dependency names. Do not put tool-specific hidden markers here.]
 ```
 
@@ -511,6 +512,8 @@ Rules:
 - `Gate type` must be `none`, `soft`, or `hard`.
 - `hard` means an execution tool may treat the dependency as a blocking gate when that repository has a deterministic adapter.
 - `soft` documents sequencing context but must not be treated as a blocking gate unless a repository-specific PRD explicitly defines that behavior.
+- `Sequence` declares where a dependent task starts once its dependency is satisfied: `via-main` (default) waits until the upstream lands on the mainline; `stack` starts on top of the upstream's branch. When omitted, tools must assume `via-main`.
+- `Sequence` is tool-neutral intent, not a queue syntax. A repository with a deterministic adapter may translate it into its own behavior (e.g., which branch a downstream task forks from); a repository without such an adapter treats it as inert documentation and must not error on it.
 - Do not place tool-specific hidden markers, labels, or queue syntax in this block. Repository-specific publish tooling may translate the block into its own markers or labels.
 - This block is the **single source of truth** for sequencing. The Delivery Gate Banner under the title mirrors it for discoverability; when the two disagree, this block wins and the banner is the defect. Change them together.
 

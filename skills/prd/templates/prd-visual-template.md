@@ -306,6 +306,7 @@ If no external validation was needed:
 - Depends on tasks/issues:
   - none
 - Gate type: none
+- Sequence: via-main
 - Notes: [Use tool-neutral dependency names. Do not put tool-specific hidden markers here.]
 
 ---

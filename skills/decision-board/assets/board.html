@@ -24,21 +24,36 @@
   .qid{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px}
   .qid .tag{font-weight:700;font-size:13px;color:var(--dim);letter-spacing:.04em}
   .qid h2{font-size:16.5px;margin:0;font-weight:600}
-  .ev{color:var(--dim);font-size:13px;margin:6px 0 12px;padding-left:10px;border-left:2px solid var(--line)}
+  .qbadge{display:inline-block;font-size:11px;font-weight:700;padding:1px 8px;border-radius:20px;
+    background:#1b2430;color:var(--dim);border:1px solid var(--line);vertical-align:1px}
+  .qbadge.warn{background:#3a2d16;color:var(--ask);border-color:#5a4620}
+  .qbadge.danger{background:#3a1a1a;color:var(--danger);border-color:#5a2626}
+  .ev{color:var(--dim);font-size:13px;margin:6px 0 12px;padding-left:10px;border-left:2px solid var(--line);
+    white-space:pre-wrap}
+  .scenario{background:var(--panel2);border:1px solid var(--line);border-left:3px solid #3b4250;
+    border-radius:7px;padding:9px 11px;margin:0 0 12px;font-size:13px;color:var(--fg);white-space:pre-wrap}
+  .scenario .lbl{display:block;color:var(--dim);font-weight:700;font-size:11.5px;letter-spacing:.04em;margin-bottom:3px}
   label.opt{display:block;background:var(--panel2);border:1px solid var(--line);border-radius:8px;
     padding:10px 12px;margin:7px 0;cursor:pointer;transition:.12s}
   label.opt:hover{border-color:#3b4250}
   label.opt input{margin-right:9px;vertical-align:-2px}
   label.opt.on{border-color:var(--rec);background:#16251a}
   label.opt.rec{border-color:#2f6f3f}
+  .opt .cons{display:block;color:var(--dim);font-size:12.5px;margin-top:5px;padding-left:23px;white-space:pre-wrap}
+  label.opt.on .cons{color:#c8d3b8}
   .badge{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:20px;
     background:#1d3521;color:var(--rec);margin-left:6px;vertical-align:1px}
   .badge.alt{background:#3a2d16;color:var(--ask)}
   .opinion{margin-top:10px;font-size:13.5px}
-  .opinion .row{margin:4px 0;padding:8px 11px;background:var(--panel2);border-radius:7px}
+  .opinion .row{margin:4px 0;padding:8px 11px;background:var(--panel2);border-radius:7px;white-space:pre-wrap}
   .opinion .k{font-weight:700;color:var(--rec);margin-right:6px}
   .opinion .k.cost{color:var(--ask)}
   .opinion .k.ask{color:var(--danger)}
+  .qthread{margin-top:10px}
+  .qthread:empty{display:none}
+  .qcomposer{display:flex;gap:8px;margin-top:9px}
+  .qcomposer textarea{margin:0;min-height:36px;flex:1;font-size:13px}
+  .qcomposer button{padding:0 14px;font-size:13px}
   textarea{width:100%;margin-top:9px;background:#12151b;color:var(--fg);border:1px solid var(--line);
     border-radius:7px;padding:8px 10px;font:inherit;font-size:13.5px;min-height:34px;resize:vertical}
   ::placeholder{color:#5b6472}
@@ -132,19 +147,27 @@ QS.forEach(q=>{
   state[q.id] = q.rec;
   const c = document.createElement('div');
   c.className='card'; c.id='card-'+q.id;
-  let h = `<div class="qid"><span class="tag">${q.id}</span><h2>${esc(q.t)}</h2>
-      <button class="ask" data-ask="${q.id}" style="margin-left:auto">就这题问</button></div>
-    <div class="ev"><b>PRD 证据</b>　${esc(q.ev)}</div>`;
-  q.opts.forEach(([k,label])=>{
+  const lvl = ['info','warn','danger'].includes(q.badge_level) ? q.badge_level : 'info';
+  const qbadge = q.badge ? `<span class="qbadge ${lvl}">${esc(q.badge)}</span>` : '';
+  let h = `<div class="qid"><span class="tag">${q.id}</span><h2>${esc(q.t)}</h2>${qbadge}</div>`;
+  if(q.scenario) h += `<div class="scenario"><span class="lbl">场景 / 举例</span>${esc(q.scenario)}</div>`;
+  h += `<div class="ev"><b>PRD 证据</b>　${esc(q.ev)}</div>`;
+  q.opts.forEach(([k,label,cons])=>{
     const isRec = k===q.rec;
     h += `<label class="opt${isRec?' rec':''}" data-q="${q.id}" data-k="${k}">
       <input type="radio" name="${q.id}" value="${k}"${isRec?' checked':''}>
-      <b>${esc(k)}</b>　${esc(label)}${isRec?'<span class="badge">推荐</span>':''}</label>`;
+      <b>${esc(k)}</b>　${esc(label)}${isRec?'<span class="badge">推荐</span>':''}${
+        cons?`<span class="cons">↳ ${esc(cons)}</span>`:''}</label>`;
   });
   h += `<div class="opinion">
     <div class="row"><span class="k">我的看法</span>${esc(q.why)}</div>
     <div class="row"><span class="k cost">代价 / 连带改动</span>${esc(q.cost)}</div>
     ${q.sub?`<div class="row"><span class="k ask">附加待定</span>${esc(q.sub)}</div>`:''}
+  </div>
+  <div class="qthread" id="qt-${q.id}"></div>
+  <div class="qcomposer">
+    <textarea id="qi-${q.id}" data-qin="${q.id}" placeholder="就这题问助手…（回车发送，Shift+回车换行）"></textarea>
+    <button data-qsend="${q.id}">发送</button>
   </div>
   <textarea id="note-${q.id}" placeholder="要反问助手的、或要补的条件（可留空）"></textarea>`;
   c.innerHTML = h;
@@ -229,9 +252,25 @@ document.getElementById('clear').onclick=async ()=>{
   lastSig=''; pendingJump=false; jump.style.display='none';
   render(); poll();
 };
-document.querySelectorAll('.ask').forEach(b=>b.onclick=()=>{
-  const q=QS.find(x=>x.id===b.dataset.ask);
-  openDock(); input.value=`关于 ${q.id}（${q.t}）：`; input.focus();
+document.querySelectorAll('[data-qsend]').forEach(b=>{
+  const qid=b.dataset.qsend, ta=document.getElementById('qi-'+qid);
+  const ask=async()=>{
+    const text=ta.value.trim(); if(!text) return;
+    let res=null;
+    try{ res=await fetch('/ask',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({question:text, about:qid})}); }catch(e){ res=null; }
+    if(!res || !res.ok) return;
+    const rec=await res.json();
+    seen[rec.id]={question:text, reply:null, about:qid};
+    ta.value=''; render(); poll();
+  };
+  b.onclick=ask;
+  ta.addEventListener('keydown',e=>{
+    if(e.key!=='Enter'||e.shiftKey) return;
+    // 输入法组字中：中文/日文 IME 的回车是「选词」而不是发送。
+    if(e.isComposing||e.keyCode===229) return;
+    e.preventDefault(); ask();
+  });
 });
 function bubble(who,text,cls){
   const wrap=document.createElement('div'); wrap.className='msg '+cls;
@@ -240,8 +279,23 @@ function bubble(who,text,cls){
   wrap.append(lab,bub); return wrap;
 }
 let lastSig='', pendingJump=false;
+// 逐题问答就近渲染在该题卡片下方（按 about==qid 归属）；底部抽屉只放「泛问」（about 为空）。
+const byId = (a,b)=>parseInt(a.slice(1))-parseInt(b.slice(1));
+function renderInline(){
+  QS.forEach(q=>{
+    const box=document.getElementById('qt-'+q.id);
+    if(!box) return;
+    box.textContent='';
+    Object.keys(seen).filter(id=>seen[id].about===q.id).sort(byId).forEach(id=>{
+      box.appendChild(bubble('你', seen[id].question, 'me'));
+      if(seen[id].reply) box.appendChild(bubble('助手', seen[id].reply, 'ai'));
+      else box.appendChild(bubble('助手','· 已送达，等待回答…','ai pending'));
+    });
+  });
+}
 function render(){
-  const ids=Object.keys(seen).sort((a,b)=>parseInt(a.slice(1))-parseInt(b.slice(1)));
+  // 抽屉只显示泛问（about 为空）；逐题问答题在各自卡片内。
+  const ids=Object.keys(seen).filter(id=>!seen[id].about).sort(byId);
   // 用户往上翻看历史时，轮询不得把他拽回底部：只在原本就贴底时跟随
   const nearBottom = thread.scrollHeight - thread.scrollTop - thread.clientHeight < 60;
   const sig = ids.length + ':' + ids.filter(id=>seen[id].reply).length;
@@ -259,13 +313,14 @@ function render(){
   jump.style.display = pendingJump ? 'block' : 'none';
   fab.innerHTML = waiting ? '提问<span class="dot"></span>' : '提问';
   qast.textContent = waiting ? `· ${waiting} 条待答` : (ids.length ? '· 全部已答' : '');
+  renderInline();
 }
 async function poll(){
   try{
     const list=await (await fetch('/qa',{cache:'no-store'})).json();
     list.forEach(rec=>{
       const prev=seen[rec.id]||{};
-      seen[rec.id]={question:rec.question??prev.question, reply:rec.reply??prev.reply};
+      seen[rec.id]={question:rec.question??prev.question, reply:rec.reply??prev.reply, about:rec.about??prev.about??''};
     });
     render();
   }catch(e){ qast.textContent='· 服务不可达，请回对话里问'; }
@@ -277,7 +332,7 @@ async function send(){
         body:JSON.stringify({question:text})}); }catch(e){ res=null; }
   if(!res || !res.ok){ qast.textContent='· 发送失败，请回对话里问'; return; }
   const rec=await res.json();
-  seen[rec.id]={question:text, reply:null};
+  seen[rec.id]={question:text, reply:null, about:''};
   input.value=''; render(); poll();
 }
 document.getElementById('send').onclick=send;
