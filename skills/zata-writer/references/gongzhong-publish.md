@@ -95,40 +95,13 @@ python3 gzh_build/make_demo_gif.py image/xx/示例_主题.gif \
 - **插入中间帧要全序列重新编号**：说明条里的「①②③」是手动写的，在第 2 帧后插入新帧，后面所有帧的编号、`DUR` 数组都要跟着改；
 - **抽帧验证的坑**：从一个 GIF 里导出多帧核对时，只能 `Image.open` 一次然后循环 `seek(i)`——在循环里重新打开文件会永远停在第 0 帧。
 
-## 卡通插画封面：AI 底图 + PIL 叠字（2026-09-10 实测）
+## 品牌封面：红黄手写标题＋素描背景
 
-想要人物出镜、风格轻松的封面时，走「AI 生成卡通底图 + PIL 叠加文字」两步路线，脚本 `make_cover_cartoon.py`。不让生图模型直接画字：中文渲染极不可靠（错字、乱码），底图必须无字，标题由 PIL 画出，字号、颜色、位置全部可控。
+生成前读取 [brand-visual.md](brand-visual.md)，默认复用其中的蓝 Z 黑 ata 签名与红黄手写标题参考图，根据本期文章核心问题设计黑灰素描背景。旧 `assets/brand/人物设定.png` 与 `make_cover_cartoon.py` 保留用于历史工程，不再作为默认人物与配色。
 
-**人物设定**：品牌人物参考图在 `assets/brand/人物设定.png`（动漫风年轻男性：黑色蓬松卷发、黑框眼镜、白衬衫挽袖、托腮思考或抱笔记本）。生图工具只接受文字提示词、不能传参考图，人物一致性靠把设定写成英文描述放进 prompt，可直接复用：
+公众号封面按约 2.35:1 构图，先保留高清原图，再按发布需求导出。AI 可以直接生成中文标题，但必须检查错字、遗漏、可读性、Logo 字形及颜色；需要准确排字时再用已验证字体合成，不必固定为旧 PIL 卡通脚本。按当前生图工具能力传参考图，不能假定所有工具都只支持文字提示。
 
-> young man with messy fluffy dark wavy hair and black rectangular glasses, wearing a white button-up shirt with rolled-up sleeves, calm friendly smile, thinking pose with hand on chin or holding a slim laptop, modern anime-influenced flat cartoon illustration, clean lines, soft cel shading
-
-**流程**：
-
-1. **生成底图**（2560×1080，约 2.35:1）。prompt 模板，`<角色描述>` 用上面的片段，场景按文章主题替换：
-
-   ```text
-   Flat vector cartoon illustration, wide horizontal banner. Right two-thirds:
-   <角色描述> at a desk, <场景：人物在做什么、周围漂浮/摆放什么元素>, connected by
-   thin curved lines. The left third of the image is calm and almost empty with
-   only very subtle soft shapes, reserved as clear space for text overlay. Soft
-   pastel background, warm cream fading to light sky blue, light green (#07C160)
-   accents, soft rounded shapes, gentle shadows. Absolutely no text, no letters,
-   no numbers, no logos, no watermark.
-   ```
-
-   「左侧三分之一留白」和「无文字」两条必须保留：前者给标题区，后者规避中文渲染翻车。生成后记下右下角「AI 生成」水印的像素坐标（看图工具量）。
-
-2. **合成封面**：
-
-   ```bash
-   python3 gzh_build/make_cover_cartoon.py 底图.png assets/封面.png \
-     "标题行1|标题行2" "副标题" "角标" --watermark X0,Y0,X1,Y1
-   ```
-
-   脚本自动完成：水印修补（用水印左侧同行背景平移覆盖 + 高斯模糊抹匀）→ 中心裁切 2.35:1 → 缩放 900×383 → 左侧叠角标、最多两行标题、副标题、品牌落款。底图整体偏深时加 `--light` 换浅色文字。副标题、角标、水印参数都可省略。生成后目检：水印是否抹净、文字有没有压到底图主体。
-
-3. **投入使用**：输出命名为 `封面.png` 放进文章图片目录，`push_draft.py` 会优先用它做封面。底图原图留在文章的 `gzh_build/` 里，改标题文案时直接重跑第 2 步，不用重新生图。
+输出命名为 `封面.png` 放进文章图片目录，`push_draft.py` 会优先用它做封面。原图与提示词保留在当前项目；导出其他平台比例时重新构图，保证标题和标识完整。
 
 ## 数据对比图：SVG 作者稿 → PNG
 
@@ -346,7 +319,7 @@ APPSECRET=公众号的AppSecret
 - 原生有序/无序列表（`<ol>`/`<ul>`）会被公众号打散（序号与内容分行、空行多出空序号），两条路径共用的 `build_wechat_body()` 在转换期用 `flatten_lists()` 把它们降级为「文字序号 + 普通段落」，序号沿用主题绿 `#07c160`（有序加粗），排版稳定
 - 标题风格：二级标题居中、19px 加粗绿字、两侧绿色菱形点缀（参考新智元的居中标题路线，比左对齐更醒目）；装饰用文本符号「◆」而非图片，草稿接口友好
 - 文章开头加品牌 GIF：现成的品牌动画在 `assets/brand/开头动画.gif`（「Zata山外志」，打字机逐字出现 + 光标闪烁，右侧节点网络漂移）。**公众号版由 `decorate.py` 在构建期自动插到标题块下面，作者只需要把 GIF 复制到文章图片目录**；需要改文字或样式时才用 `make_brand_gif.py 输出.gif [左文字] [右文字]` 生成变体（依赖本机 PIL 和中文字体），换掉图片目录里那个文件即可。网页版不要这个 GIF（见 web-publish.md）。封面自动取第一张**非 GIF** 的静态图，避免 GIF 首帧空白
-- 封面用 `make_cover.py 输出.png 标题 [副标题] [角标]` 生成排版式封面（900×383）：深色渐变底 + 左侧标题区 + 右侧把文章核心概念图形化（对比类文章画「多个产品节点连向中心『你』」，节点用品牌色，在 PRODUCTS 列表里改）；想要人物出镜的轻松风格改走「卡通插画封面」路线（见上文专节，`make_cover_cartoon.py`）；命名为 `封面.png` 放到文章图片目录后，`push_draft.py` 会优先用它做封面
+- 封面默认按上文「品牌封面」与 [brand-visual.md](brand-visual.md) 生成，命名为 `封面.png` 放到文章图片目录；旧 `make_cover.py` 和 `make_cover_cartoon.py` 仅按历史工程或用户指定继续使用。
 - figure/figcaption 会被转换成居中段 + 图注段，兼容性更好
 - 外链会被剥成纯文字（订阅号正文不支持外链）；`decorate.py` 在构建期把正文 http(s) 链接转成「锚文本 + 绿色小上标编号」，所有 URL 按出现顺序收口到文末「参考资料」编号列表（正文不再出现小字 URL）。没经过 `decorate.py` 的链接（如手写 HTML）由 `build_wechat_body()` 兜底做同样的收口，两条发布路径结果一致。如需一个可点击入口，可通过草稿的 `content_source_url` 字段设置「阅读原文」链接（只能放一个）
 - 图注约定：图片下一行单独写 `*▲ 说明文字。图：来源*`，两条发布路径都由 `build_wechat_body()` 识别 ▲ 前缀渲染为 13px 灰色居中小字；浏览器预览 `_公众号版.html` 时靠 `p:has(> em:only-child)` 样式实现同样效果

@@ -77,3 +77,7 @@
 6. 作者判断及其不确定性
 
 文化、历史或哲学类比只有在确实帮助理解时使用，不为了升华而升华。
+
+## 开源项目追踪
+
+当前功能全景、版本更新解读、功能演进、项目方向观察和实践跟进，按 [open-source-updates.md](open-source-updates.md) 选择主线和结构，需要直接起稿时使用 [Markdown 文章模板](../assets/templates/open-source-tracking.md)。短篇可以只展开一项有意义的变化，不套用完整长文骨架。
