@@ -13,7 +13,9 @@ cd "$DIR"
 KICKER="${2:-Zata 山外志 · 手记}"
 SUBTITLE="${3:-}"
 TITLE=$(head -1 "$ARTICLE" | sed 's/^# *//')
-TMP=$(mktemp /tmp/gzhweb.XXXXXX.md)
+# X 放在模板末尾、trap 兜底清理，原因见 build.sh
+TMP=$(mktemp /tmp/gzhweb.XXXXXX)
+trap 'rm -f "$TMP"' EXIT
 tail -n +2 "$ARTICLE" > "$TMP"
 if [ -f "gzh_build/$NAME.highlights.sed" ]; then
   sed -i '' -f "gzh_build/$NAME.highlights.sed" "$TMP"
@@ -21,5 +23,4 @@ fi
 pandoc "$TMP" -f markdown+mark -t html5 -s --toc --toc-depth=2 \
   --metadata title="$TITLE" -H "$GZH_DIR/style_web.html" -o "${NAME}_网页版.html"
 python3 "$GZH_DIR/postprocess_web.py" "${NAME}_网页版.html" "$KICKER" "$SUBTITLE"
-rm -f "$TMP"
 echo "已生成 $DIR/${NAME}_网页版.html"

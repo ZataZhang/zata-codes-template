@@ -8,7 +8,7 @@
 - h1 渐变线、h2 菱形、h3 小方块：伪元素 -> 真实节点
 - 资料来源列表（同一个 <p> 里全是 <a> + <br>）：逐条拆成独立左对齐小字段落，
   避免微信阅读器两端对齐把短行拉成稀疏大字
-- 正文内联链接：锚文本 + 绿色上标编号，URL 收口到文末「参考资料」
+- 正文内联的 http(s) 外链：锚文本 + 绿色上标编号，URL 收口到文末「参考资料」
 - 标题块下面插入品牌动画（只插公众号版，网页版不插）：不再要求作者在 md 里
   手写 GIF 引用，把 assets/brand/开头动画.gif 复制到文章图片目录即可
 
@@ -19,8 +19,21 @@ import re
 import sys
 from pathlib import Path
 
-# 注意 pandoc 会把长行折行，<a 和 href 之间可能是换行
-LINK_RE = re.compile(r'<a\s+href="([^"]+)">(.*?)</a>', re.S)
+# 只收口 http(s) 外链：脚注锚点（#fn1）、相对路径、mailto 不是读者要抄的地址，原样留给后续步骤。
+# pandoc 会把长行折行，<a 和 href 之间可能是换行；自动链接 <https://…> 带 class="uri"，
+# 带标题的链接多一个 title；md 里手写的原始 HTML 还可能把其他属性写在 href 前面
+ANCHOR_OPEN = r'<a\s(?:[^>]*?\s)?href="(https?://[^"]+)"[^>]*>'
+LINK_RE = re.compile(ANCHOR_OPEN + r"(.*?)</a>", re.S)
+# 整段都是链接（<br> 分隔）的 <p>。锚文本用 [^<]* 而不是 .*?：re.S 下 .*? 会回溯
+# 跨越标签，段落以链接开头时会把整篇正文吞进「资料来源列表」匹配
+SOURCE_LIST_RE = re.compile(
+    r"<p>((?:\s*" + ANCHOR_OPEN + r"[^<]*</a>(?:<br\s*/?>)?)+)\s*</p>", re.S
+)
+
+
+def link_entry(label, href, template):
+    """按模板拼出来源条目；自动链接的锚文本就是 URL 本身，只写一遍。"""
+    return href if label == href else template.format(label=label, href=href)
 
 
 def decorate_headings(html):
@@ -54,17 +67,11 @@ def split_source_list(html):
     def repl(m):
         items = LINK_RE.findall(m.group(1))
         return "\n".join(
-            f'<p class="srcline">{label.strip()}（{href}）</p>' for href, label in items
+            f'<p class="srcline">{link_entry(label.strip(), href, "{label}（{href}）")}</p>'
+            for href, label in items
         )
 
-    # 锚文本用 [^<]* 而不是 .*?：re.S 下 .*? 会回溯跨越标签，
-    # 段落以链接开头时会把整篇正文吞进「资料来源列表」匹配
-    return re.sub(
-        r'<p>((?:\s*<a\s+href="[^"]+">[^<]*</a>(?:<br\s*/?>)?)+)\s*</p>',
-        repl,
-        html,
-        flags=re.S,
-    )
+    return SOURCE_LIST_RE.sub(repl, html)
 
 
 def inline_refs(html):
@@ -82,7 +89,7 @@ def inline_refs(html):
     if links:
         refs = ['<p class="refs-title">参考资料</p>']
         refs += [
-            f'<p class="srcline">[{i}] {label}：{href}</p>'
+            f'<p class="srcline">[{i}] {link_entry(label, href, "{label}：{href}")}</p>'
             for i, (label, href) in enumerate(links, 1)
         ]
         html = html.replace("</body>", "\n".join(refs) + "\n</body>")

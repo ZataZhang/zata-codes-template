@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """把公众号版 HTML 推送为公众号草稿：样式内联 + 正文图片上传 + draft/add。
 
+正文转换统一走 build_wechat_body()，to_clipboard.py 的手动粘贴路径也调用它，
+两条发布路径的排版因此一致。
+
 用法: python3 push_draft.py 文章_公众号版.html 文章.md
 凭证优先读系统环境变量 GZH_APPID / GZH_APPSECRET，
 未设置时回退到脚本同目录的 .env（APPID / APPSECRET）。
@@ -14,10 +17,23 @@ import subprocess
 import sys
 from html import escape
 from html.parser import HTMLParser
+from itertools import groupby
 from pathlib import Path
 
 BASE = "https://api.weixin.qq.com/cgi-bin"
 VOID_TAGS = {"img", "br", "hr", "meta", "link", "input"}
+
+# 列表降级版式：序号悬挂宽度、项间距；顶层列表结束处补回的段距与 style.html 里
+# p / ol, ul 的 margin-bottom 一致，否则列表后的段落会贴上来，像列表的延续
+LIST_MARKER_WIDTH_EM = 1.4
+LIST_ITEM_GAP = "0.55em"
+LIST_END_GAP = "1.3em"
+LIST_MARKER_COLOR = "#07c160"
+# <li> 里的这些子元素按块处理：各自成段或保持块级，不和文字揉进同一个 <p>
+LIST_BLOCK_TAGS = {
+    "p", "ol", "ul", "div", "section", "blockquote", "pre", "table", "figure", "hr", "dl",
+    "h1", "h2", "h3", "h4", "h5", "h6",
+}  # fmt: skip
 
 # 正文外链收口：anchor 文本留在正文，URL 进文末「参考资料」
 LINKS = []  # [(label, url)]，按正文出现顺序编号
@@ -68,6 +84,20 @@ class TreeBuilder(HTMLParser):
         self.stack[-1].children.append(data)
 
 
+def append_children(parent, nodes):
+    """把节点依次挂到 parent 下，元素节点同步更新 parent 指针。"""
+    for node in nodes:
+        if isinstance(node, El):
+            node.parent = parent
+        parent.children.append(node)
+
+
+def append_style(node, declarations):
+    """在节点现有内联样式后追加声明；同名属性后写的覆盖先写的。"""
+    existing = node.attrs.get("style", "").rstrip(";")
+    node.attrs["style"] = f"{existing};{declarations}" if existing else declarations
+
+
 def parse_css(css_text):
     """把样式表解析为 (选择器, 声明) 规则列表，跳过伪元素规则（内联样式表达不了）。"""
     # 先去掉注释和 @media 等嵌套块，否则 @media print 里的 orphans/widows 会被当成普通规则内联
@@ -75,10 +105,12 @@ def parse_css(css_text):
     css_text = re.sub(r"@[^{}]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}", "", css_text)
     rules = []
     for m in re.finditer(r"([^{}]+)\{([^}]+)\}", css_text):
+        # 跨行的声明要压成单行：内联进 style 属性时保留换行会产出畸形属性值
+        decls = re.sub(r"\s+", " ", m.group(2)).strip().rstrip(";")
         for sel in m.group(1).split(","):
             sel = sel.strip()
             if sel and "::" not in sel and not sel.startswith("@"):
-                rules.append((sel, m.group(2).strip().rstrip(";")))
+                rules.append((sel, decls))
     return rules
 
 
@@ -123,8 +155,7 @@ def inline_styles(node, rules):
     if isinstance(node, El):
         matched = [decls for sel, decls in rules if match_selector(node, sel)]
         if matched:
-            existing = node.attrs.get("style", "").rstrip(";")
-            node.attrs["style"] = ";".join([existing] + matched if existing else matched)
+            append_style(node, ";".join(matched))
         for child in node.children:
             inline_styles(child, rules)
 
@@ -143,17 +174,13 @@ def flatten_figures(node):
             img_p = El("p", [("style", "text-align:center;")])
             if img is not None:
                 img.attrs["alt"] = ""  # 避免编辑器同时显示 alt 和图注造成重复
-                img_p.children.append(img)
-                img.parent = img_p
+                append_children(img_p, [img])
             new_children.append(img_p)
             if cap is not None:
                 cap_p = El(
                     "p", [("style", "text-align:center;font-size:13px;color:#999;margin-top:6px;")]
                 )
-                cap_p.children = cap.children
-                for c in cap_p.children:
-                    if isinstance(c, El):
-                        c.parent = cap_p
+                append_children(cap_p, cap.children)
                 new_children.append(cap_p)
         else:
             flatten_figures(child)
@@ -219,11 +246,10 @@ def wechat_compat(node):
         node.attrs["style"] = "font-size:16.5px;font-weight:700;color:#1a1a1a;margin:1.6em 0 0.9em;"
     elif node.tag == "p" and text_of(node).strip().startswith("▲"):
         # 图注约定：整段以 ▲ 开头 → 小字居中灰（md 里写在图片下一行的斜体段）
-        existing = node.attrs.get("style", "").rstrip(";")
-        node.attrs["style"] = (
-            ((existing + ";") if existing else "")
-            + "text-align:center;font-size:13px;color:#999;line-height:1.6;"
-            "margin:6px 0 1.4em;letter-spacing:0;"
+        append_style(
+            node,
+            "text-align:center;font-size:13px;color:#999;line-height:1.6;"
+            "margin:6px 0 1.4em;letter-spacing:0;",
         )
     elif node.tag == "img":
         node.attrs["style"] = "max-width:100%;"
@@ -257,6 +283,167 @@ def text_of(node):
     return "".join(text_of(c) for c in node.children)
 
 
+def split_list_item(li):
+    """把 <li> 的直接子节点按顺序切段：("text", 节点列表)、("list", 嵌套列表)、("block", 块元素)。
+
+    连续的文字和内联元素合成一段；pandoc 松散列表给每段包的 <p> 各自成段，
+    避免多段并成一行；引用、代码块等块元素单独成段，不塞进 <p>。只有空白的文字段丢弃。
+    """
+    segments = []
+    for is_block, run in groupby(
+        li.children, key=lambda child: isinstance(child, El) and child.tag in LIST_BLOCK_TAGS
+    ):
+        if not is_block:
+            inline_nodes = list(run)
+            if any(isinstance(node, El) or node.strip() for node in inline_nodes):
+                segments.append(("text", inline_nodes))
+            continue
+        for block in run:
+            if block.tag == "p":
+                segments.append(("text", block.children))
+            elif block.tag in ("ol", "ul"):
+                segments.append(("list", block))
+            else:
+                segments.append(("block", block))
+    return segments
+
+
+def list_paragraph(indent_em, hanging):
+    """列表降级用的段落：首段用负 text-indent 把序号悬挂在左侧，续段直接与正文对齐。"""
+    style = f"margin:0 0 {LIST_ITEM_GAP};padding-left:{indent_em:g}em;"
+    if hanging:
+        style += f"text-indent:-{LIST_MARKER_WIDTH_EM:g}em;"
+    return El("p", [("style", style)])
+
+
+def list_paragraphs(list_el, depth):
+    """把一个 <ol>/<ul> 展开成「文字序号 + 段落」的块序列。
+
+    每项首段带序号；同一项的续段和块元素与首段正文对齐、不带序号；
+    嵌套列表递归加深一级缩进。
+    """
+    ordered = list_el.tag == "ol"
+    number = 1
+    start_match = re.match(r"\d+", str(list_el.attrs.get("start", "")))
+    if ordered and start_match:
+        number = int(start_match.group())
+    marker_weight = "700" if ordered else "400"
+    indent_em = (depth + 1) * LIST_MARKER_WIDTH_EM
+    blocks = []
+    for li in list_el.children:
+        if not (isinstance(li, El) and li.tag == "li"):
+            continue
+        segments = split_list_item(li)
+        marker = El("span", [("style", f"color:{LIST_MARKER_COLOR};font-weight:{marker_weight};")])
+        marker.children.append(f"{number}. " if ordered else "• ")
+        lead = list_paragraph(indent_em, hanging=True)
+        append_children(lead, [marker])
+        # 首段是文字时并进序号段；以块或嵌套列表开头的项，序号单独占一段
+        if segments and segments[0][0] == "text":
+            append_children(lead, segments.pop(0)[1])
+        blocks.append(lead)
+        for kind, payload in segments:
+            if kind == "text":
+                continuation = list_paragraph(indent_em, hanging=False)
+                append_children(continuation, payload)
+                blocks.append(continuation)
+            elif kind == "list":
+                blocks.extend(list_paragraphs(payload, depth + 1))
+            else:
+                flatten_lists(payload)
+                append_style(payload, f"margin-left:{indent_em:g}em;")
+                blocks.append(payload)
+        number += 1
+    return blocks
+
+
+def flatten_lists(node):
+    """把 <ol>/<ul> 降级为「文字序号 + 普通段落」，规避公众号对原生列表的破坏。
+
+    公众号编辑器与草稿接口都不认原生有序/无序列表：粘贴或推送后，<li> 的序号会
+    与内容被拆成两行，空行处还会多出空序号。这里改用段落承载「1. / •」文字序号，
+    微信只当普通段落处理，手动粘贴与 API 推送两条路径结果一致。
+
+    在内联样式与 wechat_compat 之后运行（序号颜色/加粗在这里按主题补回）。
+    """
+    if not isinstance(node, El):
+        return
+    new_children = []
+    for child in node.children:
+        if isinstance(child, El) and child.tag in ("ol", "ul"):
+            blocks = list_paragraphs(child, depth=0)
+            if blocks:
+                append_style(blocks[-1], f"margin-bottom:{LIST_END_GAP};")
+            new_children.extend(blocks)
+        else:
+            flatten_lists(child)
+            new_children.append(child)
+    node.children = []
+    append_children(node, new_children)
+
+
+def append_reference_list(body):
+    """把 wechat_compat 收集的残留外链追加为文末「参考资料」，编号与正文上标一一对应。
+
+    pandoc 生成的外链已由 decorate.py 在构建期收口，这里兜底的是手写 HTML 等
+    没经过 decorate.py 的链接。
+    """
+    if not LINKS:
+        return
+    title_p = El(
+        "p", [("style", "margin:2em 0 0.8em;font-size:15px;font-weight:700;color:#1a1a1a;")]
+    )
+    title_p.children.append("参考资料")
+    entry_paragraphs = [title_p]
+    for i, (label, href) in enumerate(LINKS, 1):
+        entry_p = El(
+            "p",
+            [
+                (
+                    "style",
+                    "font-size:13px;color:#8a97a5;line-height:1.8;"
+                    "word-break:break-all;margin:0 0 4px;text-align:left;",
+                )
+            ],
+        )
+        entry_p.children.append(f"[{i}] {label}：{href}")
+        entry_paragraphs.append(entry_p)
+    append_children(body, entry_paragraphs)
+
+
+def build_wechat_body(html_text):
+    """把公众号版 HTML 转成微信可接受的正文节点：手动粘贴与 API 推送共用这一条转换链。
+
+    合并页面里全部 <style> 规则并内联 → 去掉 pandoc 标题块 → 标签兼容转换 →
+    列表、figure 降级 → 残留外链收口到「参考资料」。返回 body 节点，
+    序列化用 serialize_content()，不要把 <body> 标签本身带进正文。
+    """
+    LINKS.clear()
+    LINK_INDEX.clear()
+    # 页面里有两份 <style>（pandoc 默认样式 + 注入的主题），都要参与内联，后面的覆盖前面的
+    css_text = "\n".join(re.findall(r"<style>(.*?)</style>", html_text, re.S))
+    rules = parse_css(css_text)
+
+    builder = TreeBuilder()
+    builder.feed(html_text)
+    body = collect_elements(builder.root, "body")[0]
+
+    # 标题走草稿字段或编辑器的标题栏，正文里去掉 pandoc 生成的 header
+    body.children = [c for c in body.children if not (isinstance(c, El) and c.tag == "header")]
+
+    inline_styles(body, rules)
+    wechat_compat(body)
+    flatten_lists(body)
+    flatten_figures(body)
+    append_reference_list(body)
+    return body
+
+
+def serialize_content(body):
+    """序列化正文：只拼接 body 的子节点，不带 <body> 标签本身。"""
+    return "".join(serialize(c) for c in body.children)
+
+
 def curl(args):
     """执行 curl 命令并返回 UTF-8 响应文本。"""
     return subprocess.run(
@@ -284,8 +471,6 @@ def upload_image(url, path):
 
 def main():
     """读取文章与凭证，生成草稿并推送到公众号。"""
-    LINKS.clear()
-    LINK_INDEX.clear()
     html_path = Path(sys.argv[1]).resolve()
     md_path = Path(sys.argv[2]).resolve()
     article_dir = html_path.parent
@@ -310,41 +495,7 @@ def main():
         )
 
     html_text = html_path.read_text(encoding="utf-8")
-    # 页面里有两份 <style>（pandoc 默认样式 + 注入的主题），都要参与内联，后面的覆盖前面的
-    css_text = "\n".join(re.findall(r"<style>(.*?)</style>", html_text, re.S))
-    rules = parse_css(css_text)
-
-    builder = TreeBuilder()
-    builder.feed(html_text)
-    body = collect_elements(builder.root, "body")[0]
-
-    # 标题走草稿字段，正文里去掉 pandoc 生成的 header
-    body.children = [c for c in body.children if not (isinstance(c, El) and c.tag == "header")]
-
-    inline_styles(body, rules)
-    wechat_compat(body)
-    flatten_figures(body)
-
-    # 正文外链统一收口到文末「参考资料」
-    if LINKS:
-        sep = El(
-            "p", [("style", "margin:2em 0 0.8em;font-size:15px;font-weight:700;color:#1a1a1a;")]
-        )
-        sep.children.append("参考资料")
-        body.children.append(sep)
-        for i, (label, href) in enumerate(LINKS, 1):
-            item = El(
-                "p",
-                [
-                    (
-                        "style",
-                        "font-size:13px;color:#8a97a5;line-height:1.8;"
-                        "word-break:break-all;margin:0 0 4px;text-align:left;",
-                    )
-                ],
-            )
-            item.children.append(f"[{i}] {label}：{href}")
-            body.children.append(item)
+    body = build_wechat_body(html_text)
 
     token = get_token(appid, appsecret)
 
@@ -391,7 +542,7 @@ def main():
     )
     digest = digest[:110] or title
 
-    content = "".join(serialize(c) for c in body.children)
+    content = serialize_content(body)
     print(f"正文 HTML 长度: {len(content)} 字符")
 
     payload = {

@@ -7,8 +7,12 @@
 - 一篇 3000～5000 字的文章配 3～6 张，宁可少而准，不要装饰性堆砌。
 - 优先配三类图：**新闻现场**（发布会、设备、工厂）、**关键人物**（文中点名的人物）、**核心产品**（文中讨论的硬件/界面截图）。
 - 论文、研究和技术解读类文章没有新闻现场，换成另外三类：**原图**（论文或项目里的图，注明图号和许可）、**机制示意图**（自绘，画清数据流或决策点）、**数据图**（一眼能看出结论的那一张）。
-- 每张图必须和所在段落的论点直接相关。想不出这张图支撑哪句话，就不要放。
+- 每张图必须和所在段落的论点直接相关：**选图时逐张写一句「它支撑哪句话、哪个数字」，写不出就换**，不要因为「行业图看着专业」就留下。
+- **反模式（分析类长文里一律不用）**：通用硅片/晶圆特写、无标识的办公楼、街景/门口、纯 logo、与文中人和事无关的同类产品。这些图不承载信息，属于装饰性堆砌——2026-10-06 实测中，一篇产业分析的四张这类照片被读者判为「完全没关系」，整批换成「具体产品、当事工厂、当机型」后才成立。
+- **图注写的是什么，画面就得是什么。** 用旧照片要写明拍摄年份和场合；画面与图注不符是硬错误（曾把东芝工厂门口外的马路照片写成「东芝府中工厂」）。
+- **入稿前逐张看图，包括接手的旧文里已有的图。** 继承下来的图同样要过一遍「它支撑哪句话」，不合格就换；不要因为「上一版就在」而跳过复核。
 - **更新文章时同步补图。** 给旧文追加新章节（如刚发布的产品、新的数据）时，新章节同样需要配图——只加文字不加图是常见遗漏。
+- 数据对比图（份额、金额、倍数、排名）属于「数据图」，做法与渲染见 [gongzhong-publish.md](gongzhong-publish.md) 的「数据对比图」：提纲阶段就规划，与正文同步产出。
 
 ## 来源优先级
 
@@ -24,9 +28,21 @@ curl -s "https://commons.wikimedia.org/w/api.php?action=query&generator=search&g
 ```
 
 - 关键词用英文（Commons 以英文文件名为主），按 `gsrlimit` 返回缩略图 URL 和尺寸。
+- **找具体厂区/产品用「公司＋厂区/产品」组合词**（`Toshiba Himeji`、`Micron Memory Japan`、`NTT DoCoMo 642S`），公司名＋地名常常命中真实厂区照片；通用词（`semiconductor factory Japan`）往往一无所获。
+- **请求要带 User-Agent 并留间隔。** Wikimedia 的 User-Agent 政策要求写成「工具名/版本 (联系方式)」，联系方式填项目主页 URL 或邮箱（向用户要，不要编）；不带联系方式的请求更容易被限流或直接拒绝。连发十几个请求会被限流，返回纯文本 `You are making too many requests to the API`（不是 JSON，解析会直接抛错）。批量检索用 Python 循环、每次 `sleep 3～4` 秒，并对非 JSON 响应做容错重试。示例（尖括号处换成实际联系方式）：
+
+  ```bash
+  curl -s -A "zata-docs/1.0 (<项目主页或联系邮箱>)" -G "https://commons.wikimedia.org/w/api.php" \
+    --data-urlencode "action=query" --data-urlencode "generator=search" \
+    --data-urlencode "gsrsearch=Toshiba Himeji" --data-urlencode "gsrnamespace=6" \
+    --data-urlencode "gsrlimit=6" --data-urlencode "prop=imageinfo" \
+    --data-urlencode "iiprop=url|size|extmetadata" --data-urlencode "format=json"
+  ```
+- 拿到候选标题后，用 `action=query&titles=File:A|File:B&prop=imageinfo&iiprop=url|size|extmetadata` **一次批量取回 URL、尺寸、许可和作者**（图注需要作者署名），比逐张查询省请求。
 - 选宽度 ≥1200px、横竖比适合正文的图。人物肖像可用竖图，产品/场景优先横图。
-- 下载到文章目录的 `assets/` 文件夹，文件名用有意义的英文小写（如 `asml_euv_containers.jpg`）。
-- **下载后必须用 ReadMediaFile 看一眼**，确认内容真的是你以为的那张图——搜索结果标题可能货不对板（比如搜「Ampere」会混进安培的墓地照片）。
+- 下载到文章目录的 `assets/` 文件夹，文件名用有意义的英文小写（如 `asml_euv_containers.jpg`）；**原图先归档到 `assets/raw/`**（见下文「原始素材归档」）。
+- **入稿前必须用 ReadMediaFile 看一眼**，确认内容真的是你以为的那张图——搜索结果标题可能货不对板（比如搜「Ampere」会混进安培的墓地照片）。标题声称是某工厂时，尤其要核对画面到底拍的是什么。
+- 许可与署名：CC BY / CC BY-SA / CC0 / Public domain 可直接用，图注写「作者或机构 / Wikimedia Commons (许可)」；其余逐一确认，不确定就不用。
 
 ## 时效性事件的替代方案
 
