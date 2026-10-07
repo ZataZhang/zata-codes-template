@@ -19,6 +19,9 @@
    的 skill，只能各自带一份轻量实现；等价性只能由这里（模板仓库内部、能同时看到三者）
    来锁。除"哪些空框是执行侧欠的"与横幅三态之外，看板的勾选进度计数（``checked/total``）
    也锁在这里：改分组、横幅或计数口径时三处必须一起改，否则这里变红。
+4. **§8 词表由 skill 自己守。** ``Gate type`` 与 ``Sequence`` 的取值是封闭词表，
+   定义权在本skill，不在下游仓库。下游依赖解析器遇到未知取值的行为未定义（已实测
+   keda 会整条丢弃该PRD 且无提示），所以 checker 必须在交付前把越界取值挡下来。
 """
 
 from __future__ import annotations
@@ -96,6 +99,131 @@ def test_checker_reuses_the_shared_contract_parser() -> None:
 
     assert CONTRACT_MODULE_PATH.exists(), "prd_contract.py 必须与 checker 同目录安装"
     assert PRD_CHECKER.parse_checklist is PRD_CONTRACT.parse_checklist
+
+
+def _prd_with_delivery_dependencies(section_body: str) -> str:
+    """构造只含 §8 交付依赖块的最小 PRD 文本。"""
+
+    return f"# PRD: 测试任务\n\n## 8. Delivery Dependencies\n\n{section_body}\n"
+
+
+@pytest.mark.parametrize(
+    ("field_name", "value"),
+    [
+        ("Gate type", "none"),
+        ("Gate type", "soft"),
+        ("Gate type", "hard"),
+        ("Sequence", "via-main"),
+        ("Sequence", "stack"),
+    ],
+)
+def test_delivery_scalar_vocabulary_accepts_every_documented_value(
+    field_name: str, value: str
+) -> None:
+    """SKILL.md 写下的每个合法取值都必须被checker 接受。"""
+
+    prd_text = _prd_with_delivery_dependencies(f"- {field_name}: {value}")
+
+    assert PRD_CHECKER._delivery_field_value_issues(prd_text) == []
+
+
+@pytest.mark.parametrize(
+    ("field_name", "value"),
+    [
+        # 实测事故：把 Sequence 的词汇填进了 Gate，另一个字段写下自然语言散文。
+        ("Gate type", "via-main"),
+        ("Gate type", "stack"),
+        ("Sequence", "after `P1-REFACTOR-20261007-013512`"),
+        ("Sequence", "hard"),
+    ],
+)
+def test_delivery_scalar_vocabulary_rejects_unknown_values(field_name: str, value: str) -> None:
+    """词表外的取值必须报错，而不是放行。
+
+    下游工具的依赖解析器遇到不认识的取值时行为未定义——已实测 keda 会整条丢弃该
+    PRD（Backlog 里凭空消失且无提示）。词表由本skill 定义，checker 就有责任守住；
+    否则一个字段笔误就等于静默删掉一份 PRD。
+    """
+
+    prd_text = _prd_with_delivery_dependencies(f"- {field_name}: {value}")
+
+    issues = PRD_CHECKER._delivery_field_value_issues(prd_text)
+
+    assert len(issues) == 1
+    line_number, issue_text = issues[0]
+    assert line_number == 5, "行号应指向写错的 §8 字段所在行"
+    assert field_name in issue_text
+    assert value in issue_text
+
+
+def test_delivery_scalar_vocabulary_ignores_free_form_fields() -> None:
+    """``Notes`` 与依赖引用是自由文本，词表检查不得误伤。"""
+
+    prd_text = _prd_with_delivery_dependencies(
+        "- Depends on tasks/issues:\n"
+        "  - `tasks/pending/P1-REFACTOR-20261007-013512-rename.md`（改名 PRD）\n"
+        "- Gate type: hard\n"
+        "- Sequence: via-main\n"
+        "- Notes: **硬前置**。等 via-main 落地后 rebase 开工，stack 会失配。"
+    )
+
+    assert PRD_CHECKER._delivery_field_value_issues(prd_text) == []
+
+
+def test_delivery_scalar_vocabulary_allows_omitted_fields() -> None:
+    """字段留空表示沿用文档化默认值，不该被判为非法取值。"""
+
+    prd_text = _prd_with_delivery_dependencies(
+        "- Depends on tasks/issues:\n  - none\n- Gate type:\n- Sequence:"
+    )
+
+    assert PRD_CHECKER._delivery_field_value_issues(prd_text) == []
+
+
+def test_delivery_scalar_vocabulary_stops_at_the_section_boundary() -> None:
+    """§8 之后的同级标题必须终止扫描，不能把别处的同名字段算进来。"""
+
+    prd_text = (
+        _prd_with_delivery_dependencies("- Gate type: hard\n- Sequence: via-main")
+        + "\n## 9. Acceptance Checklist\n\n- Gate type: via-main\n"
+    )
+
+    assert PRD_CHECKER._delivery_field_value_issues(prd_text) == []
+
+
+def test_delivery_scalar_vocabularies_match_the_skill_document() -> None:
+    """checker 的词表必须与 SKILL.md 声明的取值一致。
+
+    两处各写各的就会出现"照文档写却被门禁拦下"，或反过来——门禁放过一个下游工具
+    并不认识的取值。这里把 SKILL.md 的规则行当作事实源。
+    """
+
+    skill_text = SKILL_MD_PATH.read_text(encoding="utf-8")
+
+    assert "`none`, `soft`, or `hard`" in skill_text
+    assert "`via-main` (default)" in skill_text
+    assert PRD_CHECKER.DELIVERY_SCALAR_VOCABULARIES == {
+        "gate type": frozenset({"none", "soft", "hard"}),
+        "sequence": frozenset({"via-main", "stack"}),
+    }
+
+
+def test_every_real_prd_uses_the_declared_delivery_vocabulary() -> None:
+    """仓库里真实存在的每份 PRD 都必须守住词表。
+
+    与上面的逐例用例互补：手写形态再全也比不过真实写法多样，语料增长时这条锁会
+    持续被检验。历史 PRD 若已越界，说明词表或历史数据有一侧需要处理。
+    """
+
+    prd_paths = _real_prd_paths()
+    if not prd_paths:
+        pytest.skip("仓库里没有 tasks/ 文档可供差分")
+
+    for prd_path in prd_paths:
+        prd_text = prd_path.read_text(encoding="utf-8")
+        assert (
+            PRD_CHECKER._delivery_field_value_issues(prd_text) == []
+        ), f"{prd_path.relative_to(REPO_ROOT).as_posix()} 的 §8 字段取值越界"
 
 
 def _complete_prd(*, include_reconciliation: bool = False) -> str:

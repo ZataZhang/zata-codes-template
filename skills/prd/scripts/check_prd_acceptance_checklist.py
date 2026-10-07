@@ -13,7 +13,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Iterator
 
 # PRD 格式的解析实现收在兄弟模块 prd_contract.py（Machine Contract 的唯一实现），
 # 本脚本只负责"交付物 PRD 是否合规"的裁决。两个文件必须同目录安装。
@@ -44,6 +44,9 @@ ORACLE_FIELD_RE = re.compile(r"^\s+(?P<key>[a-z_]+):\s*(?P<value>.*)$")
 PART_A_HEADING_RE = re.compile(r"^#\s+Part A\b")
 DELIVERY_DEPENDENCIES_HEADING_RE = re.compile(
     r"^#{2,4}\s+(?:\d+\.\s+)?Delivery Dependencies\s*$", re.IGNORECASE
+)
+DELIVERY_SCALAR_FIELD_RE = re.compile(
+    r"^-\s*(?P<key>Gate type|Sequence)\s*:\s*(?P<value>.*)$", re.IGNORECASE
 )
 PART_B_HEADING_RE = re.compile(r"^#\s+Part B\b")
 PART_A_EXECUTOR_METADATA_RE = re.compile(
@@ -715,6 +718,78 @@ def _oracle_schema_issues(file_content: str) -> list[tuple[int, str]]:
 DELIVERY_GATE_BANNER_RE = re.compile(r"^>\s*.*?(?:交付前置|Delivery Gate)", re.IGNORECASE)
 DELIVERY_NO_DEPENDENCY_TOKENS = ("无", "none", "no upstream")
 
+#: Closed vocabularies for the Section 8 scalar fields. These are declared by
+#: this skill (see "Required PRD Structure → 8. Delivery Dependencies"), so the
+#: checker owns them: a repository-side parser that meets an unknown value is
+#: free to drop the whole PRD, which makes a typo silently delete work rather
+#: than fail loudly.
+DELIVERY_SCALAR_VOCABULARIES: dict[str, frozenset[str]] = {
+    "gate type": frozenset({"none", "soft", "hard"}),
+    "sequence": frozenset({"via-main", "stack"}),
+}
+
+
+def _delivery_section_lines(file_content: str) -> Iterator[tuple[int, str]]:
+    """Yield ``(line_number, stripped_line)`` for lines inside Section 8.
+
+    The canonical shape nests a ``### Delivery Dependencies`` subheading under
+    ``## 8. Delivery Dependencies`` (see SKILL.md's "Use this shape"), so the
+    section ends at the next heading of the same or higher level rather than at
+    the first ``#`` line.
+    """
+
+    lines = file_content.splitlines()
+    section_start = next(
+        (index for index, line in enumerate(lines) if DELIVERY_DEPENDENCIES_HEADING_RE.match(line)),
+        None,
+    )
+    if section_start is None:
+        return
+
+    section_heading_level = _heading_level(lines[section_start])
+    for index in range(section_start + 1, len(lines)):
+        line = lines[index]
+        if line.startswith("#"):
+            if _heading_level(line) <= section_heading_level:
+                return
+            continue
+        stripped = line.strip()
+        if stripped:
+            yield index + 1, stripped
+
+
+def _delivery_field_value_issues(file_content: str) -> list[tuple[int, str]]:
+    """Return issues where a Section 8 scalar field uses an unknown value.
+
+    Only closed vocabularies are checked; ``Notes`` is free prose and
+    ``Depends on tasks/issues`` holds references, so neither is constrained.
+    """
+
+    issues: list[tuple[int, str]] = []
+    for line_number, stripped in _delivery_section_lines(file_content):
+        field_match = DELIVERY_SCALAR_FIELD_RE.match(stripped)
+        if field_match is None:
+            continue
+        written_name = field_match.group("key").strip()
+        vocabulary = DELIVERY_SCALAR_VOCABULARIES.get(written_name.lower())
+        if vocabulary is None:
+            continue
+        value = field_match.group("value").strip()
+        # An empty value means the field was declared but left blank; the
+        # contract says omitted fields fall back to a documented default, so
+        # there is nothing to validate.
+        if not value or value.lower() in vocabulary:
+            continue
+        issues.append(
+            (
+                line_number,
+                f"Invalid '{written_name}' value in Section 8: {value!r}. "
+                f"Expected one of: {', '.join(sorted(vocabulary))}. "
+                "See '8. Delivery Dependencies' in the PRD skill.",
+            )
+        )
+    return issues
+
 
 def _delivery_gate_banner_issues(file_content: str) -> list[tuple[int, str]]:
     """Return issues where the top banner is missing or contradicts Section 8.
@@ -790,8 +865,10 @@ def _heading_level(line: str) -> int:
 def _declared_delivery_dependency_refs(file_content: str) -> set[str]:
     """Return upstream refs declared under Section 8 'Depends on tasks/issues'.
 
-    Only the reference tokens are extracted; gate semantics stay in the
-    repository's own dependency parser. ``none`` placeholders yield an empty set.
+    Only the reference tokens are extracted; the ``Gate type`` / ``Sequence``
+    vocabularies are checked separately by
+    :func:`_delivery_field_value_issues`. ``none`` placeholders yield an empty
+    set.
     """
 
     lines = file_content.splitlines()
@@ -859,6 +936,7 @@ def _validate_file(
         + _functional_requirement_issues(file_content)
         + _unchecked_items_in_acceptance_section(file_content)
         + _oracle_schema_issues(file_content)
+        + _delivery_field_value_issues(file_content)
         + _delivery_gate_banner_issues(file_content)
     )
     if require_archive_reconciliation:
