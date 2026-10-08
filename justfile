@@ -823,13 +823,16 @@ copy name force='':
     # tests/guards/test_prd_skill_checker.py 依赖模板专属的 skills/prd/scripts，
     # 与 sync_template.sh 的跳过名单保持一致，不复制到派生项目。
     #
-    # 模板仓库专属，不随模板分发：.iar.toml 是模板自身的 IAR 工具配置
-    # （含仓库身份 id / remote / verification_commands），派生项目应自建；
-    # zata_code_template.zip 是含加密 .env.local 备份的历史产物，不应分发。
+    # 模板仓库专属，不随模板分发：.iar.toml 是模板自身的 KedaCode（kc）工具
+    # 配置（含仓库身份 id / remote / verification_commands），派生项目应自建；
+    # .kedacode.toml 是该工具改名后的配置文件名，两种命名都留在排除名单，
+    # 工具与本地文件改名前后都不会漏排。zata_code_template.zip 是含加密
+    # .env.local 备份的历史产物，不应分发。
     #
-    # 模板维护者的本机状态同样不分发：.iar/ 与 .iar-worktrees/ 是 IAR runner 的
-    # 会话记忆与 worktree（可能带着某个 Issue 的上下文），.workbuddy-ai/ 是 AI
-    # 工具的记忆笔记。三者都在 .gitignore 里，但 rsync 不读 .gitignore，
+    # 模板维护者的本机状态同样不分发：.iar/ 与 .iar-worktrees/ 是 KedaCode
+    # （kc）runner 的会话记忆与 worktree（可能带着某个 Issue 的上下文），
+    # .workbuddy-ai/ 是 AI 工具的记忆笔记。三者都在 .gitignore 里，但
+    # rsync 不读 .gitignore，
     # 不显式排除就会随 copy 落进派生项目；sync_template.sh 走 git clone，
     # 天然看不到未跟踪目录，因此无需（也无法）在那里登记。
     #
@@ -863,6 +866,7 @@ copy name force='':
         --exclude='docker-compose.testing.yml' \
         --exclude='.claude/planning' \
         --exclude='/.iar.toml' \
+        --exclude='/.kedacode.toml' \
         --exclude='/.iar/' \
         --exclude='/.iar-worktrees/' \
         --exclude='/.workbuddy-ai/' \
