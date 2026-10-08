@@ -563,10 +563,17 @@ def render_tree(
         # 移动过的文件要一眼看出来：名字旁边给徽标，下面单独一行写清从哪来
         badge_html = '<span class="move-badge">移动</span>' if moved_from else ""
         move_html = f'<span class="file-move-path">← {esc(moved_from)}</span>' if moved_from else ""
+        # 必读标记同样落在树上，扫一眼目录就知道哪些绕不开；不打「扫一眼」——
+        # 没有徽标本身就等于「可以略过」，逐行铺灰徽标只会变成噪声。
+        must_read_badge = (
+            '<span class="role-badge must tree-must">必读</span>'
+            if is_must_read(summaries, path)
+            else ""
+        )
         rows.append(
             f'<a class="node file-row" href="#f{leaf["index"]}" data-index="{leaf["index"]}" '
             f'title="{esc(path)}">'
-            f'<span class="file-name">{esc(leaf["name"])}</span>'
+            f'<span class="file-name">{esc(leaf["name"])}{must_read_badge}</span>'
             f'<span class="file-hit">{badge_html}<span class="add-stat">+{leaf["added"]}</span>'
             f'<span class="del-stat">-{leaf["removed"]}</span></span>'
             f'<span class="file-summary">{esc(summary)}</span>'
@@ -1102,6 +1109,8 @@ STYLE = """
     font-family: var(--mono); font-size: 12.5px;
     overflow-wrap: anywhere; white-space: normal; min-width: 0;
   }
+  /* 树行里的必读徽标：跟在文件名后、与文件名同排，靠一点点基线偏移对齐，不撑高行。 */
+  .file-name .tree-must { margin-left: 6px; vertical-align: 1px; }
   .file-hit {
     font-variant-numeric: tabular-nums; font-size: 11px; white-space: nowrap;
     display: flex; gap: 5px; font-family: var(--mono);
