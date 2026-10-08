@@ -607,6 +607,7 @@ Change Log entries are parsed mechanically (entry counting, per-field completene
 - One evidence file per Realistic Validation oracle, named `rv-<n>-<slug>.<ext>`, where `<n>` matches the oracle's `rv-<n>` id in the Section 7 Realistic Validation Plan.
 - 分工：UI 行为用 PNG 截图（标注验证层级）；CLI/命令行为用捕获的终端输出 `.txt`；其余按 oracle 声明的格式（pdf / csv / 录屏等）——条目点名格式时必须存在对应后缀的文件。
 - **Every RV script** — evidence capture, temporary setup, and reproducible oracles alike — belongs under `<evidence-dir>/scripts/`. No exception: no RV script may enter the code diff, whatever the PRD asks for. Inspect `git diff --name-only` and remove every RV script from the change set before requesting a commit.
+- When an oracle's `real_entry` needs an isolated end-to-end run (real git/database/CLI with only the external executor faked), read [references/rv-harness-cookbook.md](references/rv-harness-cookbook.md) before writing any harness: the standard isolated-scene recipe — fail-loud boundary fakes, plan-driven deterministic executor with invocation probes, fresh-process verification, negative-control-first ordering, and incremental evidence production (cheapest oracle first, one evidence file per item, written immediately).
 - Never capture secrets in evidence files or scripts.
 
 ### 4. Evidence Directory Layout
