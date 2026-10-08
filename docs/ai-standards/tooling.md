@@ -93,8 +93,8 @@ gh api repos/<owner>/<repo>/check-runs/<job-id>/annotations --jq '.[].message'
 - 裸 `just` 默认运行 `default` recipe；根 `justfile` 需要保留本地 `default`，并委托执行 `just --list`。
 - `just sync-template` 的默认跳过名单（`scripts/shared/template/sync_template.sh` 的 `_is_skipped_by_default`）已包含 `justfile`；`justfile.shared` 仍按常规规则进入 NEW/CHANGED 候选清单。
 - `just copy <dir>` 通过定位 `justfile` 中的 `# Copy template to a new directory` 段落标记，把 `copy` recipe 及其之后的内容从 destination 的 `justfile` 中 trim 掉；destination 仍保留 `set allow-duplicate-recipes`、`import 'justfile.shared'` 与 `default`/`run`/`down`/`frontend` 起始版本。该 marker 是 contract，调整 `copy` 上方注释时需保持 marker 文本不变。
-- `just copy <dir>` 的 rsync 排除名单分两类：构建产物与本地依赖（`.git`、`.venv`、`node_modules`、`dist`、缓存与日志等），以及模板维护者专属内容（`/skills`、`/prompt`、`.iar.toml`、`zata_code_template.zip`）；内容目录均以 `/` 锚定根目录，避免误伤 `src/backend/engines/skills/` 这类同名子目录。
-- 模板维护者的本机工具状态同样排除：`.iar/`（IAR runner 会话记忆）、`.iar-worktrees/`、`.workbuddy-ai/`（AI 工具笔记）。它们在 `.gitignore` 里，但 rsync 不读 `.gitignore`，不显式排除就会随 copy 落进派生项目。与之相对，`.env.local` 保留在拷贝范围，由 `setup_copied_database.py` 改写其中的 `DATABASE_URL`。
+- `just copy <dir>` 的 rsync 排除名单分两类：构建产物与本地依赖（`.git`、`.venv`、`node_modules`、`dist`、缓存与日志等），以及模板维护者专属内容（`/skills`、`/prompt`、`.iar.toml`、`.kedacode.toml`、`zata_code_template.zip`）；内容目录均以 `/` 锚定根目录，避免误伤 `src/backend/engines/skills/` 这类同名子目录。
+- 模板维护者的本机工具状态同样排除：`.kedacode/`（KedaCode（kc）runner 会话记忆，`.kedacode.toml` 显式指向的新目录）、`.iar/` 与 `.iar-worktrees/`（改名前旧目录，残留防漏）、`.workbuddy-ai/`（AI 工具笔记）。它们在 `.gitignore` 里，但 rsync 不读 `.gitignore`，不显式排除就会随 copy 落进派生项目。与之相对，`.env.local` 保留在拷贝范围，由 `setup_copied_database.py` 改写其中的 `DATABASE_URL`。
 - 从单文件旧版升级时，建议手工把本地 `justfile` 重写为最小私有版（`import 'justfile.shared'` + 项目特有 recipe），避免与 import 进来的共享 recipe 重复定义。
 
 ## Run Port State
@@ -212,7 +212,7 @@ python scripts/check_prd_acceptance_checklist.py --repo-root "$PWD" --all
 
 **AWAITING HUMAN 只认验收状态横幅**：判定读 PRD 头部那行可 grep 的声明（`验收状态` / `Acceptance Status`），取标记之后**最先出现**的状态词——三态 `⬜ 未开工` / `🧍 待人工验收` / `✅ 已验收` 见 `skills/prd/SKILL.md` 的 Acceptance Status Banner（旧名 `✅ 可归档` 仍按 `已验收` 读取），模板括号里的提示文字不会把 `⬜ 未开工` 误判成待人工。只看引用块行（`>` 开头），正文或决策日志里对该横幅的讨论不构成状态声明；横幅同样取分支副本，执行方在 worktree 里翻的状态才算数。没有横幅或认不出状态词时不入 `AWAITING HUMAN`：在 `tasks/pending` 里按未开工留在 `PENDING`，在 `tasks/archive` 里留在月视图（清单没勾完会被 `⚠` 标出）——按 §9 未勾项结构反推会漏判真实的人工项（常挂在 `Human-Confirmed` 之外的小节下，如手动执行的 probe），也会把尚未完工的 PRD 误报成「等你验收」。合并前的窗口也算数：分支里已归档且横幅为 `🧍` 而主线仍在 `tasks/pending` 时，该记录同样进 `AWAITING HUMAN`，ACTIVITY 显示 `✔ branch-archived @<branch> · awaiting merge`。
 
-**进度与证据取分支副本**：执行发生在 worktree 里，主仓库的 `tasks/pending` 副本与证据目录要等合并回主线才更新。因此存在分支名匹配的 worktree 时，清单进度取该 worktree 内 `tasks/archive` → `tasks/pending` 的 PRD 副本，证据包按 `plan` / `report` / `verifier` 每个槽位单独「分支目录先查、主仓库目录后查」；没有匹配 worktree（例如直接在主仓库开工）时读主仓库副本。只认 slug 匹配到的那个 worktree——每个 worktree 都带一份未改动的同名 pending 副本。例外是主线 `tasks/archive` 已有该 PRD 时一律读主线副本（归档是终态，分支上合并前的快照已过时）。副本取自哪个目录同时决定它属于哪一段，所以主线已把 PRD 重开回 `tasks/pending`、而匹配的 worktree 里还留着旧的归档副本时，看板会按那份旧副本判段；清理掉用完的 worktree 即可恢复。
+**进度与证据取分支副本**：执行发生在 worktree 里，主仓库的 `tasks/pending` 副本与证据目录要等合并回主线才更新。因此存在匹配的 worktree 时，清单进度取该 worktree 内 `tasks/archive` → `tasks/pending` 的 PRD 副本，证据包按 `plan` / `report` / `verifier` 每个槽位单独「分支目录先查、主仓库目录后查」；没有匹配 worktree（例如直接在主仓库开工）时读主仓库副本。匹配优先按 PRD slug 对应的分支名；PRD 正文有唯一的 `GitHub Issue:` 行时，也可匹配 `issue-<N>` 分支（KedaCode runner 的 Issue 分支命名）。例外是主线 `tasks/archive` 已有该 PRD 时一律读主线副本（归档是终态，分支上合并前的快照已过时）。副本取自哪个目录同时决定它属于哪一段，所以主线已把 PRD 重开回 `tasks/pending`、而匹配的 worktree 里还留着旧的归档副本时，看板会按那份旧副本判段；清理掉用完的 worktree 即可恢复。
 
 **FILES 列 = 影响树触达进度（弱信号）**：验收清单要到收尾才勾，从开工到验收之间看板原本没有任何进度粒度。FILES 列解析 PRD 的 `Change Impact Tree`，把其中的文件节点与**分支上实际改动过的文件集**求交，形如 `~7/12?2`。
 
@@ -303,7 +303,7 @@ uv run pre-commit run --show-diff-on-failure
 - 非交互的 `scripts/sync_template.sh --skill <name>` 只更新目标中**已存在**的同名 Skill，不会创建首次安装目录；没有可更新安装时明确失败。
 - 首次安装仍走交互式 `just sync-local-skills`；未检测到目标时才展示当前内置适配器供选择。
 
-内置适配器是随工具生命周期增删的便利清单，目前包含 Codex、Claude、Pi、Qoder、Kimi Code 与 CodeBuddy；它们不是永久支持承诺。交互安装与非交互更新必须共用 `scripts/shared/template/sync_template.sh` 中的同一份适配器注册表，守卫测试保护上述工具无关契约，不为单个适配器建立永久性断言。
+内置适配器是随工具生命周期增删的便利清单，目前包含 Codex、Claude、Pi、Qoder、Kimi Code、CodeBuddy 与 KedaCode；它们不是永久支持承诺。交互安装与非交互更新必须共用 `scripts/shared/template/sync_template.sh` 中的同一份适配器注册表，守卫测试保护上述工具无关契约，不为单个适配器建立永久性断言。
 
 ## Pre-commit Configuration Sync
 
