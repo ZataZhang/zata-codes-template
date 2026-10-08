@@ -2,9 +2,9 @@
 """zata-writer 文章 lint：把能计数的写作问题确定性地拦下来。
 
 用法：
-    python3 lint_article.py 文章.md [更多文章.md ...] [--warn-only]
+    python3 lint_article.py 文章.md [更多文章.md ...] [--style 风格标识] [--warn-only]
 
-ERROR（超额，必须修到通过）：
+ERROR（下列数字是默认 analytical 的额度，其他风格见 STYLE_LIMITS）：
   - 强调性加粗：每个二级标题下至多 1 处；段首不超过 16 字的短标签不计
   - 评判性最高级：「最关键」「最扎实」「真正」「才是」等，全文至多 3 处
   - 反转句：「不是 X，是 Y」「Y，而不是 X」「不在 X，在 Y」，全文至多 4 处
@@ -16,8 +16,9 @@ WARN（逐条判断）：
   - 报告套话；连续 4 段以上单句段；图注里写裁图过程；开场用转述式钩子
 
 含 lint-ok 的行跳过所有检查。
-阈值与 SKILL.md「段落和列表规则」（短标签字数）「情绪与强调额度」「语言边界」保持一致，
-改一处要同步改另一处；references/ 下的文档只引用这几节，不另写数字。
+默认 analytical 保留原有阈值；explainer-video 使用 STYLE_LIMITS 对应额度。
+阈值与 references/styles/ 对应文件保持一致，改一处要同步另一处。
+人设词等真实性检查共用；表态频率、单句段和开场钩子提示按风格启用。
 退出码：有 ERROR 时为 1；加 --warn-only 时恒为 0。
 """
 
@@ -29,12 +30,23 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-MAX_BOLD_PER_SECTION = 1
+
+@dataclass(frozen=True)
+class StyleLimits:
+    """所选风格的强调额度；成组阈值统一传递。"""
+
+    bold_per_section: int
+    superlatives: int
+    reframes: int
+    exclamations: int
+
+
+STYLE_LIMITS = {
+    "analytical": StyleLimits(1, 3, 4, 3),
+    "explainer-video": StyleLimits(2, 4, 5, 4),
+}
 LABEL_MAX_CHARS = 16
 NUMBERED_LABEL_MAX_CHARS = 30
-MAX_SUPERLATIVES = 3
-MAX_REFRAMES = 4
-MAX_EXCLAMATIONS = 3
 MAX_TABLE_COLS = 4
 MAX_TABLE_ROWS = 10
 MAX_NUMBERS_PER_LINE = 10
@@ -222,8 +234,20 @@ def listed(items: list[str]) -> list[str]:
     return items[:MAX_LISTED] + [f"……另有 {len(items) - MAX_LISTED} 处"]
 
 
-def lint(path: Path) -> tuple[Report, str]:
-    """检查一篇文章，返回报告和一行统计摘要。"""
+def lint(path: Path, *, style: str = "analytical") -> tuple[Report, str]:
+    """按风格检查文章，保留默认分析型的兼容行为。
+
+    Args:
+        path: 待检查的 Markdown 文章路径。
+        style: STYLE_LIMITS 中的风格标识（analytical 或 explainer-video）。
+
+    Returns:
+        检查报告和一行统计摘要。
+
+    Raises:
+        KeyError: 风格标识不存在。
+    """
+    style_limits = STYLE_LIMITS[style]
     blocks = parse(path)
     rep = Report()
     prose_kinds = {"para", "list", "quote", "caption"}
@@ -265,14 +289,15 @@ def lint(path: Path) -> tuple[Report, str]:
                         continue
                     emph.append(f"L{lineno}「{inner[:24]}」")
         total_emph += len(emph)
-        if len(emph) > MAX_BOLD_PER_SECTION:
+        if len(emph) > style_limits.bold_per_section:
             over_sections.append(
                 f"{name}：{len(emph)} 处　" + "　".join(emph[:6]) + ("……" if len(emph) > 6 else "")
             )
     if over_sections:
         rep.errors.append(
             (
-                f"强调性加粗超额：{len(over_sections)} 节超过每节 {MAX_BOLD_PER_SECTION} 处"
+                f"强调性加粗超额：{len(over_sections)} 节超过每节 "
+                f"{style_limits.bold_per_section} 处"
                 f"（全文 {total_emph} 处）",
                 over_sections,
             )
@@ -293,8 +318,10 @@ def lint(path: Path) -> tuple[Report, str]:
             if clause not in seen_clauses:
                 seen_clauses.add(clause)
                 sup.append(f"L{lineno} …{snippet(text, pos)}…")
-    if len(sup) > MAX_SUPERLATIVES:
-        rep.errors.append((f"评判性最高级 {len(sup)} 处（上限 {MAX_SUPERLATIVES}）", listed(sup)))
+    if len(sup) > style_limits.superlatives:
+        rep.errors.append(
+            (f"评判性最高级 {len(sup)} 处（上限 {style_limits.superlatives}）", listed(sup))
+        )
 
     # 3. 反转句
     ref = []
@@ -308,9 +335,9 @@ def lint(path: Path) -> tuple[Report, str]:
                 merged.append([a, b])
         for a, b in merged:
             ref.append(f"L{lineno} …{text[max(0, a - 6) : b + 8].strip()}…")
-    if len(ref) > MAX_REFRAMES:
+    if len(ref) > style_limits.reframes:
         rep.errors.append(
-            (f"反转句（不是 X，是 Y）{len(ref)} 处（上限 {MAX_REFRAMES}）", listed(ref))
+            (f"反转句（不是 X，是 Y）{len(ref)} 处（上限 {style_limits.reframes}）", listed(ref))
         )
 
     # 4. 感叹号
@@ -319,8 +346,10 @@ def lint(path: Path) -> tuple[Report, str]:
         for _, lineno, text in prose_lines()
         for m in re.finditer(r"[！!]", text)
     ]
-    if len(exc) > MAX_EXCLAMATIONS:
-        rep.errors.append((f"感叹号 {len(exc)} 个（上限 {MAX_EXCLAMATIONS}）", listed(exc)))
+    if len(exc) > style_limits.exclamations:
+        rep.errors.append(
+            (f"感叹号 {len(exc)} 个（上限 {style_limits.exclamations}）", listed(exc))
+        )
 
     # 5. 人设词
     persona = []
@@ -401,7 +430,7 @@ def lint(path: Path) -> tuple[Report, str]:
         run = []
     if len(run) >= SINGLE_SENTENCE_STREAK:
         streaks.append(f"L{run[0]} 起连续 {len(run)} 段")
-    if streaks:
+    if streaks and style != "explainer-video":
         rep.warns.append(("连续单句段（碎片流）", streaks))
 
     # 11. 图注里的处理过程
@@ -424,14 +453,14 @@ def lint(path: Path) -> tuple[Report, str]:
         for lineno, line in b.lines
         for m in OPENING_DEVICE.finditer(strip_inline(line))
     ]
-    if hooks:
+    if hooks and style == "analytical":
         rep.warns.append(("开场用了转述式钩子：确认上一篇没用过，且引语本身有信息量", hooks))
 
     cjk = sum(len(CJK.findall(text)) for _, _, text in prose_lines(include_headings=False))
     h2 = sum(1 for b in blocks if b.kind == "heading" and b.level == 2)
     paras = sum(1 for b in blocks if b.kind == "para")
     stats = (
-        f"正文 {cjk} 字｜二级标题 {h2} 个｜段落 {paras}｜"
+        f"风格 {style}｜正文 {cjk} 字｜二级标题 {h2} 个｜段落 {paras}｜"
         f"强调性加粗 {total_emph}（另有段首标签 {total_label}，表格内不计）"
     )
     return rep, stats
@@ -442,11 +471,17 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="zata-writer 文章 lint")
     ap.add_argument("files", nargs="+", type=Path)
     ap.add_argument("--warn-only", action="store_true", help="只报告，不以非零退出码失败")
+    ap.add_argument(
+        "--style",
+        choices=tuple(STYLE_LIMITS),
+        default="analytical",
+        help="文章风格，默认 analytical（同行拆解）",
+    )
     args = ap.parse_args()
 
     failed = False
     for path in args.files:
-        rep, stats = lint(path)
+        rep, stats = lint(path, style=args.style)
         print(f"== {path}")
         print(f"   {stats}")
         for title, items in rep.errors:
