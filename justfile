@@ -829,9 +829,10 @@ copy name force='':
     # 工具与本地文件改名前后都不会漏排。zata_code_template.zip 是含加密
     # .env.local 备份的历史产物，不应分发。
     #
-    # 模板维护者的本机状态同样不分发：.iar/ 与 .iar-worktrees/ 是 KedaCode
-    # （kc）runner 的会话记忆与 worktree（可能带着某个 Issue 的上下文），
-    # .workbuddy-ai/ 是 AI 工具的记忆笔记。三者都在 .gitignore 里，但
+    # 模板维护者的本机状态同样不分发：.kedacode/ 是 KedaCode（kc）runner 的
+    # 会话记忆与 worktree 配置根（.kedacode.toml 显式指向这里）；.iar/ 与
+    # .iar-worktrees/ 是改名前的旧目录残留，一并排除防止历史仓库漏网；
+    # .workbuddy-ai/ 是 AI 工具的记忆笔记。它们都在 .gitignore 里，但
     # rsync 不读 .gitignore，
     # 不显式排除就会随 copy 落进派生项目；sync_template.sh 走 git clone，
     # 天然看不到未跟踪目录，因此无需（也无法）在那里登记。
@@ -868,6 +869,7 @@ copy name force='':
         --exclude='/.iar.toml' \
         --exclude='/.kedacode.toml' \
         --exclude='/.iar/' \
+        --exclude='/.kedacode/' \
         --exclude='/.iar-worktrees/' \
         --exclude='/.workbuddy-ai/' \
         --exclude='/zata_code_template.zip' \

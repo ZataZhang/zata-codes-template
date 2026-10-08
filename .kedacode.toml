@@ -95,10 +95,10 @@ pre_commit_verification_command = "SKIP=check-test-flag uv run pre-commit run --
 # KedaCode 任务记忆与 Skill 草稿存储配置
 [agent_runner.memory]
 enabled = true
-base_dir = ".iar/memory"
-skill_drafts_dir = ".iar/skills/drafts"
+base_dir = ".kedacode/memory"
+skill_drafts_dir = ".kedacode/skills/drafts"
 promoted_skills_dirs = [
-    ".iar/skills",
+    ".kedacode/skills",
 ]
 top_k_skills = 3
 top_k_facts = 5
@@ -216,7 +216,7 @@ crash_retry_max_backoff_seconds = 600
 key_paths = []
 max_diff_chars = 6000
 previous_findings_injection_enabled = true
-findings_artifact_dir = ".iar/state"
+findings_artifact_dir = ".kedacode/state"
 
 # Daemon 轮询与 reclaim 配置（覆盖全局 [agent_runner.daemon] 默认）
 [agent_runner.daemon]

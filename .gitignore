@@ -82,6 +82,9 @@ tasks/evidence/**
 
 # IAR-managed git worktrees (host-local)
 .iar-worktrees/
+
+# KedaCode runner state (repo-local memory/skills/state after the rename)
+.kedacode/
 # <<< iar <<<
 
 # Agent tooling state (local)
