@@ -95,6 +95,7 @@
     refreshTimer: document.getElementById("refresh-timer"),
     treeTitle: document.getElementById("tree-title"),
     treeNote: document.getElementById("tree-note"),
+    ignoredToggle: document.getElementById("ignored-toggle"),
     treeWidthToggle: document.getElementById("tree-width-toggle"),
     treeBody: document.getElementById("tree-body"),
     bodyGrid: document.querySelector(".body-grid"),
@@ -140,6 +141,9 @@
     isTreeWide: false,
     filterText: "",
     filePaths: [],
+    ignoredFilePaths: new Set(),
+    includeIgnoredFiles: false,
+    isLoadingIgnoredFiles: false,
     changedSections: [],
     isDisconnected: false,
     /** 一次手动刷新是否正在进行；用来防止连点发出多份请求。 */
@@ -368,8 +372,7 @@
       elements.branchChip.textContent = infoResponse.body.branch;
       window.document.title = `${infoResponse.body.repo_name} · 只读查看器`;
 
-      const treeResponse = await requestJson("/api/tree");
-      viewState.filePaths = treeResponse.body.paths;
+      await loadFileTree();
 
       if (viewState.view === DIFF_VIEW) {
         await loadChangedFiles();
@@ -417,8 +420,7 @@
       elements.branchChip.textContent = infoResponse.body.branch;
       window.document.title = `${infoResponse.body.repo_name} · 只读查看器`;
 
-      const treeResponse = await requestJson("/api/tree");
-      viewState.filePaths = treeResponse.body.paths;
+      await loadFileTree();
     });
     if (!didLoad) {
       return;
@@ -438,6 +440,18 @@
       }
     }
     renderViewTabs();
+  }
+
+  /**
+   * 按当前显示偏好读取文件树。
+   */
+  async function loadFileTree() {
+    const treeUrl = viewState.includeIgnoredFiles
+      ? "/api/tree?include_ignored=1"
+      : "/api/tree";
+    const treeResponse = await requestJson(treeUrl);
+    viewState.filePaths = treeResponse.body.paths;
+    viewState.ignoredFilePaths = new Set(treeResponse.body.ignored_paths || []);
   }
 
   /**
@@ -637,6 +651,21 @@
     const treeTitleNode = document.createElement("b");
     treeTitleNode.textContent = isDiffView ? "改动文件" : "文件树";
     elements.treeTitle.replaceChildren(treeTitleNode);
+    elements.ignoredToggle.hidden = isDiffView;
+    renderIgnoredFilesToggle();
+  }
+
+  /**
+   * 同步忽略项开关的可访问名称与状态。
+   */
+  function renderIgnoredFilesToggle() {
+    const isEnabled = viewState.includeIgnoredFiles;
+    const actionLabel = isEnabled ? "隐藏" : "显示";
+    const accessibleLabel = `${actionLabel}被 Git 忽略的文件`;
+    elements.ignoredToggle.textContent = `${actionLabel}忽略`;
+    elements.ignoredToggle.setAttribute("aria-pressed", String(isEnabled));
+    elements.ignoredToggle.setAttribute("aria-label", accessibleLabel);
+    elements.ignoredToggle.title = `${accessibleLabel}；依赖和缓存目录仍隐藏`;
   }
 
   /**
@@ -766,10 +795,16 @@
       elements.treeNote.textContent = `${countChangedFiles()} 个文件`;
     } else {
       const directoryTree = buildDirectoryTree(
-        viewState.filePaths.map((filePath) => ({ path: filePath })),
+        viewState.filePaths.map((filePath) => ({
+          path: filePath,
+          ignored: viewState.ignoredFilePaths.has(filePath),
+        })),
         FILES_TREE_KEY
       );
-      elements.treeNote.textContent = `${viewState.filePaths.length} 个文件`;
+      const ordinaryFileCount = viewState.filePaths.length - viewState.ignoredFilePaths.size;
+      elements.treeNote.textContent = viewState.ignoredFilePaths.size
+        ? `${ordinaryFileCount} 个文件 · ${viewState.ignoredFilePaths.size} 个忽略项`
+        : `${ordinaryFileCount} 个文件`;
       appendDirectoryChildren(treeFragment, directoryTree, 0, filterText);
     }
 
@@ -1174,7 +1209,7 @@
    * 文件视图传 `{path}`，改动视图传改动文件对象；叶子节点把原条目留在 `payload` 里，
    * 于是两种叶子行都能从同一棵树渲染。`treeKey` 标出这棵树是谁的，用来把折叠状态按树分开：
    * 改动视图里同一个目录路径会在每段各出现一次，两段是两棵树。
-   * @param {Array<{path: string}>} treeEntries 每条含仓库相对路径。
+   * @param {Array<{path: string, ignored?: boolean}>} treeEntries 每条含路径，可标记忽略文件。
    * @param {string} treeKey 这棵树的标识（文件视图或改动视图的某一段）。
    * @returns {{name: string, path: string, treeKey: string, isDirectory: boolean, children: Map, payload: object|null}} 根节点。
    */
@@ -1335,7 +1370,7 @@
 
   /**
    * 构造文件行。
-   * @param {{name: string, path: string}} fileNode 文件节点。
+   * @param {{name: string, path: string, payload: {ignored?: boolean}|null}} fileNode 文件节点。
    * @param {number} depth 缩进层级。
    * @returns {HTMLElement} 文件行。
    */
@@ -1352,6 +1387,14 @@
     nameNode.className = "name";
     nameNode.textContent = fileNode.name;
     rowButton.append(nameNode);
+
+    if (fileNode.payload && fileNode.payload.ignored) {
+      const ignoredBadge = document.createElement("span");
+      ignoredBadge.className = "ignored-badge";
+      ignoredBadge.textContent = "忽略";
+      ignoredBadge.title = "被 Git 忽略；只在文件树中只读查看，不进入改动或暂存";
+      rowButton.append(ignoredBadge);
+    }
 
     rowButton.addEventListener("click", () => {
       void selectPath(fileNode.path);
@@ -1858,12 +1901,53 @@
     }
   }
 
+  /**
+   * 切换是否在文件树中包含被忽略的文件。
+   */
+  async function toggleIgnoredFiles() {
+    if (
+      viewState.isDisconnected ||
+      viewState.view !== FILES_VIEW ||
+      viewState.isLoadingIgnoredFiles
+    ) {
+      return;
+    }
+    viewState.isLoadingIgnoredFiles = true;
+    viewState.includeIgnoredFiles = !viewState.includeIgnoredFiles;
+    elements.ignoredToggle.disabled = true;
+    renderIgnoredFilesToggle();
+    await guardAgainstServiceExit(async () => {
+      await loadFileTree();
+      if (
+        !viewState.includeIgnoredFiles &&
+        viewState.view === FILES_VIEW &&
+        viewState.selectedPath &&
+        !viewState.filePaths.includes(viewState.selectedPath)
+      ) {
+        viewState.selectedPath = "";
+        viewState.lastFileViewPath = "";
+        resetFilePreview();
+        renderPlaceholder();
+      }
+      if (viewState.view !== FILES_VIEW) {
+        return;
+      }
+      expandToSelectedPath();
+      renderTree();
+    });
+    viewState.isLoadingIgnoredFiles = false;
+    elements.ignoredToggle.disabled = false;
+  }
+
   elements.tabFiles.addEventListener("click", () => {
     void switchView(FILES_VIEW);
   });
   elements.treeWidthToggle.addEventListener("click", () => {
     viewState.isTreeWide = !viewState.isTreeWide;
     renderTreeWidth();
+  });
+  elements.ignoredToggle.addEventListener("click", () => {
+    void toggleIgnoredFiles();
   });
   elements.copyPathButton.addEventListener("click", () => {
     void copyCurrentViewerPath();

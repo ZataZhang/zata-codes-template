@@ -37,7 +37,7 @@
 | `just run frontend-public` | 只启动前台官网（Next.js，端口读取当前 run-state） |
 | `just frontend-public dev` | 委托 `just run frontend-public`，读取当前 run-state 端口 |
 | `just down` | 按当前 Git worktree 保存的端口停止本地开发服务 |
-| `just copy <new-dir>` | 派生新项目；随机分配三个互不重叠的端口避免多副本端口冲突，并根据新项目名自动生成独立 PostgreSQL 数据库 |
+| `just copy <new-dir>` | 派生新项目；生成英文 `README.md` 和简体中文版 `README.zh.md`，随机分配三个互不重叠的端口避免多副本端口冲突，并根据新项目名自动生成独立 PostgreSQL 数据库 |
 | `just worktree <branch>` | 仅能从 Git primary worktree 创建；自动分配端口、创建专用 PostgreSQL 空库并执行迁移，开发与 E2E 共用该 Worktree 的数据库 |
 | `just worktree -o <worktree-name>` | 打开已有 worktree；名称接受分支全名、分支最后一段、PRD slug、PRD 文件名（可带 `.md`）与 `tasks/pending/....md` 路径，歧义时报错列候选、未命中时列可用 worktree |
 | `just worktree --prune [--dry-run\|--yes\|--force] [--base <branch>]` | 批量删除已并入 base 的本地分支及其 worktree；默认列计划并确认一次，gone 但有独有提交的分支需 `--force` |

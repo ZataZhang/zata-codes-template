@@ -66,6 +66,7 @@ nav:
       - 沙箱执行后端: guides/sandbox-runtime.md
       - 想法 Inbox: guides/idea-inbox.md
       - 只读文件与改动查看器: guides/file-viewer.md
+      - PRD Skill 指南: guides/prd-skill.md
       - Review Workflow: guides/review-workflow.md
       - Skill Lifecycle: guides/skill-lifecycle.md
       - Codex macOS 通知: guides/codex-notifications.md

@@ -1,172 +1,167 @@
 # Zata Codes Template
 
-一套面向通用 Python 项目演进的工程模板，遵循 **DDD 边界意识 + Clean Architecture 依赖方向 + 模块化单体** 的设计理念。模板不内置业务域，业务模块由派生项目自行添加。
+English | [简体中文](README.zh.md)
 
-它保留了模板的低门槛启动体验，同时把仓库的目标结构明确为四层后端 + 双前端：
+<p align="center">
+  <img src="skills/zata-writer/assets/brand/zata-signature-blue-z-black-ata.png" width="180" alt="Zata signature brand logo">
+</p>
 
-- `src/backend/api/` 请求接入层
-- `src/backend/core/` 核心编排层
-- `src/backend/engines/` 平台能力层
-- `src/backend/infrastructure/` 基础设施层
-- `frontend-admin/` 管理平台前端（Vite + React + TanStack Router + shadcn-admin）
-- `frontend-public/` 前台官网（Next.js 16 + React 19 + Tailwind CSS v4 + shadcn/ui）
+An extensible starter for Python web projects. It combines a **FastAPI modular monolith with four backend layers** and separate admin and public frontends. The template includes working authentication, database migrations, run-trace diagnostics, and optional sandbox infrastructure; downstream projects add their own business domain.
 
-当前仓库的正式结构以 `src/backend/api/`、`src/backend/core/`、`src/backend/engines/`、`src/backend/infrastructure/` 四层目录与 `frontend-admin/`、`frontend-public/` 两个前端目录为准。
+## Features
 
-## 快速开始
+- **Clear backend boundaries:** API, core orchestration, pluggable capabilities, and infrastructure are separated, with dependencies pointing inward.
+- **Two frontends:** the admin app uses Vite, React, and TanStack Router; the public app uses Next.js 16, React 19, and Tailwind CSS 4.
+- **Authentication and sessions:** public registration and login, a separate admin authentication domain, HTTP-only cookie sessions, and Redis-backed session storage.
+- **Optional runtime capabilities:** run-trace inspection, health probes, Prometheus metrics, and filesystem, Docker, and E2B sandbox adapters.
+- **Development workflow:** Python dependencies managed with `uv`, common tasks run with `just`, plus Alembic migrations, pre-commit hooks, tests, and a MkDocs documentation site.
+- **No model-vendor lock-in:** the template does not include an LLM client or provider registry. Downstream projects can load an OpenAI-compatible endpoint configuration and choose their own SDK.
 
-```bash
-just sync dev   # 安装全部依赖 + pre-commit hooks
-just run        # 同时启动后端 + 管理平台前端 + 前台官网
-```
-
-启动后会同时运行后端 API、管理平台前端和前台官网。各服务端口由当前项目的 `.env.run-state` 决定，`just run` 会在终端输出实际访问地址。
-
-认证使用 HTTP-only `session_id` cookie：在 `/login` 或 `/register` 登录/注册后，同一域名下的 `/dashboard` 等页面会自动携带会话。
-
-## Task Runner（just）
-
-所有常用开发任务通过 `just` 驱动，直接运行 `just` 可列出所有命令。
-
-### 依赖管理
-
-| 命令 | 说明 |
-|------|------|
-| `just sync` | 同步 dev 依赖（默认） |
-| `just sync prod` | 仅同步生产依赖，不含 dev |
-| `just sync all` | 全部 extras + 安装 just shell 补全 |
-| `just sync dev` | 全部 extras + 安装 pre-commit hooks |
-
-### 开发
-
-| 命令 | 说明 |
-|------|------|
-| `just run` | 默认同时启动后端、管理平台前端和前台官网；会复用当前 Git worktree 保存的端口 |
-| `just run backend_port=8010 frontend_admin_port=13173 frontend_public_port=3001` | 指定并保存后端/管理平台/前台端口 |
-| `just down` | 按保存的端口停止本地后端和两个前端 |
-| `just run backend` | 只启动后端（默认命令为 `uv run python -m backend.main`） |
-| `just run frontend` | 只启动管理平台前端（默认进入 `frontend-admin/` 执行 `pnpm dev`） |
-| `just run frontend-public` | 只启动前台官网（默认进入 `frontend-public/` 执行 `pnpm dev`） |
-| `just frontend-public dev` | 委托 `just run frontend-public`，按保存的端口启动前台官网 |
-| `just run all frontend_dir=web frontend_cmd="pnpm dev"` | 覆盖前端目录或启动命令 |
-| `just test` | 运行本地测试（无需 API key） |
-| `just test all` | 运行全部测试 |
-| `just test real` | 运行需要 API key 的测试 |
-| `just docs-serve` | 本地预览 MkDocs 文档（`127.0.0.1:8000`） |
-| `just docs-serve port=9000` | 指定端口 |
-| `just clean` | 清理缓存与构建产物 |
-| `just check net` | 检查当前终端的代理、Claude 服务连通性与出口 IP 地区 |
-| `just check s3` | 端到端验证 S3 配置（put → exists → presign → get → cleanup） |
-| `just staged_changes` | 将暂存区 diff 导出为 `staged_changes.diff` |
-
-### Git Worktree
-
-所有 worktree 操作统一在 `just worktree` 下：
-
-| 命令 | 说明 |
-|------|------|
-| `just worktree <branch>` | 创建 worktree 并进入交互式 shell |
-| `just worktree <branch> --cmd trae` | 创建 worktree 并在指定编辑器中打开 |
-| `just worktree <branch> enter_shell=false` | 创建 worktree 但不进入 shell |
-| `just worktree -d <branch>` | 删除 worktree 及分支 |
-| `just worktree -m <feature> [base=main] [flags]` | 将 feature worktree 合并到 base 分支 |
-| `just worktree --doctor` | 扫描所有 worktree 的健康状况 |
-| `just worktree --doctor <branch>` | 检查指定 worktree |
-| `just worktree --prune` | 批量删除已并入 base 的本地分支及其 worktree；默认先列出计划并确认一次 |
-| `just worktree --prune --dry-run` | 只列出待清理计划，不做任何变更；`--yes` 跳过确认，`--force` 额外纳入远端已删但有独有提交的分支 |
-
-### 模版与项目管理
-
-| 命令 | 说明 |
-|------|------|
-| `just copy <name>` | 将本模版复制为新项目到 `../<name>/`，不包含 `node_modules`、`dist` 等依赖和构建产物，也不包含模板维护者的本机状态（`.iar/`、`.iar-worktrees/`、`.workbuddy-ai/`）与模板专属文件（`.iar.toml` 等）；目标目录非空时可用 `--force` 覆盖 |
-| `just sync-template` | 与上游模版对比，交互式选择更新。默认同步模板维护的通用文件；跳过 `tasks/`、环境/缓存产物、`config.toml` 中 `[template_sync].project_skip_paths` 配置的项目路径，以及 README、CLAUDE.md、main.py、justfile、pyproject.toml、config.toml、mkdocs.yml、uv.lock 等项目特定文件。如有模板技能更新，会安装到检测到的全部目标，也就是各工具自己读取的技能目录（如 `~/.claude/skills`、`~/.codex/skills`、`~/.pi/agent/skills`、`~/.qoder-cn/skills`、`~/.codebuddy/skills`）；一个都不存在时提示选择 Codex、Claude、Pi、Qoder、Kimi Code 或 CodeBuddy 的 skills 目录 |
-| `just sync-template --all` | 同上，但额外包含 `project_skip_paths` 中的项目路径（如 `src/backend/`、`frontend-admin/`、`docs/`、`tests/`、`deploy/` 等）；`tasks/` 和顶层身份文件仍跳过 |
-| `just release` | 通过 `scripts/shared/release.py` 构建发布包 |
-
-### Template Sync 规则说明
-
-`just sync-template` 默认只同步上游模板维护的通用骨架文件。下面的清单解释**哪些目录/文件不进 diff、不会被覆盖**。
-
-**永久跳过**（`--all` 也不会同步）
-
-- `tasks/`：项目任务文件。
-
-**默认跳过**（`--all` 会把"项目特定目录"那部分一起纳入 diff）
-
-- **顶层项目身份/配置**：`README.md`、`CLAUDE.md`、`main.py`、`justfile`、`pyproject.toml`、`config.toml`、`mkdocs.yml`、`uv.lock`、`findings.md`、`progress.md`、`task_plan.md`、`.dockerignore`、`.gitignore`、`.DS_Store`。
-- **环境/缓存/产物**：`.git/`、`.venv/`、`.uv-cache/`、`__pycache__/`、`.pytest_cache/`、`.ruff_cache/`、`logs/`、`site/`、`.env`、`.env.*`、`*.pyc`、`*.egg-info`。
-- **项目特定目录**（来自 `config.toml` 的 `[template_sync].project_skip_paths`，`--all` 时纳入 diff）：`src/backend/`、`frontend-admin/`、`docs/`、`tests/`、`deploy/`、`apps/`、`services/`、`infra/`、`helm/`、`terraform/`、`ansible/`、`data/`、`uploads/`、`artifacts/`、`tmp/`。
-- **项目私有脚本**：`scripts/` 根目录下非 `shared/` 的文件。`scripts/shared/` 由上游模板维护，**始终同步**，不在跳过清单里。
-- **其他**：`prompt/`、`skills/`、`.claude/`。
-
-完整过滤逻辑见 `scripts/shared/template/sync_template.sh` 中的 `_is_never_synced()` 与 `_is_skipped_by_default()`。
-
-### Secrets
-
-| 命令 | 说明 |
-|------|------|
-| `just export-env-encrypted` | 将所有被 gitignore 的 `.env*` 文件打包为加密 zip，写到仓库外的 `../mysecrets/<项目名>.zip`（不会进入 git 工作树），压缩和解压均需输入密码 |
-
-## 项目结构
+## Architecture
 
 ```text
-.
-├── src/backend/           # Python 后端（四层 Clean Architecture）
-│   ├── api/               # HTTP 接入层
-│   ├── core/              # 业务编排与领域规则
-│   ├── engines/           # 可插拔平台能力
-│   └── infrastructure/    # 配置、日志、数据库、外部客户端
-├── frontend-admin/        # 管理平台（shadcn-admin）
-├── frontend-public/       # 前台官网（Next.js + shadcn/ui）
-├── tests/                 # 单元测试与集成测试
-├── tests/playwright-e2e/  # 端到端测试（独立 Node 包）
-├── docs/                  # 项目文档源目录
-├── alembic/               # 数据库迁移
-├── deploy/vps-traefik/    # 可选 VPS 部署配置
-└── justfile               # 任务入口
+Frontends
+├── frontend-admin/       Admin app (Vite + React)
+└── frontend-public/      Public app (Next.js + React)
+
+Backend
+├── src/backend/api/                 HTTP entry points and validation
+├── src/backend/core/                Use cases, domain rules, and interfaces
+├── src/backend/engines/             Pluggable platform capabilities
+├── src/backend/infrastructure/      Database, configuration, logging, and adapters
+└── src/backend/composition/         Application startup and dependency wiring
 ```
 
-## Hooks
+Backend dependencies follow `api → core → engines → infrastructure`. `composition/` wires implementations together and contains no business rules. `engines/` is an extension point for capabilities added by downstream projects.
 
-本模板使用 [`pre-commit`](https://pre-commit.com/) 统一管理提交前的质量保障，配置在 `.pre-commit-config.yaml` 中，涵盖基础文件卫生检查与 Ruff（Lint + Format）。
+## Quick Start
 
-`just sync dev` 会自动完成安装。手动安装：
+### Requirements
+
+- Python `>=3.11` (the repository development version is Python 3.13) and [uv](https://docs.astral.sh/uv/)
+- [just](https://github.com/casey/just)
+- Node.js 22 and pnpm 11 (required to run the frontends)
+- Docker Compose (to start the local PostgreSQL and Redis services shown below)
+
+### Install and Run
 
 ```bash
-uv run pre-commit install
-uv run pre-commit run --all-files   # 首次全量检查（可选）
+cp .env.example .env.local
+docker compose -f docker-compose.testing.yml up -d postgres redis
 ```
 
-升级 hook 依赖：
+Set the local database and Redis connection strings in `.env.local`:
+
+```dotenv
+DATABASE_URL=postgresql+psycopg2://testuser:testpass@localhost:5432/testdb
+REDIS_URL=redis://:redis123@localhost:6379/0
+```
+
+Install dependencies, then start the backend and both frontends:
 
 ```bash
-uv run pre-commit autoupdate
+just sync dev
+just run
 ```
 
-## 基础设施模块
+On the first run, `just run` installs frontend dependencies and prints the service URLs. The backend applies database migrations at startup. To sign in to the admin app, set `AUTH_ADMIN_BOOTSTRAP_USERNAME` and `AUTH_ADMIN_BOOTSTRAP_PASSWORD` in `.env.local`. Do not commit real credentials.
 
-### `src/backend/infrastructure/config/settings.py`
-集中管理环境变量与路径配置，统一从 `.env` 与 `config.toml` 加载，其余模块只从 `config` 对象读取。
+## Common Commands
 
-### `src/backend/infrastructure/logger.py`
-单例 `Logger`，读取 `config.log_level` 与 `config.log_file`，同时输出到控制台与文件，在 Windows 上处理 UTF-8。
+| Command | Purpose |
+| --- | --- |
+| `just` | List available tasks |
+| `just sync dev` | Sync development dependencies and install pre-commit hooks |
+| `just run` | Start the backend and both frontends |
+| `just run backend` | Start only the backend |
+| `just run frontend` | Start only the admin app |
+| `just run frontend-public` | Start only the public app |
+| `just down` | Stop local services |
+| `just test` | Run the local test suite |
+| `just test all` | Run the full test suite |
+| `just docs-serve` | Preview the documentation site locally |
 
-```python
-from backend.infrastructure.logger import logger
-logger.info("started")
+## Engineering Workflow
+
+### PRD Skill
+
+The repository's [PRD skill](skills/prd/SKILL.md) turns a feature request into an architecture-aware, reviewable implementation plan. It first inspects the existing code, extension points, related PRDs, and frontend surfaces, then favors reuse and the smallest complete change. Each PRD has two reading levels:
+
+- **Part A · Review Layer** explains the problem, expected user outcomes, and the decisions that need human confirmation, without implementation details.
+- **Part B · Build Layer** records architecture fit, implementation guidance, dependencies, and a realistic validation plan with evidence requirements.
+
+The PRD workflow has four main stages:
+
+1. **Interpret and inspect:** turn the request into concrete behavior examples, identify assumptions and exclusions, then inspect the architecture, reusable paths, frontend apps, tests, and related pending or archived PRDs.
+2. **Challenge the plan:** ask only about unresolved decisions that materially affect scope or behavior; compare reuse options, remove unnecessary scope, and classify meaningful change points by risk (`R0`–`R3`).
+3. **Write two audiences into one plan:** Part A gives people the outcome, human decisions, and acceptance view. Part B gives the executor the architecture fit, change impact, dependencies, and realistic validation plan. Risk determines the evidence depth; user-visible changes include real-entry visual evidence.
+4. **Execute and close the evidence loop:** claim a pending PRD with `just prd start <prd-file>` before implementation. `just ai implement <prd-file>` runs the implementation and evidence workflow, including an independent verifier. Move the PRD to `tasks/archive/` after executor work is verified and reconciled. Human acceptance is tracked separately: open `Human-Confirmed` items remain marked `🧍 Awaiting human acceptance` until a person reviews them.
+
+See the [PRD skill](skills/prd/SKILL.md), [tooling standards](docs/ai-standards/tooling.md), and [testing standards](docs/ai-standards/testing.md) for the complete contracts.
+
+### Justfile Design
+
+The command line uses two `just` layers so template-wide tooling can be synchronized without overwriting project-specific entry points:
+
+- [`justfile`](justfile) is the private adapter for this repository. It imports `justfile.shared`, lists available tasks by default, and owns project-shaped commands such as `run`, `down`, and `copy`.
+- [`justfile.shared`](justfile.shared) contains reusable template recipes such as `sync`, `lint`, `test`, `worktree`, `prd`, and `e2e`. `just sync-template` updates this shared layer; keep repository-specific recipes in `justfile`.
+
+The private layer enables duplicate recipe names so a repository can override a shared command without editing the upstream-owned file. `just run` coordinates the backend and both frontends. It stores per-worktree ports in the ignored `.env.run-state`, so `just down` can stop the right services and parallel worktrees avoid port collisions. `just copy <dir>` creates a derived project with its own database and ports. Quality commands support different scopes: `just lint` for staged changes, `just lint --full` for the full repository, `just lint --reuse` for reuse and architecture diagnostics, and `just lint --repo` for repository-level checks. On a cold `just test`, the shared recipe runs full lint, checks the migration graph when Alembic is available, and then runs the local pytest selection; successful local lint/test markers are bound to the current branch, commit, and effective file tree. CI always runs the checks instead of trusting those local markers. The [tooling standards](docs/ai-standards/tooling.md) explain the ownership and override rules.
+
+### Tests and Validation
+
+Validation combines behavior tests with checks of repository contracts and real application paths:
+
+- **Python:** `tests/` contains unit and integration tests; `tests/guards/` protects repository conventions and shared tooling contracts. The default `just test` run excludes `slow`, `real_api`, and `redis` tests; `just test all` includes the complete pytest suite, and `just test real` opts into tests requiring live APIs.
+- **Frontend:** `frontend-admin/` has Vitest tests (`cd frontend-admin && pnpm test`). Both frontends also expose lint, type-check, and build commands; `frontend-public/` currently has no standalone test script.
+- **End to end:** `tests/playwright-e2e/` is a separate TypeScript/Node package. `just e2e no-auth` runs the credential-free flow; `just e2e` runs the broader suite when its seed credentials are configured.
+- **Database compatibility:** PostgreSQL and MySQL are supported targets. Database and migration changes need validation against the affected dialects, not SQLite alone.
+
+Tests that write to a real database use the explicit `realdb` marker and cleanup/sentinel protections. For UI evidence, distinguish a component preview from production composition and a real user flow; screenshots must state which level they prove. Choose the highest-fidelity validation that fits the change: unit and integration tests for logic and module boundaries, a real API/CLI/startup path for executable behavior, and Playwright for user-visible flows. Live services are opt-in when credentials or external systems are required. See the [testing standards](docs/ai-standards/testing.md) and [E2E guide](docs/guides/e2e.md).
+
+## Create a Project from the Template
+
+From the template repository, run:
+
+```bash
+just copy my-app
 ```
 
-### `src/backend/infrastructure/helpers.py`
-无状态的小工具函数，可按需补充，如格式化时间、批量重试等。
+This creates `my-app/` in the parent directory, applies the project name, initializes Git, and creates an initial commit. Before running it, make sure the local database is configured and your Git username and email are set. Then enter the new directory:
 
-## 架构口径
+```bash
+cd ../my-app
+just sync dev
+just run
+```
 
-这个仓库不是微服务模板，也不是单纯的脚本集合，而是一个 **四层模块化单体** 的项目骨架：
+## Configuration and Extension
 
-1. `src/backend/api/` 负责接入。
-2. `src/backend/core/` 负责业务编排和领域规则。
-3. `src/backend/engines/` 负责可插拔能力。
-4. `src/backend/infrastructure/` 负责具体技术实现。
+- Keep non-sensitive defaults in `config.toml`; put local environment variables and secrets in `.env.local`.
+- To use an LLM, set `MODEL_BASE_URL`, `MODEL_API_KEY`, and `MODEL_NAME` in `.env.local`. Set all three together; the template does not create the model client.
+- Sandbox configuration is optional. The available adapters are filesystem-only, isolated Docker containers, and E2B sandboxes.
+- The application exposes `/health`, `/ready`, and `/live` health probes by default. `/metrics` is available when metrics are enabled.
 
-架构参考来自整洁架构与 DDD 的组合思路。外部文章提供的是设计方向和结构示例，本仓库会结合自己的模板定位、目录现状和迁移成本做落地，不机械照搬命名。
+## Documentation
+
+- [Getting Started](docs/getting-started.md)
+- [PRD Skill Guide](docs/guides/prd-skill.md)
+- [Configuration](docs/guides/configuration.md)
+- [System Architecture](docs/architecture/system-design.md)
+- [Sandbox Runtime](docs/guides/sandbox-runtime.md)
+- [Observability](docs/guides/observability.md)
+- [Deployment](docs/guides/deployment.md)
+- [Documentation Index](docs/index.md)
+
+## Main Directories
+
+```text
+src/backend/             FastAPI backend
+frontend-admin/          Admin app
+frontend-public/         Public app
+alembic/                 Database migrations
+tests/                   Python tests
+tests/playwright-e2e/    Standalone Playwright end-to-end test package
+docs/                    MkDocs documentation
+deploy/                  Sandbox and deployment assets
+```
