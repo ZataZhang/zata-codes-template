@@ -579,6 +579,46 @@ def _meaningful_yaml_value(raw_value: str) -> str:
     return value_without_comment.strip("\"'").strip()
 
 
+def _oracle_block_top_level_shape_issues(
+    fence_lines: list[str], fence_start_line: int
+) -> list[tuple[int, str]]:
+    """Return issues when the RV fence is not a top-level ``- id:`` sequence.
+
+    The oracle block is consumed by a deterministic extractor that parses the
+    fence and requires a **top-level sequence** of entries. A wrapping key
+    (``realistic_validation:``) turns the block into a mapping, and downstream
+    tooling then drops the whole PRD instead of reporting a field-level
+    problem — so the wrapper must be rejected here, where it can be fixed.
+    Global notes therefore belong *beneath* the fence, outside the block.
+
+    Args:
+        fence_lines: Raw lines inside the first ``yaml`` fence of Section 7.6.
+        fence_start_line: 1-based line number of that fence, for reporting.
+
+    Returns:
+        A single-item list describing the violation, or an empty list when the
+        block start satiesfied the top-level-sequence shape.
+    """
+
+    first_content_line = ""
+    for fence_line in fence_lines:
+        stripped_line = fence_line.strip()
+        if stripped_line and not stripped_line.startswith("#"):
+            first_content_line = stripped_line
+            break
+    if first_content_line.startswith("- "):
+        return []
+    return [
+        (
+            fence_start_line,
+            "Realistic Validation Plan oracle block must be a top-level sequence "
+            f"starting with `- id:` (got {first_content_line!r}); drop the wrapping "
+            "key and move any global note such as a `failure_triage:` reminder "
+            "*beneath* the block, outside the fence",
+        )
+    ]
+
+
 def _oracle_schema_issues(file_content: str) -> list[tuple[int, str]]:
     """Return missing or incomplete validation-oracle schema issues."""
 
@@ -609,13 +649,20 @@ def _oracle_schema_issues(file_content: str) -> list[tuple[int, str]]:
     current_oracle_line_number = -1
     current_oracle_fields: dict[str, str] = {}
     in_yaml_block = False
+    first_fence_lines: list[str] = []
+    first_fence_start_line = -1
+    collecting_first_fence = False
 
     for section_offset, line in enumerate(section_lines):
         absolute_line_number = start_index + section_offset + 1
         if not in_yaml_block and YAML_FENCE_START_RE.match(line):
             in_yaml_block = True
+            if first_fence_start_line < 0:
+                first_fence_start_line = absolute_line_number
+                collecting_first_fence = True
             continue
         if in_yaml_block and YAML_FENCE_END_RE.match(line):
+            collecting_first_fence = False
             if current_oracle_id:
                 oracle_entries.append(
                     (current_oracle_id, current_oracle_line_number, current_oracle_fields)
@@ -626,6 +673,8 @@ def _oracle_schema_issues(file_content: str) -> list[tuple[int, str]]:
             continue
         if not in_yaml_block:
             continue
+        if collecting_first_fence:
+            first_fence_lines.append(line)
 
         entry_match = ORACLE_ENTRY_RE.match(line)
         if entry_match:
@@ -648,6 +697,12 @@ def _oracle_schema_issues(file_content: str) -> list[tuple[int, str]]:
         oracle_entries.append(
             (current_oracle_id, current_oracle_line_number, current_oracle_fields)
         )
+
+    # Shape before content: a wrapped block still exposes every field to the
+    # line scanners below, so it would otherwise sail through as valid.
+    shape_issues = _oracle_block_top_level_shape_issues(first_fence_lines, first_fence_start_line)
+    if shape_issues:
+        return shape_issues
 
     if not oracle_entries:
         return [

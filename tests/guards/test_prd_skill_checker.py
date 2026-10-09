@@ -361,6 +361,59 @@ def test_executable_oracle_accepts_complete_evidence_chain() -> None:
     assert PRD_CHECKER._oracle_schema_issues(complete_prd) == []
 
 
+def test_oracle_block_rejects_a_wrapping_top_level_key() -> None:
+    """oracle 块必须是顶层序列：包一层 `realistic_validation:` 会被解析器整块丢弃。"""
+
+    wrapped_prd = """### 7.6 Realistic Validation Plan (Oracle 块)
+
+```yaml
+realistic_validation:
+  - id: rv-1
+    behavior: 分享链接可由匿名用户打开
+    reviewer: verifier
+    real_entry: just e2e share
+    expected: 匿名浏览器看到分享内容
+    mock_boundary: 仅 mock 邮件发送
+    tier: R0
+    critical_value_source: 页面渲染的分享链接
+    must_cross: browser -> proxy -> canonical API -> commit -> anonymous read
+    forbidden_bypasses: 硬编码路由、直接 service 调用、writer session
+    fresh_state_probe: 新匿名 browser context 打开页面原样链接
+    final_tree_evidence: 最后相关 diff 后重跑并记录 tree hash
+    test_layer: e2e
+    required_for_acceptance: true
+```
+"""
+
+    oracle_issues = PRD_CHECKER._oracle_schema_issues(wrapped_prd)
+
+    assert len(oracle_issues) == 1
+    assert "top-level sequence" in oracle_issues[0][1]
+    assert "realistic_validation:" in oracle_issues[0][1]
+
+
+def test_oracle_block_accepts_a_leading_comment() -> None:
+    """块首的 YAML 注释不算内容行，仍判定为顶层序列。"""
+
+    commented_prd = """### 7.6 Realistic Validation Plan (Oracle 块)
+
+```yaml
+# deterministic extractor reads this block as a top-level sequence
+- id: rv-1
+  behavior: 分享链接可由匿名用户打开
+  reviewer: verifier
+  real_entry: just e2e share
+  expected: 匿名浏览器看到分享内容
+  mock_boundary: 仅 mock 邮件发送
+  tier: R0
+  test_layer: e2e
+  required_for_acceptance: true
+```
+"""
+
+    assert PRD_CHECKER._oracle_schema_issues(commented_prd) == []
+
+
 def test_low_tier_oracle_does_not_require_evidence_chain() -> None:
     """R0/R1 条目只需可区分失败的断言，不必背完整证据链。"""
 
