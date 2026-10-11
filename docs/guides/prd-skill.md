@@ -26,6 +26,7 @@ PRD skill 将这些问题放进一条完整链路中处理。它的输入是用�
 | 先看仓库，再写方案 | 查找现有入口、模块边界、扩展点、测试、文档和相关 PRD；仓库能回答的问题不再抛给用户。 |
 | 优先最小完整改动 | 先比较沿用现有路径的方案；只有现有路径确实不够时，才增加抽象、服务、表、页面或依赖。默认交付目标状态，不把必要收尾推迟到模糊的“后续阶段”。 |
 | 人审与执行分层 | Part A 用用户能理解的行为和决定描述需求；实现机制、文件、命令、风险登记和证据细节放进 Part B。 |
+| 受控、模块化写作 | 借鉴 ASD-STE100 与 S1000D 的设计思想（不代表正式合规）：分开表达事实、推断和未知信息；按 Part A、Part B 与 references 渐进披露内容；只组织任务需要的信息，并让操作步骤包含前置条件、可观察结果及必要的异常处理。 |
 | 让需求可被纠正 | 先展示输入和可观察结果，让用户能指出具体哪一行理解错了，而不是只确认一段抽象摘要。 |
 | 前端是完整交付面 | 查明项目真实拥有的前端应用；任何用户可见改动都规划页面、组件、状态、API 接线和验证入口。后端专属任务也要说明为什么没有前端影响。 |
 | 验证强度随风险变化 | 低风险改动只要求能区分自身失败的断言；持久化、兼容性、安全等高风险改动需要跨真实边界并证明最终状态的证据链。 |
@@ -58,7 +59,8 @@ flowchart LR
 | 2.5–3.4. 挑战与收敛方案 | 反向检查所有权、用户心智、相邻需求和变化压力；与最接近的重型方案比较；判断独立工作是否应拆分。 | 一个优先方案；只保留会实质影响范围、风险或架构的替代项。 |
 | 3.5–3.6. 锁定验证与人审项 | 定义最高可行保真度的真实入口、验收 oracle、风险等级和对应审阅人。 | Realistic Validation Plan、Human Review Map 和内部风险登记。 |
 | 4–5.5. 外部事实、原型与执行韧性 | 必要时研究外部事实；规划流程图、影响树、原型和数据库图；使用语义锚点而非脆弱行号。 | Part B 所需图示、原型依据、引用来源和可执行的搜索/命令。 |
-| 6–7. 生成与合规检查 | 按命名约定保存 PRD，检查必需章节、验收 oracle 和执行计划是否完整。 | `tasks/pending/<优先级>-<类型>-<日期>-<slug>.md`。 |
+| 6–6.5. 生成与受控写作复核 | 按命名约定生成 PRD，再检查事实依据、术语、歧义、操作前提和可观察结果；保留既有 PRD 结构与机器契约。 | 可读、可执行且内容有依据的 PRD 初稿。 |
+| 7. 合规检查 | 检查必需章节、验收 oracle 和执行计划是否完整。 | `tasks/pending/<优先级>-<类型>-<日期>-<slug>.md`。 |
 
 ### Interpretation Echo：先让人能纠正理解
 
@@ -192,7 +194,7 @@ flowchart LR
 
 | 文件 | 作用 |
 | --- | --- |
-| [`skills/prd/SKILL.md`](https://github.com/ZataZhang/zata-codes-template/blob/main/skills/prd/SKILL.md) | 触发条件、核心原则、规划阶段、PRD 必需结构和 Machine Contract v5。 |
+| [`skills/prd/SKILL.md`](https://github.com/ZataZhang/zata-codes-template/blob/main/skills/prd/SKILL.md) | 触发条件、核心原则、受控写作复核、规划阶段、PRD 必需结构和 Machine Contract v5。 |
 | [`references/prd-content-rules.md`](https://github.com/ZataZhang/zata-codes-template/blob/main/skills/prd/references/prd-content-rules.md) | Change Impact Tree、Mermaid 图、验证计划、用户影响、验收清单和最终叙述对账的细节。 |
 | [`references/validation-evidence-integrity.md`](https://github.com/ZataZhang/zata-codes-template/blob/main/skills/prd/references/validation-evidence-integrity.md) | 高风险验证链、证据新鲜度、verifier finding 分级和重开规则。 |
 | [`references/pr-evidence-and-merge-acceptance.md`](https://github.com/ZataZhang/zata-codes-template/blob/main/skills/prd/references/pr-evidence-and-merge-acceptance.md) | PR 原生人审材料、证据发布、前后端配对呈递和合并后验收记录。 |
