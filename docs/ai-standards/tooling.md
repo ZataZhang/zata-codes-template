@@ -295,6 +295,8 @@ uv run pre-commit run --show-diff-on-failure
 
 这些文件派生项目常会自定义（改入口指向、调整规范），默认覆盖会破坏项目定制，因此只在 `just sync-template --all` 模式才作为同步候选出现。实现见 `scripts/shared/template/sync_template.sh` 的 `_is_ai_adapter_file`。
 
+当同步候选包含当前正在运行的 `sync_template.sh` 时，脚本会先在同目录临时目录准备新文件，再原子替换路径，避免 Bash 执行期间读到被原地截断的脚本。
+
 模板包含 Skill 更新时，`just sync-template` 与 `just sync-local-skills` 遵守以下稳定契约：
 
 - 显式配置的目标与当前检测到的工具适配器可以同时生效；同一批选中的 Skill 会同步到全部目标。
