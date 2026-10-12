@@ -1,6 +1,6 @@
 ---
 name: zata-writer
-description: "[Updated 2026-10-10] 按同行拆解或科普视频口播风格撰写、重构中文长文与脚本，文章默认配图、口播稿默认交付旁白，并可将成稿排版为可直接粘贴的公众号文章。适用于技术博客、方法论、产品分析、现象解读、论文解读、研究型文章和代码库功能全景与更新追踪（含短篇更新跟进）；不用于短社交媒体文案、纯摘要或仅生成标题。"
+description: "[Updated 2026-10-12] 按同行拆解、科普视频口播或工作汇报风格撰写中文长文、脚本及项目周报/阶段进度报告，文章默认配图、口播稿默认交付旁白，并可排版公众号文章。适用于技术博客、产品与研究分析、代码库追踪和内部项目汇报；不用于短社交媒体文案、纯摘要或仅生成标题。"
 ---
 
 # Zata Writer
@@ -25,6 +25,7 @@ description: "[Updated 2026-10-10] 按同行拆解或科普视频口播风格撰
 |---|---|---|
 | 同行拆解（analytical，默认） | 拆问题、比较证据、做选择；原有协作风格 | [analytical.md](references/styles/analytical.md) |
 | 科普视频口播（explainer-video） | 用口语讲清科学、历史或复杂机制，适合视频脚本和口播型长文 | [explainer-video.md](references/styles/explainer-video.md) |
+| 工作汇报（work-reporting） | 清楚呈现阶段成果、影响、当前状态、风险、协作和下一步，适配团队、协作方或管理者 | [work-reporting.md](references/styles/work-reporting.md) |
 
 只加载当前风格。
 
@@ -43,6 +44,7 @@ description: "[Updated 2026-10-10] 按同行拆解或科普视频口播风格撰
 | 产品体验与分析 | 有真实使用证据时写体验；没有亲测材料时写产品分析 | [文章结构模板](references/article-structures.md) |
 | 现象解读与行业观察 | 从具体变化分析原因、证据、影响和不确定性 | [文章结构模板](references/article-structures.md) |
 | 代码库更新与追踪 | 梳理当前功能、版本变化、功能演进、项目方向、实践结果或项目进度 | [专项指南](references/codebase-updates.md)；需要起稿时用[文章模板](assets/templates/codebase-tracking.md) |
+| 项目周报与阶段进度汇报 | 汇报一个明确周期内的结果、影响、交付状态、未闭环事项和下一步 | [专项指南](references/project-progress-report.md) |
 
 ## 默认工作流
 
