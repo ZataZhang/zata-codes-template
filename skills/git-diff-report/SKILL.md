@@ -1,6 +1,6 @@
 ---
 name: git-diff-report
-description: "[Updated 2026-09-24] Render git changes into a self-contained HTML report: a collapsible file tree on the left with per-file summaries and +/− counts, a dedicated panel for renamed/moved files, and a highlighted diff viewer with sticky collapsible file headers, click-to-jump, and scroll sync. Use when the user asks to 展示当前改动, 看改了什么, 生成改动预览页, 改动可视化, diff 报告, or wants a reviewable HTML overview of a working tree, branch diff, or staged changes."
+description: "[Updated 2026-10-15] Render git changes into a self-contained HTML report: a collapsible file tree on the left with per-file summaries and +/− counts, a dedicated panel for renamed/moved files, and a highlighted diff viewer with sticky collapsible file headers, click-to-jump, and scroll sync. Use when the user asks to 展示当前改动, 看改了什么, 生成改动预览页, 改动可视化, diff 报告, or wants a reviewable HTML overview of a working tree, branch diff, or staged changes."
 user-invocable: true
 allowed-tools:
   - Read
@@ -62,13 +62,10 @@ allowed-tools:
   "title": "keda 工作区改动",
   "meta_line": "分支 main · 已暂存改动 · 已排除 tests/**",
   "overview": [
-    "## 这个功能改了什么",
+    "## 功能实现核对清单",
     "",
-    "一句话：**给 X 加了一道 Y**——...。默认关闭。",
-    "",
-    "### 1. 基础设施层 — 端点接入",
-    "",
-    "- `path/to/client.py`（新）：一次请求并行提交多个闭集问题，归一为类型化答案；网络错误与契约错误分开抛，调用方据此 fail-open。"
+    "- [x] **Draft PR 自动转为 Ready**：用户配置的自动合并门禁全部通过后，将 Draft PR 转为 Ready；检查未通过时保留 Draft 状态。",
+    "  - 涉及文件：`path/to/merge_queue.py`、`path/to/github_client.py`。"
   ],
   "reading_path": [
     {
@@ -106,6 +103,8 @@ allowed-tools:
 写法要求：
 
 - `overview`（**可选**）是页面顶部的「改动总览」可折叠面板，用来放不适合塞进单文件 `summary` 的整体叙述：功能做了什么、怎么按层实现、关键设计取舍。字符串或字符串列表（列表项按行拼接）均可；支持极简 Markdown：`##`/`###` 标题、`-` 或 `1.` 列表、空行分段、行内 `**加粗**` 与 `` `代码` ``。**不要**把单文件总结重复一遍——那里已有 `files[*].summary`。
+- 对**代码实现类改动**，`overview` 默认采用 PRD 验收清单式的功能组织：按用户可见行为或完整功能分项；每项先写实现结果与关键边界，再列 `涉及文件：`，让读者能从功能直接找到对应改动。避免只按技术分层罗列，或写“更新逻辑”“完善配置”这类无法说明实现结果的摘要。可以用 `[x]` 标记 diff 能确认已落地的实现，但这不代表测试通过或人工验收。
+- `files[*].summary` 必须**逐文件**说明这个文件具体改了什么及其作用；不要只复述功能清单，也不要用一份总括性摘要代替文件级说明。首次出现的缩写或状态词要说清对象与含义，例如写“GitHub PR 的 CI / 状态检查（checks）”，不要只写“读取 checks”。
 - **正文里的文件路径会自动变成跳转链接**：写到本次确实改动的路径（可带 `:行号`，如 `` `src/.../gate.py:317` ``），渲染后既可点。行号落在 diff 里才精确落行，否则自动降级成文件级跳转（不会产生死链）——所以放心写行号，但**写完要核一遍**，行号漂移会让落点偏移。
 - `reading_path`（**可选**）是「建议阅读顺序」：一条 3–5 步的最短理解路径，每步 `{label, refs}`，`refs` 是路径或 `路径:行号`。用来回答「从哪看起、看哪几处就够」，**比让读者自己从总览散文里反推省事得多**。作者给了 overview 或 reading_path 任一项，面板就出。
 - `files[<path>]` 除 `summary` / `hunk_notes` 外还支持三个**可选**字段：`role`（角色，用于底部「重点文件清单」分组，缺省按路径推断）、`must_read`（bool，缺省由角色推断）、`key_hunks`（hunk 序号数组，决定长文件默认展开哪几个）。
