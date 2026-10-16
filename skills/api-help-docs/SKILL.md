@@ -71,8 +71,10 @@ allowed-tools:
 2. `docs/` 下带 frontmatter 的 Markdown。
 3. 运行 `scripts/build_llms_txt.py` 生成 `.md`、`llms.txt`、`llms-full.txt`：
 
+脚本依赖 `pyyaml`；系统 Python 通常没有，直接运行会报 `ModuleNotFoundError: No module named 'yaml'`，用 `uv run --with pyyaml` 带上依赖：
+
 ```bash
-python skills/api-help-docs/scripts/build_llms_txt.py \
+uv run --with pyyaml python skills/api-help-docs/scripts/build_llms_txt.py \
   --docs-dir docs/help --out-dir build/help-static \
   --title "<产品名> 帮助中心" --description "<一句话>" \
   --base-path /help/ --openapi-url /api/openapi.json
