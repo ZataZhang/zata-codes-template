@@ -85,10 +85,16 @@ just run all frontend_public_dir=web-public frontend_public_cmd="pnpm dev"
 
 ## 测试
 
-运行默认本地测试集：
+运行默认本地测试集（核心档：核心名单 ∪ 本次改动及其映射到的测试）：
 
 ```bash
 just test
+```
+
+`just test` 结尾若点名了相关但未跑的测试文件，用下面的命令补跑：
+
+```bash
+just test-changed
 ```
 
 运行完整测试集：

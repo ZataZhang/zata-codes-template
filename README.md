@@ -77,8 +77,11 @@ On the first run, `just run` installs frontend dependencies and prints the servi
 | `just run frontend` | Start only the admin app |
 | `just run frontend-public` | Start only the public app |
 | `just down` | Stop local services |
-| `just test` | Run the local test suite |
+| `just test` | Run the local core-tier test suite |
+| `just test-changed` | Run only tests related to the current changes |
 | `just test all` | Run the full test suite |
+| `just test-core-refresh` | Regenerate the core-tier list from measured durations |
+| `just test-budget` | Check the full-suite cost against its ratchet |
 | `just docs-serve` | Preview the documentation site locally |
 
 ## Engineering Workflow
@@ -112,7 +115,7 @@ The private layer enables duplicate recipe names so a repository can override a 
 
 Validation combines behavior tests with checks of repository contracts and real application paths:
 
-- **Python:** `tests/` contains unit and integration tests; `tests/guards/` protects repository conventions and shared tooling contracts. The default `just test` run excludes `slow`, `real_api`, and `redis` tests; `just test all` includes the complete pytest suite, and `just test real` opts into tests requiring live APIs.
+- **Python:** `tests/` contains unit and integration tests; `tests/guards/` protects repository conventions and shared tooling contracts. The default `just test` run is a local core tier (a duration-derived core list plus tests touched by the current changes, excluding `slow`, `real_api`, and `redis`); use `just test-changed` to run related tests it did not cover. `just test all` includes the complete pytest suite, and `just test real` opts into tests requiring live APIs.
 - **Frontend:** `frontend-admin/` has Vitest tests (`cd frontend-admin && pnpm test`). Both frontends also expose lint, type-check, and build commands; `frontend-public/` currently has no standalone test script.
 - **End to end:** `tests/playwright-e2e/` is a separate TypeScript/Node package. `just e2e no-auth` runs the credential-free flow; `just e2e` runs the broader suite when its seed credentials are configured.
 - **Database compatibility:** PostgreSQL and MySQL are supported targets. Database and migration changes need validation against the affected dialects, not SQLite alone.

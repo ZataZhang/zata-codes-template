@@ -77,8 +77,11 @@ just run
 | `just run frontend` | 只启动管理后台 |
 | `just run frontend-public` | 只启动用户端 |
 | `just down` | 停止本地服务 |
-| `just test` | 运行本地测试集 |
+| `just test` | 运行本地核心档测试集 |
+| `just test-changed` | 只运行与当前改动相关的测试 |
 | `just test all` | 运行完整测试集 |
+| `just test-core-refresh` | 按实测耗时重算核心档名单 |
+| `just test-budget` | 检查全量档成本是否超出棘轮上限 |
 | `just docs-serve` | 本地预览文档站点 |
 
 ## 工程工作流
@@ -112,7 +115,7 @@ PRD 工作流包含四个主要阶段：
 
 测试同时覆盖功能行为、仓库约定和真实应用入口：
 
-- **Python：** `tests/` 存放单元和集成测试；`tests/guards/` 守护仓库规范及共享工具契约。默认 `just test` 会排除标记为 `slow`、`real_api` 和 `redis` 的测试；`just test all` 运行完整 pytest 测试集，`just test real` 显式运行依赖真实 API 的测试。
+- **Python：** `tests/` 存放单元和集成测试；`tests/guards/` 守护仓库规范及共享工具契约。默认 `just test` 只跑本地核心档（按实测耗时生成的核心名单 ∪ 本次改动涉及的测试，且排除 `slow`、`real_api` 和 `redis`），未覆盖的相关测试用 `just test-changed` 补跑；`just test all` 运行完整 pytest 测试集，`just test real` 显式运行依赖真实 API 的测试。
 - **前端：** `frontend-admin/` 使用 Vitest（`cd frontend-admin && pnpm test`）。两个前端都有 lint、类型检查和构建命令；`frontend-public/` 当前没有独立测试脚本。
 - **端到端：** `tests/playwright-e2e/` 是独立的 TypeScript/Node 测试包。`just e2e no-auth` 运行无需凭据的流程；配置好种子账号后，`just e2e` 可运行更完整的测试集。
 - **数据库兼容：** PostgreSQL 和 MySQL 都是支持目标。涉及数据库或迁移的改动应在相关数据库方言上验证，不能只用 SQLite 作为证据。

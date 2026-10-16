@@ -5,10 +5,12 @@
 ## 测试命令
 
 - 本地测试：`just test`
-  - 默认排除标记为 `slow` 或 `real_api` 的测试，并使用 `pytest-xdist` 并行执行。
+  - 默认只跑**核心档**：`not slow and not real_api and not redis`，且限于「核心名单 ∪ 本次改动的测试 ∪ 改动源码映射到的测试 ∪ `core` 标记」，并使用 `pytest-xdist` 并行执行。
   - 如果当前分支、HEAD 与测试有效 tree 均未变化，会直接跳过测试并提示。
+  - 结尾若点名了相关但未跑的测试文件，用 `just test-changed` 补跑（不设预算、不写提交标记）。
 - 全量测试：`just test all`
   - 运行全部测试，不受默认 marker 过滤影响，仍使用 `pytest-xdist` 并行。
+  - 全量档的用例条数受 `test-budget.json` 棘轮约束，可用 `just test-budget` 自查。
 - 真实依赖测试：`just test real`
   - 只运行标记为 `real_api` 的测试，通常需要真实 API key 或外部服务。
 
@@ -19,7 +21,7 @@
 - `@pytest.mark.slow`：真实 git、子进程、网络或其他重 I/O 导致的慢测试。
 - `@pytest.mark.real_api`：需要真实 API key 或外部在线服务的测试。
 
-日常开发使用 `just test` 即可跳过这两类测试；CI 或交付前使用 `just test all` 做全量回归。
+日常开发使用 `just test` 即可跳过这两类测试，并只跑核心档；CI 或交付前使用 `just test all` 做全量回归。核心档名单、棘轮与共享库守卫的完整说明见 [测试规范](../ai-standards/testing.md) 的「测试分层与本地核心档」。
 
 ## 测试分层建议
 
