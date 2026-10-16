@@ -101,7 +101,10 @@ NEGATIVE_CONTROL_TIERS = frozenset({"R3"})
 # An oracle that omits its tier is treated as R3, so an unclassified entry keeps
 # the full burden and the reduction has to be earned by declaring low risk.
 DEFAULT_ORACLE_TIER = "R3"
-NEGATIVE_CONTROL_NOT_FEASIBLE_PREFIX = "not feasible"
+# Two recorded outcomes replace a negative control and make expected_fail meaningless:
+# "not feasible" (no legitimate route to red) and "not needed" (the assertion cannot be
+# vacuous, e.g. the entry point simply does not exist before the change).
+NEGATIVE_CONTROL_WAIVER_PREFIXES = ("not feasible", "not needed")
 REQUIRED_RECONCILIATION_FIELDS = (
     "Interpretation",
     "Public behavior and contracts",
@@ -745,11 +748,11 @@ def _oracle_schema_issues(file_content: str) -> list[tuple[int, str]]:
         if effective_tier in NEGATIVE_CONTROL_TIERS:
             required_fields += NEGATIVE_CONTROL_ORACLE_FIELDS
 
-        # A documented "not feasible" negative control is an accepted outcome and
-        # makes expected_fail meaningless; requiring it would push authors toward
-        # inventing a failure mode instead of recording the real limitation.
+        # A documented "not feasible" / "not needed" negative control is an accepted
+        # outcome and makes expected_fail meaningless; requiring it would push authors
+        # toward inventing a failure mode instead of recording the real situation.
         negative_control_value = oracle_fields.get("negative_control", "").lower()
-        if negative_control_value.startswith(NEGATIVE_CONTROL_NOT_FEASIBLE_PREFIX):
+        if negative_control_value.startswith(NEGATIVE_CONTROL_WAIVER_PREFIXES):
             required_fields = [name for name in required_fields if name != "expected_fail"]
 
         missing_fields = [

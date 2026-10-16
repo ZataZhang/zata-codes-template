@@ -494,7 +494,7 @@ HTML 报告仍固定在 `tests/playwright-e2e/playwright-report/`，可用 `just
 - 影响入口、关键值构造、代理/路由、事务、存储、消费者或断言的相关改动会使旧证据失效，必须在最终代码树重新收集。
 - 真实运行或现场报告反驳已归档的 verifier `PASS` 时，旧验收立即失效；重开或创建关联回归 PRD，修复并重新独立验收后才能再次归档。人工验收时发现 PRD 自身的 oracle / 范围未达成同属此类：把 PRD 移回 `tasks/pending/` 重开（横幅 `⬜ 未开工`、Change Log 记录发现了什么）；交付与 PRD 一致但需求本身变了，则保留已归档 PRD 作交付记录、新开关联 PRD。归档后只允许写验收记录，不原地修补。
 
-**禁止为了可测性修改生产代码。** 不得为了让负控能变红而往 `src/` 或前端 app 加故障注入开关、失败模式、test-only 配置项、计数器或观测钩子。合法来源依次是：实现之前先跑红的那次运行、测试边界打桩（`monkeypatch` / fixture / 依赖覆盖）、`tests/` 下的 fake 或子类。都不行就记 `negative_control: not feasible — <原因>`——"做不到"是被接受的结论，不构成为测试重塑产品的许可。
+**禁止为了可测性修改生产代码。** 不得为了让负控能变红而往 `src/` 或前端 app 加故障注入开关、失败模式、test-only 配置项、计数器或观测钩子。合法来源依次是：实现之前先跑红的那次运行、测试边界打桩（`monkeypatch` / fixture / 依赖覆盖）、`tests/` 下的 fake 或子类。都不行就记 `negative_control: not feasible — <原因>`——"做不到"是被接受的结论，不构成为测试重塑产品的许可。红已必然（如实现前接口不存在）或同一改动里别的测试已带判别对照时，记 `negative_control: not needed — <原因>`。
 
 人工终点审查时，按风险地图顺序查看证据包，重点抽查高风险 oracle 结果、前端截图/录屏和 verifier report。
 

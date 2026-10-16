@@ -232,7 +232,7 @@ If not required:
 
 机读 + 执行追踪的**单一 oracle 源**：§9 证据包和任何确定性抽取器都引用 / 解析这里的 `id`。不要把命令、边界字段或 `rv-id` 复制到 Part A；Part A 每个人审决策至少在这里对应一条 oracle。
 
-证据深度按 `tier` 走：`R0`/`R1` 只写"总是必填"那几项，`R2` 加证据链，`R3`/人审项再加负控。不写 `tier` 视为 `R3`，背全套。一份 PRD 超过 3 条 `R2`/`R3` 是范围信号，先回去看 §3.4 拆分。
+证据深度按 `tier` 走：`R0`/`R1` 只写"总是必填"那几项，`R2` 加证据链，`R3`/人审项再加负控（断言可能恒真时才需要；红已必然时写 `not needed — <原因>`）。不写 `tier` 视为 `R3`，背全套。一份 PRD 超过 3 条 `R2`/`R3` 是范围信号，先回去看 §3.4 拆分。
 
 ```yaml
 - id: rv-1
@@ -251,7 +251,7 @@ If not required:
   fresh_state_probe: "动作完成后由新 browser/request/process/DB session 独立观察什么"
   final_tree_evidence: "证据如何绑定最终相关代码树，以及哪些改动后必须重跑"
   # --- 仅 R3 / 人审项必填 ---
-  negative_control: "什么命令 / 种个 bug 能让它变红"  # 判别力:证明这测试会失败
+  negative_control: "什么命令 / 种个 bug 能让它变红"  # 判别力:证明这测试会失败；断言不可能恒真时写 "not needed — <原因>" 并省略 expected_fail
   expected_fail: "红的时候长什么样"
 ```
 
@@ -259,7 +259,7 @@ Failure triage:
 - `real_entry` 跑挂,先查 `[第一处 config / 路径 / 边界]`,别急着改实现策略。
 - 生产 / 供应商 / 需凭据的项标 `opt-in / post-merge`;无凭据时必须有仍可跑的 fallback。
 - UI 产生的关键值必须从 UI 原样提取再消费；写操作必须跨 commit 后由 fresh state 独立读取；已归档 PASS 若被真实运行反驳，立即失效并重新验收。
-- **禁止为了让 oracle 能变红去改生产代码**（故障注入开关、失败模式、test-only 配置项、计数器、观测钩子）。合法来源依次是：实现前先跑红的那次运行、测试边界打桩、`tests/` 下的 fake/子类。都不行就写 `negative_control: not feasible — <原因>` 并省略 `expected_fail`。
+- **禁止为了让 oracle 能变红去改生产代码**（故障注入开关、失败模式、test-only 配置项、计数器、观测钩子）。合法来源依次是：实现前先跑红的那次运行、测试边界打桩、`tests/` 下的 fake/子类。都不行就写 `negative_control: not feasible — <原因>` 并省略 `expected_fail`。红已必然（如实现前接口不存在）或同一改动里别的测试已带判别对照时，写 `negative_control: not needed — <原因>`，同样省略 `expected_fail`。
 
 无可执行行为时,本块写：
 - `No executable behavior changes; realistic validation is limited to documentation/build checks.`

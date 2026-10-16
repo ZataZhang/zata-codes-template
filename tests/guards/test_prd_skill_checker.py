@@ -512,6 +512,33 @@ def test_not_feasible_negative_control_waives_expected_fail() -> None:
     assert PRD_CHECKER._oracle_schema_issues(documented_prd) == []
 
 
+def test_not_needed_negative_control_waives_expected_fail() -> None:
+    """记录 ``not needed`` 的负控同样免除 expected_fail，且仍须写明原因文本。"""
+
+    documented_prd = """### 7.6 Realistic Validation Plan (Oracle 块)
+
+```yaml
+- id: rv-1
+  behavior: 新增接口返回 200
+  reviewer: verifier
+  real_entry: just e2e sync
+  expected: 状态码为 200 且响应含 id
+  mock_boundary: 无
+  tier: R3
+  critical_value_source: 真实响应体
+  must_cross: API -> DB -> fresh read
+  forbidden_bypasses: 直接调用 service
+  fresh_state_probe: 新 DB session 读取
+  final_tree_evidence: 最后相关 diff 后重跑
+  negative_control: not needed — 实现前接口不存在，必然 404
+  test_layer: e2e
+  required_for_acceptance: true
+```
+"""
+
+    assert PRD_CHECKER._oracle_schema_issues(documented_prd) == []
+
+
 def test_interpretation_echo_requires_correctable_blocks() -> None:
     """只有散文的解读回显必须拒绝：读者无法逐条否证。"""
 
