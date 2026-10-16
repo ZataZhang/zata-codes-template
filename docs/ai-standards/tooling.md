@@ -22,7 +22,7 @@
 - 用 `uv` 代替 `pip` / `conda`
 - 用 `just` 代替手工记忆零散命令
 
-读代码与看改动优先用 `just view`（本机浏览界面：只读，外加一个只做暂存的写口），而不是
+读代码与看改动优先用 `just view`（本机浏览界面：不编辑仓库，可暂存改动或把当前文件交给系统默认应用打开），而不是
 为此起一个完整 IDE；它和 `just docs-serve` / `just prd review` 属于同一类「一条命令起一个
 本机页面」。需要
 **可发送、可归档**的改动报告时仍走 `skills/git-diff-report/`，两者职责不重叠。
@@ -49,7 +49,7 @@
 | `just test-budget [junit]` | 检查全量档成本是否超过 `test-budget.json` 上限（棘轮）；本机只强制条数，墙钟只报告，CI 才带 `--enforce-seconds` |
 | `just test-debt [top]` | 测试瘦身证据：重复用例块、最贵重复文件、最慢文件榜；只出证据不改代码 |
 | `just bench-test` | 验证 warm / after-edit 场景的 `just test` 是否满足 30 秒预算 |
-| `just view [路径]` | 打开本机改动查看器（默认改动视图，按 `Staged Changes` / `Changes` 两段列出，后者由未暂存与未跟踪合并而来；重命名合并为一条 `R` 项并标出旧路径——包括普通 `mv` 造成的「删除 + 未跟踪新文件」，服务端在仓库外的一次性索引上按内容相似度配对，真实索引不受影响；`--files` 切文件视图；`Changes` 旁的加号可 `git add`）；第二条命令起复用常驻实例（秒开） |
+| `just view [路径]` | 打开本机改动查看器（默认改动视图，按 `Staged Changes` / `Changes` 两段列出，后者由未暂存与未跟踪合并而来；重命名合并为一条 `R` 项并标出旧路径——包括普通 `mv` 造成的「删除 + 未跟踪新文件」，服务端在仓库外的一次性索引上按内容相似度配对，真实索引不受影响；`--files` 切文件视图；`Changes` 旁的加号可 `git add`；内容区头部可把当前文件交给系统默认应用打开）；第二条命令起复用常驻实例（秒开） |
 | `just diff` | `just view --diff` 的薄别名 |
 | `uv run mkdocs build` | 验证文档站点 |
 | `just docs-serve` | 本地预览文档 |
@@ -118,15 +118,17 @@ gh api repos/<owner>/<repo>/check-runs/<job-id>/annotations --jq '.[].message'
 
 ## Local Read-Only Viewer
 
-`just view` 起一个只绑 `127.0.0.1` 的查看器（文件树 + 文件内容 + 改动视图 + 一次暂存），
+`just view` 起一个只绑 `127.0.0.1` 的查看器（文件树 + 文件内容 + 改动视图 + 暂存 + 在系统中打开），
 逻辑在 `scripts/shared/view/`。这里只记与工具链
 约定相关的部分。
 
-- **写边界只有一个，且只做暂存。** 服务端唯一的写口是 `POST /api/stage`（`git add`），它要求
+- **仓库写操作只有暂存；另有一条会拉起本机应用的操作。** `POST /api/stage` 只做 `git add`；
+  `POST /api/open` 把仓库内路径交给系统默认应用，不写仓库。两条路由都要求
   `Content-Type: application/json`——跨站表单式 POST 是「简单请求」，浏览器会直接发出去，而
-  JSON 强制预检、预检必然失败，于是「某个网页在你不知情时改动你的索引」被封住。其余写方法
-  一律 405，且服务端源码里只能有这一个写方法处理器（守卫测试静态断言）。这条边界是用户拍板
-  从「完全不写」收窄的（2026-09-22），要再开一个口子之前请先与用户确认。
+  JSON 强制预检、预检必然失败，于是跨站页面不能借此改动索引或拉起应用。服务端只定义一个
+  `do_POST` 写方法处理器，路由白名单只有这两条，其余写方法与路由一律拒绝；`/api/open` 只把
+  `resolve()` 后仍在仓库内的路径作为单个 argv 参数传给平台打开器，不经过 shell。开新的写路由前
+  仍需先与用户确认。
 
 - **常驻是刻意的，回收是必须的。** 查看器进程常驻本机换取「第二次打开是秒开」，因此
   它必须同时具备自动回收（默认 30 分钟无任何 HTTP 请求即退出）与显式回收
@@ -138,8 +140,8 @@ gh api repos/<owner>/<repo>/check-runs/<job-id>/annotations --jq '.[].message'
 - **实例登记按 worktree 独立。** 登记文件是仓库根的 `.env.view-state`，与 Run Port State
   的 `.env.run-state` 同构：被 `.gitignore` 的 `.env*` 规则覆盖、不进版本库。端口实际值
   只写在登记文件里，不在文档中硬编码。
-- **结束实例走进程信号，不走 HTTP。** 服务端唯一的写口是给用户的**暂存**动作，不是运维通道：
-  只绑回环、除 `POST /api/stage` 外不注册任何写路由。今天为了「结束服务」借那个口，明天就会有
+- **结束实例走进程信号，不走 HTTP。** `POST /api/stage` 与 `POST /api/open` 都是给用户的操作，
+  不是运维通道：只绑回环，除这两条路由外不注册任何写路由。今天为了「结束服务」借用户操作口，明天就会有
   人顺手加「保存文件」。
 - **性能承诺只覆盖进程侧。** 复用命中路径有 150ms 预算，这也是 `just view` / `just diff`
   刻意写成普通单行 recipe 而不是 `#!/usr/bin/env bash` shebang 的原因：`just` 执行
