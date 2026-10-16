@@ -1,0 +1,216 @@
+{
+  "files": {
+    "tests/backend/test_admin_run_trace_api.py": {
+      "avg": 1.7033,
+      "entries": 3.0,
+      "seconds": 5.11
+    },
+    "tests/backend/test_admin_user_management.py": {
+      "avg": 1.6767,
+      "entries": 12.0,
+      "seconds": 20.12
+    },
+    "tests/backend/test_auth_domains.py": {
+      "avg": 0.7919,
+      "entries": 21.0,
+      "seconds": 16.63
+    },
+    "tests/backend/test_bcrypt_password_hasher.py": {
+      "avg": 0.5671,
+      "entries": 7.0,
+      "seconds": 3.97
+    },
+    "tests/backend/test_cloud_sandbox_e2b.py": {
+      "avg": 0.0344,
+      "entries": 9.0,
+      "seconds": 0.31
+    },
+    "tests/backend/test_redis_session_store.py": {
+      "avg": 1.325,
+      "entries": 4.0,
+      "seconds": 5.3
+    },
+    "tests/guards/shared/test_archive_tasks.py": {
+      "avg": 0.1033,
+      "entries": 3.0,
+      "seconds": 0.31
+    },
+    "tests/guards/shared/test_check_max_file_lines.py": {
+      "avg": 0.112,
+      "entries": 10.0,
+      "seconds": 1.12
+    },
+    "tests/guards/shared/test_check_prd_acceptance_checklist.py": {
+      "avg": 0.0825,
+      "entries": 4.0,
+      "seconds": 0.33
+    },
+    "tests/guards/shared/test_check_prd_evidence.py": {
+      "avg": 0.072,
+      "entries": 5.0,
+      "seconds": 0.36
+    },
+    "tests/guards/shared/test_check_schema_conventions.py": {
+      "avg": 0.0825,
+      "entries": 4.0,
+      "seconds": 0.33
+    },
+    "tests/guards/shared/test_duplication_check_utils.py": {
+      "avg": 0.1283,
+      "entries": 6.0,
+      "seconds": 0.77
+    },
+    "tests/guards/shared/test_open_worktree.py": {
+      "avg": 0.4912,
+      "entries": 8.0,
+      "seconds": 3.93
+    },
+    "tests/guards/shared/test_prd_impact_tree.py": {
+      "avg": 0.5353,
+      "entries": 15.0,
+      "seconds": 8.03
+    },
+    "tests/guards/shared/test_prd_lock.py": {
+      "avg": 1.0663,
+      "entries": 16.0,
+      "seconds": 17.06
+    },
+    "tests/guards/shared/test_prd_review.py": {
+      "avg": 0.1267,
+      "entries": 6.0,
+      "seconds": 0.76
+    },
+    "tests/guards/shared/test_prd_status.py": {
+      "avg": 0.445,
+      "entries": 28.0,
+      "seconds": 12.46
+    },
+    "tests/guards/shared/test_prd_status_acceptance.py": {
+      "avg": 0.4388,
+      "entries": 25.0,
+      "seconds": 10.97
+    },
+    "tests/guards/shared/test_prune_worktree_branches.py": {
+      "avg": 2.95,
+      "entries": 7.0,
+      "seconds": 20.65
+    },
+    "tests/guards/shared/test_quality_flag_hooks.py": {
+      "avg": 0.594,
+      "entries": 5.0,
+      "seconds": 2.97
+    },
+    "tests/guards/shared/test_setup_copied_database.py": {
+      "avg": 0.01,
+      "entries": 1.0,
+      "seconds": 0.01
+    },
+    "tests/guards/shared/test_sync_template.py": {
+      "avg": 0.861,
+      "entries": 21.0,
+      "seconds": 18.08
+    },
+    "tests/guards/shared/test_test_tiers.py": {
+      "avg": 0.0233,
+      "entries": 15.0,
+      "seconds": 0.35
+    },
+    "tests/guards/shared/test_view_launch_entry.py": {
+      "avg": 0.01,
+      "entries": 1.0,
+      "seconds": 0.01
+    },
+    "tests/guards/shared/test_view_server.py": {
+      "avg": 0.489,
+      "entries": 130.0,
+      "seconds": 63.57
+    },
+    "tests/guards/shared/test_whats_new_manifest.py": {
+      "avg": 0.01,
+      "entries": 1.0,
+      "seconds": 0.01
+    },
+    "tests/guards/shared/test_with_timeout.py": {
+      "avg": 2.0933,
+      "entries": 3.0,
+      "seconds": 6.28
+    },
+    "tests/guards/test_alembic_logging_isolation.py": {
+      "avg": 0.0433,
+      "entries": 3.0,
+      "seconds": 0.13
+    },
+    "tests/guards/test_compose_parity.py": {
+      "avg": 0.03,
+      "entries": 4.0,
+      "seconds": 0.12
+    },
+    "tests/guards/test_database_connection_pool.py": {
+      "avg": 0.02,
+      "entries": 1.0,
+      "seconds": 0.02
+    },
+    "tests/guards/test_deployment_stack.py": {
+      "avg": 0.01,
+      "entries": 4.0,
+      "seconds": 0.04
+    },
+    "tests/guards/test_local_core_tier_budget.py": {
+      "avg": 0.04,
+      "entries": 1.0,
+      "seconds": 0.04
+    },
+    "tests/guards/test_migrations.py": {
+      "avg": 0.07,
+      "entries": 2.0,
+      "seconds": 0.14
+    },
+    "tests/guards/test_openapi_schema.py": {
+      "avg": 0.7075,
+      "entries": 4.0,
+      "seconds": 2.83
+    },
+    "tests/guards/test_prd_skill_checker.py": {
+      "avg": 0.0383,
+      "entries": 6.0,
+      "seconds": 0.23
+    },
+    "tests/guards/test_runtime_dependency_declaration.py": {
+      "avg": 0.5025,
+      "entries": 4.0,
+      "seconds": 2.01
+    },
+    "tests/guards/test_runtime_port_state.py": {
+      "avg": 0.655,
+      "entries": 2.0,
+      "seconds": 1.31
+    },
+    "tests/infrastructure/test_filesystem_sandbox_provider.py": {
+      "avg": 0.01,
+      "entries": 1.0,
+      "seconds": 0.01
+    },
+    "tests/infrastructure/test_sandbox_egress_policy.py": {
+      "avg": 0.01,
+      "entries": 1.0,
+      "seconds": 0.01
+    },
+    "tests/test_health.py": {
+      "avg": 0.48,
+      "entries": 1.0,
+      "seconds": 0.48
+    },
+    "tests/test_metrics.py": {
+      "avg": 0.01,
+      "entries": 2.0,
+      "seconds": 0.02
+    },
+    "tests/test_zata_writer_gzh_build.py": {
+      "avg": 0.1648,
+      "entries": 27.0,
+      "seconds": 4.45
+    }
+  },
+  "generated_at": "2026-10-16T03:09:00+00:00",
+  "head": "de416980cda0d02b8028586bea0776501108d6e0"
+}

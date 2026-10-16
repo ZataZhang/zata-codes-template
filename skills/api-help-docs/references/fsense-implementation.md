@@ -32,7 +32,7 @@ docs/help/api/*.md ─────────────┘          只校验
 - **slug 与文件名无关**：`submit-runs.md` 的 slug 是 `api/upload`，网址和 `.md` 直链都取自 slug。
 - **nginx 回落**：`location / { try_files $uri $uri/ /index.html; }` 会让缺失的静态文件返回 200 HTML。给 `.md`、`llms*.txt` 单独写 `location` 并 `try_files $uri =404`。
 - **charset**：nginx 的 `charset utf-8` 默认不覆盖 `text/markdown`，需 `charset_types text/markdown;`，否则中文可能乱码。
-- **构建上下文**：`docker-compose*.yml` 里 `admin-frontend` 的 `context: ./admin-frontend` 读不到仓库根的 `docs/help`；插件和加载器读同一目录，行为一致，但可能产出空文章集。插件在空集时只 warn 并跳过。
+- **构建上下文**：`docker-compose*.yml` 里 `admin-frontend` 的 `context: ./admin-frontend` 读不到仓库根的 `docs/help`；插件和加载器读同一目录，上下文缺文章时会产出空文章集。已修复：compose 上下文改为仓库根，`admin-frontend/Dockerfile` 里 `COPY docs/help /docs/help`，并用 `admin-frontend/Dockerfile.dockerignore` 覆盖根 `.dockerignore` 对 `docs` 的排除；插件在空集时改为 `this.error` 使构建失败。`vite-plugins/` 下还跟踪着编译出的 `help-static.js`，需与 `.ts` 同步修改。
 - **响应模型**：Partner API 原先响应只是 `object`。补模型时，动态附加字段（如 `include_bbox` 的 `bbox`、`page_number`）用 `extra="allow"` 并声明为可选，避免被 `response_model` 过滤。
 - **集成测试**：fsense 的 Partner 集成测试被标记为 `slow`，会涉及真实数据库，默认被排除。不要为验证响应模型强行运行。
 

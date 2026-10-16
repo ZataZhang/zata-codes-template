@@ -1,9 +1,9 @@
 # PRD: 回迁下游已验证的本地测试分层与共享库守卫到模板
 
-> ⛔ **交付前置**：依赖 `ai-assistant-observation-window`（下游 ai-assistant 的 10 天观察窗口，2026-10-04 → 2026-10-14），到期确认有效后再开工。顺序重要：这套机制的价值前提是「下游连续 10 天证明它真的加速且不误伤」，未等观察结果就回迁，等于把尚未证伪的机制固化成全模板基础设施。
+> ✅ **交付前置已解除（2026-10-16）**：下游 ai-assistant 的 10 天观察窗口（2026-10-04 → 2026-10-14）已到期，观察记录见 `tasks/evidence/P2-PERF-20261004-235405-backport-local-test-tier-and-shared-db-guard/rv-1-observation.md`。三项判据里「棘轮无持续误报」「守卫无假阳性/假阴性迹象」未发现反例；「本地核心档耗时稳定」没有可核的观察记录，由维护者于 2026-10-16 明确指示按下游方式回迁（见 §13 D-04）。
 > 结构化声明见 §8 Delivery Dependencies，**那里是唯一事实源**。
 
-> ⬜ **验收状态**：未开工。
+> 🧍 **验收状态**：待人工验收。执行侧已交付、独立 verifier `PASS`；`Human-Confirmed` 四项留给人勾选。
 > 本行是 §9 Acceptance Checklist 的投影，**那里是唯一事实源**。
 
 > 本 PRD 分为 Part A 人审层和 Part B 执行器层。Part A 用于确认目标行为和关键取舍；Part B 记录实现路径与验证证据。
@@ -149,6 +149,15 @@
 - `tests/conftest.py` 无任何共享库守卫相关标识；无 `tests/core_set.txt`、`test-budget.json`、`.test_durations.json`。
 - 所有权边界（权威来自 `scripts/shared/template/sync_template.sh` 的 `_is_upstream_owned`）：`justfile.shared`、`scripts/shared/*`、`scripts/build/*`、`hooks/shared/*`、`tests/guards/shared/*`、`.pre-commit-config.yaml` 等为上游所有；`tests/`、`docs/`、`src/backend/`、`frontend-*` 等为项目自有。当前 `scripts/dev/*` **不在**上游清单内。
 
+**开工前复核（2026-10-16，对照上文「目标」现状）**：
+
+- 模板套件**远小于**下游：本机收集 685 条，CI 收集 692 条、PostgreSQL 23.9s / MySQL 29.5s；本机全量实测 40–80s（同一天内随机器状态波动近一倍）。所以 §1 的「分钟级 → 几十秒」对模板自身只是「本机 40–80s → 十几秒」，机制的主要价值在派生项目；模板的核心档名单、预算上限都按模板自己的实测重新生成，不抄下游数字。
+- `scripts/dev/*` 不在上游清单内（本文原判断成立），所以脚本落在 `scripts/shared/testing/`（`scripts/shared/*` 已被 `_is_upstream_owned` 覆盖，无需改 `sync_template.sh`）；`scripts/dev/measure_just_test.py` 与下游逐字相同，保持不动。
+- 守卫的「库内活跃运行」钩子沿用下游已有的函数名 `find_live_nonterminal_runs`（定义在项目的 `tests/realdb_test_support.py`），下游改接共享版本时无需改名；模板的 `realdb_test_support.py` 不定义它。
+- 下游 `test-changed` recipe 里有一条在 macOS 自带 bash 3.2 下报 `bad substitution` 的判空写法（`${#arr[@]+x}`），模板版删除该冗余判空，并另报下游。
+- 模板 CI 只有「非 slow 全量」一档，没有下游的 slow 档步骤；模板 CI 的全量步骤是 PostgreSQL / MySQL 两个 matrix job，棘轮在两个 job 里各跑一次、共用一份上限。
+- `just worktree` 与 `just copy` 写入的 `.env.run-state` 仍无 `DATABASE_NAME`：它们属于「旧格式」，守卫保守拦截，仅在端口恰好有监听者时才生效，首次 `just run` 会补全字段，不再改这两处。
+
 **要遵循的既有模式**：
 
 - 共享基础设施放上游清单路径（`scripts/shared/*` 或显式加入 `_is_upstream_owned`），项目专属放项目自有路径。
@@ -206,17 +215,23 @@
 
 ```
 模板仓
-├── scripts/shared/ (上游共享)                     # 新增/迁移共享测试分层脚本
-│   └── <test-tier scripts>                        #   ← 源自 ai-assistant scripts/dev/test_tiers.py 等
-├── justfile (项目根)                              # 新增 recipe：test-changed / test-core-refresh /
-│                                                   #   test-budget / test-debt / test-tier-report
-│                                                   #   + export JUST_LOCAL_TEST_FLAGS 默认值
-├── justfile.shared (上游共享)                      # 复用既有 JUST_LOCAL_TEST_FLAGS 扩展点（预计不改调用约定）
-├── tests/conftest.py (项目自有)                    # 新增 --core-tier 支持 + 共享库守卫（通用化拆分）
-├── tests/core_set.txt / test-budget.json /         # 按模板自身实测生成的三个数据文件
-│   .test_durations.json
-├── scripts/dev/measure_just_test.py               # 已存在；联动 bench-test
-└── docs/ai-standards/testing.md                   # 更新「测试分层与本地 30 秒预算」「与 dev server 共用数据库」
+├── scripts/shared/testing/ (上游共享)              # 新增
+│   ├── test_tiers.py                              #   核心档名单刷新 / 改动选择 / 报告（源自下游 scripts/dev/test_tiers.py）
+│   ├── check_test_budget.py                       #   全量档成本棘轮
+│   └── test_debt_report.py                        #   瘦身证据
+├── justfile (项目根)                              # export JUST_LOCAL_TEST_FLAGS 默认值 + recipe：test-core-refresh /
+│                                                   #   test-changed / test-tier-report / test-budget / test-debt；
+│                                                   #   run recipe 的 save_run_ports 写入 DATABASE_NAME
+├── justfile.shared (上游共享)                      # 不改（沿用既有 JUST_LOCAL_TEST_FLAGS 扩展点）
+├── tests/conftest.py (项目自有)                    # --core-tier + 工作区测试计划 + 共享库守卫（通用部分 + 可选活跃运行钩子）
+├── tests/core_set.txt / .test_durations.json /     # 按模板自身实测生成的三个数据文件
+│   test-budget.json
+├── tests/guards/shared/ (上游共享)                 # test_test_tiers.py、test_check_test_budget.py
+├── tests/guards/                                  # test_local_core_tier_budget.py、test_shared_database_guard.py（新增）；
+│                                                   #   test_runtime_port_state.py（追加 DATABASE_NAME 契约）、README.md
+├── pytest.ini / .gitignore                        # core marker；.test-budget-junit.xml
+├── .github/workflows/ci.yml                       # 全量步骤产出 junit + 末尾的棘轮步骤
+└── docs/ai-standards/testing.md、tooling.md       # 测试分层、棘轮、共用数据库、命令表
 ```
 
 受影响的派生项目：通过 `just sync-template` 获得 `scripts/shared/*` 与 `justfile.shared` 的变更；`tests/conftest.py`、根 `justfile`、数据文件为项目自有，需项目自行合并（模板文档需说明）。
@@ -369,7 +384,7 @@ flowchart TD
 - Depends on tasks/issues:
   - ai-assistant-observation-window
 - Gate type: hard
-- Notes: 时间门禁。`ai-assistant-observation-window` 定义：从 2026-10-04 起观察下游 `ai-assistant` 的「本地核心档 + 成本棘轮 + 共享库守卫」连续 10 天（至 2026-10-14），到期由人工核对 §2 决策三 的三项判据后决定是否开工；未到期或判据不成立则本 PRD 保持 `⬜ 未开工`。参考实现位于下游仓（提交 `7772cf6`/`9239c88`/`f914445`/`edd673f`/`fde1d54` 及 PR #60）。不涉及工具专属标记。
+- Notes: 时间门禁。`ai-assistant-observation-window` 定义：从 2026-10-04 起观察下游 `ai-assistant` 的「本地核心档 + 成本棘轮 + 共享库守卫」连续 10 天（至 2026-10-14），到期由人工核对 §2 决策三 的三项判据后决定是否开工；未到期或判据不成立则本 PRD 保持 `⬜ 未开工`。**2026-10-16 门禁已解除**：窗口已到期，观察结论见 `rv-1-observation.md`，维护者明确指示回迁。参考实现位于下游仓（提交 `7772cf6`/`9239c88`/`f914445`/`edd673f`/`fde1d54` 及 PR #60）。不涉及工具专属标记。
 
 ## 9. Acceptance Checklist
 
@@ -385,43 +400,43 @@ flowchart TD
 
 按 §7 风险登记排序：先人工确认与 R2，再 R1/R0。
 
-- [ ] rv-1（人工/R2）观察结论已记录，且与本 PRD 是否开工的判定一致 — 证据：`rv-1-observation.md`
-- [ ] rv-4（R2）成本棘轮在正常样本通过、超限样本失败 — 证据：`rv-4-*.txt`
-- [ ] rv-5（R2）库名不同放行 — 证据：`rv-5-*.txt`
-- [ ] rv-6（R2）同库/旧格式拦截且负控成立 — 证据：`rv-6-*.txt`
-- [ ] rv-2（R1）冷树默认本地测试 ≤ 预算且含改动相关测试 — 证据：`rv-2-*.txt`
-- [ ] rv-3（R1）定向补跑选中相关测试 — 证据：`rv-3-*.txt`
+- [x] rv-1（人工/R2）观察结论已记录，且与本 PRD 是否开工的判定一致 — 证据：`rv-1-observation.md`（第一项本地耗时无观察记录，已披露；维护者 2026-10-16 指示回迁）
+- [x] rv-4（R2）成本棘轮在正常样本通过、超限样本失败 — 证据：`rv-4-budget.txt`
+- [x] rv-5（R2）库名不同放行 — 证据：`rv-5-6-guard.txt`
+- [x] rv-6（R2）同库/旧格式拦截且负控成立 — 证据：`rv-5-6-guard.txt`
+- [x] rv-2（R1）冷树默认本地测试 ≤ 预算且含改动相关测试 — 证据：`rv-2-3-core-tier.txt`（快照仓库降级，已披露）
+- [x] rv-3（R1）定向补跑选中相关测试 — 证据：`rv-2-3-core-tier.txt`
 
 #### Architecture Acceptance
 
-- [ ] 共享测试分层脚本落在随 sync 分发的上游路径（`rg -n "_is_upstream_owned" scripts/shared/template/sync_template.sh` 复核清单包含该路径）— 证据：静态断言输出
-- [ ] 守卫采用「通用部分 + 项目提供活跃运行探测」拆分，模板内不含下游业务专属判定（`rg -n "_guard_shared_database_external_writer" tests/` 检查无业务耦合）— 证据：代码审阅记录
+- [x] 共享测试分层脚本落在随 sync 分发的上游路径（`rg -n "_is_upstream_owned" scripts/shared/template/sync_template.sh` 复核清单包含该路径）— 证据：`static-assertions.txt`
+- [x] 守卫采用「通用部分 + 项目提供活跃运行探测」拆分，模板内不含下游业务专属判定（`rg -n "_guard_shared_database_external_writer" tests/` 检查无业务耦合）— 证据：`static-assertions.txt`、verifier report
 
 #### Dependency Acceptance
 
-- [ ] §8 的时间门禁在开工前已到期（`date +%Y-%m-%d` >= 2026-10-14），且 §2 决策三三项判据成立 — 证据：`rv-1-observation.md`
+- [x] §8 的时间门禁在开工前已到期（`date +%Y-%m-%d` >= 2026-10-14），且 §2 决策三三项判据无反例（第一项无记录可核，已披露并由维护者指示放行）— 证据：`rv-1-observation.md`
 
 #### Behavior Acceptance
 
-- [ ] 默认本地测试只跑核心档相关子集，墙钟在预算内（rv-2）
-- [ ] 定向补跑不受核心档预算限制（rv-3）
-- [ ] 成本棘轮条数任何环境强制、墙钟 CI 强制（rv-4）
-- [ ] 守卫按库名区分放行/拦截，旧格式保守（rv-5、rv-6）
+- [x] 默认本地测试只跑核心档相关子集，墙钟在预算内（rv-2）
+- [x] 定向补跑不受核心档预算限制（rv-3）
+- [x] 成本棘轮条数任何环境强制、墙钟 CI 强制（rv-4）
+- [x] 守卫按库名区分放行/拦截，旧格式保守（rv-5、rv-6）
 
 #### Documentation Acceptance
 
-- [ ] `docs/ai-standards/testing.md` 的「测试分层与本地 30 秒预算」「与 dev server 共用数据库」章节与实现一致 — 证据：`rg` 断言 + 审阅
+- [x] `docs/ai-standards/testing.md` 的「测试分层与本地 30 秒预算」「与 dev server 共用数据库」章节与实现一致 — 证据：`static-assertions.txt`
 
 #### Validation Acceptance
 
-- [ ] 至少一条最高保真入口验证：在模板仓真实 worktree 中执行默认本地测试并断言墙钟与选中集合（rv-2，真实 CLI 入口）
-- [ ] 至少一条守卫的真实入口验证：构造真实本地监听 + run-state 后触达守卫（rv-5/rv-6）
+- [x] 至少一条最高保真入口验证：在模板仓真实 worktree 中执行默认本地测试并断言墙钟与选中集合（rv-2，真实 CLI 入口）
+- [x] 至少一条守卫的真实入口验证：构造真实本地监听 + run-state 后触达守卫（rv-5/rv-6）
 
 #### Delivery Readiness
 
-- [ ] 独立 verifier 给出 `PASS` — runner-owned gate: independent verifier
-- [ ] 交付时（若走 PR）PR 证据评论携带 §9.1 呈递物；否则完成消息原样携带 §9.1 内容 — 证据：PR 链接或完成消息摘录
-- [ ] 交付记录路径（PRD 文件与证据目录）不计入代码 diff；RV 脚本一律在证据目录 `scripts/` 下，未进入代码改动 — 证据：`git diff --name-only` 审阅
+- [x] 独立 verifier 给出 `PASS` — runner-owned gate: independent verifier — 证据：`<prd-stem>.verifier-report.md`
+- [x] 交付时（若走 PR）PR 证据评论携带 §9.1 呈递物；否则完成消息原样携带 §9.1 内容 — 证据：完成消息摘录（本次未走 PR）
+- [x] 交付记录路径（PRD 文件与证据目录）不计入代码 diff；RV 脚本一律在证据目录 `scripts/` 下，未进入代码改动 — 证据：`git status` 审阅（PRD 与证据目录之外无 RV 脚本）
 
 ### Human-Confirmed (来自 Part A 风险地图)
 
@@ -468,11 +483,33 @@ flowchart TD
 | D-03 | 默认本地测试语义 | 「核心档 ∪ 改动相关」子集 | 继续全量 / 仅按 slow 标记跳过 | 全量在规模增长后不可负担；仅跳 slow 无法覆盖「改动相关性」 |
 | D-04 | 开工门禁 | 10 天时间门禁（到 2026-10-14 人工判定） | 立即可开工 / 永久搁置 | 机制价值依赖真实使用时间的证明；过早固化风险高 |
 
+### 开工时追加的决策
+
+| ID | 决策问题 | 选择 | 被拒替代方案 | 理由 |
+|---|---|---|---|---|
+| D-05 | 共享脚本放哪里 | `scripts/shared/testing/`，文件名与下游一致 | 放 `scripts/dev/` 并扩 `_is_upstream_owned` | `scripts/shared/*` 已在分发清单内，不改 sync 判定；文件名一致让下游改接时是纯删除本地副本 |
+| D-06 | 模板自己的预算上限 | `test-budget.json` 按模板 CI 实测校准：条数 850、墙钟 75s，两个 matrix job 共用 | 抄下游的 1550 / 180s | 下游数字对 1/2 规模的模板毫无约束力，棘轮就失效了 |
+| D-07 | 守卫「库内活跃运行」钩子如何外置 | 项目在 `tests/realdb_test_support.py` 可选定义 `find_live_nonterminal_runs()`，缺省关闭该信号 | 配置项 / 注册表 | 零新抽象；与下游函数名一致 |
+
 ### Final Reconciliation
 
-待交付前填写：实现完成后对照最终实现与证据，修正 §1 解读、§5 现状、FR、Risks、Decision Log 与 `Feature Overview` 的投影一致性，并校准验收状态横幅。
+交付后对照（2026-10-16）：
+
+- §1 解读：行为样例全部由 rv-2 到 rv-6 覆盖；唯一偏差是 rv-2 用「干净快照仓库」代替 `just worktree`（实现未提交），已在证据报告披露。「改一行后 ≤30 秒」实测 13.9s（含 lint 前置）。
+- §5 现状：已按「开工前复核」更新——模板套件很小（CI 约半分钟），机制价值主要在派生项目；脚本落点 `scripts/shared/testing/`（D-05）。
+- FR-1 到 FR-11 全部落地；FR-10 的钩子函数名为 `find_live_nonterminal_runs`（D-07）。FR-5 的上限按模板实测重新校准（D-06），不是下游数字。
+- Risks：新增一条——`test-budget.json` 的 `baseline.tests = 745` 是估算，首次模板 CI 运行后需复核；下游 `test-changed` 的 bash 3.2 缺陷需另报下游。
+- 验收状态横幅：`Human-Confirmed` 四项仍为空框，故为 `🧍 待人工验收`。
 
 ## Change Log
+
+### 交付：本地核心档、成本棘轮与共享库守卫回迁模板（2026-10-16）
+- Type: delivery
+- Before: 模板没有核心档、棘轮与库名判据守卫；PRD 处于 10 天观察门禁
+- After: 门禁解除后按下游方式落地：`scripts/shared/testing/*`、`tests/conftest.py`、根 `justfile`、CI 棘轮步骤、四个守卫测试、三个数据文件、`testing.md` / `tooling.md`；独立 verifier `PASS`
+- Reason: 维护者 2026-10-16 明确指示回迁；观察结论见 rv-1
+- Impact: 本机 `just test` 默认跑核心档；CI 增加成本棘轮；派生项目 sync 后获得脚本与文档，项目自有部分需按模板对照合并
+- Review: 待人工验收（§2 决策一/二/三、§9.1）；决策三请重点看「本地耗时无观察记录」
 
 ### 创建 PRD（10 天观察门禁）
 - Type: scope

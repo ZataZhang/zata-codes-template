@@ -8,6 +8,14 @@
 
 set allow-duplicate-recipes
 
+# `just test`（local 档）附加的 pytest 参数：`--core-tier` 只跑 tests/core_set.txt
+# 名单 ∪ 改动与映射到的测试 ∪ core 标记，并收窄并行度。必须在 justfile 根部 export：
+# 来自 import 的 justfile.shared 读不到 .env，而 root 的 export 可以穿透到被导入 recipe。
+# 移出本地档 ≠ 关掉不测：交付前跑 `just test all`，CI 每次都跑全量。名单腐烂没有自动
+# 告警，发现 `just test` 超 30s 时执行 `just test-core-refresh` 重算。规则正文见
+# docs/ai-standards/testing.md 的「本地核心档」。
+export JUST_LOCAL_TEST_FLAGS := "--no-header -p no:cacheprovider --core-tier -n4"
+
 import 'justfile.shared'
 
 # Default recipe (runs when you type `just`)
@@ -150,12 +158,27 @@ run arg1="" arg2="" arg3="" arg4="" arg5="" arg6="" arg7="" arg8="" arg9="": _ch
         frontend_public_port="${frontend_public_port:-${FRONTEND_PUBLIC_PORT:-3000}}"
     }
 
+    # 记录「本仓库 .env.local 指向的数据库名」，供 tests/conftest.py 的外部写者
+    # 守卫判断端口监听者是否真的在用同一个库——避免 worktree 与主仓端口撞车时
+    # 把别处进程的监听误判成「共用本库的 dev server」。见
+    # docs/ai-standards/testing.md 的「与 dev server 共用数据库」。
+    resolve_run_database_name() {
+        local run_database_line=""
+        if [ -f .env.local ]; then
+            run_database_line="$(grep -E '^(export[[:space:]]+)?DATABASE_URL=' .env.local | head -1 || true)"
+        fi
+        local run_database_url="${run_database_line#*=}"
+        run_database_url="${run_database_url##*/}"
+        printf '%s' "${run_database_url%%\?*}"
+    }
+
     save_run_ports() {
         mkdir -p "$(dirname "$run_state_file")"
         {
             printf 'BACKEND_PORT=%s\n' "$backend_port"
             printf 'FRONTEND_ADMIN_PORT=%s\n' "$frontend_admin_port"
             printf 'FRONTEND_PUBLIC_PORT=%s\n' "$frontend_public_port"
+            printf 'DATABASE_NAME=%s\n' "$(resolve_run_database_name)"
         } > "$run_state_file"
     }
 
@@ -981,3 +1004,84 @@ e2e-evidence prd_file rv_id="":
 #   just bench-test --budget 25
 bench-test *args:
     cd "{{justfile_directory()}}" && uv run python scripts/dev/measure_just_test.py {{args}}
+
+
+# ── 测试分层：名单维护与预算门禁 ──────────────────────────────────────────────
+
+# 按实测耗时重算本地核心档名单（tests/core_set.txt）与耗时基线
+# （.test_durations.json）。会跑一次全量本地档（模板约 1～2 分钟）。
+# 用例变慢、名单超预算、或新增文件想让本地档看到时执行；生成物需一并提交。
+# --budget / --avg-cap 只管这一次刷新（名单头部会记下实际用的值）；守卫仍按
+# test_tiers.py 里的默认值判，所以它们只能收紧，放宽出来的名单会被守卫判红。
+# 要永久改预算，改 DEFAULT_SERIAL_BUDGET_SECONDS。
+# 钉住（pytest.mark.core）的文件先占预算；它们合计超出预算时刷新报错且不写盘，耗时报告
+# 留在报错里给出的临时路径上，撤掉标记后可直接用它重算，不必再跑一遍全量。
+# Usage:
+#   just test-core-refresh
+#   just test-core-refresh --dry-run          # 只看会怎么变，不写盘
+#   just test-core-refresh --budget 12        # 本次收紧串行预算（秒），默认 16
+test-core-refresh *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{justfile_directory()}}"
+    report_file="$(mktemp)"
+    echo "🔍 采集全量本地档耗时（tests/，不含 slow/real_api/redis）..."
+    uv run pytest tests/ -q --no-header -p no:cacheprovider --durations=0 \
+        | tee "$report_file"
+    uv run python scripts/shared/testing/test_tiers.py refresh \
+        --durations-output "$report_file" {{args}}
+    rm -f "$report_file"
+
+# 只跑与当前工作区变更相关的测试：src/backend/<layer> 的改动按层映射到 tests/<layer>
+# 并做名词根匹配，改动的测试文件本身直接入选，且**不设预算**。用于验掉 `just test`
+# 结尾点名的、超出补跑预算没跑的相关文件，或核心档覆盖不到的定点回归；它不写
+# just test 标记，提交前仍需 `just test`。
+# Usage:
+#   just test-changed
+test-changed:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{justfile_directory()}}"
+    selected_output="$(uv run python scripts/shared/testing/test_tiers.py changed --fallback-core)"
+    if [ -z "$selected_output" ]; then
+        echo "没有映射到相关测试，改跑 just test 或 just test all。"
+        exit 0
+    fi
+    # 上面已排除空输出，这里数组必然非空；不要再写 `${#arr[@]+x}` 之类的判空——
+    # macOS 自带 bash 3.2 对它报 bad substitution。
+    read -r -a selected_paths <<< "$selected_output"
+    echo "🔍 变更相关测试：${#selected_paths[@]} 个路径"
+    uv run pytest "${selected_paths[@]}" -q --no-header -p no:cacheprovider
+
+# 打印最慢测试文件与本地档成员，辅助「哪些用例该退出本地档」的判断。
+# Usage:
+#   just test-tier-report
+#   just test-tier-report 40
+test-tier-report top="15":
+    cd "{{justfile_directory()}}" && uv run python scripts/shared/testing/test_tiers.py report --top {{top}}
+
+# 检查全量测试档成本是否超过 test-budget.json 的上限（棘轮）。本机只强制条数上限：
+# 墙钟上限按 CI 口径校准，本机同一条命令更慢且随机器状态波动，数字不可互比，所以墙钟在这里
+# 只报告，CI 的步骤才带 `--enforce-seconds` 强制它。
+# Usage:
+#   just test-budget                      # 跑全量档（模板约 1～2 分钟）生成 junit 并检查
+#   just test-budget .test-budget-junit.xml   # 只检查已有 junit
+test-budget junit="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{justfile_directory()}}"
+    junit_path="{{junit}}"
+    if [ -z "$junit_path" ]; then
+        junit_path=".test-budget-junit.xml"
+        echo "🔍 跑全量档生成 junit（tests/，不含 slow/real_api/redis）..."
+        uv run pytest tests/ -q --no-header -p no:cacheprovider --junit-xml="$junit_path"
+    fi
+    uv run python scripts/shared/testing/check_test_budget.py --junit-xml "$junit_path"
+
+# 测试瘦身证据：tests/ 内部的重复用例块 + 最贵重复文件 + 最慢文件榜。
+# 只出证据不改代码——删或合并用例等于削弱安全网，需要逐条人审。
+# Usage:
+#   just test-debt
+#   just test-debt 25
+test-debt top="12":
+    cd "{{justfile_directory()}}" && uv run python scripts/shared/testing/test_debt_report.py --top {{top}}

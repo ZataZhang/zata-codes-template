@@ -94,9 +94,8 @@ export function helpStaticPlugin(): Plugin {
       const helpDirectoryPath = path.resolve(config.root, "../../docs/help");
       const articleList = readHelpStaticArticleList(helpDirectoryPath);
       if (articleList.length === 0) {
-        // 与帮助中心加载器保持一致：没有文章源时不发布空索引。
-        this.warn(`未在 ${helpDirectoryPath} 找到帮助文章，跳过 llms.txt 与 Markdown 发布。`);
-        return;
+        // 空集意味着构建上下文缺少 docs/help（如 Docker 上下文不含仓库根），静默跳过会上线空帮助中心。
+        this.error(`未在 ${helpDirectoryPath} 找到帮助文章，终止构建以免发布空的帮助中心。`);
       }
       const outputDirectoryPath = options.dir || path.resolve(config.root, "dist");
       for (const article of articleList) {

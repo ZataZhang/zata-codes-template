@@ -1,0 +1,26 @@
+{
+  "_comment": [
+    "全量测试档的成本上限（棘轮）。CI 每次 PR 用 scripts/shared/testing/check_test_budget.py",
+    "把 `pytest tests/ -m \"not slow and not real_api and not redis\"` 的 junit 结果",
+    "与这里比对，超了就红。目的不是省钱，而是让『套件在膨胀』这件事必须被显式承认：",
+    "要么交一个瘦身 PR（合并 parametrize、删掉已失效的守卫、把重复用例收敛掉），",
+    "要么在同一个 PR 里抬高上限并说明它对应哪一项新增的真实能力。",
+    "",
+    "天花板由 `tests`（收集到的用例条数，含 skip）与 `seconds`（整个 pytest 进程的墙钟",
+    "秒数，含 xdist worker 启动等固定开销）两项共同构成：条数管住膨胀速度，秒数管住",
+    "实际等待时间。秒数按 CI 口径校准，只在 CI 强制（check_test_budget.py 的",
+    "`--enforce-seconds`）；本机同一条命令更慢且随机器状态波动，两边数字不可互比，本地只强制条数。",
+    "CI 有 PostgreSQL / MySQL 两个 matrix job，两个 job 共用这一份上限，按较慢的一侧校准。",
+    "抬上限时两项一起改，并在提交信息里写原因。"
+  ],
+  "baseline": {
+    "note": "采样：2026-10-15 main 的 CI 运行 38721195564，pytest 汇总行为 PostgreSQL 23.93s / MySQL 29.48s，689 passed + 3 skipped，共 692 条（本机同口径收集 685 条，CI 多出的是 PostgreSQL / MySQL 矩阵才会收集的用例）。本次回迁新增 53 条分层与守卫测试（本机 junit 738 条 = 685 + 53），所以 tests 基线取 692 + 53 = 745 的估算值，首次 CI 运行后应以其 junit 条数复核。seconds 取较慢的 MySQL 侧并取整；本机全量实测 40–80s（2026-10-16，同一天内随机器状态波动近一倍，不可与 CI 互比）。",
+    "seconds": 30.0,
+    "tests": 745
+  },
+  "ceilings": {
+    "seconds": 75.0,
+    "tests": 850
+  },
+  "headroom_note": "上限按基线留约 14% 的条数余量与 2.5 倍的墙钟余量：模板 CI 的两个 matrix job 墙钟抖动大（同一天 24–30s），墙钟只用来拦『套件突然慢一倍以上』，细粒度的膨胀由条数上限管。接近上限时应先看 `just test-debt` 的证据再决定瘦身还是抬上限。"
+}

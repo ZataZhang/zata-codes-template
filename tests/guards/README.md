@@ -58,6 +58,8 @@ AI 代理默认不会设置该变量，因此会被 hook 拦下——这是"指�
 | `shared/test_check_prd_acceptance_checklist.py` | PRD 验收清单 pre-commit hook（`hooks/shared/check_prd_acceptance_checklist.py`）：归档只代表执行侧交付完成，`Human-Confirmed` 分组内的空框不拦提交、其余空框照旧拦截；分组作用范围（嵌套子标题不脱离、同级或更高级关闭、前缀匹配且大小写不敏感、整行加粗标签、围栏代码块、`[~]`）逐形态钉死；缺清单章节要点名；检查范围只含根目录活跃 PRD 与本次暂存的新入归档（`tasks/pending/` 与未暂存的归档不查） |
 | `shared/prd_checklist_scope_cases.py` | **测试辅助数据，非测试文件**（pytest 不收集）：清单作用域的用例表，上一行的 hook 守卫测试与 `test_prd_skill_checker.py` 共用这一份，保证 hook 与 skill 契约解析按同一张表读 |
 | `shared/test_check_prd_evidence.py` | PRD 证据门禁（`scripts/shared/just/check_prd_evidence.sh`）：证据目录里的静态图必须在证据报告里用 `![](…)` 就地嵌入（`open` 命令不算呈递），失败要点名漏嵌文件；无报告、无图片、录屏均不得误伤 |
+| `shared/test_check_test_budget.py` | 全量档成本棘轮脚本（`scripts/shared/testing/check_test_budget.py`）：条数上限在任何环境强制、墙钟上限只在 `--enforce-seconds` 时强制、恰好等于上限不算超限、缺报告以退出码 2 终止、判定写入 step summary |
+| `shared/test_test_tiers.py` | 本地核心档选集脚本（`scripts/shared/testing/test_tiers.py`）：什么算改动、改动按层映射到哪些测试、补跑预算切分、未计时文件的估算、钉住文件先占预算、refresh 头部记录实际预算 |
 | `shared/test_check_schema_conventions.py` | schema convention hook（`hooks/shared/check_schema_conventions.py`）：迁移脚本命名校验、分隔符与 revision 一致性 |
 | `shared/test_duplication_check_utils.py` | duplication-check 共享 git helper（`hooks/shared/duplication_check_utils.py`） |
 | `shared/test_gc_worktree_databases.py` | Worktree 数据库 GC 脚本（`scripts/shared/worktree/gc_worktree_databases.py`） |
@@ -91,5 +93,7 @@ AI 代理默认不会设置该变量，因此会被 hook 拦下——这是"指�
 | `test_prd_skill_checker.py` | PRD 归档 checker 的证据链约束（缺关键值来源/必经边界/fresh-state probe 必须拒收）与证据受众分流（oracle 必填 `reviewer`，`reviewer: human` 必填 `presentation`）；另守护 **PRD 格式的单一来源**（约定文档 `skills/prd/SKILL.md` 的 Machine Contract §2）：契约版本标记必须等于 `skills/prd/scripts/prd_contract.py` 的实现版本，且 checker 必须复用该共享解析而不得自带第二份实现（「契约写一套、实现各写一套」正是本仓库踩过的漂移）。再守护 **归档只代表执行侧交付完成**：归档门禁只数 `Human-Confirmed` 之外的空框，归档时验收状态横幅必须存在、可识别且与 §9 对得上（`🧍 待人工验收` ⟺ 人属组仍有空框，`✅ 已验收` ⟺ 一个不剩，`⬜ 未开工` 不可归档，旧称 `✅ 可归档` 按已验收读）——横幅一漂，已归档却仍待人确认的 PRD 就会从看板里消失。最后锁住随 sync 分发的 hook（`hooks/shared`）、看板与执行锁共用的读取副本（`scripts/shared/just/prd_acceptance.py`）与契约解析三份实现对横幅 / 清单的读法逐例等价——含"哪些空框是执行侧欠的"、横幅三态与勾选进度计数，并对仓库真实 `tasks/` 语料做差分：它们不能互相 import，等价性只有能同时看到三者的模板内部测试守得住。被测对象是模板内部 skill 产物 |
 | `test_realdb_marker_required.py` | 写真实数据库的测试必须打 `realdb` 标记（`docs/ai-standards/testing.md`） |
 | `test_realdb_xdist_manifest.py` | `_REALDB_TEST_FILES` 清单必须与模块级 realdb 标记一致（`docs/ai-standards/testing.md`） |
+| `test_local_core_tier_budget.py` | 本地测试分层的配置契约：`tests/core_set.txt` 名单不超串行预算且文件不失踪、`justfile` 的 `--core-tier` 接线、conftest 读取工作区测试计划、CI 全量步骤产出 junit 且成本棘轮步骤带 `--enforce-seconds`、`test-budget.json` 上限自洽（`docs/ai-standards/testing.md`「测试分层与本地核心档」） |
+| `test_shared_database_guard.py` | 共享库外部写者守卫的库名判据（真实本地监听 + 真实 run-state）：库名不同放行、同库与旧格式拦截、`ALLOW_SHARED_DATABASE` 逃生口、项目可选的活跃运行探测钩子缺省不崩溃（`docs/ai-standards/testing.md`「与 dev server 共用数据库」） |
 | `test_runtime_dependency_declaration.py` | 模块级 import 必须由依赖声明覆盖：`src/backend/` 对齐裸 `uv sync`（`[project.dependencies]`），`tests/` 对齐 CI 的 `uv sync --all-extras --all-groups --frozen`（含 `[dependency-groups] dev` 与 extras） |
 | `test_runtime_port_state.py` | `.env.run-state` 主机端口单一来源与 Compose 映射 |

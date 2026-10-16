@@ -1,0 +1,80 @@
+# 本地档（`just test`）名单：由 `just test-core-refresh` 依据实测耗时生成。
+# 规则：单条平均 <= 0.5s 的文件按便宜优先取满 16.0s 串行预算；
+# 显式写了 pytest.mark.core 的文件（本次 1 个，占 0.04s）先入选并先占这份预算，
+# 不看均值上限，但合计不能超出预算（超出时刷新报错，不写盘）。
+# 不要手工删改后忘记同步——CI 的全量档始终覆盖 tests/，这里只决定本地循环跑什么。
+# 本文件只是名单：改动过的测试与打了 pytest.mark.core 的模块由 conftest
+# 直接并进本地档，所以新写的用例不需要先跑 refresh 也会被执行。
+# 生成时间：2026-10-16T03:09:00+00:00
+# 串行耗时：14.29s / 文件数：51（含 26 个快到没有计时记录的文件）
+# 因平均耗时过高退出本地档：
+#   tests/backend/test_admin_run_trace_api.py
+#   tests/backend/test_admin_user_management.py
+#   tests/backend/test_auth_domains.py
+#   tests/backend/test_bcrypt_password_hasher.py
+#   tests/backend/test_redis_session_store.py
+#   tests/guards/shared/test_prd_impact_tree.py
+#   tests/guards/shared/test_prd_lock.py
+#   tests/guards/shared/test_prune_worktree_branches.py
+#   tests/guards/shared/test_quality_flag_hooks.py
+#   tests/guards/shared/test_sync_template.py
+#   tests/guards/shared/test_with_timeout.py
+#   tests/guards/test_openapi_schema.py
+#   tests/guards/test_runtime_dependency_declaration.py
+#   tests/guards/test_runtime_port_state.py
+# 因超出串行预算退出本地档：
+#   tests/guards/shared/test_prd_status.py
+#   tests/guards/shared/test_prd_status_acceptance.py
+#   tests/guards/shared/test_view_server.py
+
+tests/backend/test_cloud_sandbox_e2b.py
+tests/backend/test_cloud_sandbox_e2b_live.py
+tests/backend/test_run_event_policy.py
+tests/backend/test_run_otlp_exporter.py
+tests/backend/test_run_trace_export.py
+tests/backend/test_run_trace_projection.py
+tests/backend/test_sandbox_wiring.py
+tests/guards/shared/test_archive_tasks.py
+tests/guards/shared/test_check_max_file_lines.py
+tests/guards/shared/test_check_prd_acceptance_checklist.py
+tests/guards/shared/test_check_prd_evidence.py
+tests/guards/shared/test_check_schema_conventions.py
+tests/guards/shared/test_check_test_budget.py
+tests/guards/shared/test_duplication_check_utils.py
+tests/guards/shared/test_gc_worktree_databases.py
+tests/guards/shared/test_migration_foreign_key_index_drop_order.py
+tests/guards/shared/test_open_worktree.py
+tests/guards/shared/test_prd_review.py
+tests/guards/shared/test_release_script.py
+tests/guards/shared/test_run_jscpd_duplication_check.py
+tests/guards/shared/test_setup_copied_database.py
+tests/guards/shared/test_test_tiers.py
+tests/guards/shared/test_view_launch_entry.py
+tests/guards/shared/test_whats_new_manifest.py
+tests/guards/test_alembic_logging_isolation.py
+tests/guards/test_alembic_migration_naming.py
+tests/guards/test_compose_parity.py
+tests/guards/test_composition_boundaries.py
+tests/guards/test_database_connection_pool.py
+tests/guards/test_deployment_stack.py
+tests/guards/test_dokploy_environment.py
+tests/guards/test_local_core_tier_budget.py
+tests/guards/test_migrations.py
+tests/guards/test_prd_skill_checker.py
+tests/guards/test_realdb_marker_required.py
+tests/guards/test_realdb_xdist_manifest.py
+tests/guards/test_shared_database_guard.py
+tests/infrastructure/test_docker_sandbox_provider.py
+tests/infrastructure/test_filesystem_sandbox_provider.py
+tests/infrastructure/test_sandbox_egress_policy.py
+tests/infrastructure/test_sandbox_rules.py
+tests/infrastructure/test_sandbox_settings.py
+tests/test_bootstrap.py
+tests/test_health.py
+tests/test_logger.py
+tests/test_metrics.py
+tests/test_prd_contract.py
+tests/test_prd_human_review_checklist.py
+tests/test_request_context.py
+tests/test_settings_config.py
+tests/test_zata_writer_gzh_build.py

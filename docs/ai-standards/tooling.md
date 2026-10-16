@@ -41,7 +41,13 @@
 | `just worktree <branch>` | 仅能从 Git primary worktree 创建；自动分配端口、创建专用 PostgreSQL 空库并执行迁移，开发与 E2E 共用该 Worktree 的数据库 |
 | `just worktree -o <worktree-name>` | 打开已有 worktree；名称接受分支全名、分支最后一段、PRD slug、PRD 文件名（可带 `.md`）与 `tasks/pending/....md` 路径，歧义时报错列候选、未命中时列可用 worktree |
 | `just worktree --prune [--dry-run\|--yes\|--force] [--base <branch>]` | 批量删除已并入 base 的本地分支及其 worktree；默认列计划并确认一次，gone 但有独有提交的分支需 `--force` |
-| `just test` | 运行本地测试 |
+| `just test` | 运行本地测试；根 `justfile` 默认带 `--core-tier`，只跑核心档（名单 ∪ 改动与映射到的测试），全量用 `just test all` |
+| `just test all` | 全量测试（`-m ''`，含 slow / real_api / redis） |
+| `just test-changed` | 只跑与当前工作区改动相关的测试（不设预算、不写提交标记）；用于验掉 `just test` 结尾点名没跑的相关文件 |
+| `just test-core-refresh [--dry-run\|--budget <秒>]` | 按实测耗时重算 `tests/core_set.txt` 与 `.test_durations.json`（会跑一次全量本地档），生成物需一并提交 |
+| `just test-tier-report [top]` | 打印最慢测试文件与本地档成员 |
+| `just test-budget [junit]` | 检查全量档成本是否超过 `test-budget.json` 上限（棘轮）；本机只强制条数，墙钟只报告，CI 才带 `--enforce-seconds` |
+| `just test-debt [top]` | 测试瘦身证据：重复用例块、最贵重复文件、最慢文件榜；只出证据不改代码 |
 | `just bench-test` | 验证 warm / after-edit 场景的 `just test` 是否满足 30 秒预算 |
 | `just view [路径]` | 打开本机改动查看器（默认改动视图，按 `Staged Changes` / `Changes` 两段列出，后者由未暂存与未跟踪合并而来；重命名合并为一条 `R` 项并标出旧路径——包括普通 `mv` 造成的「删除 + 未跟踪新文件」，服务端在仓库外的一次性索引上按内容相似度配对，真实索引不受影响；`--files` 切文件视图；`Changes` 旁的加号可 `git add`）；第二条命令起复用常驻实例（秒开） |
 | `just diff` | `just view --diff` 的薄别名 |
@@ -104,6 +110,7 @@ gh api repos/<owner>/<repo>/check-runs/<job-id>/annotations --jq '.[].message'
 - 未传端口且状态文件不存在时，默认使用后端 `8000`、管理平台前端 `5173`、前台官网 `3000`。
 - 传入 `backend_port`、`frontend_admin_port` 或 `frontend_public_port` 时，会保存本次端口配置。
 - 后续 `just run` 和 `just down` 会复用保存的端口。
+- `just run` 保存端口时还会写入 `DATABASE_NAME`（取自 `.env.local` 的 `DATABASE_URL` 的库名），供 `tests/conftest.py` 的共享库守卫区分「同一个库的 dev server」与「别处进程占了同名端口」；旧格式没有该字段时守卫保守拦截。详见 `docs/ai-standards/testing.md` 的「与 dev server 共用数据库」。
 - 前端 Vite 使用 `strictPort`，端口被占用时直接失败，避免自动漂移后 `just down` 停错端口。
 - `just copy <name>` 派生新项目时，会从三个互不重叠的区间随机分配端口（后端 `8000-8999`、管理平台前端 `5180-5999`、前台官网 `3010-3999`），并且只写入 destination 的 `.env.run-state`；不会改写 justfile、前端配置或文档中的 fallback。首次 `just run` 会读取随机端口，所选端口也会打印到 stdout。
 - `just frontend dev` 与 `just frontend-public dev` 会委托给对应的 `just run` target，因此同样读取 `.env.run-state`，不会绕过已保存端口。
@@ -375,7 +382,7 @@ uv run pre-commit run --all-files
 | 环境变量 | 默认值 | 作用域 |
 |---|---|---|
 | `JUST_FULL_TEST_FLAGS` | `-n auto` | `just test all` / `just test real` 附加的参数 |
-| `JUST_LOCAL_TEST_FLAGS` | `--no-header -p no:cacheprovider` | 本地档附加的参数 |
+| `JUST_LOCAL_TEST_FLAGS` | `--no-header -p no:cacheprovider`（模板根 `justfile` 覆盖为 `--no-header -p no:cacheprovider --core-tier -n4`） | 本地档附加的参数 |
 | `JUST_LOCAL_TEST_TARGET` | `tests/` | 本地档的测试目标，用于在超大套件里收窄范围 |
 
 两个 `*_FLAGS` 都可以设为空串表示不附加任何参数。

@@ -36,7 +36,7 @@ def _project_name() -> str:
 
 @pytest.mark.skipif(shutil.which("just") is None, reason="需要 just 验证真实运行入口")
 def test_run_recipe_persists_and_reuses_runtime_ports(tmp_path: Path) -> None:
-    """端口参数应写入 run-state，后续启动应自动复用。"""
+    """端口参数应写入 run-state，后续启动应自动复用；并记录所属数据库名。"""
     isolated_justfile_path = tmp_path / "justfile"
     isolated_justfile_path.write_text(
         _JUSTFILE_PATH.read_text(encoding="utf-8"),
@@ -44,6 +44,13 @@ def test_run_recipe_persists_and_reuses_runtime_ports(tmp_path: Path) -> None:
     )
     (tmp_path / "justfile.shared").write_text(
         "_check-completion:\n    @true\n",
+        encoding="utf-8",
+    )
+
+    # run-state 额外记录 .env.local 指向的数据库名，供 tests/conftest.py 的外部
+    # 写者守卫区分「同一库的 dev server」与「别处进程占了同名端口」。
+    (tmp_path / ".env.local").write_text(
+        "DATABASE_URL=postgresql+psycopg2://user:pw@localhost:5432/guard_test_db\n",
         encoding="utf-8",
     )
 
@@ -79,6 +86,7 @@ def test_run_recipe_persists_and_reuses_runtime_ports(tmp_path: Path) -> None:
     assert expected_port_line in first_run_process.stdout
     assert expected_port_line in second_run_process.stdout
     assert f"BACKEND_PORT={selected_backend_port}" in run_state_text
+    assert "DATABASE_NAME=guard_test_db" in run_state_text
 
 
 def test_local_host_entrypoints_consume_runtime_port_state() -> None:
@@ -114,6 +122,12 @@ def test_local_host_entrypoints_consume_runtime_port_state() -> None:
     assert 'BACKEND_PORT="$backend_port"' in justfile_text
     assert 'FRONTEND_ADMIN_PORT="$frontend_admin_port"' in justfile_text
     assert 'FRONTEND_PUBLIC_PORT="$frontend_public_port"' in justfile_text
+    # run-state 记录所属库名，conftest 的外部写者守卫据此区分「同一库的 dev server」
+    # 与「别处进程占了同名端口」；两边必须成对存在，否则守卫退回只看端口。
+    assert "printf 'DATABASE_NAME=%s\\n'" in justfile_text
+    assert "resolve_run_database_name" in justfile_text
+    conftest_text = (_PROJECT_ROOT_PATH / "tests" / "conftest.py").read_text(encoding="utf-8")
+    assert '"DATABASE_NAME"' in conftest_text
     assert "just run frontend" in frontend_recipe_text
     assert "just run frontend-public" in public_recipe_text
     if copy_recipe_start != -1:

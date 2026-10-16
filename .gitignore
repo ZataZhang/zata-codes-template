@@ -89,3 +89,6 @@ tasks/evidence/**
 
 # Agent tooling state (local)
 .workbuddy-ai/
+
+# 全量档成本棘轮的临时 junit 产物（check_test_budget.py 的输入，不入库）
+.test-budget-junit.xml

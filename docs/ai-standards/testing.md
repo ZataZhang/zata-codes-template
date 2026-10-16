@@ -89,8 +89,9 @@
 
 优先使用仓库现有命令：
 
-- `just test`
-- `just test all`
+- `just test`（本地核心档，见下节）
+- `just test all`（全量，含 slow / real_api / redis）
+- `just test-changed`（只跑与当前改动相关的测试，不设预算）
 - `uv run pytest ...`
 
 验证架构和规范时，也常用：
@@ -99,22 +100,149 @@
 - `uv run python hooks/shared/check_guidelines_consistency.py`
 - `uv run mkdocs build`
 
+## 测试分层与本地核心档
+
+本地档与 CI 的分工是**契约**：`just test` 只跑「可负担且与本次改动相关」的子集，全量交
+CI 与交付前的 `just test all`。不要靠反复跑本地档换安全感，跑全量的责任在 CI 与交付前
+那一次。
+
+实测口径（2026-10-16 采集；本机与 CI 墙钟不可互比，见下）：
+
+| 档 | 命令 / 位置 | marker 口径 | 条数 | 本机墙钟 | CI 墙钟 |
+|---|---|---|---|---|---|
+| 本地核心档 | `just test` | `not slow and not real_api and not redis` ∩（名单 ∪ 改动测试 ∪ src 映射补跑 ∪ core 标记） | 约 440–530 | 注入一条改动后含 lint 前置 16.1s，其中 pytest 7.4s；同一棵树第二次命中 warm flag 0.9s | 不跑 |
+| CI 非 slow 全量档 | ci.yml `Run local test suite` | `not slow and not real_api and not redis` | 约 745 | 40–80s（同一天内随机器状态波动近一倍） | PostgreSQL 23.9s / MySQL 29.5s（回迁前 692 条） |
+| 本地手动全集 | `just test all` | `-m ''`（含 slow / real_api / redis） | 全集 | 高于上一行 | 不跑 |
+
+**本机与 CI 的墙钟不可互比**：同一条全量命令在本机更慢、且随机器状态波动，所以棘轮的
+秒数上限只在 CI 强制（见「全量档成本棘轮」）。写成本上限、做「变慢了没有」的判断时必须在
+同一边比较。`just test all` 与 CI 非 slow 档也**不是同一口径**：前者带 `-m ''`。
+
+模板自己的套件不大（CI 约半分钟），核心档对模板本身只是把本机的全量反馈压到十几秒；
+这套机制的主要价值在派生项目——套件长到分钟级后，本地反馈才不会随之线性变慢。
+
+### 本地档成员由耗时自动决定（这就是「淘汰旧测试」的机制）
+
+`tests/core_set.txt` 是本地档唯一运行时名单，由 `just test-core-refresh` 生成（脚本为随
+sync 分发的 `scripts/shared/testing/test_tiers.py`）。规则：
+
+1. 采集一次全量本地档耗时（`pytest --durations=0`）。
+2. 显式写 `pytestmark = pytest.mark.core` 的模块（「钉住」）**先入选并先占预算**：不受平均耗时
+   上限约束，但和其余文件共用同一份串行预算。这是给「很贵但每次都必须跑」的主干用例留的人工
+   通道，**不是免费通道**——钉住的合计超出预算时 refresh 当场报错并点名各文件耗时、不写盘。
+3. 余下预算里，单条平均耗时 `<= JUST_CORE_MAX_AVG_SECONDS`（默认 0.5s）的文件按便宜优先取满
+   `JUST_CORE_BUDGET_SECONDS`（默认 16s 串行）。16s 给 `just test` 在 pytest 之前可能跑的
+   `just lint --full` 留出余量——两段共用同一个 30s 预算。
+4. 快到没有计时记录的文件（pytest 只记录 >=5ms 的用例）按零成本入选。
+
+用例只会随时间变慢，所以这套规则天然让旧测试定期退出本地档——退出只是移出本地循环，CI 全量
+仍然跑它，不存在「关掉不测」。耗时基线（`.test_durations.json`）是刷新那一刻机器速度的快照，
+刷新后用 `just bench-test` 复核；担心机器忙时越线就用 `just test-core-refresh --budget <秒>`
+收紧。`--budget` / `--avg-cap` 只管这一次刷新，守卫 `test_core_set_stays_inside_serial_budget`
+仍按脚本默认值判，所以它们只能收紧；要永久改预算，改 `test_tiers.py` 的
+`DEFAULT_SERIAL_BUDGET_SECONDS`。
+
+名单腐烂没有自动告警：守卫只对基线里**上次刷新时**记录的耗时求和，`just bench-test` 只能在本机
+手动量。发现 `just test` 超 30s、或用例明显变慢时执行 `just test-core-refresh`，生成物
+（`tests/core_set.txt`、`.test_durations.json`）需一并提交。
+
+### 本地档还会并上改动相关的测试
+
+本地档 = 名单 ∪ 工作区**改动/新增的测试** ∪ **改动 `src/` 映射到的测试** ∪ core 标记。后两项
+由 `working_tree_test_plan` 一次算出，`tests/conftest.py` 直接加载脚本取结果——「什么算改动」
+只有一份实现。
+
+- 改动 `src/backend/<layer>/...` 时，按层映射到 `tests/` 下的相关目录，再按文件名词根匹配
+  （`tests/backend`、`tests/infrastructure` 等不存在的目录会被跳过）。映射项有补跑预算
+  （`JUST_MAPPED_BUDGET_SECONDS`，默认 10s 串行），便宜优先；超出的**点名而不静默丢弃**，
+  结尾提示用 `just test-changed`（不设预算、不写提交标记）验掉，或临时抬高预算。
+- 改到 `tests/conftest.py`、`pytest.ini`、`pyproject.toml`、`uv.lock`、
+  `.pre-commit-config.yaml`、`src/backend/shared/`、`tests/fixtures/` 时影响面无法收窄，任何
+  子集都给不出可信信号，结尾提示收尾跑 `just test all`。这与上一条互不短路。
+- 过滤放在 `pytest_ignore_collect`，未入选模块连 import 都不做：每个 xdist worker 都要 import
+  一次 app 与 conftest，固定开销本身很贵，所以本地档默认并行度收窄到 `-n4`。
+
+代价说清楚：**改了贵测试文件时 `just test` 会变慢**——这不是 bug。
+
+### 提交门禁的语义
+
+`check-test-flag` 校验的是 `.last_tested_commit`，因此它现在保证的是「**本地核心档绿**」，不是
+「全套绿」。这靠三处兜住：
+
+- CI 每次 PR 跑非 slow 全量档（`real_api` 与 `redis` 留给 `just test real` / 手工口径）。
+- 守卫测试：`tests/guards/test_local_core_tier_budget.py` 钉住名单不超预算、文件不失踪、
+  `justfile` 的 `--core-tier` 接线没被删、conftest 仍读取工作区测试计划、CI 全量步骤产出 junit、
+  CI 的成本棘轮步骤存在且带 `--enforce-seconds`、上限配置自洽；选集与预算切分的**行为**由
+  `tests/guards/shared/test_test_tiers.py` 覆盖，棘轮判定由
+  `tests/guards/shared/test_check_test_budget.py` 覆盖。
+- 交付前 / PR 合并前跑一次 `just test all` 补齐全量。**`just lint --repo` 不能替代它**：总入口
+  内部调用的 `just test` 已经是核心档。改动跨层契约或数据库迁移时，不要只依赖核心档。
+
+### 全量档成本棘轮
+
+分层只决定**成本落在哪一次**，不会让成本消失：本地被压低的同时，CI 全量档仍随套件线性变长。
+所以总成本也要一道上限，否则「积累」只是从每次提交挪到每次 PR。
+
+- `test-budget.json` 是全量档的 ceiling：`ceilings.seconds`（整进程墙钟，含 xdist 固定开销）与
+  `ceilings.tests`（收集条数，含 skip），基线与口径写在同一文件里。口径是
+  `pytest tests/ -m "not slow and not real_api and not redis"`，即 CI 的 `Run local test suite`，
+  **不是** `just test all`。CI 有 PostgreSQL / MySQL 两个 matrix job，共用同一份上限，按较慢的
+  一侧校准。
+- **秒数按 CI 口径校准，只在 CI 强制；条数在任何环境都强制。** 脚本默认只强制条数，CI 步骤
+  **显式**传 `--enforce-seconds`。用显式开关而不是探测 `CI` 环境变量：探测失灵时墙钟棘轮会悄悄
+  退化成只报告，没有人看得出来；守卫测试会解析 `ci.yml` 确认调用了脚本且带了开关。
+- CI 在全量档步骤产出 junit，随后由 `scripts/shared/testing/check_test_budget.py` 比对并**超限即红**，
+  结果同时写进 step summary。该步骤放在 `validate-template` job 的**末尾**，这样超限不会遮住
+  它前面的文档构建与发布冒烟。
+- 本地自查：`just test-budget`（会跑全量档；墙钟只出报告，注明「仅供参考」）。
+- 超限只有两种正确反应：交一个瘦身 PR；或在同一个 PR 里抬高 ceiling 并写清它对应哪一项新增的
+  真实能力。直接把 ceiling 抬高原地放行 = 棘轮失效。
+
+### 测试瘦身
+
+`just test-debt` 给出证据：`tests/` 内部的重复用例块（阈值与 `just lint --reuse` 一致）、重复且
+贵的文件榜、最慢文件榜。处理顺序按证据收益排：近似用例合成 `parametrize`；确有区别的部分抽进
+同目录 `*_test_support.py`；守的规则已被 ruff / pre-commit 覆盖的守卫合并掉；守已删除功能的
+用例直接删。**脚本只出证据，不改代码**——删或合并用例等于削弱安全网，必须逐条确认它保护的真实
+失败模式还在不在。
+
+### 派生项目如何接入
+
+随 `just sync-template` 分发的（上游所有）：`scripts/shared/testing/*`（选集、棘轮、瘦身证据）、
+`tests/guards/shared/test_test_tiers.py` 与 `test_check_test_budget.py`、本页文档。**项目只应通过
+下面这些项目自有的入口定制，直接改共享脚本会在下次 sync 被覆盖：**
+
+| 项目自有项 | 作用 |
+|---|---|
+| 根 `justfile` 的 `export JUST_LOCAL_TEST_FLAGS := "... --core-tier -n4"` 与 `test-*` recipe | 把核心档接到 `just test`；recipe 照模板对照合并 |
+| `tests/conftest.py` 的 `--core-tier` 选项、`pytest_ignore_collect`、终端汇总与守卫 | 按模板 conftest 对照合并 |
+| `pytest.ini` 的 `core` marker | 注册「钉住」标记 |
+| `tests/core_set.txt`、`.test_durations.json`、`test-budget.json` | 按项目自己的实测由 `just test-core-refresh` 生成，上限按项目 CI 口径校准 |
+| `.github/workflows/ci.yml` 的 junit 产出与棘轮步骤；根 `.gitignore` 的 `.test-budget-junit.xml` | CI 兜底 |
+
+`LAYER_TEST_DIRS` 等映射常量写在共享脚本里，目录不存在时会被自动跳过；项目的层目录布局与
+模板不同时，应在上游修脚本，而不是在项目里改。
+
 ## 真实数据库测试（realdb）
 
 部分 integration 测试（跨连接会话失效、两域物理隔离等）经
 ``TestClient(create_app())`` 或 ``SessionLocal`` 直接写入 ``DATABASE_URL``
 指向的真实数据库，SQLite / 内存替身无法复现这些语义。这类测试必须打
-``@pytest.mark.realdb``，并接受三层防线的约束：
+``@pytest.mark.realdb``，并接受四层防线的约束：
 
-1. **哨兵（sentinel）**：``tests/conftest.py`` 的 ``_realdb_residue_sentinel``
+1. **外部写者防呆**：``tests/conftest.py`` 的
+   ``_guard_shared_database_external_writer`` 在选出 realdb 测试时先探测 ``just run`` 的
+   后端端口监听（需与 run-state 记录的 ``DATABASE_NAME`` 同库），命中即 ``pytest.exit``
+   （见下节「与 dev server 共用数据库」）。
+2. **哨兵（sentinel）**：``tests/conftest.py`` 的 ``_realdb_residue_sentinel``
    autouse fixture 对 realdb 测试做前后主键快照对比（覆盖
    ``admin_user`` / ``public_user`` 两张表），任何净新增/净删除直接 fail
    并列出泄漏行。
-2. **自动登记清理**：``tests/backend/conftest.py`` 的 ``build_client`` 对
+3. **自动登记清理**：``tests/backend/conftest.py`` 的 ``build_client`` 对
    realdb 测试返回 ``TrackedTestClient``，自动登记 ``/auth/register`` 创建的
    用户 ID；``seed_admin`` 种入的管理员 ID 也自动登记。``entity_registry``
    fixture 在 teardown 按精确 ID 删除（见 ``tests/realdb_test_support.py``）。
-3. **守卫测试**：
+4. **守卫测试**：
    - ``tests/guards/test_realdb_marker_required.py``：请求 ``build_client`` /
      ``seed_admin`` 的测试必须打 realdb 标记。
    - ``tests/guards/test_realdb_xdist_manifest.py``：静态声明的
@@ -152,6 +280,34 @@ nodeid 里的 ``@<组名>`` 后缀分组，不读 marker。realdb 测试写真�
 新增写真实数据库的测试文件时，必须：打模块级 ``pytestmark = pytest.mark.realdb``
 、经 ``build_client`` / ``seed_admin``（自动登记清理）、并同步更新
 ``tests/conftest.py`` 的 ``_REALDB_TEST_FILES``（否则 manifest 守卫测试会失败）。
+
+### 与 dev server 共用数据库
+
+``just run``（dev server）和 ``just test`` 都从 ``.env.local`` 读同一个 ``DATABASE_URL``，所以
+「边开着前端边跑测试」会让两者同时写同一个库：dev server 的写入会落进正在跑的 realdb 用例的
+前后快照窗口，被残留哨兵当成「该用例泄漏」；测试里的整库收敛操作也可能改坏你正在使用的数据。
+
+因此 ``_guard_shared_database_external_writer`` 在选择到 realdb 测试时先探测外部写者，命中即
+``pytest.exit`` 并打印可操作提示，而不是跑完再报一堆错。判据是**库身份**，不是端口：
+
+- ``.env.run-state`` 里的 ``BACKEND_PORT`` 有监听者，**且** run-state 记录的 ``DATABASE_NAME``
+  与本次测试要写的库名相同 → 拦截并打印库名。
+- 端口上有监听者但库名不同 → 是别处进程（主仓 / 另一个 worktree）占了同名端口、与本库无关，
+  **不拦**。这正是 worktree 里 ``just test`` 被主仓 dev server 误拦的根因。
+- 旧格式 run-state 没有 ``DATABASE_NAME``（或库名解析不出）→ 无法证明不是同库，**保守拦截**。
+- ``just run`` 保存端口时把 ``.env.local`` 指向的库名写进 run-state，两边必须成对存在；
+  守卫测试 ``tests/guards/test_shared_database_guard.py``（真实本地监听 + 真实 run-state）与
+  ``tests/guards/test_runtime_port_state.py`` 把这条契约钉住。
+
+通用守卫只负责端口、库名与状态文件。「库里是否有仍在执行的运行」依赖业务表结构，由项目**可选**
+提供：在 ``tests/realdb_test_support.py`` 定义 ``find_live_nonterminal_runs()``，返回
+``(运行标识, 状态)`` 列表，守卫会把它作为额外的拦截信号。没有定义时该信号关闭，守卫仍按
+端口 + 库名判据工作，不会崩溃也不会静默放行；钩子抛 SQLAlchemy 错误（库不可用、表未建立）时
+同样交给测试自身暴露问题，守卫不越权。
+
+正确姿势是跑 realdb 测试前停掉 ``just run`` 与前端活跃会话。确实需要共用同一个库（例如调试需要
+保留开发数据）时，用 ``ALLOW_SHARED_DATABASE=1`` 显式跳过守卫，此时残留哨兵仍会因外部写入误报，
+需自行判断。
 
 ## Guard Tests
 
@@ -288,13 +444,13 @@ tests/playwright-e2e/test-results/2026-07-02T11-31-08/
 
 HTML 报告仍固定在 `tests/playwright-e2e/playwright-report/`，可用 `just e2e-report` 打开。
 
-`just test`（local 档）会先读 `.last_tested_commit` 与 `.last_linted_commit` 两个本地通过标记：test 标记命中时直接跳过 pytest，lint 标记命中时跳过 lint 前置。当 `just test` 真正运行测试并通过后，会同时刷新 test 与 full lint 标记，避免刚跑完 `just test` 后再次执行完整 full lint。本地调用默认使用 `pytest -q` 以压低启动/格式化开销，CI 环境（`CI` 非空）下回退到 `-v` 以保留每条用例的结果输出。CI 环境同时禁用这两条快路径，强制走完整 lint + pytest，避免跨 job/host 的 flag 文件泄漏掩盖回归。提交门禁仍会检查 `just test` 标记。
+`just test`（local 档）会先读 `.last_tested_commit` 与 `.last_linted_commit` 两个本地通过标记：test 标记命中时直接跳过 pytest，lint 标记命中时跳过 lint 前置。当 `just test` 真正运行测试并通过后，会同时刷新 test 与 full lint 标记，避免刚跑完 `just test` 后再次执行完整 full lint。本地调用默认使用 `pytest -q` 以压低启动/格式化开销，CI 环境（`CI` 非空）下回退到 `-v` 以保留每条用例的结果输出。CI 环境同时禁用这两条快路径，强制走完整 lint + pytest，避免跨 job/host 的 flag 文件泄漏掩盖回归。提交门禁仍会检查 `just test` 标记。根 `justfile` 默认把 `JUST_LOCAL_TEST_FLAGS` 设为带 `--core-tier`，因此本地 `just test` 跑的是核心档而不是全量（见「测试分层与本地核心档」）。
 
 交付前建议：
 
 - 日常迭代先跑 `just lint`，确认 staged 变更与真实 pre-commit hook 一致。
 - 涉及复用边界、架构、AI 规范入口或重复风险时补跑 `just lint --reuse`。
-- 最终交付、PRD 归档或合并前跑 `just lint --repo`；若无法运行总入口，至少跑 `just lint --full`、`just lint --reuse`、`just test` 和受影响文档的 `uv run mkdocs build --strict`。
+- 最终交付、PRD 归档或合并前跑 `just lint --repo`；若无法运行总入口，至少跑 `just lint --full`、`just lint --reuse`、`just test` 和受影响文档的 `uv run mkdocs build --strict`。`just test` 只覆盖本地核心档，涉及后端行为交付时另跑 `just test all`。
 
 ## AI 实现后的验证证据
 

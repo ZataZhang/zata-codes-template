@@ -171,7 +171,9 @@ jobs:
         env:
           # 显式指向当前 matrix job 的真实数据库服务。
           DATABASE_URL: ${{ matrix.database_url }}
-        run: uv run pytest tests/ -v -m "not slow and not real_api and not redis"
+        run: >-
+          uv run pytest tests/ -v -m "not slow and not real_api and not redis"
+          --junit-xml=.test-budget-junit.xml
 
       - name: Build documentation
         run: uv run mkdocs build --strict
@@ -263,6 +265,19 @@ jobs:
 
           print("prefixes={} live={} keep={} deleted={}".format(PREFIXES, len(live), KEEP, deleted))
           PY
+
+      - name: Check full-tier test budget
+        # 全量档成本棘轮：test-budget.json 里的 seconds / tests 上限在此比对 junit 结果。
+        # 超上限不是"慢了一点"，而是套件膨胀必须被显式承认的时刻——要么交瘦身 PR
+        # （`just test-debt` 给证据），要么在同一个 PR 里抬高上限并写明对应的新增能力。
+        # 报告同时写进 step summary，让成本趋势在 PR 页面可见。
+        # 放在 job 末尾而不是紧跟测试步骤：超限只该让本 job 变红，不该让文档构建与
+        # release 冒烟因为被跳过而少给一轮信号。
+        # `--enforce-seconds` 必须显式传：墙钟上限按 CI 口径校准，脚本默认只强制条数
+        # （本机同一条命令慢得多，不可互比）；不传它，墙钟棘轮就只剩报告。
+        run: >-
+          uv run python scripts/shared/testing/check_test_budget.py
+          --junit-xml=.test-budget-junit.xml --enforce-seconds
 
   e2e:
     name: Playwright E2E (no-auth)
