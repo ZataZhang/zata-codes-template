@@ -47,7 +47,7 @@
 - `src/backend/infrastructure/logging/`：承接日志实现。
 - `src/backend/infrastructure/persistence/`：承接数据库与持久化实现。
 - `src/backend/infrastructure/helpers.py`：承接通用无状态辅助函数。
-- `src/backend/engines/`：承接项目特定的平台能力（如爬虫、OCR 等，由派生项目添加）。
+- `src/backend/engines/`：承接项目特定的平台能力（如爬虫、OCR 等）和 MCP server（由派生项目扩展）。
 - `tests/`：用于验证边界、用例和适配器行为。
 
 ## 模块关系图
