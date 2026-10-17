@@ -69,6 +69,14 @@
 - `200 OK`：会话有效
 - `401 Unauthorized`：未登录或会话已过期
 
+## MCP 接口
+
+### `POST /api/mcp`
+
+基于 MCP `2026-07-28` 的 Streamable HTTP endpoint。SDK 自动支持 `server/discover`、`tools/list`、`tools/call` 及旧版 Streamable HTTP 初始化握手。模板默认仅注册 `application_info` 工具。
+
+Host / Origin 校验由 `config.toml` 的 `[mcp]` 配置控制。认证和授权需由派生项目在注册敏感工具前补齐，详见 [MCP 接入指南](../guides/mcp.md)。
+
 ## 基础设施模块
 
 ## 基础设施模块

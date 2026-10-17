@@ -16,6 +16,7 @@ dependencies = [
     # e2b_execution_channel）在模块级 import httpx。它是运行期依赖，不是测试依赖：
     # 只留在 dev group 会让 `uv sync --no-dev` 的部署在 import 阶段就 ModuleNotFoundError。
     "httpx>=0.27.0",
+    "mcp>=2.3.0,<3.0.0",
     "pre-commit>=4.5.1",
     "prometheus-client>=0.20.0",
     "psycopg2-binary>=2.9.9",
