@@ -62,7 +62,7 @@ frontend-public/
 ## 与后端的集成
 
 - 开发时可通过 `BACKEND_URL` 指向后端；`just run` 会自动注入该值。
-- 容器环境通过 `API_BASE_URL` 指向 Compose 内部后端服务（如 `http://zata-codes-template-backend:8000`），不使用主机随机端口。
+- 生产 Compose 环境通过 `API_BASE_URL` 指向专属后端网络别名（如 `http://my-app-backend:8000`），Dokploy 和 VPS 栈按 Compose 项目名生成该别名，不使用主机随机端口。
 - 认证使用后端签发的 HTTP-only `session_id` cookie，因此与 `frontend-admin/` 管理平台共享登录态。
 
 ## 容器化

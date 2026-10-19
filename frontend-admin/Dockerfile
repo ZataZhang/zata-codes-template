@@ -42,11 +42,14 @@ RUN pnpm build
 # ── Runtime stage ─────────────────────────────────────────────────────────────
 FROM nginx:1.27-alpine
 
+# 只替换 Compose 注入的后端地址，保留 $host、$remote_addr 等 Nginx 自身变量。
+ENV NGINX_ENVSUBST_FILTER=^BACKEND_UPSTREAM$
+
 # Copy built static assets
 COPY --from=builder /app/frontend-admin/dist /usr/share/nginx/html
 
-# Copy nginx configuration
-COPY frontend-admin/nginx.conf /etc/nginx/conf.d/default.conf
+# 官方 Nginx entrypoint 会在启动时把模板渲染到 conf.d。
+COPY frontend-admin/nginx.conf /etc/nginx/templates/default.conf.template
 
 EXPOSE 80
 

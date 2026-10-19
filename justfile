@@ -913,8 +913,8 @@ copy name force='':
     frontend_public_random_port=$((3010 + RANDOM % 990))
     echo "Picked random ports: backend=$backend_random_port, admin frontend=$frontend_admin_random_port, public frontend=$frontend_public_random_port"
 
-    # 实例化 app-slug 占位前缀。docs/guides/deployment.md 的“App-slug 命名空间”
-    # 一节定义了该契约：模板源文件中的服务名、卷名、nginx 上游主机名统一使用
+    # 实例化 app-slug 占位前缀。docs/guides/deployment.md 的“网络别名隔离”
+    # 一节定义了该契约：模板源文件中的服务名和卷名使用
     # `zata-codes-template-` 前缀，`just copy` 负责替换成项目目录名。
     #
     # 下列文件**必须排除**，它们引用的是上游模板本身，替换会破坏功能：

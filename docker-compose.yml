@@ -98,6 +98,8 @@ services:
     depends_on:
       zata-codes-template-backend:
         condition: service_healthy
+    environment:
+      BACKEND_UPSTREAM: zata-codes-template-backend:8000
     restart: unless-stopped
 
   zata-codes-template-public:

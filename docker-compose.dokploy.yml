@@ -18,6 +18,13 @@
 # Job, cron, GitHub Actions, etc.).
 # -----------------------------------------------------------------------------
 
+# Dokploy 为每个 Compose 部署分配唯一项目名。所有栈共用外部
+# dokploy-network，因此用项目名生成后端网络别名。
+x-backend-network-alias: &backend-network-alias
+  "${COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME is required}-backend"
+x-backend-upstream: &backend-upstream
+  "${COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME is required}-backend:8000"
+
 services:
   zata-codes-template-backend:
     build:
@@ -64,7 +71,9 @@ services:
       - zata-codes-template-backend-logs:/app/logs
       - zata-codes-template-backend-data:/app/data
     networks:
-      - dokploy-network
+      dokploy-network:
+        aliases:
+          - *backend-network-alias
     deploy:
       resources:
         limits:
@@ -85,6 +94,8 @@ services:
     depends_on:
       zata-codes-template-backend:
         condition: service_healthy
+    environment:
+      BACKEND_UPSTREAM: *backend-upstream
     restart: unless-stopped
     networks:
       - dokploy-network
@@ -118,7 +129,7 @@ services:
     expose:
       - "3000"
     environment:
-      - API_BASE_URL=${API_BASE_URL:-http://zata-codes-template-backend:8000}
+      API_BASE_URL: ${API_BASE_URL:-http://${COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME is required}-backend:8000}
     depends_on:
       zata-codes-template-backend:
         condition: service_healthy

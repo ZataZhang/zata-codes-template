@@ -55,7 +55,7 @@ frontend-admin/
 ## 与后端的集成
 
 - 开发时，Vite 将 `/api/*` 代理到 `http://localhost:8000`。
-- 生产时，Nginx 将 `/api/*` 代理到后端服务（如 `zata-codes-template-backend:8000`）。
+- 生产 Compose 环境中，Nginx 从 `BACKEND_UPSTREAM` 读取专属后端网络别名，再将 `/api/*` 代理到该地址；Dokploy 和 VPS 栈按 Compose 项目名生成该别名。
 - 认证使用后端签发的 HTTP-only `session_id` cookie。
 
 ## 容器化

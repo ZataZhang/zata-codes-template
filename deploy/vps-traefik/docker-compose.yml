@@ -15,6 +15,12 @@
 # `zata-ops` CLI; install it and schedule `zata-ops db backup` externally.
 # -----------------------------------------------------------------------------
 
+# Traefik 部署共用外部网络，以 Compose 项目名为后端生成专属网络别名。
+x-backend-network-alias: &backend-network-alias
+  "${COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME is required}-backend"
+x-backend-upstream: &backend-upstream
+  "${COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME is required}-backend:8000"
+
 services:
   zata-codes-template-backend:
     image: ${BACKEND_IMAGE:?Set BACKEND_IMAGE in .env}
@@ -50,7 +56,9 @@ services:
       - zata-codes-template-backend-logs:/app/logs
       - zata-codes-template-backend-data:/app/data
     networks:
-      - traefik
+      traefik:
+        aliases:
+          - *backend-network-alias
     labels:
       - "com.docker.compose.project=zata-codes-template"
       - "com.docker.compose.service=backend"
@@ -71,6 +79,8 @@ services:
     depends_on:
       zata-codes-template-backend:
         condition: service_healthy
+    environment:
+      BACKEND_UPSTREAM: *backend-upstream
     restart: unless-stopped
     networks:
       - traefik
@@ -103,7 +113,7 @@ services:
     env_file:
       - app.env
     environment:
-      - API_BASE_URL=${API_BASE_URL:-http://zata-codes-template-backend:8000}
+      API_BASE_URL: ${API_BASE_URL:-http://${COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME is required}-backend:8000}
     depends_on:
       zata-codes-template-backend:
         condition: service_healthy
