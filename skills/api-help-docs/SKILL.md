@@ -116,7 +116,7 @@ uv run --with pyyaml python skills/api-help-docs/scripts/build_llms_txt.py \
 - 汇报时只写实际运行过的：检查脚本结果、构建产物清单、nginx 响应头/状态码。
 - **Docker 构建上下文**：若帮助文章在仓库根 `docs/`，而前端镜像的 build context 是子目录，容器内读不到文章，产物会是空的：页面空白、`/llms.txt` 404 是同一个原因。部署后必须确认 `/llms.txt` 非空；不要因为本地构建通过就认为线上也有。修法：
   1. compose 的 `context` 改成仓库根，`dockerfile` 指向前端 Dockerfile；Dockerfile 里所有 `COPY` 加前端目录前缀，并 `COPY docs/help` 到与加载器 glob、构建插件一致的相对位置（`/app/<前端子目录>/../../docs/help`）。
-  2. 仓库根 `.dockerignore` 常排除 `docs`，会让上一步的 COPY 失败。给前端镜像配同目录的 `<Dockerfile>.dockerignore`（BuildKit 优先使用），不要去改根文件而影响后端镜像。
+  2. 仓库根 `.dockerignore` 常排除 `docs`，会让上一步的 COPY 失败。先检查能否用精确规则只放行 `docs/help`（例如 `docs/*`、`!docs/help`）。若根规则被多个镜像共用，放行会扩大其他镜像的构建上下文，再给前端镜像配同目录的 `<Dockerfile>.dockerignore`；专属文件会取代根 `.dockerignore`，需保留构建所需的通用排除项，并确认 `COPY docs/help` 可见。
   3. 构建插件在文章集为空时必须 `this.error` 失败，不能只 warn 跳过，否则会静默上线空帮助中心。若仓库还跟踪了编译产物（如 `help-static.js`），两份一起改。
   4. 离线可做的验证：用不跑 npm 的最小 Dockerfile 确认上下文里有文章；移走 `docs/help` 确认构建失败。完整镜像构建受网络影响时如实说明没测到的部分。
 - **从入口走一遍**：未登录打开入口页 → 点进帮助页 → 打开一篇文章 → 点文章内的相对链接 → 用 curl 确认 `.md` 与 `llms.txt`。窄屏也看一眼。只验证“组件能渲染”不算。
