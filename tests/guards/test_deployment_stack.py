@@ -8,12 +8,10 @@
 这里钉的两条约定都来自真实线上事故，共同点是**本地全绿、构建也许能过，直到
 部署当天才炸**，且症状都指不到根因：
 
-1. Traefik 的 router / service / middleware 名必须带项目前缀。Dokploy 上所有
-   项目共用一个 Traefik 实例，这三类名字是全局命名空间。模板长期使用通用的
-   ``app-admin`` / ``app-public``，而 ``just copy`` 只替换服务名前缀，于是每个
-   派生项目都带着同一组名字出厂。同机部署第二个项目时两边定义同名 router，
-   Traefik 只保留一份，另一个域名就没有任何 router 匹配——表现为该域名返回
-   Traefik 默认 404，而同项目的其他域名一切正常。
+1. Traefik 的 router / service / middleware 名使用 ``${COMPOSE_PROJECT_NAME}``
+   前缀。Dokploy 上所有项目共用一个 Traefik 实例，这三类名字是全局命名空间。
+   Docker Compose 会把实际项目名提供给文件插值；用该值拼接路由名称可避免复用
+   模板部署多个应用时发生同名冲突。
 
 2. Dockerfile 的 COPY 源必须落在自己声明的构建上下文里。``pnpm-workspace.yaml``
    与 ``pnpm-lock.yaml`` 在仓库根，而两个前端的 context 是 ``./frontend-*``，
@@ -23,7 +21,6 @@
 from __future__ import annotations
 
 import re
-import tomllib
 from pathlib import Path
 
 import pytest
@@ -32,24 +29,10 @@ import yaml
 PROJECT_ROOT_PATH: Path = Path(__file__).resolve().parents[2]
 DOKPLOY_COMPOSE_PATH: Path = PROJECT_ROOT_PATH / "docker-compose.dokploy.yml"
 LOCAL_COMPOSE_PATH: Path = PROJECT_ROOT_PATH / "docker-compose.yml"
-PYPROJECT_PATH: Path = PROJECT_ROOT_PATH / "pyproject.toml"
 
-_TRAEFIK_NAME_PATTERN = re.compile(
-    r"traefik\.http\.(?:routers|services|middlewares)\.([A-Za-z0-9_-]+)\."
-)
+_TRAEFIK_NAME_PATTERN = re.compile(r"traefik\.http\.(?:routers|services|middlewares)\.([^.=]+)\.")
 
-
-def _project_name() -> str:
-    """从 ``pyproject.toml`` 读项目名，作为全局唯一命名前缀的权威源。
-
-    与 ``test_runtime_port_state.py`` 同一判据：``just copy`` 会把服务名前缀与
-    ``[project] name`` 一起改写，因此这里不硬编码模板自己的名字。
-
-    Returns:
-        str: 项目 slug。
-    """
-    pyproject_doc = tomllib.loads(PYPROJECT_PATH.read_text(encoding="utf-8"))
-    return pyproject_doc["project"]["name"]
+_COMPOSE_PROJECT_NAME_PREFIX: str = "${COMPOSE_PROJECT_NAME}-"
 
 
 def _load_compose_services(compose_path: Path) -> dict[str, dict]:
@@ -122,29 +105,27 @@ def _context_contains(context_path: Path, copy_source: str) -> bool:
 
 
 @pytest.mark.parametrize("compose_path", [DOKPLOY_COMPOSE_PATH, LOCAL_COMPOSE_PATH])
-def test_traefik_names_are_namespaced_by_project(compose_path: Path) -> None:
-    """Traefik 的 router/service/middleware 名必须以项目 slug 开头。
+def test_traefik_names_use_compose_project_name(compose_path: Path) -> None:
+    """Traefik 的 router/service/middleware 名必须以 Compose 项目名插值开头。
 
-    Dokploy 单实例 Traefik 下这三类名字是全局的；通用名（如 ``app-public``）会
-    让同机的第二个派生项目与本项目撞名，Traefik 只保留一份定义，另一个域名
-    随即失去路由。服务名已经按 slug 唯一，这三类名字必须同步。
+    Dokploy 单实例 Traefik 下这三类名字是全局的；固定名称会让同机部署互相撞名。
+    Compose 项目名由部署平台提供，按该变量拼接名称可随每个应用自动隔离。
     """
     if not compose_path.is_file():
         pytest.skip(f"{compose_path.name} 不存在")
-    project_name = _project_name()
     offending_names: dict[str, set[str]] = {}
     for service_name, service_definition in _load_compose_services(compose_path).items():
         generic_names = {
             traefik_name
             for traefik_name in _collect_traefik_names(service_definition)
-            if not traefik_name.startswith(project_name)
+            if not traefik_name.startswith(_COMPOSE_PROJECT_NAME_PREFIX)
         }
         if generic_names:
             offending_names[service_name] = generic_names
 
     assert not offending_names, (
-        f"{compose_path.name} 的 Traefik 名未按项目 slug "
-        f"'{project_name}' 命名空间化: {offending_names}。"
+        f"{compose_path.name} 的 Traefik 名未以 Compose 项目名变量前缀开头: "
+        f"{offending_names}。"
         "Dokploy 上所有项目共用一个 Traefik，这些名字是全局的；"
         "通用名会与同机其他派生项目撞车，导致某个域名失去路由并返回 404。"
     )
