@@ -1,6 +1,6 @@
 ---
 name: api-help-docs
-description: "[Created 2026-10-15] Build and maintain a public API help center whose Markdown articles are the single source of truth, validated against OpenAPI and published so both people and AI agents can read them (static .md, llms.txt, llms-full.txt). Covers the add-a-new-API checklist, the SPA trap (agents cannot read client-rendered pages), response_model gaps, and the pure-backend variant. Triggers on: 新增 API 文档, 帮助中心, API 帮助页, 让 agent 能抓取文档, llms.txt, 接口文档怎么更新, publish API docs, api help center, openapi 文档同步."
+description: "[Created 2026-10-15, Updated 2026-10-19] Build and maintain a public API help center whose Markdown articles are the single source of truth, validated against OpenAPI and published so both people and AI agents can read them (static .md, llms.txt, llms-full.txt). Covers the add-a-new-API checklist, the SPA trap (agents cannot read client-rendered pages), response_model gaps, the public-scope decision, the human-facing SPA page, an integration demo page, and the pure-backend variant. Triggers on: 新增 API 文档, 帮助中心, API 帮助页, 让 agent 能抓取文档, llms.txt, 接口文档怎么更新, publish API docs, api help center, openapi 文档同步, 接入 demo, 演示页."
 user-invocable: true
 allowed-tools:
   - Read
@@ -35,6 +35,16 @@ allowed-tools:
 
 先确认三件事再动手：OpenAPI 的实际导出地址、响应模型是否声明、仓库有没有检查脚本。已有就复用，不重写。
 
+### 先定公开范围（动手前）
+
+帮助中心通常**无需登录就能访问**，所以先回答三个问题，并把答案写进回复：
+
+1. **谁能看？** 只给合作方，还是任何人？未登录用户能不能到达入口页（如登录页上的按钮）？
+2. **哪些内容可以公开？** 文章里不要出现内部路径、运维配置、内部实现细节、管理端接口。内部指南与对外文章是两份读者不同的文档，不要互相复制。
+3. **OpenAPI 能不能公开？** 默认**不**把 `/openapi.json` 写进 `llms.txt`。它会列出后端全部路由；只有后端本来就是纯对外 API（如 partner API）时才公开。同一个后端同时有内部/管理端接口时，不要公开。
+
+内部指南和对外文章同时存在时，会有两份文字需要同步。明确哪一份是对外事实源（接口字段、状态码以它为准），在内部指南开头注明，并如实告诉用户这是两份内容。
+
 ## 新增一个 API 的完整流程
 
 1. **写路由并声明响应模型。** 不声明时 OpenAPI 的响应只是 `object`，调用方和 agent 都不知道字段。FastAPI 用 `response_model`（动态附加字段用 `extra="allow"`）；Spring 用带 `@Schema` 的具体返回类型，避免只返回 `JsonNode`/`Map`。
@@ -44,6 +54,7 @@ allowed-tools:
 5. **运行一致性检查**（如 `just help-api-check`）。报错带 `文件:行号`；修文档或代码，不要削弱检查。
 6. **构建并检查产物**：确认新文章的 `.md` 在静态目录，`llms.txt` 含新条目。
 7. **部署后用 curl 验证**，别只看本地：`/llms.txt`、`/help/<slug>.md`，且响应不是 SPA 的 `index.html`。
+8. **面向接入的文章要配 demo。** 只描述“怎么接”的文章，读者仍不知道接完是什么样。决定做哪种 demo（可运行的参考接入 / 在线 demo / 录屏截图），见 `references/demo-page.md`。在线 demo 会对公网开放并调用真实后端，要过其中的安全清单，做不到就只做前两种以外的形式。
 
 ## 变更要同步什么
 
@@ -56,12 +67,20 @@ allowed-tools:
 
 ## 路径 A：带 SPA 的帮助中心
 
-核心问题：SPA 只返回空壳 HTML，不执行 JS 的抓取器（含 WebFetch、curl）读不到正文。解法是**构建时把同一份 Markdown 再发布成静态文件**，不要另写一份给 agent。
+核心问题：SPA 只返回空壳 HTML，不执行 JS 的抓取器（含 WebFetch、curl）读不到正文。解法是**构建时把同一份 Markdown 再发布成静态文件**，不要另写一份给 agent。路径 A 有两半，缺一不可：
 
-- 用 `assets/help-static.ts` 作为 Vite 插件（`writeBundle` 阶段）：输出 `help/<slug>.md`、`llms.txt`、`llms-full.txt`。要改的只有：`docs/help` 的相对路径、站点标题文案、OpenAPI 地址。
+**给 agent 读的静态文件**
+
+- 用 `assets/help-static.ts` 作为 Vite 插件（`writeBundle` 阶段）：输出 `help/<slug>.md`、`llms.txt`、`llms-full.txt`。通过选项配置：`siteTitle`、`siteDescription`、`helpDirectory`（相对 Vite root，按前端子目录深度调整）、可选的 `openApiUrl`（默认不写，见“先定公开范围”）。它还会校验 frontmatter 必填字段、slug/order 唯一、`sections` 与正文 `##` 标题一致，文章集为空时让构建失败。
 - nginx 要让 `/help/*.md` 和 `/llms*.txt` 命中真实文件并带 `charset utf-8`；缺文件返回 404。注意 SPA 常见的 `try_files ... /index.html` 会把缺失的 `.md` 变成 200 的 HTML。`text/markdown` 默认不带 charset，需 `charset_types text/markdown;`。
+- **`help/` 目录与 SPA 路由冲突。** 构建产物里有 `help/` 目录时，SPA 兜底写成 `try_files $uri $uri/ /index.html` 会让 `/help` 返回 301、`/help/` 返回 403，到不了前端的 `/help` 路由。改成 `try_files $uri /index.html;`，改之前确认站点没有靠目录索引提供的页面。
 - 页面 `<head>` 加静态 `<link rel="alternate" type="text/plain" href="/llms.txt">`。JS 注入的 per-article 标签只对执行 JS 的客户端有效，不能当作主要手段。
-- 实现细节与踩坑见 `references/fsense-implementation.md`。
+
+**给人看的页面**
+
+- 读同一份 Markdown：`assets/help-articles.ts`（`import.meta.glob`）、`assets/help-markdown.tsx`（渲染并改写站内 `.md` 链接）。路由、依赖、登录守卫、入口位置、i18n 见 `references/spa-help-page.md`。
+
+`references/fsense-implementation.md` 记录的是**这套做法最初来自的一个项目**。其中的目录名（`docs/help/api`）、产品文案、OpenAPI 地址都是那个项目的假设，不是通用事实，照搬前先核对。
 
 ## 路径 B：纯后端
 
@@ -88,6 +107,8 @@ uv run --with pyyaml python skills/api-help-docs/scripts/build_llms_txt.py \
 
 检查器应核对：文章里的 `METHOD /path` 在 OpenAPI 中存在；参数表（用 `<!-- openapi-parameters: METHOD /path -->` 标记）的字段、位置、类型、必填一致；cURL 的方法、路径、请求头、表单字段合法；frontmatter 完整、slug 与 order 唯一、sections 与标题一致。
 
+本 skill **不附带**这个检查器（它是各项目自己的脚本，参考项目里叫 `check_help_api.py`）；`assets/help-static.ts` 只做 frontmatter 层面的校验，不对照 OpenAPI。接口字段、状态码没有自动检查时，必须对照路由与响应模型手工核对，并在交付里如实说明。
+
 它**不能**判断业务文字是否正确，也无法核对 OpenAPI 未描述的响应语义——这是为什么第 1 步必须声明响应模型。
 
 ## 验证与交付
@@ -98,6 +119,8 @@ uv run --with pyyaml python skills/api-help-docs/scripts/build_llms_txt.py \
   2. 仓库根 `.dockerignore` 常排除 `docs`，会让上一步的 COPY 失败。给前端镜像配同目录的 `<Dockerfile>.dockerignore`（BuildKit 优先使用），不要去改根文件而影响后端镜像。
   3. 构建插件在文章集为空时必须 `this.error` 失败，不能只 warn 跳过，否则会静默上线空帮助中心。若仓库还跟踪了编译产物（如 `help-static.js`），两份一起改。
   4. 离线可做的验证：用不跑 npm 的最小 Dockerfile 确认上下文里有文章；移走 `docs/help` 确认构建失败。完整镜像构建受网络影响时如实说明没测到的部分。
+- **从入口走一遍**：未登录打开入口页 → 点进帮助页 → 打开一篇文章 → 点文章内的相对链接 → 用 curl 确认 `.md` 与 `llms.txt`。窄屏也看一眼。只验证“组件能渲染”不算。
+- 有 demo 时：部署后确认 demo 链接能打开，且页面里的接入代码与文章一致。
 - 不运行会写共享数据库的集成测试来“证明”响应模型；用模型校验 + 单元测试，并如实说明未覆盖的部分。
 - 不执行 `git add`/`commit`，除非用户要求。
 
@@ -108,3 +131,7 @@ uv run --with pyyaml python skills/api-help-docs/scripts/build_llms_txt.py \
 - 为抓取而做 SSR/预渲染：改动大，静态 Markdown 已够。
 - 把 `rel=alternate` 当作 agent 发现文档的唯一手段。
 - 检查失败时削弱检查，而不是修文档或代码。
+- 手写一份对外 HTML 页面作为“帮助页”，同时仓库里又有 Markdown 版本（双份权威，我们在真实项目里犯过）。
+- 不判断公开范围，就把 `/openapi.json` 写进 `llms.txt`，或把内部指南原样发布。
+- 只写“怎么接”，不给 demo；或者为了 demo 方便，用生产密钥对公网开放一个换票接口。
+- 把 demo 的接入代码和文章里的写成两个版本。
