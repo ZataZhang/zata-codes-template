@@ -724,7 +724,9 @@ _collect_template_skill_updates() {
                 skill_status="NEW"
                 break
             fi
-            if ! diff -qr "$template_skill_dir" "$installed_skill_dir" >/dev/null 2>&1; then
+            # 技能目录可能带有本地 Python 字节码缓存；比较候选时忽略这些运行产物。
+            if ! diff -qr -x '__pycache__' -x '*.pyc' \
+                "$template_skill_dir" "$installed_skill_dir" >/dev/null 2>&1; then
                 skill_status="UPDATE"
             fi
         done
