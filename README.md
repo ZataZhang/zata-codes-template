@@ -14,6 +14,7 @@ An extensible starter for Python web projects. It combines a **FastAPI modular m
 - **Two frontends:** the admin app uses Vite, React, and TanStack Router; the public app uses Next.js 16, React 19, and Tailwind CSS 4.
 - **Authentication and sessions:** public registration and login, a separate admin authentication domain, HTTP-only cookie sessions, and Redis-backed session storage.
 - **Optional runtime capabilities:** run-trace inspection, health probes, Prometheus metrics, and filesystem, Docker, and E2B sandbox adapters.
+- **MCP server:** the official Python SDK v2 serves the current stateless Streamable HTTP protocol at `/api/mcp`, with an example application-information tool.
 - **Development workflow:** Python dependencies managed with `uv`, common tasks run with `just`, plus Alembic migrations, pre-commit hooks, tests, and a MkDocs documentation site.
 - **No model-vendor lock-in:** the template does not include an LLM client or provider registry. Downstream projects can load an OpenAI-compatible endpoint configuration and choose their own SDK.
 
@@ -150,6 +151,7 @@ just run
 - [Getting Started](docs/getting-started.md)
 - [PRD Skill Guide](docs/guides/prd-skill.md)
 - [Configuration](docs/guides/configuration.md)
+- [Model Context Protocol](docs/guides/mcp.md)
 - [System Architecture](docs/architecture/system-design.md)
 - [Sandbox Runtime](docs/guides/sandbox-runtime.md)
 - [Observability](docs/guides/observability.md)

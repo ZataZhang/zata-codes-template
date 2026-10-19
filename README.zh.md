@@ -14,6 +14,7 @@
 - **两套前端**：管理后台使用 Vite、React 和 TanStack Router；用户端使用 Next.js 16、React 19 和 Tailwind CSS 4。
 - **认证与会话**：用户注册和登录、独立的管理后台认证、HTTP-only Cookie 会话及 Redis 会话存储。
 - **可选运行能力**：运行轨迹查询、健康探针、Prometheus 指标，以及 filesystem、Docker、E2B 沙箱适配器。
+- **MCP server**：通过官方 Python SDK v2 在 `/api/mcp` 提供当前无状态 Streamable HTTP 协议，并附带应用信息示例工具。
 - **工程工作流**：通过 `uv` 管理 Python 依赖、`just` 运行开发任务，并提供 Alembic 迁移、pre-commit、测试和 MkDocs 文档站点。
 - **不绑定模型供应商**：模板不内置 LLM 客户端或 provider 目录；派生项目按需读取 OpenAI 兼容端点配置并选择 SDK。
 

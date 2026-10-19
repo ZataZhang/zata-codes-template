@@ -264,6 +264,31 @@ class AuthSettings(BaseSettings):
         )
 
 
+class MCPSettings(BaseSettings):
+    """MCP Streamable HTTP 的 Host 与 Origin 安全白名单。"""
+
+    model_config = SettingsConfigDict(env_prefix="MCP_", extra="ignore")
+
+    allowed_hosts: list[str] = Field(
+        default_factory=lambda: ["localhost:*", "127.0.0.1:*", "[::1]:*"]
+    )
+    allowed_origins: list[str] = Field(default_factory=list)
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,  # noqa: ARG003
+        file_secret_settings: PydanticBaseSettingsSource,  # noqa: ARG003
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """按环境变量、TOML、初始化参数的顺序加载 MCP 配置。"""
+
+        toml_source: _TomlSectionSource = _TomlSectionSource(settings_cls, "mcp")
+        return (env_settings, toml_source, init_settings)
+
+
 class AppSettings(BaseSettings):
     """应用主配置 - 聚合所有子配置。"""
 
@@ -282,6 +307,7 @@ class AppSettings(BaseSettings):
     db_migration_mode: str = Field(default="auto")
 
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
+    mcp: MCPSettings = Field(default_factory=MCPSettings)
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
     redis: RedisSettings = Field(default_factory=RedisSettings)
     auth: AuthSettings = Field(default_factory=AuthSettings)
