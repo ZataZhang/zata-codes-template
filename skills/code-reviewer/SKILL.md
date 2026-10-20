@@ -1,6 +1,6 @@
 ---
 name: code-reviewer
-description: "[Updated 2026-04-10] Full-stack pre-merge review specialist covering security, quality, maintainability, requirement alignment, validation evidence, and documentation synchronization. Use after implementation to review diffs, PRs, or recent commits and surface delivery gaps before merge."
+description: "[Updated 2026-10-20] Full-stack pre-merge review specialist covering security, quality, maintainability, requirement alignment, validation evidence, and documentation synchronization. Use after implementation to review diffs, PRs, or recent commits and surface delivery gaps before merge."
 ---
 
 # Code Reviewer
@@ -29,11 +29,11 @@ When invoked:
 3. **Extract acceptance criteria** -- Rewrite the expected behavior into a short checklist. Identify required scope, explicit non-goals, and any risky assumptions.
 4. **Read surrounding code** -- Review the full files, imports, call sites, docs, and config touched by the change. Do not review the diff in isolation.
 5. **Check requirement alignment** -- Decide whether the implementation is missing required behavior, adding out-of-scope behavior, or diverging from the stated contract.
-6. **Check code quality and safety** -- Apply the checklist below from CRITICAL to LOW.
-7. **Check interface validation evidence** -- If routes, handlers, schemas, auth, persistence write paths, or external integrations changed, look for API-, integration-, smoke-, or e2e-level proof instead of relying only on unit tests.
-8. **Check repository validation status** -- Record whether `just lint`, relevant tests, and `uv run mkdocs build` were run. If they were not run, report that as a validation gap rather than silently assuming success.
+6. **Complete a code pass** -- Inspect changed logic, relevant error paths, state transitions, and call sites for concrete defects before writing the review. Validation status does not substitute for this pass and must not end it early.
+7. **Check interface validation evidence** -- For changed interfaces, record the highest relevant evidence level actually completed and the remaining coverage. Distinguish an unverified behavior from a demonstrated defect.
+8. **Check repository validation status** -- Record whether `just lint`, relevant tests, and `uv run mkdocs build` were run, including `partial`, `not run`, or `blocked` status and the reason. An incomplete command is not a failed test result.
 9. **Check docs synchronization** -- For behavior, interface, config, command, or workflow changes, confirm whether `docs/`, `mkdocs.yml`, docstrings, examples, and API reference inputs were updated together.
-10. **Report findings** -- Use the output contract below. Separate requirement gaps, code issues, validation gaps, and docs sync gaps.
+10. **Report findings** -- Use the output contract below. Keep actionable requirement/code/docs findings separate from validation status. Promote a validation gap to a finding when evidence is an explicit acceptance or required merge gate, or when a concrete high-consequence risk cannot be assessed from code and available evidence. Name that risk and its impact; a generic "not verified" statement is not enough. Calibrate severity to the actual delivery impact.
 
 ## Confidence-Based Filtering
 
@@ -77,7 +77,7 @@ When an interface boundary is touched, check for evidence such as:
 - e2e coverage
 - recorded smoke verification using `curl`, `httpie`, or equivalent commands
 
-Unit tests alone are often insufficient for these changes. If no interface-level evidence exists, report a validation gap even when the code looks correct.
+Unit tests alone may be insufficient for these changes. Record what the evidence proves and which boundary remains unexercised. Missing evidence by itself does not establish a code defect. Report it as a validation finding when the relevant evidence is explicitly required by acceptance criteria or a merge gate; otherwise keep it in the validation status with its practical limitation.
 
 ## Repository Validation Commands
 
@@ -94,7 +94,7 @@ Use these statuses:
 - **not run** -- no evidence that the command was executed
 - **blocked** -- the command could not run because of an environment or repository issue
 
-Do not silently downgrade missing verification. Call it out.
+Record incomplete or absent commands with their exact status and cause; do not describe an interrupted command as a test failure. A missing command is a finding only when it is an explicit required gate for this delivery. Otherwise report it in the validation status without assigning defect severity or changing the verdict. Follow the user's instructions and repository policy about which commands may be run.
 
 ## Docs Synchronization Checks
 
@@ -154,8 +154,8 @@ const result = await db.query(query, [userId]);
 
 - **Requirement mismatch** -- Behavior does not satisfy the stated requirement
 - **Out-of-scope implementation** -- Extra behavior added without approval
-- **Missing interface verification evidence** -- Risky interface changes with no API, integration, smoke, or e2e proof
-- **Repository validation missing** -- `just lint`, relevant tests, or `uv run mkdocs build` not run for merge-critical changes
+- **Required interface evidence missing** -- An explicit acceptance or merge gate requires API, integration, smoke, e2e, or manual proof that is still absent; state which criterion is blocked
+- **Required repository gate incomplete** -- A repository command explicitly required for this delivery remains incomplete and blocks its stated gate
 - **Docs drift** -- Code changed but `docs/`, docstrings, examples, or MkDocs navigation did not
 
 ### HIGH -- Code Quality
@@ -166,7 +166,7 @@ const result = await db.query(query, [userId]);
 - **Missing error handling** -- Unhandled promise rejections or empty catch blocks
 - **Mutation patterns** -- Prefer immutable operations where practical
 - **Debug statements** -- Remove `console.log` or `print()` debug logging before merge
-- **Missing tests** -- New code paths without coverage
+- **Missing required coverage** -- A changed behavior has no coverage where the requirement or repository policy explicitly requires it; report the coverage gap with its scope, separately from whether tests were run
 - **Dead code** -- Commented-out code, unused imports, unreachable branches
 
 ```python
@@ -403,7 +403,7 @@ services:
 
 最终评审报告必须使用中文输出。
 
-Present findings first, ordered by severity, and include file references when available.
+Present actionable findings first, ordered by severity, and include file references when available. Keep ordinary validation statuses in the review summary; an unrun or interrupted command is not itself a code finding. If a required acceptance/merge gate remains unmet, report it under `validation` and make the delivery conclusion reflect that gate.
 
 Use this structure:
 
@@ -430,23 +430,18 @@ End every review with a concise delivery summary using symbols for clarity. Keep
 ## 评审总结
 
 🔴 严重: 0  ✅
-🟠 高: 2  ⚠️
-  1. 缺少 PRD 要求的 JSON 导出分支
-  2. 相关接口无集成测试覆盖
+🟠 高: 1  ⚠️
+  1. 缺少 PRD 明确要求的 JSON 导出分支
 🟡 中: 1  ⚠️
   1. 导出服务缺少输入参数校验
 🔵 低: 0  ✅
 
 需求状态: ✅ 通过
-验证状态: ⚠️ 部分
+代码审查: ✅ 已完成（代码发现: 0）
+验证状态: ⚠️ 部分（just lint: partial；相关测试: not run；uv run mkdocs build: passed）
 文档状态: ✅ 通过
 
-已检查命令:
-- just lint: ✅ 通过
-- 相关测试: ⚠️ 部分
-- uv run mkdocs build: ✅ 通过
-
-结论: ⚠️ 警告 -- 合并前仍有 2 项高优先级问题待解决。
+结论: ⛔ 阻止 -- 存在 1 项高优先级需求 finding；普通验证备注单独记录，不改变结论。
 ```
 
 ### Machine-Readable Verdict Block
@@ -476,18 +471,20 @@ verdict without ambiguity:
 Rules for the JSON block:
 
 - It must be the last fenced code block in your response.
-- If there are no unresolved findings, set `verdict` to `approved` and `findings` to `[]`.
-- If there are any unresolved findings, set `verdict` to `changes_requested`.
-- If you have already applied fixes in the worktree, set `verdict` to `approved` and
-  write `.agent-runner/commit-request.json` with a descriptive `commit_message`.
+- Include only actionable unresolved findings. Routine `not run` / `partial` statuses belong in the Chinese summary, not in `findings` by default.
+- If no findings or required gates remain, set `verdict` to `approved` and `findings` to `[]`, even if a non-required validation command is recorded as not run.
+- If an explicit acceptance or merge gate remains unmet, include a `validation` finding and set `verdict` to `changes_requested`.
+- Any other unresolved actionable finding also requires `verdict` to be `changes_requested`.
+- Applying fixes does not automatically approve the review. Re-review the final diff, remove only findings supported as resolved, and keep `changes_requested` while an actionable finding or explicit required gate remains.
+- Create `.agent-runner/commit-request.json` only when the surrounding Agent Runner workflow explicitly consumes that file; its presence does not determine the verdict.
 
 If requirement context is incomplete, add an `Assumptions` section and state exactly what requirement source you relied on.
 
 ## Approval Criteria
 
-- **通过** -- 无严重问题，无未解决的高优先级问题，且需求和文档状态均未失败
-- **警告** -- 存在高优先级问题，或验证状态为部分通过，但变更可在明确接受风险后合并
-- **阻止** -- 存在严重问题，缺少必需行为，或高风险接口变更缺乏必要的验证证据
+- **通过** -- 没有未解决的严重/高优先级 finding，显式验收与合并门禁已满足，需求和文档状态通过。非必需验证未运行时，在验证状态说明即可，不单独改变结论。
+- **警告** -- 只有中/低优先级且不阻塞交付的 finding，或非必需验证部分完成；需说明实际影响。
+- **阻止** -- 存在严重/高优先级 actionable finding、必需行为缺失，或显式验收/合并门禁尚未满足。
 
 ## AI-Generated Code Review Addendum
 
