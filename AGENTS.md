@@ -21,7 +21,7 @@
 | `docs/ai-standards/code-reuse.md` | **任何**新增或修改代码前；考虑提取 helper、判断是否复制粘贴、函数参数 ≥4 个、文件接近 500 行、运行 `just lint --reuse` 之前；交付前必须完成其中的 **AI 编码自检清单** | 纯文档排版或纯配置改动且无任何代码逻辑变更 |
 | `docs/ai-standards/naming.md` | 新增 Python 变量、函数、类、模块；命名风格不确定时 | `tests/playwright-e2e/` 内的 TypeScript 改动 |
 | `docs/ai-standards/comments-docstrings.md` | 新增/修改公共 Python API；写模块/类/函数 docstring；做文件 I/O 涉及编码问题 | 仅改私有实现细节且不涉及公共 docstring 时 |
-| `docs/ai-standards/documentation.md` | 改动公共函数签名、配置项、业务流程；新增长期文档页；更新 `mkdocs.yml` 导航 | 纯内部重构且无对外行为或文档变化 |
+| `docs/ai-standards/documentation.md` | 改动公共函数签名、配置项、业务流程、API 提示或用户可见文案；新增长期文档页；更新 `mkdocs.yml` 导航 | 纯内部重构且无对外行为或文档变化 |
 | `docs/ai-standards/testing.md` | **任何代码变更开始前**；制定验证策略、收集证据或声称完成前必须重新核对；写 PRD 的 Realistic Validation Plan；**遇到测试失败或打算修改 `tests/guards/` 守卫测试时** | 仅改注释、纯文档排版或无可执行行为变化的纯配置 |
 | `docs/ai-standards/tooling.md` | 选择运行命令；改 `justfile` / `pre-commit` / `mkdocs` / Docker 配置；处理 PRD 归档流程；处理 lint flag 或重复检测 hooks；撰写提交信息 | 在已熟悉常用 `just` 命令、且本次不动工具链配置时 |
 | `docs/ai-standards/alembic.md` | 新增、重命名或修改 Alembic migration；检查迁移链或 `down_revision` | 不涉及 `alembic/versions/` 时 |
@@ -39,6 +39,7 @@
 - 新增 Alembic migration **必须**通过 `just new-migration <slug>`（或其底层 `scripts/shared/alembic/new_migration.sh`）生成；禁止手工创建、命名或伪造秒级时间戳。生成后再仅用补丁填写 `upgrade()` / `downgrade()`，并执行 `uv run alembic heads` 确认唯一 head。
 - 公共 Python API 使用 Google Style Docstrings；后端启用 Ruff `D100`–`D107`/`D419` 强制检查
 - 内部注释、docstring、JSDoc/TSDoc 统一使用中文（专有名词除外）
+- 用户可见提示默认使用英文，已有产品语言或国际化约定时沿用；内部日志和团队维护文档默认中文。调用方按状态或错误标识处理，不匹配提示文字；详见 `docs/ai-standards/documentation.md` 的「用户提示与内部内容的语言」。
 - 前端启用 `eslint-plugin-jsdoc` 强制公共函数/类/方法写 JSDoc/TSDoc（当前 warn，逐步升级 error）
 - Python 文本文件 I/O 必须显式写 `encoding="utf-8"`
 - 变量命名必须具有来源、类型或状态语义，避免 `data`、`item`、`res`

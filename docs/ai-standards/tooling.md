@@ -154,7 +154,7 @@ gh api repos/<owner>/<repo>/check-runs/<job-id>/annotations --jq '.[].message'
 - 触发背景：`next dev`(turbopack) 在陈旧 `.next` 产物下会无上限 spawn postcss worker，每个 worker 自带 `tailwindcss-oxide` 的 rayon 线程池（50–78MB / ~9 线程）且任务完成后不回收。实测一个页面请求即 spawn 159 个，数分钟可堆到数千进程、耗尽内存把机器压进 swap。撞上上限的代价只是该次构建失败，远小于整机失去响应。
 - 上限按 **当前用户进程数 + 余量** 动态计算：`RLIMIT_NPROC` 统计的是整个 uid 的进程数而非本 shell 的子进程，写死一个小值会连启动命令自身都 fork 不出来。
 - 余量默认 400；用 `RUN_PROCESS_HEADROOM=<n>` 调整，`RUN_PROCESS_HEADROOM=0` 关闭保护。
-- 脚本缺失、余量非法或 hard limit 低于目标值时，打印告警并放行，不阻断启动。
+- 脚本缺失、余量非法、无法统计当前进程数或 hard limit 低于目标值时，打印告警并放行，不阻断启动。
 
 ## Project Database Isolation
 

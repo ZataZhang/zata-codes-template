@@ -8,6 +8,8 @@
 
 **所有内部注释、docstring、JSDoc/TSDoc 统一使用中文**。中文信息密度高，团队阅读效率更好。专有名词（如 DTO、HTTP、Redis、SQLAlchemy）可保留英文。
 
+API 返回的用户提示和界面文案按 [用户提示与内部内容的语言](documentation.md#用户提示与内部内容的语言)执行，默认使用英文；不要将内部注释的中文要求套到用户提示上。
+
 ### 最低要求
 
 - 模块需要模块级 docstring
