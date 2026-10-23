@@ -117,6 +117,11 @@ forbidden_path_patterns = [
     "secrets/*",
     "docker-compose.prod.yml",
 ]
+# `.env.*` 会连带拦下可提交的配置模板；例外只放行示例文件，真实 `.env.local` 等仍被禁改。
+forbidden_path_exceptions = [
+    ".env.example",
+    ".env.*.example",
+]
 
 # Autopilot 快速档（合并队列）：supervisor 之后串行合并；需配合 safety.auto_merge = true 同时启用
 [agent_runner.autopilot]
