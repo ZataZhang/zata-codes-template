@@ -103,6 +103,27 @@ gh api repos/<owner>/<repo>/check-runs/<job-id>/annotations --jq '.[].message'
 - 模板维护者的本机工具状态同样排除：`.kedacode/`（KedaCode（kc）runner 会话记忆，`.kedacode.toml` 显式指向的新目录）、`.iar/` 与 `.iar-worktrees/`（改名前旧目录，残留防漏）、`.workbuddy-ai/`（AI 工具笔记）。它们在 `.gitignore` 里，但 rsync 不读 `.gitignore`，不显式排除就会随 copy 落进派生项目。与之相对，`.env.local` 保留在拷贝范围，由 `setup_copied_database.py` 改写其中的 `DATABASE_URL`。
 - 从单文件旧版升级时，建议手工把本地 `justfile` 重写为最小私有版（`import 'justfile.shared'` + 项目特有 recipe），避免与 import 进来的共享 recipe 重复定义。
 
+### 从 Justfile 调用模板共享脚本
+
+`import 'justfile.shared'` 共享的是 recipe 定义；需要复用某个 `scripts/shared/<area>/` 工具时，保留脚本为唯一实现，在项目自己的 `justfile` 里加一条薄 recipe，负责选择解释器、切回调用项目目录并透传参数。不要把脚本逻辑复制进 recipe。
+
+例如，项目与模板仓库位于同一工作区的相邻目录时，可以这样委托 `just view`：
+
+```just
+_template_directory := justfile_directory() / "../zata_code_template"
+_view_script := _template_directory / "scripts/shared/view/launch.py"
+_view_python := if os_family() == "windows" { _template_directory / ".venv/Scripts/python.exe" } else { _template_directory / ".venv/bin/python" }
+_view_python_command := if path_exists(_view_python) == "true" { quote(_view_python) } else { "uv run --project " + quote(_template_directory) + " --no-sync python" }
+
+view *args:
+    cd "{{justfile_directory()}}" && exec {{_view_python_command}} -S "{{_view_script}}" {{args}}
+```
+
+- `cd` 必须回到调用方项目根目录：共享入口按当前工作目录识别要操作的仓库。若切到模板目录，查看器就会误把模板自身当成目标。
+- 解释器和依赖使用模板仓库的环境；缺少现成 venv 时通过 `uv run --project` 选中模板项目。`-S` 是查看器为快速复用设计的入口优化，其他脚本只有在确认兼容时才照搬。
+- 这种相邻路径委托适合模板仓库与项目同时存在的本机工作区，优先用相对路径，不要写开发者专属绝对路径。项目需要脱离模板仓库独立运行时，应通过 `just sync-template` 同步脚本并从项目内调用本地副本。
+- 共享脚本负责功能与资源路径，项目 recipe 只负责启动上下文；参数继续通过 `{{args}}` 传给脚本。暂时不为单条委托再加生成器或额外的 Justfile 抽象。
+
 ## Run Port State
 
 `just run` 会把运行状态写入项目根目录的 `.env.run-state`。该文件不进入版本控制（被 `.env*` 规则忽略）；每个 worktree 拥有自己独立的运行状态文件，天然避免多 worktree 端口冲突。
