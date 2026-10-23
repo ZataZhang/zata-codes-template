@@ -1,82 +1,76 @@
 ---
 name: feature-docs
-description: "[Created 2026-09-13] Maintain the docs/features/ hub-and-spoke feature documentation directory — per-domain folders with a routing index and per-feature code maps written for AI coding agents. Triggers on: 补功能文档, update feature docs, sync docs/features, document this feature, bootstrap feature docs, 功能文档. Covers creating new domain docs from real code exploration, updating docs after behavior changes, and bootstrapping the convention into a repo that lacks it."
+description: "[Created 2026-09-13, Updated 2026-10-23] Create and incrementally maintain source-verified feature code maps for people and agents changing a repository. Use for 补功能文档, 功能文档, update feature docs, sync docs/features, or adopting a feature-documentation convention. Follow existing documentation structure; distinguish feature maps from development standards, architecture, and user guides."
 ---
 
-# Feature Docs Maintainer
+# 功能文档维护
 
-Maintain a `docs/features/` directory whose sole audience is **whoever changes the code** (human or agent). It answers: what features exist, where their entry points are, which files a change will touch, what the data contracts are, and where the traps are.
+目标：读者能据此定位一次具体修改、理解影响，并选择对应验证，而不只是得到文件清单。
+以当前源码确认事实；已有文档与 PRD 是调查线索，不是实现证据。
 
-## Positioning Boundaries
+## 选择范围与归属
 
-- `docs/features/` = **code map for changers**. Entry points, key code paths, contracts, tests, pitfalls.
-- `docs/guides/` = **manual for users**. Installation, configuration, troubleshooting. Do not copy user-manual content into features docs.
-- `docs/architecture/` = **cross-layer contracts and design rationale**. Do not duplicate; link.
-- `code-reviewer` skill = the docs-synchronization **gate** at pre-merge. This skill = the **how-to** for actually writing the docs. Different roles, do not merge.
+先读目标仓库的 Agent 入口、规范索引和现有功能文档，沿用其语言、分层及模板。
 
-When overlap is unavoidable, single-source it: keep the content in one file and replace the other copy with a link. Two files must never both claim authority over the same content.
+- 功能代码地图归现有 `docs/features/` 或等价位置；架构边界、开发规范、操作指南分别链接
+  各自权威源，不在功能文档复制。若请求实际属于规范或指南，直接维护正确位置。
+- 已有体系只局部补齐；缺模板或路由不代表需要重建。单篇小功能不强制分领域目录。
+- 仅当用户要求引入功能文档且没有等价体系时，创建最小索引、模板和一个真实功能示例，
+  再接入 Agent 阅读入口与文档导航。不预建空领域或不存在页面的占位链接。
+- 查明本次任务范围；遇到无关陈旧说明，只报告线索，不默认扩成全库整理。
 
-## Convention Detection
+## 调查当前实现
 
-Before anything else, check whether the repo has adopted the convention:
+从真实 HTTP、CLI、页面或任务入口追踪主流程，包括权限、分支、持久化和返回结果。
+沿仓库自身分层确认关键实现、schema、配置来源、直接调用方及相关测试。
+特别区分实际注册的生产入口、兼容层、遗留路径和未接入代码。
+描述测试覆盖时读取测试体、fixture、导入的工厂及替身：不能因使用 ASGITransport 或
+重复注册 router 就推断是临时应用；同样不能因调用工厂就推断已访问真实外部依赖。
+覆盖说明必须对应实际初始化边界与断言，未读到的 fixture 行为保持未确认。
 
-1. Does `docs/features/index.md` (hub with a routing table) exist?
-2. Does `docs/features/_template.md` exist?
-3. Is the hub referenced from the repo's agent entry file (e.g. `AGENTS.md` routing table)?
+关键行为用“文件路径 + 函数、类或配置键”定位证据，必要时链接稳定的源码版本；不要求
+逐句引用或依赖容易漂移的行号。文件存在不等于行为描述正确，需阅读符号及调用关系。
 
-If yes to all → follow the **Update Workflow**. If no → run **Bootstrap Mode** first (below).
+- 源码事实直接说明，并附依据。
+- 推断注明依据与不确定性；无法确认的外部行为或运行结果写“未确认”，不补成事实。
+- 不把 TODO 或计划当作已实现能力，不记录密钥，不凭旧文档推断部署环境。
 
-## Update Workflow
+## 增量维护与写作
 
-### Step 1: Explore first — never write from memory
+同步变更时先读 diff（或用户指定的变更范围），找变更符号、入口、配置键及旧路径，再沿
+直接使用方查受影响文档。搜索范围覆盖仓库，而非只在 docs/ 中找同名页面：同时识别源码
+消费者、契约测试和根目录文档；授权只改文档时，未修改的源码影响也要报告。范围跨功能时
+才扩展调查。处理入口注册、使用指南和导航中的引用，
+不要只更新与源码同名的一篇说明。
 
-Dispatch an exploration pass (subagent or direct search) with this fixed checklist. Every path in the output must be verified to exist:
+更名或移动时修正引用；删除或合并功能时处理旧页和索引，避免留下第二套权威说明。
+历史记录中的旧路径可保留，但注明历史语境；不批量替换无关文字。
 
-1. Feature overview: what it is, what problem it solves
-2. Entry points: API routes (file + prefix), frontend pages, CLI commands
-3. Key code paths: follow the repo's own layering (e.g. api → core → engines → infrastructure), one line of responsibility per file
-4. Data contracts: DB tables / ORM models, Pydantic or schema models, config items (note whether they live in config files or env)
-5. Tests: which test files cover this feature, how to run them
-6. **Pitfalls**: dig code comments, defensive checks, magic numbers, TODOs, ordering constraints — this is the highest-value output
+功能文档按实际需要包含：
 
-Explicitly ask: "is this directory/mechanism still the primary path, or legacy?" Legacy-looking paths (`data/`, old stores, compat shims) are a common trap.
+1. 简短目的和当前入口。
+2. 一条能解释调用顺序、关键分支及数据去向的主流程，不止文件职责表；复杂边界才配图。
+3. 有源码依据的关键契约、配置与修改时容易误判的约束。
+4. “要改什么 → 去哪里 → 影响什么 → 如何验证”的修改提示，以及相关测试入口。
+5. 相关权威说明和已知限制。
 
-### Step 2: Write per template
+优先服从仓库模板，不适用栏目按其约定省略或注明。需要输出示范时读
+[示例](references/feature-map-example.md)，不要复制示例的虚构业务事实。维护既有页面时核对与本次事实有关的旧段落，
+不要只在末尾追加新说明而保留相互矛盾的旧结论。
 
-- One domain = one directory with a short `_index.md` whose only job is routing ("changing X → read page Y"). Put the domain's biggest cognitive trap in its first sentence.
-- One feature = one file copied from `docs/features/_template.md`. No empty sections — write "无" / "None".
-- Value ordering: **pitfalls > code paths > contracts > overview**. The overview is the least important section; anyone can write it, only real exploration produces the pitfalls.
-- Match the repo's doc language and heading style.
+更新已有总索引、适用的领域索引和站点导航；Agent 入口指向总索引即可，不在每个工具
+入口复制所有功能。新增开发规范页遵循仓库的规范路由要求。
 
-### Step 3: Wire discoverability (all three, or the page does not exist)
+## 完成条件与交付
 
-1. Link from the domain's `_index.md`
-2. Add/refresh the row in the `docs/features/index.md` routing table (with "when must read / when can skip")
-3. Add to the docs site nav (e.g. `mkdocs.yml`) if the repo has one
+- 核对本次变更的路径、符号、链接和命令；搜索应淘汰的旧引用并判断其语境。
+- 按仓库要求运行一致性检查和文档构建；没有构建工具时做适用的静态核对并说明限制。
+- 用一个实际修改问题检查文档是否能给出定位、影响和验证路径；不能就补齐缺口。
+- 仅改文档时不声称完成产品行为验证。列出的测试命令不代表已执行；同时修改行为时，
+  依仓库测试规范验证真实入口。依赖不可用时披露未验证部分，不编造通过结果。
+- 检查 diff 与工作区范围；不主动暂存、提交、推送，不修改生产代码来迎合文档结论。
 
-### Step 4: Verify
+交付简述调查范围、文档变更、重要事实及源码依据、实际验证结果、未确认事项。
+非显而易见的相关文档未更新时说明理由，不必逐一罗列所有无关文件。
 
-1. Run the repo's docs build (`mkdocs build`, or equivalent) — must pass with no new warnings
-2. Spot-check 2–3 cited code paths still exist
-3. grep that no doc references now-deleted files
-
-## Sync Triggers
-
-Update the matching features doc in the same change as the code when any of these change: user-visible behavior, entry points (routes/commands/pages), data contracts, config items, or the pitfall list (a fixed bug often becomes a documented trap).
-
-Do **not** batch-fill empty domains upfront. Fill on demand: when a PRD or change touches a domain, write that domain's docs in the same pass. Docs filled ahead of code rot immediately.
-
-## Anti-Patterns
-
-- **Design-record dumps**: PRD-numbered "implementation record" sections are not feature docs. If migrating them into `docs/features/`, mark them as design records at the top and rewrite toward the template incrementally.
-- **Dual authority**: two pages describing the same mechanism. Single-source and link.
-- **Template-forking**: tweaking `_template.md` per domain. The template is the contract; domain knowledge goes in the content.
-- **Writing from docs alone**: existing guides describe intent, not current code. Always verify against source.
-
-## Bootstrap Mode (repo lacks the convention)
-
-1. Research how the repo organizes docs and what its agent entry file is (AGENTS.md / CLAUDE.md / none yet).
-2. Create `docs/features/index.md` (hub: purpose, how-to-use, empty routing table skeleton seeded with 4–8 real domains from the codebase) and `docs/features/_template.md` (sections: 功能概述 / 入口 / 关键代码路径 / 数据契约 / 测试 / 常见坑 / 相关文档 — adapt names to repo language).
-3. Add one routing row to the repo's agent entry file pointing at the hub: "需要了解某个具体业务功能的入口、代码路径、数据契约或常见坑时 → docs/features/index.md".
-4. Wire the docs site nav if one exists; run the docs build.
-5. Seed **one** real domain end-to-end (pick the repo's main flow) as the living example. Leave the rest as routing-table rows to be filled on demand.
+需要评估本 skill 的效果时，使用 [评估方法与评分表](evals/README.md)；普通文档任务不加载评估资料。

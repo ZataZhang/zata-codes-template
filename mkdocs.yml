@@ -54,6 +54,7 @@ nav:
       - 命名规范: ai-standards/naming.md
       - 注释与 Docstring: ai-standards/comments-docstrings.md
       - 文档规范: ai-standards/documentation.md
+      - 前端设计规范: ai-standards/frontend-design.md
       - 测试规范: ai-standards/testing.md
       - 工具与命令: ai-standards/tooling.md
   - 使用指南:
@@ -70,6 +71,7 @@ nav:
       - PRD Skill 指南: guides/prd-skill.md
       - Review Workflow: guides/review-workflow.md
       - Skill Lifecycle: guides/skill-lifecycle.md
+      - 功能文档 Skill: guides/feature-docs-skill.md
       - Codex macOS 通知: guides/codex-notifications.md
   - 原型演示:
       - 概览: prototypes/index.md

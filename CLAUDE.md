@@ -25,6 +25,7 @@
 | `docs/ai-standards/naming.md` | 新增 Python 变量、函数、类、模块；命名风格不确定时 | `tests/playwright-e2e/` 内的 TypeScript 改动 |
 | `docs/ai-standards/comments-docstrings.md` | 新增/修改公共 Python API；写模块/类/函数 docstring；做文件 I/O 涉及编码问题 | 仅改私有实现细节且不涉及公共 docstring 时 |
 | `docs/ai-standards/documentation.md` | 改动公共函数签名、配置项、业务流程；新增长期文档页；更新 `mkdocs.yml` 导航 | 纯内部重构且无对外行为或文档变化 |
+| `docs/ai-standards/frontend-design.md` | 新增或修改前端界面的布局、视觉、主题、组件或交互；制作需贴合产品的原型 | 不涉及界面的后端、文档或构建改动 |
 | `docs/ai-standards/testing.md` | **任何代码变更开始前**；制定验证策略、收集证据或声称完成前必须重新核对；写 PRD 的 Realistic Validation Plan；**遇到测试失败或打算修改 `tests/guards/` 守卫测试时** | 仅改注释、纯文档排版或无可执行行为变化的纯配置 |
 | `docs/ai-standards/tooling.md` | 选择运行命令；改 `justfile` / `pre-commit` / `mkdocs` / Docker 配置；处理 PRD 归档流程；处理 lint flag 或重复检测 hooks；撰写提交信息 | 在已熟悉常用 `just` 命令、且本次不动工具链配置时 |
 

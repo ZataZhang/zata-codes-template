@@ -9,6 +9,7 @@
 - `docs/ai-standards/naming.md`
 - `docs/ai-standards/comments-docstrings.md`
 - `docs/ai-standards/documentation.md`
+- 界面布局、视觉、主题与交互改动：`docs/ai-standards/frontend-design.md`
 - `docs/ai-standards/testing.md`
 - `docs/ai-standards/tooling.md`
 

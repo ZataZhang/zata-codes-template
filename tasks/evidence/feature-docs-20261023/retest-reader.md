@@ -1,0 +1,43 @@
+# Retest reader check
+
+Read docs first, then checked the cited source/tests. No product tests executed, no docs changed. Prior reports preserved. Case 2 is pending notification.
+
+## Case 1 — docs-only answer
+
+`docs/architecture/authentication.md` §11 “维护者修改地图” locates Cookie names at `api/dependencies.py:PUBLIC_SESSION_COOKIE_NAME/ADMIN_SESSION_COOKIE_NAME`, and setting/clearing at both router `_set_session_cookie/_clear_session_cookie` helpers. For a public Cookie rename, keep login/register issuance, me/guard reads, and logout cleanup consistent. §8 specifies that `_COOKIE_MAX_AGE_SECONDS` is fixed at 60 days in each router, separate from server lifetime settings. For server validity use `AuthSettings`, `composition/auth_wiring.py:build_auth_components`, and `RedisSessionStore.create/slide_expiration/_persist/_read`; shared settings affect both domains. Thus public-only browser lifetime and shared server validity are distinct changes.
+
+Isolation must retain separate Cookie names, Redis prefixes, and user repositories/tables; §5 explains both direct cross-domain and forged-Cookie 401 rejection, while §11 identifies prefix/model/identifier/registration bindings. Prefix changes invalidate existing tokens. Frontend origin/port is not the security boundary.
+
+§10 “验证覆盖与边界” supplies runnable backend commands, including `uv run pytest tests/backend/test_auth_domains.py tests/backend/test_redis_session_store.py -q -n 0`, and a separate explicit `-m redis` opt-in command with `REDIS_URL`. It accurately says existing fakeredis renewal coverage only asserts a valid returned record, not TTL or absolute deadline. Lifetime changes require controlled-clock assertions of initial/sliding TTL, absolute expiry, deletion, and Cookie Max-Age; real-browser follow-up covers domain Cookies, forged credentials, logout, and disabling the same user's original session. It clearly distinguishes existing assertions from planned verification and warns that browser login setup is not full form validation.
+
+## Case 1 — source check and remaining gaps
+
+Core location/impact/verification retrieval succeeded. Source confirms `PUBLIC_SESSION_COOKIE_NAME` is reused by set/delete/logout/me and the public guard; `_COOKIE_MAX_AGE_SECONDS` is a separate public-router constant, and auth wiring shares lifetime settings across distinct stores/models. The actual store tests match the corrected coverage description: no TTL/deadline assertions, optional real Redis roundtrip only. `test_auth_domains.py` contains the cited cross-domain and forged-Cookie assertions.
+
+Remaining small navigation gap: `test_auth_domains.py` extracts `client.cookies.get("session_id")` directly, so Cookie rename requires updating that concrete test consumer; the map points to the right test but does not call out this literal. The page does not select a Cookie migration/backward-compatibility policy or public-specific server-lifetime design, which should be decided from the requested change rather than inferred. The new docs no longer claim existing tests prove expiry boundaries.
+
+## Case 3 — docs-only answer
+
+`docs/features/health.md` introduction and “入口与主流程” explicitly answer that `/ready` does not check PostgreSQL or Redis. All three functions return fixed OK; the unused Request and future-extension docstring do not imply checks exist. The page distinguishes request-time fixed responses from application construction, which performs migrations and dependency assembly.
+
+Implement dependency readiness in `api/health_router.py:ready()`; “修改定位与验证” requires defining failure status and dependency-fault assertions, and directs dependency contracts to architecture authority. Production registration runs through `main.py` → `composition/app_factory.py` → router list. Existing verification is `tests/test_health.py:test_health_endpoints_return_ok`, with `uv run pytest tests/test_health.py -q -n 0` after configuring the environment. The page correctly says the test constructs the production factory then adds the router again, uses in-process ASGITransport without explicit lifespan, and cannot independently prove production registration. Proposed real HTTP checks must inspect status/JSON for all three paths and also inspect OpenAPI/routes and actual callers.
+
+## Case 3 — source check and remaining gaps
+
+Current behavior, modification location, and test setup/actual assertions match source. `health_router.py::ready` handles `/ready` and returns only `{"status": "ok"}`. The composition factory invokes migrations and unconditionally includes health routes before its observability conditional. The test calls imported production `create_app`, adds health routes again, and asserts 200/OK JSON for each path. It has no dependency failure assertions and no explicit lifespan manager.
+
+The prior false “temporary bare FastAPI/router-only” characterization is fixed. Remaining gaps are bounded: the page points to architecture for dependency contracts rather than naming a DB/Redis provider to reuse, and does not yet prescribe timeout policy or a fault-injection recipe. For a future rename, it says “sync callers” and inspect OpenAPI but does not enumerate metrics exclusions, the OpenAPI guard, or README consumers. These do not prevent answering the present `/ready`-behavior question, but would matter when changing the endpoint contract.
+
+## Case 2 — final `/service-ready` variant, docs-only answer
+
+Checked `/tmp/feature-docs-evaluation/final-sync` independently of the earlier `/readiness` variant. `docs/features/health.md` introduction and “主流程与契约” locate `GET /service-ready` at `src/backend/api/health_router.py::ready`, replacing `/ready` without alias/redirect. It still returns fixed OK without DB/Redis checks. To add actual readiness use that handler and define dependency failure behavior; production entry is main → composition factory → unconditional health router registration.
+
+“修改定位、影响与验证” identifies downstream effects explicitly: clients/external probe scripts, bilingual README, observability guide, OpenAPI contract, and metrics exclusion `_EXCLUDED_PATHS`/`_should_record`. The docs warn the source exclusion still lists `/ready`, so the new endpoint is recorded in RED metrics when enabled. It names `tests/test_health.py::test_health_endpoints_return_ok` (production factory followed by redundant router registration; still requesting old URL), `tests/guards/test_openapi_schema.py::REQUIRED_PATHS` (still old contract), and `tests/test_metrics.py::test_middleware_ignores_excluded_paths` (temporary app without health router; old exclusion assertions cannot establish new probe coverage). This is enough to locate modification, impact, and verification work.
+
+The proposed test command runs all three files. `guides/probe-client.md` gives curl requests for all three active probes plus old `/ready`, requiring 200/fixed JSON for the active ones and backend 404 for the old one, new/old OpenAPI checks, disabled-monitoring checks, and proxy-origin confirmation. Both pages expressly mark this as unexecuted follow-up and leave actual deployment-client migration unconfirmed. MkDocs links the health map and probe-client page.
+
+## Case 2 — source check and remaining gaps
+
+Core claims match source: `health_router.py::ready` is decorated `/service-ready`, fixed dictionary only; composition registers probes outside the observability conditional and installs metrics only when both flags are enabled. The actual health test calls production factory, then duplicates router inclusion, and still asserts old `/ready` 200/OK. OpenAPI guard still requires `/ready`. Metrics test has no health router and checks old-label exclusion; production `_EXCLUDED_PATHS` also still uses the old path. Both root READMEs now advertise `/service-ready`, matching the docs. No product tests were run, so predicted failures are static conclusions conditional on successful initialization.
+
+Modification, downstream-impact, and verification retrieval succeed for this final variant. No remaining material false statement found in the inspected contract and test descriptions. Two bounded omissions remain: the map lacks a dedicated dependency-readiness modification row naming timeout/failure-test guidance or a DB/Redis provider to reuse; and it does not explicitly explain that redundant test registration masks removal of production registration (though it tells the reader to verify production registration rather than the independent router). Neither undermines the rename guidance. Existing stale test/exclusion code is correctly disclosed as work remaining, not represented as fixed or passing.

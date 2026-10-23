@@ -1,0 +1,308 @@
+# 可观测性
+
+本后端模板通过行业标准格式输出遥测数据，可与任意监控平台对接。模板自带一个可选的**本地可观测性栈**（Vector + Loki + Prometheus + Grafana），每个从模板复制出去的项目都能独立运行、独立查看日志和指标，无需依赖 `zata-ops`。
+
+`zata-ops` 则作为可选的**中央可观测性 hub**：当项目数量变多或需要跨机器部署时，把每个项目的 Vector/Prometheus 指向 `zata-ops` 的 central Loki / Mimir 即可聚合所有数据。
+
+## 设计原则
+
+- **项目自包含**：每个项目自带本地 Vector + Loki + Prometheus + Grafana，不依赖 `zata-ops` 也能观测自己。
+- **平台无关**：只输出 JSON 日志和 Prometheus `/metrics`，不绑定具体厂商。
+- **可开关**：通过 `config.toml` 的 `[observability]` section 可以彻底关闭、部分关闭或覆盖所有行为。
+- **约定对接**：业务代码只负责产生遥测数据；采集、存储、展示通过 overlay compose 文件按需启用。
+- **平滑升级**：本地模式和中央模式只通过环境变量切换，无需改动业务代码。
+
+## 产生的遥测信号
+
+### 1. JSON 结构化日志
+
+容器运行时输出到 stdout，字段包括：
+
+```json
+{
+  "timestamp": "2026-06-18T17:30:14+08:00",
+  "level": "INFO",
+  "logger": "app",
+  "message": "用户登录成功",
+  "service_name": "zata-codes-template-backend",
+  "service_version": "0.1.0",
+  "deployment_environment": "production",
+  "request_id": "abc123def4567890",
+  "source_file": "auth_router.py",
+  "source_line": 37
+}
+```
+
+`request_id` 会自动注入到同一次请求的所有日志中。
+
+### 2. RED 指标
+
+`/metrics` 端点暴露：
+
+- `http_requests_total{method,status,path}`
+- `http_request_duration_seconds{method,status,path}`
+
+`path` 使用 FastAPI 路由模板（如 `/items/{item_id}`），避免 Prometheus cardinality 爆炸。
+
+### 3. 请求标识
+
+每个 HTTP 请求都会生成 `X-Request-ID`：
+
+- 可从请求头传入，后端会透传。
+- 否则后端自动生成一个 16 字符 hex ID。
+- 在响应头中返回。
+
+### 4. 健康探针
+
+- `GET /health` —— liveness
+- `GET /service-ready` —— readiness（当前为基础实现，可扩展数据库检查）
+- `GET /live` —— liveness 别名
+
+就绪接口直接返回固定状态，不检查关键依赖。旧 `/ready` 没有兼容路由。
+客户端迁移及后续验证见[探针客户端](probe-client.md)。当前指标中间件的
+`_EXCLUDED_PATHS` 仍仅排除旧路径，新就绪请求会计入 RED 指标；
+待同步源码与测试见[健康探针功能地图](../features/health.md)。
+
+## 配置
+
+所有配置默认写在 `config.toml` 的 `[observability]` section：
+
+```toml
+[observability]
+enabled = true
+metrics_enabled = true
+request_id_enabled = true
+log_format = "text"
+service_name = "zata-codes-template-backend"
+service_version = "0.1.0"
+deployment_environment = "development"
+```
+
+默认值统一维护在 `config.toml` 的 `[observability]` section。如需在特定环境临时覆盖，可通过环境变量传入：
+
+```env
+OBSERVABILITY_LOG_FORMAT=json
+OBSERVABILITY_DEPLOYMENT_ENVIRONMENT=staging
+```
+
+配置优先级遵循仓库统一约定：env > `.env`/`.env.local` > `config.toml` > 代码默认值。
+非密钥可观测性配置不再写入 `.env.example`，避免与 `config.toml` 重复维护。
+
+## 本地验证
+
+### 查看日志格式
+
+```bash
+# text 模式（默认）
+uv run python -m backend.main
+
+# json 模式
+OBSERVABILITY_LOG_FORMAT=json uv run python -m backend.main
+```
+
+访问 `http://localhost:8000/health` 后在终端观察日志输出。
+
+### 查看指标
+
+```bash
+curl http://localhost:8000/metrics
+```
+
+### 查看 request_id
+
+```bash
+curl -v http://localhost:8000/health
+# 响应头包含 X-Request-ID
+```
+
+## 关闭监控
+
+在 `config.toml` 中：
+
+```toml
+[observability]
+enabled = false
+```
+
+关闭后：
+
+- 不注册 `request_id` middleware。
+- 不注册 metrics middleware。
+- 不暴露 `/metrics` 路由。
+- `/health`、`/service-ready`、`/live` 仍然可用。
+
+也可以单独关闭：
+
+```toml
+[observability]
+enabled = true
+metrics_enabled = false
+request_id_enabled = true
+```
+
+## Run 执行轨迹（可选 OTLP 导出）
+
+除日志与指标外，模板还提供一个**领域无关的 Run 执行轨迹**子系统：把一次 Run 的
+canonical 事件投影成管理端可读的诊断树，并可 best-effort 上报到任意 OTLP/HTTP
+Trace 接收端（如阿里云 ARMS）。完整的事件语义、诊断 code 与接入方式见
+[Run 执行轨迹](run-tracing.md)，这里只说明它与可观测性配置的关系。
+
+导出默认关闭：只有配置了 Trace URL 才会装配 exporter，且它是**可选依赖**。
+
+```bash
+# 装配 OTLP exporter 需要先安装可选依赖
+uv sync --extra tracing
+```
+
+```dotenv
+# .env：两个变量都属于可能携带凭据的 URL，按密钥类变量处理
+# traces 专用变量优先，原样使用（SDK 不追加 /v1/traces）
+OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=https://example.invalid/arms/traces
+# 或只给通用基础地址，自动补 /v1/traces（已以 /traces 结尾则原样使用）
+OTEL_EXPORTER_OTLP_ENDPOINT=
+```
+
+```toml
+# config.toml：只放非密钥的导出参数
+[observability]
+otlp_export_timeout_seconds = 10.0
+otlp_export_batch_size = 512
+otlp_export_schedule_delay_ms = 5000
+```
+
+本地开发需要真实接收端时，可在 `zata-ops` 仓库的测试中间件里启动 Jaeger
+（`just testing up jaeger`，UI 在 http://localhost:16686），endpoint 指向
+`http://localhost:4318/v1/traces`。
+
+约定：
+
+- exporter 只消费**已提交**事件的 trace/span ID，因此云端 trace 与本地诊断树逐节点一致。
+- 导出是 best-effort：超时、被拒绝、队列满或关停 flush 失败都只记录告警，不回滚事件、
+  不改变 Run 终态。未配置 endpoint 时不产生任何网络请求。
+- 若 `[observability]` 的 `enabled = false`，即使配了 endpoint 也不装配 exporter。
+
+## 本地可观测性栈（自包含模式）
+
+使用 `docker-compose.monitoring.yml` 启动一个完整的本地监控栈：
+
+```bash
+# 直接启动业务服务 + 监控栈
+docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d --build
+```
+
+启动的服务：
+
+| 服务 | 容器名 | 端口 | 说明 |
+|---|---|---|---|
+| backend | `zata-codes-template-backend` | 8000 | 业务后端，自动输出 JSON 日志 |
+| Vector | `zata-codes-template-vector` | - | 采集本项目的 Docker 日志 |
+| Loki | `zata-codes-template-loki` | 3100 | 本地日志存储 |
+| Prometheus | `zata-codes-template-prometheus` | 9090 | 抓取本地 `/metrics` |
+| Grafana | `zata-codes-template-grafana` | 3000 | 本地面板（默认 admin/admin） |
+
+### 可选环境变量
+
+在启动命令前设置，或写入 `.env.monitoring`（gitignored）：
+
+```env
+COMPOSE_PROJECT_NAME=zata-codes-template
+OBSERVABILITY_SERVICE_NAME=zata-codes-template-backend
+OBSERVABILITY_SERVICE_VERSION=0.1.0
+OBSERVABILITY_DEPLOYMENT_ENVIRONMENT=development
+GRAFANA_ADMIN_USER=admin
+GRAFANA_ADMIN_PASSWORD=admin
+GRAFANA_ROOT_URL=http://localhost:3000
+```
+
+### 产生流量并验证
+
+```bash
+for i in {1..10}; do
+  curl -s http://localhost:8000/health >/dev/null
+  curl -s -X POST http://localhost:8000/auth/login \
+    -H 'Content-Type: application/json' \
+    -d '{"identifier":"admin","password":"wrong"}' >/dev/null
+done
+```
+
+打开 Grafana：`http://localhost:3000`
+
+- Explore → Loki：`{compose_service="zata-codes-template-backend"}`
+- Explore → Prometheus：`http_requests_total`
+- Dashboards → RED + Logs
+
+## 中央模式（接入 zata-ops）
+
+当项目数量变多或需要跨机器部署时，把每个项目采集到的数据转发到 `zata-ops` 的中央监控栈。
+
+### 日志中央化
+
+修改每个项目的环境变量，让 Vector 把日志写到 central Loki：
+
+```env
+LOKI_ENDPOINT=http://zata-ops-loki.example.com:3100
+```
+
+然后重启 Vector：
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d observability-vector
+```
+
+### 指标中央化
+
+编辑 `observability/prometheus/prometheus.yml`，取消 `remote_write` 注释并配置 central endpoint：
+
+```yaml
+remote_write:
+  - url: "http://zata-ops-mimir.example.com:9090/api/v1/push"
+```
+
+然后重启 Prometheus：
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d observability-prometheus
+```
+
+### 推荐的多机架构
+
+```text
+┌─────────────────────────────────────────┐
+│              zata-ops Central           │
+│  ┌─────────┐ ┌─────────┐ ┌───────────┐ │
+│  │  Loki   │ │  Mimir  │ │  Grafana  │ │
+│  └────▲────┘ └────▲────┘ └─────┬─────┘ │
+└───────┼───────────┼────────────┼───────┘
+        │ push      │ remote_write│ query
+┌───────┼───────────┼────────────┼───────┐
+│       │           │            │       │
+│  ┌────┴────┐ ┌────┴────┐       │       │
+│  │ Vector  │ │Prometheus│       │       │
+│  │ (agent) │ │ (agent)  │       │       │
+│  └────┬────┘ └────┬────┘       │       ││       │           │            │       │
+│   Docker containers (project)  │       │
+└────────────────────────────────┘       │
+              Project Host 1 ────────────┘
+
+┌─────────────────────────────────────────┐
+│  ┌────┐ ┌──────────┐                   │
+│  │Vector│ │Prometheus│                   │
+│  └────┘ └──────────┘                   │
+│   Docker containers (project)          │
+└─────────────────────────────────────────┘
+              Project Host 2
+```
+
+每台被监控机器只需要部署项目自身的 compose 栈（包含 Vector + Prometheus agent），数据统一汇聚到 `zata-ops` 的 central Loki / Mimir，Grafana 从 central 查询所有项目。
+
+## 与 zata-ops 监控栈的关系
+
+| 能力 | 本仓库 | zata-ops |
+|---|---|---|
+| 产生 JSON 日志 | ✅ `logger.py` | - |
+| 产生 RED 指标 | ✅ `/metrics` | - |
+| 本地日志/指标查看 | ✅ Vector + Loki + Prometheus + Grafana | - |
+| 跨项目/跨机器聚合 | 通过 remote_write / sink 指向 | ✅ central Loki / Mimir / Grafana |
+| 生产级高可用 | - | ✅ cluster / object storage |
+
+本仓库的监控栈面向**本地开发和单项目自包含运行**；`zata-ops` 面向**多项目 central hub 和高可用生产部署**。
