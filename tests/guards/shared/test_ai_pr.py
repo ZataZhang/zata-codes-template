@@ -47,7 +47,7 @@ def test_auto_merge_returns_to_updated_default_and_preserves_input(tmp_path: Pat
     events = [
         json.loads(line) for line in journal_files[0].read_text(encoding="utf-8").splitlines()
     ]
-    observation = next(event for event in events if event["event"] == "validated_delivery")
+    observation = next(event for event in events if event["event"] == "delivery_observed")
     assert observation["context"] == context
     assert observation["base_sha"] == starting_sha
     assert events[-1]["event"] == "returned_to_default"

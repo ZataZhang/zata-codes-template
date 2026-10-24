@@ -11,7 +11,7 @@
 2. 从当前对话选取相关用户原话，**逐字保留**初始要求、补充和纠正，另写 AI 整理的独立任务说明。
    「好，帮我修」必须带上它所确认的前文背景。AI 建议属于整理部分，不冒充用户原话。
 3. 记录真实入口验证的结果与限制。未做真实验证用 `pending`，发现仍不满足需求用 `failed`；
-   `passed` 表示本次需求对应的最高可行保真度验证已完成，不是仅仅 lint 或单测变绿。
+   `validation.status=passed` 只表示调用方报告的真实入口验证完成，不代表 CI 或人工验收通过。
    没有可执行行为变化时，在 details 写明文档/配置检查及不适用原因。
 4. 按下方格式准备 UTF-8 JSON。建议放在 `git rev-parse --git-path ai-pr-context.json` 指向的
    Git 元数据目录，避免把上下文本身作为未跟踪文件或提交内容。
@@ -47,6 +47,7 @@ just ai pr /path/to/context.json auto 300   # 等待检查最多 300 秒，默�
   "user_messages": ["好你先帮我修吧", "仅修复这次讨论的失败状态和参数传递问题"],
   "task": "AI 整理：修复 AI 调用失败后仍执行 Git 操作的问题，并安全传递提示词。前文背景另在此补全。",
   "summary": "Preserve CLI errors and safely pass prompt arguments.",
+  "iteration_summary": "首次交付，真实入口仍待验证。",
   "commit_message": "fix(cli): preserve AI failure status",
   "files": ["scripts/shared/just/ai_run.sh", "justfile.shared"],
   "validation": {
@@ -62,6 +63,30 @@ just ai pr /path/to/context.json auto 300   # 等待检查最多 300 秒，默�
 `request_source` 为 `conversation` 表示当前对话可见的原话；事后由人补充的需求用 `retrospective`，
 其时间是整理时间，不冒充开工前快照。`task` 是 AI 整理的需求与验收要求，不能从最终代码反写答案。
 
+`summary` 保留整个 PR 的最新改动概况；`iteration_summary` 只写本轮新增变化、反馈或结论，
+不要每次重复完整功能清单。没有提供本轮说明时，新增代码用提交标题概述，同一 head 的调用标明
+「无新代码提交，仅更新验证观察」。完整上下文与长证据仍放在评论的折叠 JSON 区。
+
+## 四条独立验证轴
+
+评论标题统一为 `Delivery update`，不再使用可能混淆范围的总体 `passed`。PR 正文与评论共用状态表：
+
+| 验证轴 | 来源 | 含义 |
+|---|---|---|
+| Local checks | 程序执行 | `just test` 返回 0；不能代替 CI 或人工验收 |
+| GitHub CI | GitHub 实时返回 | 仅记录与本轮 head 一致的检查结果；未读到检查为 `not_observed`，缺字段或 head 不符为 `unknown` |
+| Real-entry validation (agent report) | `validation` 输入 | 当前 Agent 提供的真实入口验证及范围限制 |
+| Human acceptance | 可选 `human_validation` 输入 | 仅记录明确的人工验收；未提供时为 `not_requested`，绝不由测试或合并推导 |
+
+需要人工验收时可提供 `"human_validation": {"status": "pending", "details": "等待用户验证实际流程"}`。
+可用状态为 `not_requested` / `pending` / `passed` / `failed`；填写 `passed` 时，details 必须说明
+真实用户确认的原话或证据、时间与对应版本，不能由 Agent 自行把自动化结果当作人工通过。
+默认不要求人工验收，因此保持自动交付；显式要求人工验收且尚未完成或失败时，保留 Draft 并阻止自动合并。
+
+发布后，在本次命令等待结束时再读取一次 CI。若状态有变化，追加一条同 head 的观察并刷新 PR 状态表，
+不重复整份功能清单，也不称为新提交。命令退出后不是后台监控，后续变化须下次调用重新观察。
+没有读到 CI 检查不等于「CI 已通过」；是否允许合并仍由仓库规则与现有普通合并条件决定。
+
 ## Git 与合并行为
 
 - 使用 `gh` 为当前仓库选择的 GitHub repository，要求本地唯一一个同仓库 remote。支持 remote 名称
@@ -74,7 +99,7 @@ just ai pr /path/to/context.json auto 300   # 等待检查最多 300 秒，默�
   用户提供的 `commit_message` 应遵守英文 Conventional Commits。
 - `validation.status` 为 `pending` 或 `failed` 时创建/保留 Draft；已有 ready PR 会转回 Draft。
   后续 `passed` 调用可将同一 PR 标为 ready。平台/计划不支持转 Draft 时命令报错并保留现场。
-- 发布成功后，每次调用向 Issue 和 PR 各追加一条包含原始上下文、SHA、时间及验证结果的评论，
+- 发布成功后，每次调用向 Issue 和 PR 各追加一条简短的本轮变化与独立验证表，折叠区保存原始上下文、SHA、时间及证据，
   PR 正文的受管区只展示最新状态，受管区外的人写内容保持不变。Issue 原始正文不被后续结果覆盖。
 - 默认检查 `viewerPermission`、`reviewDecision`、`mergeable`、`mergeStateStatus` 和检查汇总。
   仅 `CLEAN`、可合并、无需审批或已批准、检查完成且通过/明确跳过、远端 head 与本次 head 一致时，
@@ -110,6 +135,7 @@ just ai pr /path/to/context.json auto 300   # 等待检查最多 300 秒，默�
 入口测试通过真实 `just ai pr`、真实临时 Git 工作区和裸远端运行；GitHub 网络使用传输替身，
 临时项目的 `just test` 使用受控成功/失败命令，避免递归运行本仓库测试。本仓库代码另以 `just test` 验证。
 CI 数据库矩阵显式安装 just 1.53.0，再运行相同入口测试；直接调用 pytest 的环境也必须提供该命令，不能静默跳过。
+回归用例覆盖本地通过但 CI 失败、人工验收不被自动推导、同 head 状态更新、CI 结束后的追加观察和旧记录兼容。
 覆盖多轮 Draft→失败→通过、审批/检查/权限阻塞、可选策略、head 变化、合并排队/失败、脏工作区等。
 开发时对真实 GitHub 只进行了读取核对，没有在生产仓库创建测试 Issue/PR 或执行试验合并。
 因此证据属于 **CLI integration（Git 真实、GitHub transport fake）**，不是 live GitHub 合并验证。

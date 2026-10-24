@@ -19,7 +19,8 @@
 | 合并 #20 | 回到默认分支 | 开发交付状态；本身不是成功 oracle |
 | 合并后反例 | 发现漏场景，开启 #23 并关联原 Issue | 追加反证，重新评估原成功标签 |
 
-`just ai pr` 用 `pending` / `failed` / `passed` 记录调用方的真实验收观察；自动化 `just test` 是另一项证据。
+`just ai pr` 分开记录 `local`、`github_ci`、`real_entry` 与 `human`，分别表示本地检查、GitHub CI、
+Agent 报告的真实入口验证与人工验收。一个维度通过不能推导其他维度通过；未申请人工验收记录为 `not_requested`。
 不要把 Draft、open、merged 与验收状态混成一个字段。人工确认也是观察，记录确认人、时间、入口和版本，
 而非笼统写「用户已验收」。具体命令见[对话中的 PR 交付](ai-pr.md)。
 
@@ -37,6 +38,12 @@
 当前命令在**交付时**采集，不是开工前快照。`request_source=conversation` 代表可见对话原话，
 `retrospective` 代表事后补述。首次交付时已有代码不能伪装成预先记录的需求；事后从 diff 推断的内容只能
 作为 AI 整理，不能标成用户原话。对于评测任务，AI 整理的任务必须描述问题与验收，避免携带实现答案。
+
+新事件使用 `schema_version=2`，其中 `delivery_observed.observations` 保存四条独立验证轴；
+`local_validated` 只表示本地验证结束。输入上下文继续兼容版本 1，可选新增 `iteration_summary` 和
+`human_validation`。旧 `validated_delivery` 及其 `context.validation.status` 只保留原始含义，
+不能反推 CI 或人工通过；缺失观察保持未知。不会为了升级格式改写已发布的 Issue、评论或旧事件。
+人读评论只显示本轮摘要和状态表，完整上下文继续存放在折叠 JSON；数据整理以该原始记录为准。
 
 ## 与 KedaCode 的衔接
 

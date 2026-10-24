@@ -53,6 +53,8 @@ AI 代理默认不会设置该变量，因此会被 hook 拦下——这是"指�
 
 | 文件 | 守护对象 |
 |---|---|
+| `shared/test_ai_pr.py` | `just ai pr` 的真实 CLI/Git 交付边界、同任务多轮修复、合并条件和默认分支恢复 |
+| `shared/test_ai_pr_observations.py` | 独立的本地检查、GitHub CI、真实入口报告与人工验收状态；简短本轮评论、同 head 观察、CI 更新和旧记录兼容 |
 | `shared/test_archive_tasks.py` | PRD 归档 hook（`hooks/shared/archive_tasks.py`） |
 | `shared/test_check_max_file_lines.py` | 单文件行数上限 hook（`hooks/shared/check_max_file_lines.py`） |
 | `shared/test_check_prd_acceptance_checklist.py` | PRD 验收清单 pre-commit hook（`hooks/shared/check_prd_acceptance_checklist.py`）：归档只代表执行侧交付完成，`Human-Confirmed` 分组内的空框不拦提交、其余空框照旧拦截；分组作用范围（嵌套子标题不脱离、同级或更高级关闭、前缀匹配且大小写不敏感、整行加粗标签、围栏代码块、`[~]`）逐形态钉死；缺清单章节要点名；检查范围只含根目录活跃 PRD 与本次暂存的新入归档（`tasks/pending/` 与未暂存的归档不查） |

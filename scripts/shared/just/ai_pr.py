@@ -15,7 +15,14 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
-from ai_pr_records import DeliveryContext, DeliveryJournal, render_iteration, update_pr_body
+from ai_pr_records import (
+    DeliveryContext,
+    DeliveryJournal,
+    build_observations,
+    render_iteration,
+    render_overview,
+    update_pr_body,
+)
 
 _REPO_FIELDS = (
     "nameWithOwner,url,defaultBranchRef,viewerPermission,"
@@ -275,6 +282,28 @@ class PullRequestDelivery:
             )
         return self._git("rev-parse", "HEAD")
 
+    def _observations(self, pull_request: dict[str, Any], head_sha: str) -> dict[str, Any]:
+        ci_status = _check_outcome(pull_request)
+        if pull_request.get("headRefOid") != head_sha:
+            ci_status = "unknown"
+        elif pull_request.get("statusCheckRollup") == []:
+            ci_status = "not_observed"
+        return build_observations(self.context, ci_status)
+
+    def _publish_observation(self, pull_request: dict[str, Any], facts: dict[str, Any]) -> dict:
+        assert self.journal is not None
+        observations = self._observations(pull_request, facts["head_sha"])
+        event = self.journal.append("delivery_observed", **facts, observations=observations)
+        pr_number = pull_request["number"]
+        self._publish_body(
+            ["pr", "edit", str(pr_number)],
+            update_pr_body(pull_request["body"], render_overview(event)),
+        )
+        comment_body = render_iteration(event)
+        self._publish_body(["issue", "comment", str(facts["issue"])], comment_body)
+        self._publish_body(["pr", "comment", str(pr_number)], comment_body)
+        return observations
+
     def deliver(self) -> None:
         """创建或更新同一任务的交付，失败时留下恢复状态。
 
@@ -293,30 +322,18 @@ class PullRequestDelivery:
             self._gh("pr", "ready", str(pull_request["number"]), "--undo")
         issue_number = self._ensure_issue(pull_request)
         head_sha = self._commit()
-        event = self.journal.append(
-            "validated_delivery",
-            repository=self.repo_name,
-            branch=branch_name,
-            issue=issue_number,
-            base_sha=self.journal.state["base_sha"],
-            previous_head_sha=self.journal.state.get("head_sha", self.journal.state["base_sha"]),
-            head_sha=head_sha,
-            context=self.context.payload,
-        )
+        facts = {
+            "repository": self.repo_name,
+            "branch": branch_name,
+            "issue": issue_number,
+            "base_sha": self.journal.state["base_sha"],
+            "previous_head_sha": self.journal.state.get("head_sha", self.journal.state["base_sha"]),
+            "head_sha": head_sha,
+            "context": self.context.payload,
+        }
+        self.journal.append("local_validated", **facts)
         self._git("push", "--set-upstream", remote_name, f"HEAD:refs/heads/{branch_name}")
-        managed_body = (
-            f"Closes #{issue_number}\n\n## Changes\n\n{self.context.payload['summary']}\n\n"
-            f"## Validation: {self.context.payload['validation']['status']}\n\n"
-            f"{self.context.payload['validation']['details']}\n\n"
-            f"Validated head: `{head_sha}`; task base: `{self.journal.state['base_sha']}`.\n\n"
-            "Iteration history is recorded in PR/Issue comments; merging is not a success label."
-        )
-        if pull_request:
-            self._publish_body(
-                ["pr", "edit", str(pull_request["number"])],
-                update_pr_body(pull_request["body"], managed_body),
-            )
-        else:
+        if not pull_request:
             create_arguments = [
                 "pr",
                 "create",
@@ -329,13 +346,14 @@ class PullRequestDelivery:
             ]
             if not self.context.validation_passed:
                 create_arguments.append("--draft")
-            pr_url = self._publish_body(create_arguments, update_pr_body("", managed_body))
+            initial_event = {**facts, "observations": build_observations(self.context, "unknown")}
+            pr_url = self._publish_body(
+                create_arguments, update_pr_body("", render_overview(initial_event))
+            )
             pull_request = self._view_pr(int(pr_url.rstrip("/").rsplit("/", 1)[1]))
         pr_number = pull_request["number"]
         self.journal.save(pr=pr_number, head_sha=head_sha)
-        comment_body = render_iteration(event)
-        self._publish_body(["issue", "comment", str(issue_number)], comment_body)
-        self._publish_body(["pr", "comment", str(pr_number)], comment_body)
+        observations = self._publish_observation(self._view_pr(pr_number), facts)
         self.journal.append("published", pr=pr_number, issue=issue_number, head_sha=head_sha)
         print(
             f"PR: {pull_request['url']}\nIssue: #{issue_number}\nBranch: {branch_name}", flush=True
@@ -343,6 +361,16 @@ class PullRequestDelivery:
         if self.context.validation_passed and pull_request["isDraft"]:
             self._gh("pr", "ready", str(pr_number))
         self._finish(pr_number, head_sha, remote_name)
+        latest_pr = self._view_pr(pr_number)
+        if self._observations(latest_pr, head_sha) != observations:
+            self._publish_observation(
+                latest_pr,
+                {
+                    **facts,
+                    "previous_head_sha": head_sha,
+                    "iteration_summary": "Updated GitHub CI observations; no new code commit.",
+                },
+            )
 
     def _finish(self, pr_number: int, head_sha: str, remote_name: str) -> None:
         if not self.context.validation_passed or self.arguments.policy == "only":

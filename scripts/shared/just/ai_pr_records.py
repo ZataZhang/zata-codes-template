@@ -57,6 +57,22 @@ class DeliveryContext:
             raise ValueError("validation.status must be passed, pending or failed.")
         if not isinstance(validation.get("details"), str) or not validation["details"].strip():
             raise ValueError("validation.details must explain evidence and limitations.")
+        human_validation = payload.get("human_validation")
+        if "human_validation" in payload and (
+            not isinstance(human_validation, dict)
+            or human_validation.get("status")
+            not in {"not_requested", "pending", "passed", "failed"}
+            or not isinstance(human_validation.get("details"), str)
+            or not human_validation["details"].strip()
+        ):
+            raise ValueError(
+                "human_validation requires an explicit status and acceptance evidence."
+            )
+        if "iteration_summary" in payload and (
+            not isinstance(payload["iteration_summary"], str)
+            or not payload["iteration_summary"].strip()
+        ):
+            raise ValueError("iteration_summary must be a non-empty string when provided.")
         file_paths = payload.get("files")
         if not isinstance(file_paths, list) or any(
             not isinstance(file_path, str)
@@ -74,8 +90,10 @@ class DeliveryContext:
 
     @property
     def validation_passed(self) -> bool:
-        """真实入口验收是否被调用方声明为已完成。"""
-        return self.payload["validation"]["status"] == "passed"
+        """真实入口已完成，且不存在待处理的显式人工验收条件。"""
+        return self.payload["validation"]["status"] == "passed" and self.payload.get(
+            "human_validation", {}
+        ).get("status", "not_requested") not in {"pending", "failed"}
 
     def issue_body(self, base_sha: str) -> str:
         """生成只含任务输入的 Issue 正文，避免泄露实现答案。
@@ -141,7 +159,7 @@ class DeliveryJournal:
             已落盘的事件。
         """
         event = {
-            "schema_version": 1,
+            "schema_version": 2,
             "captured_at": datetime.now(timezone.utc).isoformat(),
             "event": event_name,
             **facts,
@@ -149,6 +167,68 @@ class DeliveryJournal:
         with (self.directory / "events.jsonl").open("a", encoding="utf-8") as event_file:
             event_file.write(json.dumps(event, ensure_ascii=False) + "\n")
         return event
+
+
+def build_observations(context: DeliveryContext, ci_status: str) -> dict[str, Any]:
+    """区分程序观察、调用方真实入口报告与人工验收，绝不合并为总 passed。
+
+    Args:
+        context: 当前对话准备的上下文。
+        ci_status: 与本轮 head 匹配的 GitHub 检查状态。
+
+    Returns:
+        四条独立验证轴，缺少人工确认时保持未申请。
+    """
+    return {
+        "local": {"status": "passed", "source": "command", "details": "just test returned 0."},
+        "github_ci": {"status": ci_status, "source": "github"},
+        "real_entry": {**context.payload["validation"], "source": "agent_report"},
+        "human": {
+            **context.payload.get(
+                "human_validation",
+                {"status": "not_requested", "details": "No human acceptance was claimed."},
+            ),
+            "source": "caller_report" if "human_validation" in context.payload else "not_provided",
+        },
+    }
+
+
+def render_validation(observations: dict[str, Any]) -> str:
+    """生成没有总体通过标签的验证概况，供评论和 PR 正文共用。
+
+    Args:
+        observations: 四条独立验证轴。
+
+    Returns:
+        人读 Markdown 状态表。
+    """
+    rows = (
+        ("local", "Local checks"),
+        ("github_ci", "GitHub CI"),
+        ("real_entry", "Real-entry validation (agent report)"),
+        ("human", "Human acceptance"),
+    )
+    return "| Validation | Status |\n| --- | --- |\n" + "\n".join(
+        f"| {label} | {observations.get(key, {}).get('status', 'unknown')} |" for key, label in rows
+    )
+
+
+def render_overview(event: dict[str, Any]) -> str:
+    """生成 PR 最新概况，保留功能摘要并分列验证状态。
+
+    Args:
+        event: 当前上下文、版本与独立验证观察。
+
+    Returns:
+        用于 PR 受管区的正文。
+    """
+    return (
+        f"Closes #{event['issue']}\n\n## Changes\n\n{event['context']['summary']}\n\n"
+        f"## Validation observations\n\n{render_validation(event['observations'])}\n\n"
+        f"Head: `{event['head_sha']}`; delivery base: `{event['base_sha']}`.\n\n"
+        "Evidence and original context are preserved in iteration comments. "
+        "Merging is not a human-acceptance or training-quality label."
+    )
 
 
 def render_iteration(event: dict[str, Any]) -> str:
@@ -161,13 +241,30 @@ def render_iteration(event: dict[str, Any]) -> str:
         同时可供人阅读与后续解析的 Markdown。
     """
     context = event["context"]
+    observations = event.get(
+        "observations",
+        {
+            "real_entry": context["validation"],
+            "human": context.get("human_validation", {"status": "unknown"}),
+        },
+    )
+    previous_head = event.get("previous_head_sha")
+    if previous_head == event["head_sha"]:
+        code_change = "No new code commit; validation update only."
+    else:
+        code_change = (
+            f"Code version: `{previous_head or event['base_sha']}` → `{event['head_sha']}`."
+        )
+    round_summary = event.get("iteration_summary") or context.get("iteration_summary")
+    if not round_summary and previous_head != event["head_sha"]:
+        round_summary = context["commit_message"].splitlines()[0]
     encoded_event = json.dumps(event, ensure_ascii=False, indent=2)
     # 超过载荷中最长反引号段，避免原话关闭代码围栏。
     fence = "`" * max(3, max((len(run) for run in re.findall(r"`+", encoded_event)), default=0) + 1)
     return (
-        f"## Delivery observation: {context['validation']['status']}\n\n"
-        f"Head: `{event['head_sha']}`; task base: `{event['base_sha']}`\n\n"
-        f"{context['summary']}\n\n{context['validation']['details']}\n\n"
+        f"## Delivery update\n\n{code_change}\n\n"
+        f"{round_summary or 'Updated validation observations for the same code version.'}\n\n"
+        f"{render_validation(observations)}\n\n"
         f"<details><summary>Original task and iteration record</summary>\n\n"
         f"{fence}json\n{encoded_event}\n{fence}\n\n</details>\n"
     )
