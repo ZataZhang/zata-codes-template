@@ -109,6 +109,7 @@ just ai pr /path/to/context.json auto 300   # 等待检查最多 300 秒，默�
 
 入口测试通过真实 `just ai pr`、真实临时 Git 工作区和裸远端运行；GitHub 网络使用传输替身，
 临时项目的 `just test` 使用受控成功/失败命令，避免递归运行本仓库测试。本仓库代码另以 `just test` 验证。
+CI 数据库矩阵显式安装 just 1.53.0，再运行相同入口测试；直接调用 pytest 的环境也必须提供该命令，不能静默跳过。
 覆盖多轮 Draft→失败→通过、审批/检查/权限阻塞、可选策略、head 变化、合并排队/失败、脏工作区等。
 开发时对真实 GitHub 只进行了读取核对，没有在生产仓库创建测试 Issue/PR 或执行试验合并。
 因此证据属于 **CLI integration（Git 真实、GitHub transport fake）**，不是 live GitHub 合并验证。

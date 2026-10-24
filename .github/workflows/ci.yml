@@ -134,6 +134,12 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      # CLI 集成测试通过真实 just 入口执行，pytest job 必须显式安装该依赖。
+      - name: Set up just for CLI integration tests
+        uses: extractions/setup-just@v3
+        with:
+          just-version: "1.53.0"
+
       - name: Set up uv
         uses: astral-sh/setup-uv@v4
 
