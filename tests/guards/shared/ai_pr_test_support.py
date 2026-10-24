@@ -76,13 +76,19 @@ elif arguments[:2] == ["pr", "create"]:
     response = f"https://github.com/example/project/pull/{number}"
 elif arguments[:2] == ["pr", "view"]:
     response = dict(state["prs"][arguments[2]])
+    state["pr_views"] = state.get("pr_views", 0) + 1
+    checks_sequence = state.get("checks_by_view")
+    checks = (
+        checks_sequence[min(state["pr_views"] - 1, len(checks_sequence) - 1)]
+        if checks_sequence else state.get("checks", [{
+            "__typename": "CheckRun", "status": "COMPLETED", "conclusion": "SUCCESS"
+        }])
+    )
     response.update({
         "headRefOid": state.get("head_override") or git("rev-parse", response["headRefName"]),
         "mergeable": "MERGEABLE", "mergeStateStatus": state.get("merge_state", "CLEAN"),
         "reviewDecision": state.get("review", ""),
-        "statusCheckRollup": state.get("checks", [{
-            "__typename": "CheckRun", "status": "COMPLETED", "conclusion": "SUCCESS"
-        }]),
+        "statusCheckRollup": checks,
     })
 elif arguments[:2] == ["pr", "edit"]:
     state["prs"][arguments[2]]["body"] = body()
