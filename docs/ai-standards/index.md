@@ -35,6 +35,9 @@
 3. 若涉及后端新功能，再读 `docs/architecture/system-design.md`
 4. 若涉及 Playwright，再读 `tests/playwright-e2e/README.md`
 
+用户要求「帮我提 PR」时，读取 [Tooling](tooling.md) 的「对话中的 PR 交付与数据留存」路由，
+由当前会话整理原始需求与实际验收状态，使用统一交付入口；多轮修复的记录持续追加。
+
 ## Standards Map
 
 - [Architecture](architecture.md)

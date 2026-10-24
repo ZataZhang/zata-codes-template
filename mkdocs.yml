@@ -69,6 +69,8 @@ nav:
       - 想法 Inbox: guides/idea-inbox.md
       - 只读文件与改动查看器: guides/file-viewer.md
       - PRD Skill 指南: guides/prd-skill.md
+      - 对话中的 PR 交付: guides/ai-pr.md
+      - Agent 数据集构建: guides/agent-dataset.md
       - Review Workflow: guides/review-workflow.md
       - Skill Lifecycle: guides/skill-lifecycle.md
       - 功能文档 Skill: guides/feature-docs-skill.md

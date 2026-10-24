@@ -55,13 +55,24 @@
 | `just docs-serve` | 本地预览文档 |
 | `just ai check <file> [claude\|kimi]` | 用 AI 审查单个文件；使用 kimi 时会自动恢复当前工作目录的上一个会话，方便追问 |
 | `just ai fix [claude\|kimi]` | 用 AI 解决当前 git 冲突（rebase/merge/cherry-pick 等） |
-| `just ai commit [claude\|kimi]` | 先跑 `just test`，再用 AI 生成提交信息 |
+| `just ai commit [claude\|kimi]` | 先跑 `just test`，再由 AI 暂存相关文件并直接提交；只修复本次改动引起的测试失败 |
 | `just ai implement <prd-file> [claude\|kimi]` | 按 PRD 实现功能 |
+| `just ai pr <context.json> [auto\|only\|confirm] [wait-seconds]` | 当前对话提供原话/任务/验收上下文，创建或复用 Issue/PR；检测规则后合并并返回默认分支，待真实验证时保留 Draft |
 | `just prd status [all\|pending\|archive] [--detail]` | PRD 状态看板：已归档且横幅为 `🧍 待人工验收` 的记录（含分支里已归档、尚待合并的）汇总成 `AWAITING HUMAN` 段并附等待时长，`tasks/pending` 里的记录列为 `PENDING` 逐条列出、其余归档记录按月折叠，展示验收清单勾选进度、影响树触达进度（FILES 列）、证据包状态与运行态（ACTIVITY 列）；`--detail` 在每个 PRD 行下方追加标题与描述摘要块 |
 | `just prd start <prd-file> [--tool <名称>] [--branch <名称>]` | 领取 PRD 执行锁：他人新鲜锁拒绝开工（退出 1）并输出持锁者信息；过期锁自动接管并留档；同归属重复领锁幂等刷新 |
 | `just prd heartbeat <prd-file>` | 续期当前会话持有的执行锁；锁丢失或归属不符时警告并非零退出 |
 | `just prd release <prd-file> [--force]` | 释放执行锁；归属不符需显式 `--force` |
 | `just prd review <prd-file> [--print]` | 打开该 PRD 的人工审查清单（证据目录分支副本优先，交互 HTML 优先于 Markdown）：未完成 Human-Confirmed 项、9.1 人读呈递区与人工待决事项的集中页；无清单时回退打开证据报告，两者皆无时列出证据目录现状 |
+
+`just ai` 保留 AI CLI 的非零退出状态；执行失败时不再继续 push 或 Git 冲突恢复。自定义提示词按字面传递，通用工具参数应使用可执行文件名或路径（不接受 Shell 表达式或别名）。AI 成功退出仍不等于测试通过，需结合输出检查结果。
+
+### 对话中的 PR 交付与数据留存
+
+用户在当前 Agent 对话里要求「帮我提 PR」时，先读[对话中的 PR 交付](../guides/ai-pr.md)，
+由当前 Agent 准备上下文文件再调用 `just ai pr`。相关原话与 AI 整理分开，需求来源和真实验收状态必须如实填写。
+默认 `auto`，用户可选择仅创建或合并前确认；不因有权限就忽略未完成的真实验证。
+多轮修复复用同一 Issue/PR 并追加观察，合并后才发现失败则创建关联修复 PR。长期数据整理约定见
+[Agent 数据集构建](../guides/agent-dataset.md)。
 
 ## Commit Messages
 

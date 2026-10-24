@@ -24,7 +24,7 @@
 | `docs/ai-standards/documentation.md` | 改动公共函数签名、配置项、业务流程、API 提示或用户可见文案；新增长期文档页；更新 `mkdocs.yml` 导航 | 纯内部重构且无对外行为或文档变化 |
 | `docs/ai-standards/frontend-design.md` | 新增或修改前端界面的布局、视觉、主题、组件或交互；制作需贴合产品的原型 | 不涉及界面的后端、文档或构建改动 |
 | `docs/ai-standards/testing.md` | **任何代码变更开始前**；制定验证策略、收集证据或声称完成前必须重新核对；写 PRD 的 Realistic Validation Plan；**遇到测试失败或打算修改 `tests/guards/` 守卫测试时** | 仅改注释、纯文档排版或无可执行行为变化的纯配置 |
-| `docs/ai-standards/tooling.md` | 选择运行命令；改 `justfile` / `pre-commit` / `mkdocs` / Docker 配置；处理 PRD 归档流程；处理 lint flag 或重复检测 hooks；撰写提交信息 | 在已熟悉常用 `just` 命令、且本次不动工具链配置时 |
+| `docs/ai-standards/tooling.md` | 选择运行命令；用户要求提 PR（按其中路由读取交付与数据留存指南）；改 `justfile` / `pre-commit` / `mkdocs` / Docker 配置；处理 PRD 归档流程；处理 lint flag 或重复检测 hooks；撰写提交信息 | 在已熟悉常用 `just` 命令、且本次不动工具链配置、不涉及 PR 交付时 |
 | `docs/ai-standards/alembic.md` | 新增、重命名或修改 Alembic migration；检查迁移链或 `down_revision` | 不涉及 `alembic/versions/` 时 |
 
 `tests/playwright-e2e/` 是独立 TypeScript/Node 包，遵循该目录自己的 `README.md`，不强制套用 Python 规范。
