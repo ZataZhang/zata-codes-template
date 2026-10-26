@@ -33,7 +33,7 @@ When invoked:
 7. **Check interface validation evidence** -- For changed interfaces, record the highest relevant evidence level actually completed and the remaining coverage. Distinguish an unverified behavior from a demonstrated defect.
 8. **Check repository validation status** -- Record whether `just lint`, relevant tests, and `uv run mkdocs build` were run, including `partial`, `not run`, or `blocked` status and the reason. An incomplete command is not a failed test result.
 9. **Check docs synchronization** -- For behavior, interface, config, command, or workflow changes, confirm whether `docs/`, `mkdocs.yml`, docstrings, examples, and API reference inputs were updated together.
-10. **Report findings** -- Use the output contract below. Keep actionable requirement/code/docs findings separate from validation status. Promote a validation gap to a finding when evidence is an explicit acceptance or required merge gate, or when a concrete high-consequence risk cannot be assessed from code and available evidence. Name that risk and its impact; a generic "not verified" statement is not enough. Calibrate severity to the actual delivery impact.
+10. **Report findings** -- Use the human-readable output format below. Keep actionable requirement/code/docs findings separate from validation status. Promote a validation gap to a finding when evidence is an explicit acceptance or required merge gate, or when a concrete high-consequence risk cannot be assessed from code and available evidence. Name that risk and its impact; a generic "not verified" statement is not enough. Calibrate severity to the actual delivery impact.
 
 ## Confidence-Based Filtering
 
@@ -444,39 +444,7 @@ End every review with a concise delivery summary using symbols for clarity. Keep
 结论: ⛔ 阻止 -- 存在 1 项高优先级需求 finding；普通验证备注单独记录，不改变结论。
 ```
 
-### Machine-Readable Verdict Block
-
-After the Chinese review report above, append a final fenced JSON block so that
-automated gates (e.g. the agent runner pre-PR review gate) can parse the
-verdict without ambiguity:
-
-```json
-{
-  "verdict": "approved" | "changes_requested",
-  "summary": "short rationale in English or Chinese",
-  "findings": [
-    {
-      "category": "requirement|code|validation|docs",
-      "severity": "critical|high|medium|low",
-      "file": "path/to/file.py",
-      "line": 42,
-      "title": "short title",
-      "description": "why this is a problem",
-      "recommendation": "how to fix"
-    }
-  ]
-}
-```
-
-Rules for the JSON block:
-
-- It must be the last fenced code block in your response.
-- Include only actionable unresolved findings. Routine `not run` / `partial` statuses belong in the Chinese summary, not in `findings` by default.
-- If no findings or required gates remain, set `verdict` to `approved` and `findings` to `[]`, even if a non-required validation command is recorded as not run.
-- If an explicit acceptance or merge gate remains unmet, include a `validation` finding and set `verdict` to `changes_requested`.
-- Any other unresolved actionable finding also requires `verdict` to be `changes_requested`.
-- Applying fixes does not automatically approve the review. Re-review the final diff, remove only findings supported as resolved, and keep `changes_requested` while an actionable finding or explicit required gate remains.
-- Create `.agent-runner/commit-request.json` only when the surrounding Agent Runner workflow explicitly consumes that file; its presence does not determine the verdict.
+When an automated review workflow invokes this skill, follow that caller's machine-readable output contract in addition to this human-readable report. Keep workflow-specific verdict formats in the caller so standalone reviews do not emit redundant machine-readable output.
 
 If requirement context is incomplete, add an `Assumptions` section and state exactly what requirement source you relied on.
 
