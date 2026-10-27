@@ -329,6 +329,8 @@ uv run pre-commit run --show-diff-on-failure
 
 ## AI Adapter Sync
 
+`docs/guides/ai-pr.md` 和 `docs/guides/agent-dataset.md` 是共享 PR 交付工具的配套指南，默认作为上游维护文件同步；其他项目文档仍由项目维护。
+
 `just sync-template` 默认模式只同步上游维护的基础设施（`justfile.shared`、`scripts/shared/*`、`scripts/build/*`、`.pre-commit-config.yaml`、`hooks/shared/*`、E2E 基础设施等）。`pytest.ini` 与 `ruff.toml` 需要保留项目自己的 markers、addopts 和 lint 例外，因此归项目所有，默认不同步。默认模式也**不同步 AI 适配层文件**：
 
 - AI 规范源：`docs/ai-standards/*`
