@@ -1,6 +1,6 @@
 ---
 name: prd
-description: "[Updated 2026-10-11] Generate an architecture-aware technical PRD split into two altitudes — a human review layer (Part A) and an executor build layer (Part B) — with a decision-oriented human review map, a front-loaded interpretation lock, a bounded design-challenge pass, and a risk-ordered acceptance evidence package that can be presented and accepted directly in an explicitly linked pull request. Triggers on: create a prd, write prd for, plan this feature. Prioritizes reuse, minimal-change plans, evidence-chain integrity, required output compliance, realistic validation, and conditional web research."
+description: "[Updated 2026-10-28] Generate an architecture-aware technical PRD split into two altitudes — a human review layer (Part A) and an executor build layer (Part B) — with a decision-oriented human review map, a front-loaded interpretation lock, a bounded design-challenge pass, and a risk-ordered acceptance evidence package that can be presented and accepted directly in an explicitly linked pull request. Triggers on: create a prd, write prd for, plan this feature. Prioritizes reuse, minimal-change plans, evidence-chain integrity, required output compliance, realistic validation, and conditional web research."
 ---
 
 # PRD Generator (Architecture-First)
@@ -174,6 +174,8 @@ If you cannot justify the new item, do not recommend it.
 List the independently approvable decisions discovered for Part A. If three or more decisions can be implemented, rolled back, or validated independently, explicitly assess whether they should become separate PRDs. Keep them together only when they form one indivisible target state and splitting them would require a temporary compatibility layer, duplicated migration, or another concrete delivery hazard. The count triggers review; it is not an automatic split rule.
 
 ### Phase 3.5: Realistic Validation Gate
+
+For stochastic Agent/model behavior, separate controlled product verification from live effect experiments. Fixed success/failure patterns or repair branches belong to an explicitly labeled fixture at the permitted dependency boundary, while the product orchestration, scoring and persistence under test remain real. Live runs must not require an exact outcome sequence, a winner or observed variance; assert record completeness and consistency with actual outcomes. Do not retry or tune until a desired distribution appears. See the stochastic-outcome guidance in [references/validation-evidence-integrity.md](references/validation-evidence-integrity.md).
 
 Identify the highest-fidelity validation that proves the behavior through a real project entry point, and record it in the Section 7 **Realistic Validation Plan** (content rule F defines the table columns, mock boundary, opt-in live, and fallback rules). Mirror the relevant outcome in plain language as the short **验收** line under each human-facing decision; keep commands and `rv-id` references in Part B.
 

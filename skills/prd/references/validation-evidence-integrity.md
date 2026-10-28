@@ -59,6 +59,16 @@ Observe the result from a fresh consumer rather than the producer's return value
 - caches: invalidate local references and read through the real cache/client boundary;
 - messages: consume from the configured broker/adapter rather than inspecting the publish mock.
 
+## Stochastic Outcomes And Controlled Fixtures
+
+An oracle must distinguish behavior the product controls from an Agent/model's experimental outcome. For example, “Keda passes once after repair and fails twice; direct Claude passes three times” is a controlled scenario for checking aggregation and presentation, not a promise about real Claude.
+
+- Produce fixed outcomes at a declared test boundary, such as an Agent CLI fixture that edits code or returns review feedback. Keep the actual orchestration, scoring, API and persistence real when those are under test; do not inject final statuses to prove their calculation. Label evidence with the fixture boundary and its limited claim.
+- For live models, record actual outcomes and check complete attempts, actual phase traces, scoring and displayed counts. Do not require an exact success count, failure order, repair occurrence, group winner or variance merely to make a product acceptance example pass. All-pass or all-fail can be valid observations; product defects remain failures.
+- A few repetitions provide observations, not guaranteed variation or statistical evidence of superiority. Do not rerun until a desired result occurs or alter prompts, tasks or grading to obtain a target distribution. Preserve failed runs and classify execution faults separately.
+- If measured quality is itself an explicit product requirement, define its dataset, metric, sampling and decision rule before running the experiment; do not replace it with a convenient fixture or invent a threshold afterward. Deterministic noop/gold calibration expectations remain valid when supported by the task's scoring contract.
+
+
 ## Evidence Freshness And Regression Reopening
 
 Evidence is valid only for the final relevant code tree. Recollect affected `rv-id` evidence after
