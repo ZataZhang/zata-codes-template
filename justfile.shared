@@ -946,7 +946,7 @@ ai subcommand arg1="" arg2="" arg3="" :
         pr)
             if [ -z {{quote(arg1)}} ]; then
                 echo "Usage: just ai pr <context.json> [auto|only|confirm] [wait-seconds]"
-                echo "See docs/guides/ai-pr.md for the conversation context format."
+                echo "context.json requires: schema_version, title, user_messages, task, summary, files, validation{status,details}; optional: issue, human_validation."
                 exit 1
             fi
             python3 -B ./scripts/shared/just/ai_pr.py {{quote(arg1)}} {{quote(if arg2 == "" { "auto" } else { arg2 })}} {{quote(if arg3 == "" { "180" } else { arg3 })}}
