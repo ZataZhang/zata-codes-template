@@ -1,8 +1,8 @@
 # KedaCode 本地仓库配置
-# `kc init` 会写入全部仓库级配置的默认值；这些值随后显式覆盖全局默认值。
+# `kc init` 会写入仓库级配置默认值；这些值随后显式覆盖全局默认值。
 # 没有默认值的可选字段未写入时，才继承 config.toml / 环境变量的全局默认值。
-# 修改后无需重启 daemon，下一次轮询自动生效。
-# 完整字段说明见 docs/guides/agent-runner.md。
+# daemon 在启动时读取本文件；修改后需重启对应进程。kc run 等单轮命令每次调用重新读取。
+# 完整字段说明见 KedaCode agent-runner 文档：https://github.com/ZataZhang/keda/blob/main/docs/guides/agent-runner.md
 
 # 仓库身份标识（用于多仓库管理时区分不同仓库）
 [agent_runner.repository]
@@ -52,23 +52,21 @@ provision_database = true
 
 # Runner 行为配置：每轮处理 Issue 数量、默认 agent、提交前验证命令
 [agent_runner.runner]
-# 每次轮询每个仓库最多处理多少个 Issue
-max_issues = 1
-# 单轮内并行处理的 Issue 数量：1 为串行（默认）；>1 时同一轮并行跑多个 Issue，仅 kc daemon --concurrency 未指定时作为默认值
+# 自动领取 Issue 的每仓库并行上限（默认 1）；优先级：daemon 命令行 > Backlog 页面设置 > 本值；显式 kc run 不受约束
 max_concurrent_issues = 1
-# 默认使用的 AI agent：auto / claude / codex / kimi
+# 默认执行 Agent：auto 或已注册的 Agent 名称
 default_agent = "auto"
 # Agent 失败后的最大重试次数
 max_recovery_attempts = 5
 # 每次重试前等待的秒数
 recovery_retry_delay_seconds = 30
-# 跨 agent fallback 链：主 agent 失败后依次尝试本机可用 agent（如 ["claude", "kimi", "codex"]），命令不存在则自动跳过；设为空列表可关闭切换
+# 简单 Agent 回退顺序：仅在 agent_fallback_candidates 为空时生效；未安装的 agent 会跳过，空列表关闭回退
 agent_fallback_order = [
     "claude",
     "kimi",
     "codex",
 ]
-# 最多切换 agent 次数（order=[a,b,c] 且此值=2 时最多尝试 3 个 agent）
+# 最多允许切换多少次 Agent；值为 2 时最多尝试主选 Agent 加 2 个回退候选
 max_agent_switches = 2
 # 瞬时网络错误（socket 断开 / 5xx / 超时）的就地重试次数
 transient_retry_attempts = 2
@@ -188,7 +186,7 @@ default_phase = "execution"
 [agent_runner.pre_pr_review]
 # 是否启用 Draft PR 创建前的 AI review
 enabled = true
-# 执行 review 的 agent：auto / claude / codex / kimi
+# 执行 review 的 Agent：auto 或已注册的 Agent 名称
 review_agent = "auto"
 # 是否允许实现 agent 与 reviewer 为同一个
 allow_same_agent = true
@@ -240,7 +238,7 @@ reclaim_ttl_seconds = 10800
 [agent_runner.interactive_decision]
 # 是否启用 kc ask 交互式决策
 enabled = true
-# kc ask 默认使用的 agent：auto / claude / codex / kimi
+# kc ask 默认使用的 Agent：已注册的 Agent 名称
 default_agent = "claude"
 # 决策日志与审计文件的默认输出目录
 default_output_dir = "logs/agent-runner/decisions"
@@ -315,7 +313,7 @@ role = "implementer"
 # 角色行为 prompt
 behavior_prompt = "You are a pragmatic implementer. Focus on feasibility, concrete steps, and implementation details. Highlight what can be built and what resources are needed."
 
-# 生命周期 Agent 矩阵（仓库级覆盖）：九键 implementation / fix / closeout / verifier / review / supervisor / planner / content_generation / deliberate，值为已注册 agent 名、该阶段的 auto 或 fix/closeout 的 executor；未写出的键回落全局 config.toml 与既有配置键。详见 docs/guides/lifecycle-agent-matrix.md
+# 生命周期 Agent 矩阵（仓库级覆盖）：九键 implementation / fix / closeout / verifier / review / supervisor / planner / content_generation / deliberate；未写出的键回落全局 config.toml 与兼容配置。详见 KedaCode 文档：https://github.com/ZataZhang/keda/blob/main/docs/guides/lifecycle-agent-matrix.md
 [agent_runner.lifecycle_agents]
 #
 # =============================================================================
