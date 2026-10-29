@@ -309,7 +309,17 @@ button, input, select { font: inherit; color: inherit; }
 .code .lineno em { font-style: normal; color: color-mix(in oklab, var(--muted-foreground) 48%, transparent); }
 .code .src { padding-right: 18px; white-space: pre-wrap; word-break: break-word; }
 
-.code.diff .row { grid-template-columns: 78px minmax(0, 1fr); }
+.code.diff .row { grid-template-columns: 100px minmax(0, 1fr); }
+.code.diff .lineno {
+  display: grid; grid-template-columns: minmax(0, 1fr) 12px minmax(0, 1fr);
+  align-items: baseline;
+}
+.code.diff .lineno > span { text-align: right; }
+.code.diff .lineno em {
+  align-self: stretch; justify-self: center; width: 0;
+  border-left: 1px solid color-mix(in oklab, var(--muted-foreground) 35%, transparent);
+  font-style: normal;
+}
 .code .row.add { background: var(--add); }
 .code .row.del { background: var(--del); }
 .code .row.add .src::before { color: var(--add-mark); content: '+'; margin-right: 6px; }

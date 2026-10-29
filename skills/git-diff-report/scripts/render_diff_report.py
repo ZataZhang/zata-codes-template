@@ -1266,15 +1266,18 @@ STYLE = """
   }
   .hunk-body.meta-only { border-radius: 8px; margin-bottom: 8px; }
   /* 行号双列 + 正文：正文折行而不横向滚动，口径同 just view 的改动视图。 */
-  .line { display: grid; grid-template-columns: 78px minmax(0, 1fr); }
+  .line { display: grid; grid-template-columns: 100px minmax(0, 1fr); }
   .line .lineno {
-    display: flex; justify-content: flex-end; align-items: baseline;
+    display: grid; grid-template-columns: minmax(0, 1fr) 12px minmax(0, 1fr);
+    align-items: baseline;
     padding-right: 12px; user-select: none;
     color: color-mix(in oklab, var(--muted-foreground) 75%, transparent);
   }
+  .line .lineno > span { text-align: right; }
   .line .lineno em {
-    font-style: normal; width: 8px;
-    color: color-mix(in oklab, var(--muted-foreground) 48%, transparent);
+    align-self: stretch; justify-self: center; width: 0;
+    border-left: 1px solid color-mix(in oklab, var(--muted-foreground) 35%, transparent);
+    font-style: normal;
   }
   .line .txt {
     min-width: 0; padding-right: 18px;

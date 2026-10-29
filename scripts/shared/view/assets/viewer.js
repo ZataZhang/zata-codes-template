@@ -1882,11 +1882,12 @@
       }
       const lineNumberNode = document.createElement("span");
       lineNumberNode.className = "lineno";
-      lineNumberNode.append(
-        document.createTextNode(diffRow.old_no === null ? "" : String(diffRow.old_no)),
-        document.createElement("em"),
-        document.createTextNode(diffRow.new_no === null ? "" : String(diffRow.new_no))
-      );
+      const oldLineNumberNode = document.createElement("span");
+      oldLineNumberNode.textContent = diffRow.old_no === null ? "" : String(diffRow.old_no);
+      const lineNumberDividerNode = document.createElement("em");
+      const newLineNumberNode = document.createElement("span");
+      newLineNumberNode.textContent = diffRow.new_no === null ? "" : String(diffRow.new_no);
+      lineNumberNode.append(oldLineNumberNode, lineNumberDividerNode, newLineNumberNode);
       const sourceNode = document.createElement("span");
       sourceNode.className = "src";
       sourceNode.textContent = diffRow.text;
