@@ -40,7 +40,7 @@
 - 新增 Alembic migration **必须**通过 `just new-migration <slug>`（或其底层 `scripts/shared/alembic/new_migration.sh`）生成；禁止手工创建、命名或伪造秒级时间戳。生成后再仅用补丁填写 `upgrade()` / `downgrade()`，并执行 `uv run alembic heads` 确认唯一 head。
 - 公共 Python API 使用 Google Style Docstrings；后端启用 Ruff `D100`–`D107`/`D419` 强制检查
 - 内部注释、docstring、JSDoc/TSDoc 统一使用中文（专有名词除外）
-- 用户可见提示默认使用英文，已有产品语言或国际化约定时沿用；内部日志和团队维护文档默认中文。调用方按状态或错误标识处理，不匹配提示文字；详见 `docs/ai-standards/documentation.md` 的「用户提示与内部内容的语言」。
+- 用户可见提示默认使用英文；双语界面中中文页可以保留英文，英文页不得出现中文界面文案，除非当前需求明确要求中文演示。沿用已有国际化约定；内部日志和团队维护文档默认中文。调用方按状态或错误标识处理，不匹配提示文字；详见 `docs/ai-standards/documentation.md` 的「用户提示与内部内容的语言」。
 - 前端启用 `eslint-plugin-jsdoc` 强制公共函数/类/方法写 JSDoc/TSDoc（当前 warn，逐步升级 error）
 - Python 文本文件 I/O 必须显式写 `encoding="utf-8"`
 - 变量命名必须具有来源、类型或状态语义，避免 `data`、`item`、`res`
