@@ -168,25 +168,24 @@ PRD 必须回答的不只是“有哪些测试”，还包括“这些证据能�
 
 ## 归档与人工验收是两条状态轴
 
-这是 PRD skill 最重要的交付语义之一：**归档表示执行侧工作完成；验收横幅表示人是否确认了产品结果。** 两者有关联，但不是同一个状态。
+这是 PRD skill 最重要的交付语义之一：**归档表示代码落地；验收横幅分别表示验证是否受阻、是否等待人工确认或已经验收。** 三者不能互相冒充。
 
 ```mermaid
 flowchart LR
-    A[tasks/pending] -->|实现完成 + verifier PASS + Final Reconciliation| B[tasks/archive]
-    B --> C{Human-Confirmed 项是否全部回答?}
-    C -->|仍有未回答项| D[🧍 待人工验收]
-    C -->|人工已确认| E[✅ 已验收]
-    D -->|审查并记录结果| E
+    A[tasks/pending] -->|正常完成 + verifier PASS| B[tasks/archive]
+    A -->|显式阻塞 + 原因与后续任务| B
+    B --> C{执行侧验证是否完成?}
+    C -->|否| D[⏸️ 验证阻塞]
+    C -->|是| E{Human-Confirmed 是否全答?}
+    D -->|后续任务补验完成| E
+    E -->|仍有未回答项| F[🧍 待人工验收]
+    E -->|全部回答| G[✅ 已验收]
+    F -->|审查并记录结果| G
 ```
 
-归档前须同时满足：
+正常归档要求执行侧清单完成、独立 verifier `PASS`、Final Reconciliation 完整且横幅一致。唯一的例外是 `⏸️ 验证阻塞`：允许执行侧空框随代码归档，但必须额外填写非空 `Validation blocker` 与 `Validation follow-up`，后续任务可追踪，且不得把该 PRD 称为待人工验收或已验收。
 
-- `Human-Confirmed` 以外的验收清单项全部完成（`[x]` 或合法的 runner-owned `[~]`）；
-- 独立 verifier 给出 `PASS`；
-- Final Reconciliation 已对照最终实现和新鲜证据完成；
-- Acceptance Status Banner 与人工清单状态一致。
-
-人工专属的 `Human-Confirmed` 项不阻塞归档。未回答时保持 `🧍 待人工验收`；回答完毕后才改为 `✅ 已验收`，并追加验收记录。归档不是“免验收”，而是把执行交付和人工产品判断分别记录。
+阻塞任务后续完成时，补新证据、勾选被证明的执行侧条目，再进入正常 `🧍 待人工验收 / ✅ 已验收` 路径。人工专属的 `Human-Confirmed` 项始终不由执行器代答。
 
 如果通过 PR 交付，只有 PR 明确声明“合并即接受”、关联唯一 PRD、发布证据、required checks 通过，并证明最终合并树与 verifier 检查的树等价时，合并才可以作为人工验收事件。仅仅打开、批准或合并一个缺少这些条件的 PR，不会自动勾选人工验收。若人发现实际实现没有满足 PRD 自己的范围或 oracle，应重开 PRD；如果只是需求变了，则保留交付记录并新建关联 PRD。
 
@@ -194,7 +193,7 @@ flowchart LR
 
 | 文件 | 作用 |
 | --- | --- |
-| [`skills/prd/SKILL.md`](https://github.com/ZataZhang/zata-codes-template/blob/main/skills/prd/SKILL.md) | 触发条件、核心原则、受控写作复核、规划阶段、PRD 必需结构和 Machine Contract v5。 |
+| [`skills/prd/SKILL.md`](https://github.com/ZataZhang/zata-codes-template/blob/main/skills/prd/SKILL.md) | 触发条件、核心原则、受控写作复核、规划阶段、PRD 必需结构和 Machine Contract v6。 |
 | [`references/prd-content-rules.md`](https://github.com/ZataZhang/zata-codes-template/blob/main/skills/prd/references/prd-content-rules.md) | Change Impact Tree、Mermaid 图、验证计划、用户影响、验收清单和最终叙述对账的细节。 |
 | [`references/validation-evidence-integrity.md`](https://github.com/ZataZhang/zata-codes-template/blob/main/skills/prd/references/validation-evidence-integrity.md) | 高风险验证链、证据新鲜度、verifier finding 分级和重开规则。 |
 | [`references/pr-evidence-and-merge-acceptance.md`](https://github.com/ZataZhang/zata-codes-template/blob/main/skills/prd/references/pr-evidence-and-merge-acceptance.md) | PR 原生人审材料、证据发布、前后端配对呈递和合并后验收记录。 |

@@ -3,7 +3,7 @@
 > ✅ **交付前置**：无，可立即开工。（有依赖时改用 ⛔ 并指明上游 PRD 与顺序原因）
 > 结构化声明见 §8 Delivery Dependencies，**那里是唯一事实源**。
 
-> ⬜ **验收状态**：未开工。（归档时与 §9 对齐：Human-Confirmed 仍有空框 → 🧍 待人工验收，全部由人确认后 → ✅ 已验收；⬜ 不可归档）
+> ⬜ **验收状态**：未开工。（归档时与 §9 对齐：执行侧仍有空框且验证暂不能完成 → ⏸️ 验证阻塞；执行侧完成且 Human-Confirmed 仍有空框 → 🧍 待人工验收；全部由人确认后 → ✅ 已验收；⬜ 不可归档）
 > 本行是 §9 Acceptance Checklist 的投影，**那里是唯一事实源**。
 
 > 本 PRD 分两个 altitude，分别服务不同读者，自上而下阅读：
@@ -445,5 +445,7 @@ If no external validation was needed:
 - Public behavior and contracts: [confirmed / corrected — summary]
 - Related PRD status: [confirmed / corrected — summary]
 - Requirements and risks: [confirmed / corrected — summary]
+- Validation blocker: [仅 ⏸️ 验证阻塞时必填：什么具体条件使验证无法完成；正常完成时删除本行]
+- Validation follow-up: [仅 ⏸️ 验证阻塞时必填：关联后续 PRD、Issue 或可追踪任务；正常完成时删除本行]
 - Reconciled differences:
   - [none，或列出已经反向修正到正文的差异]

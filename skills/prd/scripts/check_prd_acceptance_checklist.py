@@ -26,9 +26,11 @@ from prd_contract import (  # noqa: E402  (兄弟模块，运行时按脚本所�
     ACCEPTANCE_STATUS_ACCEPTED,
     ACCEPTANCE_STATUS_AWAITING_HUMAN,
     ACCEPTANCE_STATUS_NOT_STARTED,
+    ACCEPTANCE_STATUS_VALIDATION_BLOCKED,
     TOP_LEVEL_HEADING_RE,
     find_acceptance_banner,
     parse_checklist,
+    parse_final_reconciliation,
 )
 
 ACTIVE_PRD_PATH_RE = re.compile(r"^tasks/([^/]+-prd-[^/]+|P[0-3]-[A-Z]+-\d{8}-\d{6}-[^/]+)\.md$")
@@ -55,11 +57,6 @@ PART_A_EXECUTOR_METADATA_RE = re.compile(
 )
 FUNCTIONAL_REQUIREMENT_HEADING_RE = re.compile(r"^##\s+(?:10\.\s+)?Functional Requirements\b")
 FUNCTIONAL_REQUIREMENT_RE = re.compile(r"^\s*[-*+]\s+(?:\*\*)?FR-(?P<number>\d+)(?:\*\*)?\s*[:：]")
-FINAL_RECONCILIATION_HEADING_RE = re.compile(r"^###\s+Final Reconciliation\b")
-RECONCILIATION_FIELD_RE = re.compile(
-    r"^\s*[-*+]\s+(?P<key>Interpretation|Public behavior and contracts|"
-    r"Related PRD status|Requirements and risks):\s*(?P<value>.*)$"
-)
 NO_EXECUTABLE_BEHAVIOR_MARKER = (
     "No executable behavior changes; realistic validation is limited to "
     "documentation/build checks."
@@ -110,6 +107,10 @@ REQUIRED_RECONCILIATION_FIELDS = (
     "Public behavior and contracts",
     "Related PRD status",
     "Requirements and risks",
+)
+VALIDATION_BLOCKED_RECONCILIATION_FIELDS = (
+    "Validation blocker",
+    "Validation follow-up",
 )
 REQUIRED_SECTION_PATTERNS = (
     ("Introduction & Goals", re.compile(r"^##\s+(?:1\.\s+)?Introduction & Goals\s*$")),
@@ -384,45 +385,31 @@ def _functional_requirement_issues(file_content: str) -> list[tuple[int, str]]:
     ]
 
 
-def _archive_reconciliation_issues(file_content: str) -> list[tuple[int, str]]:
+def _archive_reconciliation_issues(
+    file_content: str, *, validation_blocked: bool = False
+) -> list[tuple[int, str]]:
     """Return missing or incomplete final narrative reconciliation issues."""
 
-    lines = file_content.splitlines()
-    heading_index = next(
-        (
-            line_index
-            for line_index, line in enumerate(lines)
-            if FINAL_RECONCILIATION_HEADING_RE.match(line)
-        ),
-        None,
-    )
-    if heading_index is None:
+    final_reconciliation = parse_final_reconciliation(file_content)
+    if final_reconciliation.heading_line == 0:
         return [(-1, "Missing Final Reconciliation section required for archive readiness")]
 
-    end_index = next(
-        (
-            line_index
-            for line_index in range(heading_index + 1, len(lines))
-            if THIRD_LEVEL_HEADING_RE.match(lines[line_index])
-        ),
-        len(lines),
-    )
-    reconciliation_fields: dict[str, tuple[int, str]] = {}
-    for line_index in range(heading_index + 1, end_index):
-        field_match = RECONCILIATION_FIELD_RE.match(lines[line_index])
-        if field_match:
-            reconciliation_fields[field_match.group("key")] = (
-                line_index + 1,
-                field_match.group("value").strip(),
-            )
+    required_fields = REQUIRED_RECONCILIATION_FIELDS
+    if validation_blocked:
+        required_fields += VALIDATION_BLOCKED_RECONCILIATION_FIELDS
 
     issues: list[tuple[int, str]] = []
-    for field_name in REQUIRED_RECONCILIATION_FIELDS:
-        field_entry = reconciliation_fields.get(field_name)
+    for field_name in required_fields:
+        field_entry = final_reconciliation.fields.get(field_name)
         if field_entry is None:
-            issues.append((heading_index + 1, f"Final Reconciliation missing field: {field_name}"))
+            issues.append(
+                (
+                    final_reconciliation.heading_line,
+                    f"Final Reconciliation missing field: {field_name}",
+                )
+            )
             continue
-        line_number, field_value = field_entry
+        line_number, field_value = field_entry.line, field_entry.value
         normalized_value = field_value.lower().replace(" ", "")
         if (
             not field_value
@@ -434,32 +421,22 @@ def _archive_reconciliation_issues(file_content: str) -> list[tuple[int, str]]:
 
 
 def _unchecked_items_in_acceptance_section(file_content: str) -> list[tuple[int, str]]:
-    """Return unchecked checklist items the executing agent still owes.
-
-    解析复用 :func:`prd_contract.parse_checklist`（PRD 格式的唯一实现）。只报
-    **执行侧欠的活**：``Human-Confirmed`` 组内的空框是人的待答项，执行工具不得代勾，
-    也不该拦归档（契约 §8）——它们是否还欠着，交给 :func:`_acceptance_banner_issues`
-    核对横幅。
-    """
+    """Return executor-owned unchecked items unless validation is explicitly blocked."""
 
     checklist = parse_checklist(file_content)
     if not checklist.section_found:
         return [(-1, "Missing Acceptance Checklist section")]
+    banner = find_acceptance_banner(file_content)
+    if banner is not None and banner.status == ACCEPTANCE_STATUS_VALIDATION_BLOCKED:
+        return []
     return [(item.line, item.text) for item in checklist.execution_unchecked_items]
 
 
 def _acceptance_banner_issues(file_content: str) -> list[tuple[int, str]]:
-    """Return issues where the Acceptance Status Banner disagrees with §9 at archive.
-
-    归档不再等人工验收，"这条 PRD 还欠人一个确认"于是只能靠横幅承接：横幅缺失、
-    停在 ``未开工`` 或与 §9 对不上，一条已归档却仍待人确认的 PRD 就看不见了。
-    规则（契约 §8）：§9 里 ``Human-Confirmed`` 组还有空框 → 横幅必须是
-    ``🧍 待人工验收``；一个都不剩 → 必须是 ``✅ 已验收``；``⬜ 未开工`` 永远不可归档。
-    """
+    """Return issues where the Acceptance Status Banner disagrees with §9 at archive."""
 
     checklist = parse_checklist(file_content)
     if not checklist.section_found:
-        # 缺清单章节已由 _unchecked_items_in_acceptance_section 报告，这里不重复。
         return []
 
     banner = find_acceptance_banner(file_content)
@@ -467,10 +444,9 @@ def _acceptance_banner_issues(file_content: str) -> list[tuple[int, str]]:
         return [
             (
                 1,
-                "Missing Acceptance Status Banner under the title: archive hands the human "
-                "review off to this banner, so it must state 🧍 待人工验收 (Human-Confirmed "
-                "items still open) or ✅ 已验收 (none open). See 'Acceptance Status Banner' "
-                "in the PRD skill.",
+                "Missing Acceptance Status Banner under the title: use ⏸️ 验证阻塞 when "
+                "executor-owned validation remains open, 🧍 待人工验收 when only "
+                "Human-Confirmed items remain open, or ✅ 已验收 when none remain open.",
             )
         ]
     if not banner.status:
@@ -478,19 +454,35 @@ def _acceptance_banner_issues(file_content: str) -> list[tuple[int, str]]:
             (
                 banner.line,
                 "Acceptance Status Banner state is not recognised: use exactly one of "
-                "⬜ 未开工 / 🧍 待人工验收 / ✅ 已验收.",
+                "⬜ 未开工 / ⏸️ 验证阻塞 / 🧍 待人工验收 / ✅ 已验收.",
             )
         ]
     if banner.status == ACCEPTANCE_STATUS_NOT_STARTED:
         return [
             (
                 banner.line,
-                "Acceptance Status Banner still says ⬜ 未开工 but the PRD is being archived: "
-                "set 🧍 待人工验收 while Human-Confirmed items remain open, else ✅ 已验收.",
+                "Acceptance Status Banner still says ⬜ 未开工 but the PRD is being archived.",
             )
         ]
 
+    open_execution_count = len(checklist.execution_unchecked_items)
     open_human_count = len(checklist.human_unchecked_items)
+    if banner.status == ACCEPTANCE_STATUS_VALIDATION_BLOCKED:
+        if open_execution_count:
+            return []
+        expected_status = (
+            ACCEPTANCE_STATUS_AWAITING_HUMAN if open_human_count else ACCEPTANCE_STATUS_ACCEPTED
+        )
+        return [
+            (
+                banner.line,
+                "Acceptance Status Banner says ⏸️ 验证阻塞 but §9 has no open executor-owned "
+                f"item: use {expected_status} instead.",
+            )
+        ]
+    if open_execution_count:
+        # 非阻塞状态的执行侧空框已由 _unchecked_items_in_acceptance_section 报告。
+        return []
     if banner.status == ACCEPTANCE_STATUS_AWAITING_HUMAN and open_human_count == 0:
         return [
             (
@@ -998,7 +990,14 @@ def _validate_file(
         + _delivery_gate_banner_issues(file_content)
     )
     if require_archive_reconciliation:
-        issues += _archive_reconciliation_issues(file_content)
+        acceptance_banner = find_acceptance_banner(file_content)
+        validation_blocked = (
+            acceptance_banner is not None
+            and acceptance_banner.status == ACCEPTANCE_STATUS_VALIDATION_BLOCKED
+        )
+        issues += _archive_reconciliation_issues(
+            file_content, validation_blocked=validation_blocked
+        )
         issues += _acceptance_banner_issues(file_content)
     return issues
 

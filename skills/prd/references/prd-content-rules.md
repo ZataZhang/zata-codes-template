@@ -284,6 +284,15 @@ Section 13 must include:
   - [or list each difference already corrected in the main PRD]
 ```
 
+When the banner is `⏸️ 验证阻塞`, add two non-empty fields. They are mandatory only for this explicit blocked-archive exception:
+
+```markdown
+- Validation blocker: [the concrete condition that prevented validation]
+- Validation follow-up: [tracked PRD, Issue, or equivalent follow-up that resumes validation]
+```
+
+Keep every unproven executor-owned item `[ ]`. Once that follow-up completes, collect fresh evidence, tick only the items it proves, and change the banner to `🧍 待人工验收` or `✅ 已验收` under the normal archive gate.
+
 Reconcile at least:
 
 - Part A interpretation and compatibility claims;

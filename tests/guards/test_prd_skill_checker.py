@@ -9,11 +9,9 @@
 
 1. **证据链与格式单一来源。** oracle 必须写清值来源、必经边界与 fresh-state；契约版本
    标记必须等于解析器的实现版本，checker 只复用 ``prd_contract`` 的解析。
-2. **归档只代表执行侧交付完成。** 归档门禁只数 ``Human-Confirmed`` 之外的空框：人的
-   确认是归档**之后**的验收记录，不拦归档；"还欠人一个确认"改由验收状态横幅承接，
-   所以归档时横幅必须存在、可识别，且与 §9 对得上（``🧍 待人工验收`` ⟺ 人属组还有
-   空框，``✅ 已验收`` ⟺ 一个不剩，``⬜ 未开工`` 永不可归档）。横幅一旦漂掉，一条
-   已归档却仍待人确认的 PRD 就会从所有看板里消失。
+2. **归档只代表代码落地。** 正常门禁要求执行侧完成；显式 ``⏸️ 验证阻塞`` 可带
+   执行侧空框，但必须有原因和后续任务。人属空框不拦归档；执行侧完成后按人属空框选择
+   ``🧍 待人工验收`` 或 ``✅ 已验收``，``⬜ 未开工`` 永不可归档。
 3. **三份解析器逐例等价。** 随模板同步的 hook（``hooks/shared``）与状态看板的读取副本
    （``scripts/shared/just/prd_acceptance.py``，看板与执行锁共用）不能 import 可选安装
    的 skill，只能各自带一份轻量实现；等价性只能由这里（模板仓库内部、能同时看到三者）
@@ -669,6 +667,7 @@ def test_archive_validation_requires_complete_final_reconciliation() -> None:
 
 
 _NOT_STARTED_BANNER_LINE = "> ⬜ **验收状态**：未开工。"
+_VALIDATION_BLOCKED_BANNER_LINE = "> ⏸️ **验收状态**：验证阻塞 — 后续任务已登记。"
 _AWAITING_BANNER_LINE = "> 🧍 **验收状态**：待人工验收 — 仅剩 Human-Confirmed 项未确认。"
 _ACCEPTED_BANNER_LINE = "> ✅ **验收状态**：已验收 — Human-Confirmed 项均已确认。"
 _HUMAN_ITEM_LABEL = "人工确认：切换后的文案读起来通顺"
@@ -680,16 +679,15 @@ def _archive_candidate_prd(
     *,
     human_item_mark: str = " ",
     execution_item_mark: str = "x",
+    include_validation_block_fields: bool = False,
 ) -> str:
-    """构造只有验收清单与横幅可变、其余都满足归档校验的 PRD。
-
-    §9 拆成执行侧一项与 ``Human-Confirmed`` 分组一项；横幅插在交付前置横幅之后，与
-    模板同形。
+    """构造只有验收清单、横幅与阻塞字段可变、其余都满足归档校验的 PRD。
 
     Args:
         banner_line: 横幅首行（含行首 ``> ``）；``None`` 表示不写横幅。
         human_item_mark: ``Human-Confirmed`` 组内那一项的勾选标记。
         execution_item_mark: 执行侧那一项的勾选标记。
+        include_validation_block_fields: 是否补齐阻塞归档要求的两个字段。
     """
 
     prd_text = _complete_prd(include_reconciliation=True).replace(
@@ -701,6 +699,14 @@ def _archive_candidate_prd(
         f"- [{human_item_mark}] {_HUMAN_ITEM_LABEL}\n",
         1,
     )
+    if include_validation_block_fields:
+        prd_text = prd_text.replace(
+            "- Requirements and risks: confirmed — 最终需求与风险已复核\n",
+            "- Requirements and risks: confirmed — 最终需求与风险已复核\n"
+            "- Validation blocker: Nacos 缺少真实栈启动必需配置\n"
+            "- Validation follow-up: tasks/pending/P1-FEAT-20260101-000001-resume-rv.md\n",
+            1,
+        )
     if banner_line is None:
         return prd_text
     return prd_text.replace(
@@ -765,6 +771,65 @@ def test_archive_gate_still_blocks_open_execution_items(tmp_path: Path) -> None:
     assert len(issues) == 1
     assert _EXECUTION_ITEM_LABEL in issues[0][1]
     assert _HUMAN_ITEM_LABEL not in issues[0][1]
+
+
+def test_archive_gate_allows_explicitly_blocked_validation_with_tracked_follow_up(
+    tmp_path: Path,
+) -> None:
+    """显式阻塞可以带执行侧空框归档，但空框、原因与后续任务必须同时存在。"""
+
+    prd_text = _archive_candidate_prd(
+        _VALIDATION_BLOCKED_BANNER_LINE,
+        execution_item_mark=" ",
+        include_validation_block_fields=True,
+    )
+
+    assert PRD_CONTRACT.parse_acceptance_status(prd_text) == "validation_blocked"
+    assert PRD_CONTRACT.parse_checklist(prd_text).execution_unchecked_items
+    assert _archive_gate_issues(tmp_path, prd_text) == []
+
+
+@pytest.mark.parametrize("missing_field", ["Validation blocker", "Validation follow-up"])
+def test_archive_gate_requires_blocked_validation_fields(
+    tmp_path: Path, missing_field: str
+) -> None:
+    """缺阻塞原因或后续任务时不能用新状态绕过原来的执行侧门禁。"""
+
+    prd_text = _archive_candidate_prd(
+        _VALIDATION_BLOCKED_BANNER_LINE,
+        execution_item_mark=" ",
+        include_validation_block_fields=True,
+    )
+    retained_field = (
+        "Validation follow-up" if missing_field == "Validation blocker" else "Validation blocker"
+    )
+    prd_text = "\n".join(
+        line for line in prd_text.splitlines() if not line.startswith(f"- {missing_field}:")
+    )
+    assert retained_field in prd_text
+
+    issues = _archive_gate_issues(tmp_path, prd_text)
+
+    assert any(
+        f"Final Reconciliation missing field: {missing_field}" in issue_text
+        for _, issue_text in issues
+    )
+
+
+def test_archive_gate_rejects_blocked_banner_without_open_execution_items(tmp_path: Path) -> None:
+    """执行侧已完成后不能继续挂阻塞横幅，应进入正常人工验收状态。"""
+
+    prd_text = _archive_candidate_prd(
+        _VALIDATION_BLOCKED_BANNER_LINE,
+        execution_item_mark="x",
+        include_validation_block_fields=True,
+    )
+
+    issues = _archive_gate_issues(tmp_path, prd_text)
+
+    assert len(issues) == 1
+    assert "no open executor-owned item" in issues[0][1]
+    assert "awaiting_human" in issues[0][1]
 
 
 def test_archive_gate_requires_the_acceptance_status_banner(tmp_path: Path) -> None:
@@ -1129,6 +1194,7 @@ def test_verifier_reviewer_does_not_require_presentation() -> None:
 
 _BANNER_SHAPE_CASES = [
     pytest.param("> ⬜ **验收状态**：未开工。\n", "not_started", id="not-started"),
+    pytest.param("> ⏸️ **验收状态**：验证阻塞。\n", "validation_blocked", id="validation-blocked"),
     pytest.param("> 🧍 **验收状态**：待人工验收 — 仅剩 1 项。\n", "awaiting_human", id="awaiting"),
     pytest.param("> ✅ **验收状态**：已验收 — 全部确认。\n", "accepted", id="accepted"),
     pytest.param("> ✅ **验收状态**：可归档。\n", "accepted", id="legacy-ready-to-archive"),

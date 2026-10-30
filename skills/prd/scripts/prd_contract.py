@@ -35,7 +35,7 @@ from pathlib import Path
 # 版本
 # ---------------------------------------------------------------------------
 
-CONTRACT_VERSION = 5
+CONTRACT_VERSION = 6
 """本模块实现的 Machine Contract 版本；与 SKILL.md 的标记必须一致。"""
 
 # ---------------------------------------------------------------------------
@@ -98,11 +98,13 @@ ACCEPTANCE_STATUS_BANNER_RE = re.compile(
 讨论误当成状态声明。"""
 
 ACCEPTANCE_STATUS_NOT_STARTED = "not_started"
+ACCEPTANCE_STATUS_VALIDATION_BLOCKED = "validation_blocked"
 ACCEPTANCE_STATUS_AWAITING_HUMAN = "awaiting_human"
 ACCEPTANCE_STATUS_ACCEPTED = "accepted"
 
 ACCEPTANCE_STATUS_TOKENS: tuple[tuple[str, str], ...] = (
     (ACCEPTANCE_STATUS_NOT_STARTED, "未开工"),
+    (ACCEPTANCE_STATUS_VALIDATION_BLOCKED, "验证阻塞"),
     (ACCEPTANCE_STATUS_AWAITING_HUMAN, "待人工验收"),
     (ACCEPTANCE_STATUS_ACCEPTED, "已验收"),
     (ACCEPTANCE_STATUS_ACCEPTED, "可归档"),
@@ -133,6 +135,14 @@ CHANGE_LOG_FIELD_PATTERNS: dict[str, re.Pattern[str]] = {
     "审核": re.compile(r"^\s*[-*+]\s+(?:审核|Review)\s*[:：]", re.IGNORECASE),
 }
 """契约 §1 规定的六个字段；缺任一即视为不完整条目。"""
+
+FINAL_RECONCILIATION_HEADING_RE = re.compile(r"^###\s+Final Reconciliation\b")
+THIRD_LEVEL_HEADING_RE = re.compile(r"^###\s+")
+RECONCILIATION_FIELD_RE = re.compile(
+    r"^\s*[-*+]\s+(?P<key>Interpretation|Public behavior and contracts|"
+    r"Related PRD status|Requirements and risks|Validation blocker|Validation follow-up):"
+    r"\s*(?P<value>.*)$"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -221,13 +231,29 @@ class ChecklistState:
 
 
 @dataclass(frozen=True)
+class ReconciliationField:
+    """Final Reconciliation 单个字段的原文值与行号。"""
+
+    line: int
+    value: str
+
+
+@dataclass(frozen=True)
+class FinalReconciliationState:
+    """Final Reconciliation 小节的解析结果；``heading_line=0`` 表示缺章节。"""
+
+    heading_line: int
+    fields: dict[str, ReconciliationField]
+
+
+@dataclass(frozen=True)
 class AcceptanceBanner:
     """验收状态横幅的解析结果。
 
     Attributes:
         line: 横幅首行的 1-based 行号。
-        status: ``"not_started"`` / ``"awaiting_human"`` / ``"accepted"``；横幅在但
-            状态词无法识别时为空串。
+        status: ``"not_started"`` / ``"validation_blocked"`` / ``"awaiting_human"`` /
+            ``"accepted"``；横幅在但状态词无法识别时为空串。
     """
 
     line: int
@@ -401,10 +427,11 @@ def parse_checklist(file_content: str) -> ChecklistState:
 
 
 def find_acceptance_banner(file_content: str) -> AcceptanceBanner | None:
-    """定位 PRD 头部的验收状态横幅并解析其三态（Machine Contract §6 / §8）。
+    """定位 PRD 头部的验收状态横幅并解析其四态（Machine Contract §6 / §8）。
 
-    横幅是 §9 验收清单的投影，只有 ``⬜ 未开工`` / ``🧍 待人工验收`` /
-    ``✅ 已验收`` 三个状态（旧称 ``✅ 可归档`` 按 ``已验收`` 读）。命中首行横幅后取
+    横幅是 §9 验收清单的投影，只有 ``⬜ 未开工`` / ``⏸️ 验证阻塞`` /
+    ``🧍 待人工验收`` / ``✅ 已验收`` 四个状态（旧称 ``✅ 可归档`` 按 ``已验收`` 读）。
+    命中首行横幅后取
     标记之后**最先出现**的状态词，模板自带的括号说明（``未开工（…改为 🧍 待人工
     验收…）``）因此不会把默认态误判成待人工。只认这一处显式声明，不按 §9 的未勾项
     结构反推——结构推断会把尚未完工的 PRD 误报成"等你验收"。
@@ -438,10 +465,54 @@ def parse_acceptance_status(file_content: str) -> str:
         file_content: PRD 全文。
 
     Returns:
-        ``"not_started"`` / ``"awaiting_human"`` / ``"accepted"`` / ``""``。
+        ``"not_started"`` / ``"validation_blocked"`` / ``"awaiting_human"`` /
+        ``"accepted"`` / ``""``。
     """
     banner = find_acceptance_banner(file_content)
     return banner.status if banner is not None else ""
+
+
+def parse_final_reconciliation(file_content: str) -> FinalReconciliationState:
+    """解析 Final Reconciliation 的字段值与行号，不做完成度裁决。
+
+    Args:
+        file_content: PRD 全文。
+
+    Returns:
+        FinalReconciliationState: 小节标题行与全部受契约约束的字段；缺章节时标题行为 0。
+    """
+    lines = file_content.splitlines()
+    heading_index = next(
+        (
+            line_index
+            for line_index, line in enumerate(lines)
+            if FINAL_RECONCILIATION_HEADING_RE.match(line)
+        ),
+        None,
+    )
+    if heading_index is None:
+        return FinalReconciliationState(heading_line=0, fields={})
+
+    end_index = next(
+        (
+            line_index
+            for line_index in range(heading_index + 1, len(lines))
+            if THIRD_LEVEL_HEADING_RE.match(lines[line_index])
+        ),
+        len(lines),
+    )
+    reconciliation_fields: dict[str, ReconciliationField] = {}
+    for line_index in range(heading_index + 1, end_index):
+        field_match = RECONCILIATION_FIELD_RE.match(lines[line_index])
+        if field_match:
+            reconciliation_fields[field_match.group("key")] = ReconciliationField(
+                line=line_index + 1,
+                value=field_match.group("value").strip(),
+            )
+    return FinalReconciliationState(
+        heading_line=heading_index + 1,
+        fields=reconciliation_fields,
+    )
 
 
 def parse_change_log(file_content: str) -> ChangeLogState:
@@ -534,9 +605,17 @@ def describe_prd(file_content: str, *, path: str) -> dict[str, object]:
     """
     checklist = parse_checklist(file_content)
     change_log = parse_change_log(file_content)
+    final_reconciliation = parse_final_reconciliation(file_content)
     return {
         "path": path,
         "acceptance_status": parse_acceptance_status(file_content),
+        "final_reconciliation": {
+            "heading_line": final_reconciliation.heading_line,
+            "fields": {
+                field_name: {"line": field.line, "value": field.value}
+                for field_name, field in final_reconciliation.fields.items()
+            },
+        },
         "checklist": {
             "section_found": checklist.section_found,
             "human_group_found": checklist.human_group_found,

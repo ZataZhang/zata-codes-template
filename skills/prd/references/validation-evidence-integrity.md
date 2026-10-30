@@ -131,8 +131,11 @@ Preserve the raw response, command/environment diagnostics, and tree identity; r
 through an independent verifier or clean environment within the normal two-round budget.
 If the result remains inconclusive, stop review retries and escalate the named incident to
 the human review surface. Reviewable code and evidence may still be published in a blocked
-Draft PR, but acceptance, automatic merge, and PRD archival remain unavailable until a
-valid verdict or explicit human adjudication exists.
+Draft PR. Acceptance and automatic merge remain unavailable until a valid verdict or
+explicit human adjudication exists. Archival is possible only through the explicit
+`⏸️ 验证阻塞` path: leave the unproven executor-owned items open and record both the
+incident in `Validation blocker` and a tracked adjudication/resume task in
+`Validation follow-up`; never archive it as `🧍 待人工验收` or `✅ 已验收`.
 
 Severity is per finding. Several `NON-BLOCKING` findings do not add up to a `BLOCKER`.
 

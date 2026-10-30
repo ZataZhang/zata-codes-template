@@ -46,7 +46,7 @@
 - 提交信息统一用英文并遵循 Conventional Commits（`type(scope): subject`，标题 ≤ 72 字符，正文解释 why），详见 `docs/ai-standards/tooling.md` 的 Commit Messages 小节
 - 单代码文件非空行不超过 1000 行；`just lint` 会对此发出警告
 - 随手想法先落 `tasks/inbox/`：只在**想法边界**捕获（用户明确要求，或话题收敛到可开 PRD 的状态），条目 = 用户原话逐字**引用** + 标注为 `AI 派生` 的背景块，**只追加**到 `tasks/inbox/ideas.md`（禁止改写已有条目）；AI 维护 `tasks/inbox/summary.md` 做总结；想法成熟后用 PRD 流程升级到 `tasks/pending/`。详见 `docs/guides/idea-inbox.md`
-- PRD 对应任务全部完成后：生成验证计划、收集证据；独立 verifier `PASS` 后，executor 必须勾选证据充分支持的非人工 Acceptance Checklist 项并标注证据、完成 Final Reconciliation、让验收状态横幅与 §9 对齐，随交付改动一并将 PRD 从 `tasks/pending/` 归档到 `tasks/archive/`。**归档只代表执行侧交付完成**，不等人工验收：`Human-Confirmed` 空框带着 `🧍 待人工验收` 归档，人确认后（对话/审查清单，或一个明确声明“合并即验收”、唯一关联该 PRD 且已发布证据的 PR merge——含 squash，须核对最终 Git tree）只回填验收记录（勾选 `Human-Confirmed`、横幅改 `✅ 已验收`、追加 Change Log）；人工验收若发现 PRD 自身 oracle/范围未达成，把 PRD 移回 `tasks/pending/` 重开，需求本身变了则新开关联 PRD。PR 流程须在 GitHub 直接呈递 §9.1 与证据，用户可见前端改动还须并排呈递目标原型图与真实实现截图
+- PRD 正常交付时生成验证计划、收集证据；独立 verifier `PASS` 后勾选有证据的非人工项、完成 Final Reconciliation 并归档。验证确实受阻时允许**阻塞归档**：保留执行侧空框，横幅写 `⏸️ 验证阻塞`，并在 Final Reconciliation 填非空 `Validation blocker` 与 `Validation follow-up`；不得代勾、改写 `[~]` 或称为待人工验收。**归档只代表代码落地**，不等于验证或人工验收完成。阻塞项补验后回到正常 `🧍 待人工验收 / ✅ 已验收` 路径；人工验收若发现 PRD 自身 oracle/范围未达成则重开，需求变化则新开关联 PRD。PR 流程仍须呈递 §9.1 与证据，阻塞 PRD 不因 merge 变成已验收
 - 禁止为了可测性修改生产代码：不得为了让测试或负控能变红而往 `src/`、前端 app 加故障注入开关、失败模式、test-only 配置项、计数器或观测钩子；无法变红时记 `negative_control: not feasible — <原因>`
 - verifier finding 必须分 `BLOCKER` / `NON-BLOCKING` / `SECURITY`，只有 `BLOCKER` 触发重跑；验证最多 2 轮，之后交人决定，不开第 3 轮
 - PRD 必须包含 Realistic Validation Plan，验收清单需覆盖最高可行保真度的真实入口验证，或说明无可执行行为变更
