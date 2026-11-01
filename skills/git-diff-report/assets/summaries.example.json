@@ -24,6 +24,63 @@
       "refs": ["src/backend/core/use_cases/example.py:64"]
     }
   ],
+  "feature_groups": [
+    {
+      "title": "配置仓储删除校验",
+      "summary": "沿数据契约、业务校验到命令入口查看完整变更。",
+      "core_change": "删除操作会返回被删条目视图，并阻止同一路径被多个 ID 占用。",
+      "diagram": {
+        "title": "配置条目的路径校验与删除结果",
+        "nodes": [
+          {
+            "id": "request",
+            "kind": "请求",
+            "label": "新增或删除条目",
+            "detail": "进入仓储用例",
+            "column": 0,
+            "row": 0,
+            "step": 1
+          },
+          {
+            "id": "validate",
+            "kind": "业务校验",
+            "label": "检查路径占用",
+            "detail": "冲突时拒绝写入",
+            "column": 0,
+            "row": 1,
+            "step": 1
+          },
+          {
+            "id": "result",
+            "kind": "结果",
+            "label": "返回条目视图",
+            "detail": "删除后保留被删内容",
+            "column": 0,
+            "row": 2,
+            "step": 1
+          }
+        ],
+        "edges": [
+          {"from": "request", "to": "validate", "label": "检查"},
+          {"from": "validate", "to": "result", "label": "通过后"}
+        ]
+      },
+      "steps": [
+        {
+          "label": "校验路径占用并执行删除",
+          "change": "同一路径被另一个 ID 使用时拒绝写入；删除后返回条目视图。",
+          "core_files": ["src/backend/core/use_cases/example.py"],
+          "files": ["src/backend/core/use_cases/example.py"]
+        },
+        {
+          "label": "补齐命令清理逻辑",
+          "change": "结束任务时按进程组清理子进程。",
+          "core_files": [],
+          "files": ["justfile"]
+        }
+      ]
+    }
+  ],
   "files": {
     "src/backend/core/use_cases/example.py": {
       "summary": "新增 remove_example()：只删除配置条目，返回被删条目视图；同时补上同一路径不被多个 ID 占用校验。",

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """把 git 工作区改动渲染成一份自包含的 HTML 报告。
 
-左侧是改动文件树（可折叠、带改动总结与 +/− 统计，点击跳转、滚动联动），
-右侧是全部文件的完整 diff：浅色主题与 just view 同源，逐行带新旧行号双列，
-长行折行不横滚。所有资源内联在单个 HTML 文件里，无外部依赖。
+有功能摘要时按「功能链路 → 核心改动图 → 核心 diff」导航，也可切换到完整路径树；
+没有功能摘要时显示改动文件树与全量 diff。diff 逐行带新旧行号双列，长行折行不横滚。
+所有资源内联在单个 HTML 文件里，无外部依赖。
 
 用法示例：
 
@@ -25,6 +25,14 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterator, Sequence
+
+from feature_navigation import (
+    FeatureGroup,
+    feature_indexes_for_file,
+    normalize_feature_groups,
+    render_feature_navigation,
+)
+from feature_navigation_assets import FEATURE_SCRIPT, FEATURE_STYLE
 
 DIFF_GIT_HEADER = "diff --git "
 #: ``git diff`` 在新增/删除的文件上用 ``/dev/null`` 表示缺失的那一侧。
@@ -865,7 +873,15 @@ def render_hunk_block(
     )
 
 
-def render_section(index: int, file_entry: dict[str, Any], summaries: dict[str, Any]) -> str:
+def render_section(
+    index: int,
+    file_entry: dict[str, Any],
+    summaries: dict[str, Any],
+    *,
+    feature_groups: Sequence[FeatureGroup] = (),
+    initially_visible_group: int | None = None,
+    initially_visible_core: bool = False,
+) -> str:
     """渲染右侧单个文件的完整 diff 区块。"""
     path = file_entry["path"]
     added, removed = count_changes(file_entry)
@@ -906,8 +922,27 @@ def render_section(index: int, file_entry: dict[str, Any], summaries: dict[str, 
         '<span class="role-badge must">必读</span>' if is_must_read(summaries, path) else ""
     )
     summary_html = f'<p class="summary">{esc(summary)}</p>' if summary else ""
+    group_indexes = feature_indexes_for_file(feature_groups, index)
+    core_group_indexes = tuple(
+        group.index for group in feature_groups if index in group.core_file_indexes
+    )
+    feature_attributes = (
+        f' data-feature-groups="{" ".join(str(value) for value in group_indexes)}"'
+        f' data-feature-core-groups="{" ".join(str(value) for value in core_group_indexes)}"'
+        if feature_groups
+        else ""
+    )
+    initially_hidden = (
+        " hidden"
+        if initially_visible_group is not None
+        and (
+            initially_visible_group not in group_indexes
+            or (initially_visible_core and initially_visible_group not in core_group_indexes)
+        )
+        else ""
+    )
     return (
-        f'<section class="file" id="f{index}">'
+        f'<section class="file" id="f{index}"{feature_attributes}{initially_hidden}>'
         f'<button class="file-head" type="button" aria-expanded="true" '
         f'aria-controls="content-f{index}"><h2>{esc(path)}</h2>{must_read_badge}'
         f'<span class="stats"><span class="add-stat">+{added}</span>'
@@ -1299,6 +1334,7 @@ STYLE = """
   @media (max-width: 900px) {
     .body-grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: 240px minmax(0, 1fr); }
   }
+
 """
 
 SCRIPT = """
@@ -1312,7 +1348,11 @@ SCRIPT = """
   // 侧栏的滚动面是内层 .tree，而不是 aside 本身（aside 只是 flex 外壳，overflow: hidden）。
   var treeScroller = document.querySelector('.tree');
   var byIndex = {};
-  rows.forEach(function (row) { byIndex[row.dataset.index] = row; });
+  rows.forEach(function (row) {
+    var key = row.dataset.index;
+    if (!byIndex[key]) { byIndex[key] = []; }
+    byIndex[key].push(row);
+  });
 
   fileToggles.forEach(function (toggle) {
     toggle.addEventListener('click', function () {
@@ -1339,6 +1379,10 @@ SCRIPT = """
 
   rows.forEach(function (row) {
     row.addEventListener('click', function () {
+      if (row.closest('.feature-support')) {
+        var featureCard = row.closest('.feature-flow-card');
+        if (featureCard) { selectFeature(featureCard.dataset.featureIndex, true); }
+      }
       var target = document.querySelector(row.getAttribute('href'));
       if (!target) { return; }
       target.classList.remove('is-collapsed');
@@ -1374,7 +1418,10 @@ SCRIPT = """
     window.requestAnimationFrame(function () {
       var targetBox = target.getBoundingClientRect();
       var viewBox = scroller.getBoundingClientRect();
-      if (targetBox.top < viewBox.top + 8 || targetBox.bottom > viewBox.bottom - 8) {
+      if (target.classList.contains('file')) {
+        // 文件锚点表示阅读入口：对齐文件标题，避免长 diff 被整段居中后标题仍在视口外。
+        scroller.scrollTop += targetBox.top - viewBox.top - 12;
+      } else if (targetBox.top < viewBox.top + 8 || targetBox.bottom > viewBox.bottom - 8) {
         scroller.scrollTop += targetBox.top - viewBox.top - (viewBox.height / 2)
           + (targetBox.height / 2);
       }
@@ -1401,33 +1448,43 @@ SCRIPT = """
     // 锚点取滚动容器自身顶部下方 16px，而不是视口顶部：右栏在页面里也有偏移。
     var anchor = scroller.getBoundingClientRect().top + 16;
     sections.forEach(function (sec) {
+      if (sec.hidden) { return; }
       var delta = Math.abs(sec.getBoundingClientRect().top - anchor);
       // 右侧按文件树顺序渲染，但文件索引仍是原始 diff 索引；必须从 section id 取原始索引。
       if (delta < bestDelta) { bestDelta = delta; bestId = sec.id.slice(1); }
     });
-    var active = byIndex[bestId];
-    if (!active) { return; }
+    var activeRows = byIndex[bestId];
+    if (!activeRows || !activeRows.length) { return; }
 
     if (bestId !== activeId) {
       rows.forEach(function (row) { row.classList.remove('active'); });
-      active.classList.add('active');
+      activeRows.forEach(function (row) { row.classList.add('active'); });
       activeId = bestId;
       // 展开所在目录，保证高亮项可见
-      var parent = active.parentElement;
+      var parent = activeRows[0].parentElement;
       while (parent && parent !== document.body) {
-        if (parent.tagName === 'DETAILS') { parent.open = true; }
+        if (parent.tagName === 'DETAILS') {
+          if (parent.classList.contains('feature-core-paths') && !parent.open) { break; }
+          parent.open = true;
+        }
         parent = parent.parentElement;
       }
     }
 
     if (Date.now() - sidebarTouchedAt < 1200) { return; }
 
-    var rowBox = active.getBoundingClientRect();
-    var treeBox = treeScroller.getBoundingClientRect();
+    var visibleActiveRow = activeRows.filter(function (row) {
+      var corePathDisclosure = row.closest('.feature-core-paths');
+      return !row.closest('[hidden]') && (!corePathDisclosure || corePathDisclosure.open);
+    })[0];
+    if (!visibleActiveRow) { return; }
+    var rowScroller = visibleActiveRow.closest('.feature-flow-list') || treeScroller;
+    var rowBox = visibleActiveRow.getBoundingClientRect();
+    var treeBox = rowScroller.getBoundingClientRect();
     if (rowBox.top < treeBox.top + 8) {
-      treeScroller.scrollTop -= treeBox.top + 8 - rowBox.top;
+      rowScroller.scrollTop -= treeBox.top + 8 - rowBox.top;
     } else if (rowBox.bottom > treeBox.bottom - 8) {
-      treeScroller.scrollTop += rowBox.bottom - (treeBox.bottom - 8);
+      rowScroller.scrollTop += rowBox.bottom - (treeBox.bottom - 8);
     }
   }
   scroller.addEventListener('scroll', function () {
@@ -1715,8 +1772,9 @@ def render_overview(summaries: dict[str, Any], files: Sequence[dict[str, Any]]) 
     if not prose_html and not reading_html:
         return ""
     index_html = _render_file_index(summaries, files)
+    initially_open = "" if summaries.get("feature_groups") else " open"
     return (
-        '<details class="overview surface" open>'
+        f'<details class="overview surface"{initially_open}>'
         '<summary class="overview-head"><span class="overview-badge">改动总览</span>'
         '<span class="overview-hint">点此行折叠 / 展开</span></summary>'
         f'<div class="overview-body">{prose_html}{reading_html}{index_html}</div></details>'
@@ -1735,20 +1793,52 @@ def render_page(
     total_removed = sum(count_changes(file_entry)[1] for file_entry in files)
     tree_html, display_indexes = render_tree(build_tree(files), summaries, files)
     moves_html = render_moves_card(files, display_indexes)
+    feature_groups = normalize_feature_groups(summaries, files)
+    initial_feature_index = feature_groups[0].index if feature_groups else None
+    feature_nav_html, feature_flow_html = render_feature_navigation(
+        feature_groups, files, summaries, count_changes
+    )
     sections = "".join(
-        render_section(file_index, files[file_index], summaries) for file_index in display_indexes
+        render_section(
+            file_index,
+            files[file_index],
+            summaries,
+            feature_groups=feature_groups,
+            initially_visible_group=initial_feature_index,
+            initially_visible_core=bool(feature_groups),
+        )
+        for file_index in display_indexes
     )
     if not files:
         sections = '<p class="empty">没有匹配的改动。</p>'
     overview_html = render_overview(summaries, files)
-    app_class = "app has-overview" if overview_html else "app"
+    app_classes = ["app"]
+    if overview_html:
+        app_classes.append("has-overview")
+    if feature_groups:
+        app_classes.append("has-feature-groups")
+    app_class = " ".join(app_classes)
+    if feature_groups:
+        navigation_html = (
+            f'<div class="body-grid feature-grid">{feature_nav_html}'
+            f'<aside class="surface feature-aside">{moves_html}'
+            f'<div class="feature-flow-list">{feature_flow_html}</div>'
+            f'<div class="tree" hidden>{tree_html}</div></aside>'
+            f'<main class="surface"><div class="viewer-body">{sections}</div></main></div>'
+        )
+    else:
+        navigation_html = (
+            '<div class="body-grid"><aside class="surface">'
+            f'{moves_html}<div class="tree">{tree_html}</div></aside>'
+            f'<main class="surface"><div class="viewer-body">{sections}</div></main></div>'
+        )
     return f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>{esc(title)}</title>
-<style>{STYLE}</style>
+<style>{STYLE}{FEATURE_STYLE}</style>
 </head>
 <body>
 <div class="{app_class}">
@@ -1764,15 +1854,9 @@ def render_page(
       <span class="del-stat">-{total_removed}</span></span>
   </header>
   {overview_html}
-  <div class="body-grid">
-    <aside class="surface">
-      {moves_html}
-      <div class="tree">{tree_html}</div>
-    </aside>
-    <main class="surface"><div class="viewer-body">{sections}</div></main>
-  </div>
+  {navigation_html}
 </div>
-<script>{SCRIPT}</script>
+<script>{SCRIPT}{FEATURE_SCRIPT}</script>
 </body>
 </html>
 """
