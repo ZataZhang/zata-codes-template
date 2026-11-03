@@ -1,4 +1,4 @@
 interface:
   display_name: "Zata Writer"
-  short_description: "用清晰分层、证据充分且保留个人判断的风格撰写中文长文"
-  default_prompt: "Use $zata-writer to turn these materials into a structured Chinese long-form article."
+  short_description: "写中文长文、口播、项目汇报、代码追踪、X 推文与配图帖"
+  default_prompt: "Use $zata-writer to draft a Chinese article, project update, or X post from these materials."
