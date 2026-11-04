@@ -46,6 +46,7 @@ _ASSET_ROUTE_PREFIX = "/assets/"
 _STATIC_CONTENT_TYPES_BY_FILENAME = {
     "index.html": "text/html; charset=utf-8",
     "viewer.css": "text/css; charset=utf-8",
+    "history-view.js": "application/javascript; charset=utf-8",
     "viewer.js": "application/javascript; charset=utf-8",
     # 第三方产物（mermaid 的官方压缩包），只在页面真的遇到 mermaid 围栏时才按需取。
     # 版本、来源与校验和见 assets/viewer.js 顶部的说明。
@@ -229,6 +230,49 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
             )
         elif route_path == "/api/changes":
             self._serve_workspace_payload(workspace.build_changes_payload(repository_root))
+        elif route_path in {
+            "/api/log",
+            "/api/log/commit",
+            "/api/log/diff",
+        }:
+            # 历史模块只在首次请求 Git Log 时导入，保持默认视图的常驻开销较低。
+            # 服务端 RSS 软预算（不含浏览器）：未访问历史时 ≤50 MiB，访问历史后 ≤80 MiB；
+            # 稳定超过 100 MiB 时排查。这是维护目标，不是运行时硬限制。
+            import history
+
+            if route_path == "/api/log":
+                offset_text = self._read_query_parameter(query_parameters, "offset") or "0"
+                limit_text = self._read_query_parameter(query_parameters, "limit") or str(
+                    history.DEFAULT_HISTORY_PAGE_SIZE
+                )
+                try:
+                    history_offset = int(offset_text)
+                    history_limit = int(limit_text)
+                except ValueError:
+                    self._send_json_payload(400, {"error": "拒绝：Git 历史分页参数必须是整数。"})
+                    return
+                self._serve_workspace_payload(
+                    history.build_git_history_payload(
+                        repository_root,
+                        offset=history_offset,
+                        limit=history_limit,
+                    )
+                )
+            elif route_path == "/api/log/commit":
+                self._serve_workspace_payload(
+                    history.build_git_commit_payload(
+                        repository_root,
+                        self._read_query_parameter(query_parameters, "hash"),
+                    )
+                )
+            elif route_path == "/api/log/diff":
+                self._serve_workspace_payload(
+                    history.build_git_commit_diff_payload(
+                        repository_root,
+                        self._read_query_parameter(query_parameters, "hash"),
+                        self._read_query_parameter(query_parameters, "path"),
+                    )
+                )
         elif route_path == "/api/diff":
             self._serve_workspace_payload(
                 workspace.build_diff_payload(

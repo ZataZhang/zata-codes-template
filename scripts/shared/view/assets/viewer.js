@@ -1,8 +1,8 @@
 /**
  * 只读文件与改动查看器的前端交互。
  *
- * 数据全部来自本机只读接口（/api/info、/api/tree、/api/file、/api/changes、/api/diff、
- * /api/markdown），页面不做任何写入，也不做心跳轮询——一旦开始轮询，服务端的空闲自动
+ * 数据全部来自本机只读接口（/api/info、/api/tree、/api/file、/api/changes、/api/log、
+ * /api/diff、/api/markdown），页面不做任何写入，也不做心跳轮询——一旦开始轮询，服务端的空闲自动
  * 回收就会静默失效。
  *
  * 改动视图在界面上分两段展示，与 VSCode 对齐：`Staged Changes` 与 `Changes`（后者由服务端
@@ -19,8 +19,8 @@
  * （`POST /api/open`，不写仓库）。除此之外页面不写入任何东西——没有提交、没有撤销暂存、
  * 没有丢弃改动，服务端也只有这两条写路由。
  *
- * 两个视图各自记一份「上一次看的那一个」（成功读到内容才记），切视图时还原，而不是每次
- * 都回到空态。改动视图头部的「查看文件」是显式指定，优先于记忆。
+ * 文件与改动视图各自记一份「上一次看的那一个」（成功读到内容才记），切视图时还原，而不是每次
+ * 都回到空态。Git Log 是独立的按需视图，分页状态在切换期间保留。
  *
  * 左树宽度由树头那个图标按钮切换（双箭头，常态指向右）：点一下把左栏放宽到放得下最长的
  * 那一行（上限视口 60%、下限 340px），箭头随之翻向左边表示「收回去」。它只改布局，不取任何
@@ -44,6 +44,8 @@
 
   const FILES_VIEW = "files";
   const DIFF_VIEW = "diff";
+  const HISTORY_VIEW = "history";
+  const HISTORY_COMMIT_SECTION = "history-commit";
   const SOURCE_MODE = "source";
   const PREVIEW_MODE = "preview";
 
@@ -90,7 +92,10 @@
     branchChip: document.getElementById("branch-chip"),
     tabFiles: document.getElementById("tab-files"),
     tabDiff: document.getElementById("tab-diff"),
+    tabHistory: document.getElementById("tab-history"),
+    commitDiffExitButton: document.getElementById("commit-diff-exit"),
     diffCount: document.getElementById("diff-count"),
+    filterBar: document.querySelector(".filter"),
     filterInput: document.getElementById("filter-input"),
     refreshButton: document.getElementById("refresh-view"),
     refreshTimer: document.getElementById("refresh-timer"),
@@ -118,7 +123,6 @@
     statusHint: document.getElementById("status-hint"),
   };
 
-  /** 页面的全部可变状态；渲染只读它，用户操作只改它。默认落在改动视图。 */
   /** 页面的全部可变状态；渲染只读它，用户操作只改它。默认落在改动视图。 */
   const viewState = {
     view: DIFF_VIEW,
@@ -152,6 +156,8 @@
     isRefreshing: false,
     /** 一次暂存请求是否正在进行；同样防连点——连点会发出两遍 `git add`。 */
     isStaging: false,
+    /** 非空时，改动视图展示只读的历史提交，而不是当前工作区。 */
+    historicalCommitContext: null,
     /** 上次刷新的时刻（`performance.now()`，单调、不受改系统时间影响）。 */
     lastRefreshedAtMonotonic: 0,
     // --- 两个视图各自记住「上一次看的那一个」，切视图时还原（见 switchView） ---
@@ -169,6 +175,10 @@
     /** 已取回的 Markdown 预览片段；null 表示还没取过。 */
     markdownHtml: null,
   };
+
+  /** 首次进入 Git Log 前不加载历史组件，避免默认视图承担它的模块与状态内存开销。 */
+  let historyViewer = null;
+  let historyViewModuleLoading = null;
 
   /**
    * 请求一个接口。
@@ -297,7 +307,11 @@
   function applyInitialQueryParameters() {
     const searchParameters = new URLSearchParams(window.location.search);
     const requestedView = searchParameters.get("view");
-    if (requestedView === DIFF_VIEW || requestedView === FILES_VIEW) {
+    if (
+      requestedView === DIFF_VIEW ||
+      requestedView === FILES_VIEW ||
+      requestedView === HISTORY_VIEW
+    ) {
       viewState.view = requestedView;
     }
     viewState.selectedPath = searchParameters.get("path") || "";
@@ -365,7 +379,11 @@
    * 列改动（那一条已经不在列表里就回到空态）。
    */
   async function refreshWorkspace() {
-    if (viewState.isRefreshing) {
+    if (
+      viewState.isRefreshing ||
+      (viewState.view === HISTORY_VIEW &&
+        (historyViewer?.isLoading() || historyViewModuleLoading))
+    ) {
       return;
     }
     viewState.isRefreshing = true;
@@ -376,8 +394,18 @@
       elements.branchChip.textContent = infoResponse.body.branch;
       window.document.title = `${infoResponse.body.repo_name} · 只读查看器`;
 
+      if (viewState.view === HISTORY_VIEW) {
+        const historyView = await ensureHistoryViewerLoaded();
+        if (historyView) {
+          await historyView.load({ reset: true });
+        }
+        return;
+      }
+      if (viewState.view === DIFF_VIEW && viewState.historicalCommitContext) {
+        await loadHistoricalCommitFiles();
+        return;
+      }
       await loadFileTree();
-
       if (viewState.view === DIFF_VIEW) {
         await loadChangedFiles();
         return;
@@ -418,6 +446,7 @@
   async function initializeViewer() {
     applyInitialQueryParameters();
     renderTreeWidth();
+    renderViewTabs();
     const didLoad = await guardAgainstServiceExit(async () => {
       const infoResponse = await requestJson("/api/info");
       elements.repoName.textContent = infoResponse.body.repo_name;
@@ -435,6 +464,11 @@
     expandToSelectedPath();
     if (viewState.view === DIFF_VIEW) {
       await loadChangedFiles();
+    } else if (viewState.view === HISTORY_VIEW) {
+      const historyView = await ensureHistoryViewerLoaded();
+      if (historyView) {
+        await historyView.load();
+      }
     } else {
       renderTree();
       if (viewState.selectedPath) {
@@ -646,16 +680,154 @@
   }
 
   /**
+   * 用历史提交的文件列表填充既有改动树，并按需读取当前选中项的提交 diff。
+   */
+  async function loadHistoricalCommitFiles() {
+    const commitContext = viewState.historicalCommitContext;
+    if (!commitContext) {
+      return;
+    }
+    const commitFiles = commitContext.files.map((commitFile) => ({
+      path: commitFile.path,
+      status: commitFile.status[0],
+      rename_from: commitFile.old_path,
+      add: null,
+      del: null,
+      section: HISTORY_COMMIT_SECTION,
+      statsAvailable: false,
+    }));
+    viewState.changedSections = [
+      { section: HISTORY_COMMIT_SECTION, stats_available: false, files: commitFiles },
+    ];
+    elements.diffCount.textContent = String(commitFiles.length);
+    elements.diffCount.hidden = false;
+    elements.treeNote.textContent = `${commitFiles.length} 个文件`;
+    elements.statusHint.textContent = `提交 ${commitContext.shortHash} · ${commitFiles.length} 个文件`;
+
+    const selectedCommitFile =
+      commitFiles.find((commitFile) => commitFile.path === commitContext.selectedPath) ||
+      commitFiles[0];
+    if (!selectedCommitFile) {
+      viewState.selectedPath = "";
+      viewState.selectedSection = HISTORY_COMMIT_SECTION;
+      renderTree();
+      renderNotice(
+        buildNotice({ title: "该提交没有文件改动", paragraphs: [commitContext.subject] })
+      );
+      return;
+    }
+    commitContext.selectedPath = selectedCommitFile.path;
+    viewState.selectedPath = selectedCommitFile.path;
+    viewState.selectedSection = HISTORY_COMMIT_SECTION;
+    await selectPath(selectedCommitFile.path, HISTORY_COMMIT_SECTION);
+  }
+
+  /**
+   * 首次进入 Git Log 时才下载并初始化历史视图代码。
+   * @returns {Promise<object|null>} 历史视图实例；加载失败时返回 null。
+   */
+  function ensureHistoryViewerLoaded() {
+    if (historyViewer) {
+      return Promise.resolve(historyViewer);
+    }
+    if (historyViewModuleLoading) {
+      return historyViewModuleLoading;
+    }
+
+    historyViewModuleLoading = new Promise((resolve, reject) => {
+      const historyScript = document.createElement("script");
+      historyScript.src = "/assets/history-view.js";
+      historyScript.onload = resolve;
+      historyScript.onerror = () => {
+        historyScript.remove();
+        reject(new Error("Git Log 界面组件加载失败。"));
+      };
+      document.head.append(historyScript);
+    })
+      .then(() => {
+        historyViewer = window.LocalViewHistory.create({
+          elements: {
+            viewerPath: elements.viewerPath,
+            copyPathButton: elements.copyPathButton,
+            openInSystemButton: elements.openInSystemButton,
+            openFileButton: elements.openFileButton,
+            openExternal: elements.openExternal,
+            viewerMeta: elements.viewerMeta,
+            viewerBody: elements.viewerBody,
+            statusHint: elements.statusHint,
+          },
+          requestJson,
+          guardAgainstServiceExit,
+          renderPreviewControls,
+          buildDiffRowsNode,
+          isActive: () => viewState.view === HISTORY_VIEW,
+          isDisconnected: () => viewState.isDisconnected,
+          openCommitInDiffView: openHistoryCommitInDiffView,
+        });
+        historyViewModuleLoading = null;
+        return historyViewer;
+      })
+      .catch((loadError) => {
+        historyViewModuleLoading = null;
+        enterDisconnectedState(loadError instanceof Error ? loadError.message : "");
+        return null;
+      });
+    return historyViewModuleLoading;
+  }
+
+  /**
+   * 在改动视图中打开历史提交，并保存返回工作区改动时的选中项。
+   * @param {{commit: object, selectedPath: string, selectedDiff: object|null}} commitViewInput 历史提交与已读 diff。
+   */
+  function openHistoryCommitInDiffView(commitViewInput) {
+    const commitDetails = commitViewInput.commit;
+    if (!commitDetails) {
+      return;
+    }
+    const firstChangedFile = commitDetails.files[0];
+    const selectedPath = commitViewInput.selectedPath || firstChangedFile?.path || "";
+    viewState.historicalCommitContext = {
+      hash: commitDetails.hash,
+      shortHash: commitDetails.short_hash,
+      subject: commitDetails.message.split("\n")[0] || "（无提交说明）",
+      files: commitDetails.files,
+      selectedPath,
+      selectedDiff:
+        commitViewInput.selectedDiff?.path === selectedPath ? commitViewInput.selectedDiff : null,
+      returnSelection: { ...viewState.lastDiffViewSelection },
+    };
+    viewState.selectedPath = selectedPath;
+    viewState.selectedSection = HISTORY_COMMIT_SECTION;
+    void switchView(DIFF_VIEW);
+  }
+
+  /**
    * 渲染视图切换按钮。
    */
   function renderViewTabs() {
     const isDiffView = viewState.view === DIFF_VIEW;
-    elements.tabFiles.setAttribute("aria-selected", String(!isDiffView));
+    const isFilesView = viewState.view === FILES_VIEW;
+    const isHistoryView = viewState.view === HISTORY_VIEW;
+    const isHistoricalCommitDiffView = isDiffView && Boolean(viewState.historicalCommitContext);
+    elements.tabFiles.setAttribute("aria-selected", String(isFilesView));
     elements.tabDiff.setAttribute("aria-selected", String(isDiffView));
+    elements.tabHistory.setAttribute("aria-selected", String(isHistoryView));
+    elements.bodyGrid.classList.toggle("is-history", isHistoryView);
+    elements.filterBar.hidden = isHistoryView;
+    elements.commitDiffExitButton.hidden = !isHistoricalCommitDiffView;
+    elements.refreshButton.title = isHistoryView
+      ? "重新读取 Git 历史（页面不会自动刷新）"
+      : isHistoricalCommitDiffView
+        ? `重新读取提交 ${viewState.historicalCommitContext.shortHash} 的改动`
+        : "重新读取文件树与当前内容（页面不会自动刷新）";
     const treeTitleNode = document.createElement("b");
-    treeTitleNode.textContent = isDiffView ? "改动文件" : "文件树";
+    treeTitleNode.textContent = isHistoricalCommitDiffView
+      ? `提交 ${viewState.historicalCommitContext.shortHash}`
+      : isDiffView
+        ? "改动文件"
+        : "文件树";
     elements.treeTitle.replaceChildren(treeTitleNode);
-    elements.ignoredToggle.hidden = isDiffView;
+    elements.ignoredToggle.hidden = isDiffView || isHistoryView;
     renderIgnoredFilesToggle();
   }
 
@@ -698,11 +870,14 @@
    * @param {string} repositoryPath 仓库相对路径；空串表示只显示占位符。
    */
   function setViewerPath(repositoryPath) {
+    const isHistoricalCommitDiff =
+      viewState.view === DIFF_VIEW && Boolean(viewState.historicalCommitContext);
     elements.viewerPath.textContent = repositoryPath || "—";
     elements.copyPathButton.hidden = !repositoryPath;
     elements.copyPathButton.dataset.copied = "false";
-    elements.openInSystemButton.hidden = !repositoryPath;
-    elements.openFileButton.hidden = !repositoryPath || viewState.view !== DIFF_VIEW;
+    elements.openInSystemButton.hidden = !repositoryPath || isHistoricalCommitDiff;
+    elements.openFileButton.hidden =
+      !repositoryPath || viewState.view !== DIFF_VIEW || isHistoricalCommitDiff;
   }
 
   /**
@@ -890,6 +1065,21 @@
    * @returns {Array<{key: string, label: string, files: Array<object>, canStage: boolean, statsAvailable: boolean, totals: {add: number, del: number}}>} 两段。
    */
   function buildDisplayGroups() {
+    if (viewState.historicalCommitContext) {
+      const historySection = viewState.changedSections.find(
+        (changedSection) => changedSection.section === HISTORY_COMMIT_SECTION
+      );
+      return [
+        {
+          key: HISTORY_COMMIT_SECTION,
+          label: `提交 ${viewState.historicalCommitContext.shortHash}`,
+          canStage: false,
+          files: historySection ? historySection.files : [],
+          statsAvailable: false,
+          totals: { add: 0, del: 0 },
+        },
+      ];
+    }
     return CHANGE_GROUPS.map((changedGroup) => {
       const memberSections = viewState.changedSections.filter((changedSection) =>
         changedGroup.memberSections.includes(changedSection.section)
@@ -1037,6 +1227,9 @@
     if (!isDiffView) {
       return "没有匹配过滤条件的文件。";
     }
+    if (viewState.historicalCommitContext && !viewState.historicalCommitContext.files.length) {
+      return "该提交没有文件改动。";
+    }
     return countChangedFiles()
       ? "没有匹配过滤条件的改动文件。"
       : "工作区没有改动文件。";
@@ -1109,7 +1302,7 @@
     nameNode.className = "name";
     // `Changes` 段（未暂存 + 未跟踪）的文件名给一层淡绿：同一个文件同时出现在两段里时，
     // 一眼分得清哪条还没进索引；`Staged Changes` 段保持默认色不动。
-    if (changedFile.section !== "staged") {
+    if (!viewState.historicalCommitContext && changedFile.section !== "staged") {
       nameNode.classList.add("name-unstaged");
     }
     const lastSlashIndex = changedFile.path.lastIndexOf("/");
@@ -1129,7 +1322,10 @@
     // 那一段普通文件没有统计（`add`/`del` 为 null 表示「本轮不提供」），但其中被认作重命名目的地
     // 的那一条，两个数是服务端在一次性索引上单独算出来的。`rename_from` 非空即为后者：它的数不是
     // 「不提供」，`null` 在这里只可能是二进制。
-    if (changedFile.statsAvailable || changedFile.rename_from) {
+    if (
+      !viewState.historicalCommitContext &&
+      (changedFile.statsAvailable || changedFile.rename_from)
+    ) {
       const statNode = document.createElement("span");
       statNode.className = "stat";
       if (changedFile.add === null || changedFile.del === null) {
@@ -1156,7 +1352,7 @@
     rowNode.append(rowButton);
     // 只在「Changes」里的条目上给加号：已经在索引里的东西再暂存一次没有意义（这也是为什么
     // 「Staged Changes」那一段没有反向的减号——取消暂存是刻意不做的，不是漏了）。
-    if (changedFile.section !== "staged") {
+    if (!viewState.historicalCommitContext && changedFile.section !== "staged") {
       const stageButtonNode = buildStageButton({
         title: `把 ${changedFile.path} 的当前内容加入索引（git add）`,
         label: "+",
@@ -1513,6 +1709,68 @@
    * @param {string} sectionName 分区取值。
    */
   async function loadDiffForPath(repositoryPath, sectionName) {
+    if (viewState.historicalCommitContext) {
+      const commitContext = viewState.historicalCommitContext;
+      let historyDiff = commitContext.selectedDiff;
+      if (historyDiff?.path === repositoryPath) {
+        commitContext.selectedDiff = null;
+      } else {
+        const historyDiffResponse = await requestJson(
+          `/api/log/diff?hash=${encodeURIComponent(commitContext.hash)}&path=${encodeURIComponent(repositoryPath)}`
+        );
+        if (historyDiffResponse.status !== 200) {
+          elements.viewerMeta.textContent = "";
+          renderNotice(
+            buildNotice({
+              isFailure: true,
+              title: "无法读取提交改动",
+              paragraphs: [historyDiffResponse.body.error],
+            }),
+            repositoryPath
+          );
+          return;
+        }
+        historyDiff = historyDiffResponse.body;
+      }
+      commitContext.selectedPath = repositoryPath;
+      viewState.selectedPath = repositoryPath;
+      viewState.selectedSection = sectionName;
+      setViewerPath(repositoryPath);
+      renderPreviewControls(null);
+      const changedFile = commitContext.files.find((commitFile) => commitFile.path === repositoryPath);
+      elements.viewerMeta.textContent = `提交 ${commitContext.shortHash} · ${changedFile?.status || "改动"}`;
+      elements.statusHint.textContent = `Git Log · 提交 ${commitContext.shortHash} · 只读`;
+
+      if (historyDiff.binary || historyDiff.empty) {
+        const oldPath = historyDiff.old_path;
+        renderNotice(
+          buildNotice(
+            historyDiff.binary
+              ? {
+                  title: "二进制文件，无逐行改动",
+                  paragraphs: ["该文件在此提交中有变化，但 Git 不提供二进制文件的逐行 diff。"],
+                }
+              : oldPath
+                ? {
+                    title: "重命名，内容未变",
+                    paragraphs: [`该提交将文件从 ${escapeHtmlText(oldPath)} 重命名，正文没有变化。`],
+                  }
+                : {
+                    title: "该文件没有可显示的逐行改动",
+                    paragraphs: [`提交 ${commitContext.shortHash} 中没有可显示的文本改动。`],
+                  }
+          ),
+          repositoryPath
+        );
+        return;
+      }
+      if (historyDiff.truncated) {
+        elements.statusHint.textContent = "Git Log · 改动过大，仅显示前若干行";
+      }
+      renderDiffRows(historyDiff.rows);
+      return;
+    }
+
     const diffResponse = await requestJson(
       `/api/diff?path=${encodeURIComponent(repositoryPath)}&section=${encodeURIComponent(sectionName)}`
     );
@@ -1869,6 +2127,15 @@
    * @param {Array<{kind: string, old_no: number|null, new_no: number|null, text: string}>} diffRows 逐行改动。
    */
   function renderDiffRows(diffRows) {
+    elements.viewerBody.replaceChildren(buildDiffRowsNode(diffRows));
+  }
+
+  /**
+   * 创建逐行 diff 节点，供改动视图和提交详情共用。
+   * @param {Array<{kind: string, old_no: number|null, new_no: number|null, text: string}>} diffRows 逐行改动。
+   * @returns {HTMLDivElement} 逐行 diff 容器。
+   */
+  function buildDiffRowsNode(diffRows) {
     const codeBlock = document.createElement("div");
     codeBlock.className = "code diff";
     const codeFragment = document.createDocumentFragment();
@@ -1895,7 +2162,7 @@
       codeFragment.append(rowNode);
     }
     codeBlock.append(codeFragment);
-    elements.viewerBody.replaceChildren(codeBlock);
+    return codeBlock;
   }
 
   /**
@@ -1917,11 +2184,30 @@
     resetFilePreview();
     renderViewTabs();
     if (nextView === DIFF_VIEW) {
+      if (viewState.historicalCommitContext) {
+        viewState.selectedPath = viewState.historicalCommitContext.selectedPath;
+        viewState.selectedSection = HISTORY_COMMIT_SECTION;
+        await loadHistoricalCommitFiles();
+        return;
+      }
       // 分区也要一起还原：同一个文件可以同时出现在已暂存与未暂存两段，只带路径回去会
       // 落到按分区顺序解析出来的另一段。
       viewState.selectedPath = pathToSelect || viewState.lastDiffViewSelection.path;
       viewState.selectedSection = pathToSelect ? "" : viewState.lastDiffViewSelection.section;
       await loadChangedFiles();
+      return;
+    }
+    if (nextView === HISTORY_VIEW) {
+      elements.statusHint.textContent = "";
+      const historyView = await ensureHistoryViewerLoaded();
+      if (!historyView || viewState.view !== HISTORY_VIEW) {
+        return;
+      }
+      if (historyView.hasLoaded()) {
+        historyView.render();
+      } else {
+        await historyView.load();
+      }
       return;
     }
     viewState.selectedPath = pathToSelect || viewState.lastFileViewPath;
@@ -2027,6 +2313,20 @@
   elements.tabDiff.addEventListener("click", () => {
     void switchView(DIFF_VIEW);
   });
+  elements.commitDiffExitButton.addEventListener("click", () => {
+    const commitContext = viewState.historicalCommitContext;
+    if (!commitContext) {
+      return;
+    }
+    viewState.historicalCommitContext = null;
+    viewState.selectedPath = commitContext.returnSelection.path;
+    viewState.selectedSection = commitContext.returnSelection.section;
+    renderViewTabs();
+    void loadChangedFiles();
+  });
+  elements.tabHistory.addEventListener("click", () => {
+    void switchView(HISTORY_VIEW);
+  });
   elements.filterInput.addEventListener("input", () => {
     viewState.filterText = elements.filterInput.value;
     renderTree();
@@ -2049,6 +2349,8 @@
       void switchView(FILES_VIEW);
     } else if (keyboardEvent.key === "d") {
       void switchView(DIFF_VIEW);
+    } else if (keyboardEvent.key === "g") {
+      void switchView(HISTORY_VIEW);
     } else if (keyboardEvent.key === "/") {
       keyboardEvent.preventDefault();
       elements.filterInput.focus();

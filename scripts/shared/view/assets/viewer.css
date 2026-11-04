@@ -105,6 +105,7 @@ button, input, select { font: inherit; color: inherit; }
   display: flex; min-width: 200px; align-items: center; gap: 7px;
   border: 1px solid var(--border); border-radius: 8px; background: var(--card); padding: 0 10px;
 }
+.filter[hidden] { display: none; }
 .filter:focus-within { border-color: var(--ring); }
 .filter span { color: var(--muted-foreground); }
 .filter input { min-height: 30px; flex: 1; border: 0; background: none; outline: none; }
@@ -117,6 +118,9 @@ button, input, select { font: inherit; color: inherit; }
    ——长路径可以撑开左栏，却永远不该把内容区挤没。 */
 .body-grid.is-tree-wide { grid-template-columns: fit-content(60%) minmax(0, 1fr); }
 .body-grid.is-tree-wide .tree { min-width: 340px; }
+.body-grid.is-history { grid-template-columns: minmax(0, 1fr); }
+.body-grid.is-history .tree { display: none; }
+.body-grid.is-history .viewer-body { overflow: hidden; }
 
 /* 3. 文件树 */
 .tree { display: flex; min-height: 0; flex-direction: column; }
@@ -299,6 +303,134 @@ button, input, select { font: inherit; color: inherit; }
 }
 .viewer-body { min-height: 0; flex: 1; overflow: auto; background: var(--code-bg); }
 
+.history-layout {
+  display: grid; width: 100%; height: 100%; min-height: 0;
+  grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.9fr);
+}
+.history-graph-pane { display: flex; min-width: 0; min-height: 0; flex-direction: column; }
+.history-branch-list {
+  display: flex; flex: none; gap: 16px; overflow-x: auto; border-bottom: 1px solid var(--border);
+  background: var(--card); padding: 8px 12px;
+}
+.history-branch-group { display: flex; flex: none; align-items: center; gap: 8px; }
+.history-branch-group + .history-branch-group { border-left: 1px solid var(--border); padding-left: 16px; }
+.history-branch-group h2 {
+  flex: none; margin: 0; color: var(--muted-foreground); font-size: 10.5px; font-weight: 650;
+  white-space: nowrap;
+}
+.history-branch-items { display: flex; gap: 5px; }
+.history-branch-button {
+  display: inline-flex; max-width: 240px; align-items: center; border: 1px solid transparent;
+  border-radius: 999px; background: transparent; padding: 0; cursor: pointer;
+}
+.history-branch-button:hover, .history-branch-button[aria-pressed='true'] {
+  border-color: var(--border); background: var(--secondary);
+}
+.history-branch-button:focus-visible { border-color: var(--ring); outline: none; }
+.history-branch-button .history-ref { overflow: hidden; text-overflow: ellipsis; }
+.history-graph-list { min-height: 0; flex: 1; overflow: auto; background: var(--card); }
+.history-page { overflow: hidden; background: var(--card); }
+.history-page + .history-page { border-top: 1px solid var(--border); }
+.history-page h2 {
+  margin: 0; border-bottom: 1px solid var(--border); padding: 7px 12px;
+  color: var(--muted-foreground); font-size: 10.5px; font-weight: 600;
+}
+.history-commit-row {
+  display: grid; width: 100%; min-height: 30px; grid-template-columns: max-content minmax(0, 1fr) auto;
+  align-items: center; gap: 8px; border: 0; border-bottom: 1px solid var(--border);
+  background: transparent; padding: 3px 10px; text-align: left; cursor: pointer;
+}
+.history-commit-row:hover { background: var(--secondary); }
+.history-commit-row[aria-pressed='true'] { background: color-mix(in oklab, var(--ring) 14%, var(--card)); }
+.history-commit-row:focus-visible, .history-changed-file:focus-visible {
+  position: relative; z-index: 1; outline: 2px solid var(--ring); outline-offset: -2px;
+}
+.history-graph-prefix, .history-edge-row {
+  color: var(--muted-foreground); font-family: var(--mono); font-size: 12px; line-height: 16px;
+  white-space: pre;
+}
+.history-edge-row { min-height: 14px; padding-left: 10px; line-height: 14px; }
+.history-commit-summary { display: flex; min-width: 0; align-items: center; gap: 7px; }
+.history-commit-subject {
+  overflow: hidden; min-width: 0; flex: 1; font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap;
+}
+.history-commit-refs { display: flex; min-width: 0; flex: none; gap: 4px; overflow: hidden; }
+.history-commit-meta { color: var(--muted-foreground); font-size: 10px; white-space: nowrap; }
+.history-ref {
+  display: inline-flex; max-width: 210px; align-items: center; overflow: hidden;
+  border-radius: 5px; background: var(--secondary); padding: 1px 6px;
+  color: var(--muted-foreground); font-size: 10px; font-weight: 600; text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.history-ref.is-local { background: color-mix(in oklab, var(--success) 13%, var(--card)); color: var(--success); }
+.history-ref.is-remote { background: color-mix(in oklab, oklch(0.6 0.16 250) 13%, var(--card)); color: oklch(0.48 0.14 250); }
+.history-ref.is-head { background: var(--primary); color: var(--primary-foreground); }
+.history-ref.is-tag { background: color-mix(in oklab, oklch(0.7 0.15 80) 24%, var(--card)); color: oklch(0.48 0.12 70); }
+.history-detail-pane {
+  min-width: 0; min-height: 0; overflow: auto; border-left: 1px solid var(--border);
+  background: var(--card); padding: 14px 16px 24px;
+}
+.history-detail-header { border-bottom: 1px solid var(--border); padding-bottom: 11px; }
+.history-detail-header h2 { margin: 0; font-size: 14px; }
+.history-detail-subject { margin: 7px 0; font-size: 12.5px; font-weight: 600; overflow-wrap: anywhere; }
+.history-detail-hash { color: var(--muted-foreground); font-family: var(--mono); font-size: 10px; overflow-wrap: anywhere; }
+.history-commit-metadata {
+  display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 5px 10px;
+  margin: 11px 0; font-size: 10.5px;
+}
+.history-commit-metadata dt { color: var(--muted-foreground); }
+.history-commit-metadata dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.history-commit-message {
+  max-height: 140px; overflow: auto; border: 1px solid var(--border); border-radius: 7px;
+  background: var(--secondary); padding: 8px 9px; font-family: inherit; font-size: 11.5px;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.history-change-heading { margin: 14px 0 7px; font-size: 12px; font-weight: 650; }
+.history-changed-files { display: grid; gap: 3px; }
+.history-changed-file {
+  display: flex; width: 100%; min-width: 0; align-items: center; gap: 7px;
+  border: 1px solid transparent; border-radius: 6px; background: transparent;
+  padding: 4px 5px; text-align: left; cursor: pointer;
+}
+.history-changed-file:hover, .history-changed-file[aria-pressed='true'] { background: var(--secondary); }
+.history-diff-view-button { margin: 9px 0 3px; }
+.history-file-status {
+  flex: none; min-width: 22px; border-radius: 4px; background: var(--secondary);
+  padding: 0 4px; color: var(--muted-foreground); font-family: var(--mono); font-size: 9.5px;
+  font-weight: 700; text-align: center;
+}
+.history-file-status.is-a { background: var(--add); color: var(--add-mark); }
+.history-file-status.is-m, .history-file-status.is-d { background: var(--del); color: var(--del-mark); }
+.history-file-status.is-r, .history-file-status.is-c { background: var(--rename); color: var(--rename-mark); }
+.history-file-path { min-width: 0; font-family: var(--mono); font-size: 10.5px; overflow-wrap: anywhere; }
+.history-detail-pane > .code {
+  max-height: min(50vh, 620px); overflow: auto; margin: 8px -16px 0;
+  border-top: 1px solid var(--border); background: var(--code-bg); padding-bottom: 16px;
+}
+.history-detail-pane > .code .row { width: max-content; min-width: 100%; grid-template-columns: 48px max-content; }
+.history-detail-pane > .code .src { padding-left: 8px; white-space: pre; }
+.history-detail-pane > .code .row.add { background: var(--add); }
+.history-detail-pane > .code .row.del { background: var(--del); }
+.history-detail-pane > .code .row.hunk { display: block; min-width: max-content; background: var(--secondary); padding: 3px 12px; white-space: pre; }
+.history-detail-pane > .code .row.add .src { color: var(--add-mark); }
+.history-detail-pane > .code .row.del .src { color: var(--del-mark); }
+.history-detail-pane .history-message { margin: 12px 0; padding: 6px 0; }
+.history-message { margin: 16px 4px; color: var(--muted-foreground); }
+.history-message.is-error { color: var(--destructive); }
+.history-load-more { display: flex; margin: 12px auto; }
+.history-detail-pane > .history-message { overflow-wrap: anywhere; }
+.history-branch-list .history-message { margin: 0; white-space: nowrap; }
+.history-graph-list > .history-message { padding: 12px; text-align: center; }
+.history-graph-list > .history-load-more { margin-top: 12px; }
+.history-branch-items { max-width: min(48vw, 620px); overflow-x: auto; }
+.history-branch-list, .history-graph-list, .history-detail-pane { scrollbar-width: thin; }
+.history-branch-list::-webkit-scrollbar, .history-graph-list::-webkit-scrollbar,
+.history-detail-pane::-webkit-scrollbar { width: 8px; height: 8px; }
+.history-branch-list::-webkit-scrollbar-thumb, .history-graph-list::-webkit-scrollbar-thumb,
+.history-detail-pane::-webkit-scrollbar-thumb {
+  border-radius: 8px; background: color-mix(in oklab, var(--muted-foreground) 22%, transparent);
+}
+
 .code { margin: 0; padding: 8px 0 22px; font-family: var(--mono); font-size: 12.5px; line-height: 1.65; }
 /* 行号列刻意不叫 .no：Pygments 的 Name.Constant 短类名就是 .no，同名会串色。 */
 .code .row { display: grid; grid-template-columns: 52px minmax(0, 1fr); }
@@ -474,6 +606,10 @@ button, input, select { font: inherit; color: inherit; }
 
 @media (max-width: 860px) {
   .body-grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: 216px minmax(0, 1fr); }
+  .body-grid.is-history { grid-template-rows: minmax(0, 1fr); }
+  .history-layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(220px, 42%) minmax(0, 1fr); }
+  .history-detail-pane { border-top: 1px solid var(--border); border-left: 0; }
+  .history-branch-items { max-width: 72vw; }
   /* 窄窗口下左树本来就占满整屏宽（文件名放得下），栏宽开关既不显示，也不该留下加宽态。 */
   .body-grid.is-tree-wide { grid-template-columns: minmax(0, 1fr); }
   .body-grid.is-tree-wide .tree { min-width: 0; }
