@@ -87,6 +87,9 @@ if primary_model_settings is not None:
 - `WORKTREE_SKIP_FRONTEND_INSTALL`
   - 仅在 `WORKTREE_FRONTEND_STRATEGY=install-per-worktree` 时生效。
   - 设为 `true` 后，跳过前端依赖安装步骤。
+- `WORKTREE_SKIP_SUBMODULES`
+  - 仓库含 `.gitmodules` 时，新 worktree 会在安装前端依赖前执行 `git submodule update --init --recursive`。
+  - 设为 `true` 后跳过这一步；依赖 submodule 的前端（例如 `file:` 指向 submodule 的包）可能无法安装或构建。
 
 对包含多个前端子项目的仓库，默认策略会覆盖类似 `demo-frontend/`、`admin-frontend/` 这类嵌套目录，而不是只处理仓库根目录。
 
