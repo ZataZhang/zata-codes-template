@@ -398,6 +398,26 @@ install_frontend_dependencies_for_worktree() {
     return 0
 }
 
+init_worktree_submodules() {
+    local target_abs_path="$1"
+
+    # 新 worktree 不会自动检出 submodule；目录为空时前端包管理器会把 file: 依赖
+    # 当成空包并改写锁文件，构建也会失败，因此在安装依赖前先初始化 submodule。
+    if [ ! -f "$target_abs_path/.gitmodules" ]; then
+        return 0
+    fi
+    if [ "${WORKTREE_SKIP_SUBMODULES:-false}" = "true" ]; then
+        echo "⚠️ 已设置 WORKTREE_SKIP_SUBMODULES=true，跳过 submodule 初始化；依赖 submodule 的前端可能无法安装或构建。"
+        return 0
+    fi
+    echo "🧱 正在初始化 git submodule ..."
+    if ! git -C "$target_abs_path" submodule update --init --recursive; then
+        echo "❌ git submodule 初始化失败。"
+        echo "   请检查 submodule 仓库的访问权限，或设置 WORKTREE_SKIP_SUBMODULES=true 跳过。"
+        return 1
+    fi
+}
+
 install_python_dependencies() {
     if [ ! -f pyproject.toml ]; then
         return 0
@@ -1032,6 +1052,10 @@ function ai_worktree() {
     echo "📦 正在使用全局缓存安装依赖 ..."
     if ! cd "$target_abs_path"; then
         echo "❌ 无法进入目录: $target_abs_path"
+        return 1
+    fi
+
+    if ! init_worktree_submodules "$target_abs_path"; then
         return 1
     fi
 
