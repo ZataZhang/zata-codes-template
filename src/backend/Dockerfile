@@ -38,7 +38,8 @@ COPY pyproject.toml uv.lock config.toml ./
 # while building the editable install.
 COPY src ./src
 
-# Create a virtual environment and install production dependencies.
+# Create a virtual environment and install production dependencies, including
+# the Nacos client used when NACOS_SERVER_ADDR is configured.
 RUN uv sync --frozen --no-dev
 
 # Create a non-root user for security

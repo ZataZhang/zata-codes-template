@@ -31,6 +31,53 @@
 - 推荐在 `config.toml` 中维护非敏感默认项。
 - 所有业务代码统一从 `config` 实例读取，不直接散落调用 `os.getenv`。
 
+## 可替换的运行时配置中心
+
+模板默认使用本地 provider：它从 `config.toml` 的 `[runtime_config]` 表读取参数，不连接外部服务。
+需要集中管理或热更新非敏感运行时参数时，只需填写 Nacos 地址和应用账号；地址非空就会自动
+切换到 Nacos。连接信息和应用账号放在后端自己的 `.env` / `.env.local`，服务器部署则写入
+`deploy/vps-traefik/app.env`。
+
+```dotenv
+NACOS_SERVER_ADDR=nacos:8848
+NACOS_USERNAME=application-reader
+NACOS_PASSWORD=由密钥管理器提供
+```
+
+Nacos SDK 已包含在项目依赖和后端镜像中，不需要额外安装开关。默认使用 public Namespace、
+`DEFAULT_GROUP` 和 `my-app-runtime.json`；需要调整作用域或 Data ID 时，只改 `config.toml` 的
+`[config_provider]`，普通使用无需设置这些字段。
+
+Nacos 文档使用 JSON 对象格式，例如：
+
+```json
+{
+  "feature_flags": {
+    "new_flow": false
+  },
+  "limits": {
+    "max_batch_size": 20
+  }
+}
+```
+
+应用启动时会将快照放入 `app.state.runtime_config`；Nacos 更新经过 JSON 解析后会替换整份快照。
+消费者应在每次使用时读取当前快照。非法更新会被忽略，已有快照继续生效。本地 provider 不监听
+文件变化。Nacos SDK 会优先尝试本地 failover / snapshot，再读取服务端；没有可用本地快照且远程
+读取失败时，应用启动会报错，避免使用空配置继续运行。
+
+`NACOS_SERVER_ADDR` 接受 `host:port`。VPS + Traefik 部署与 `zata-ops` 的 Nacos 容器共用
+`traefik` 网络时可用 `nacos:8848`。Dokploy 使用独立的 `dokploy-network`，需配置 Nacos 服务器私网
+地址并确认容器能访问，或由运维将两个容器接入同一个受控 Docker 网络。Nacos 客户端还需要 gRPC
+端口 `9848` 可达；不要把该端口作为 HTTP 路由代理。`NACOS_USERNAME`
+和 `NACOS_PASSWORD` 应使用专门的应用账号，并只授予目标 Namespace / Group / Data ID 的读取
+权限；它们与 Nacos 服务容器自身的 `NACOS_AUTH_TOKEN`、identity key/value 是不同凭据。
+
+Nacos 仅用于非敏感运行时参数。数据库 URL、模型 API Key、应用密钥和 Nacos 客户端密码仍留在
+`.env` / `app.env` 或专门的密钥管理服务，禁止放入 Nacos 配置文档。切换其他配置平台时，在
+`src/backend/infrastructure/config/providers/` 实现同一 `ConfigProvider` 契约，并在 provider
+工厂中注册；消费方不直接导入 Nacos SDK。
+
 ## 主模型配置
 
 需要调用大模型的项目，在 `.env` / `.env.local` 声明端点三件套：

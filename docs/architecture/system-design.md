@@ -44,6 +44,7 @@
 - `src/backend/main.py`：兼容导出与进程启动薄入口。
 - `main.py`：根目录兼容启动包装器，转发到 `backend.main`。
 - `src/backend/infrastructure/config/`：承接配置管理。
+- `src/backend/infrastructure/config/providers/`：承接平台无关的运行时配置 provider 契约，以及本地 TOML、Nacos 等适配器。
 - `src/backend/infrastructure/logging/`：承接日志实现。
 - `src/backend/infrastructure/persistence/`：承接数据库与持久化实现。
 - `src/backend/infrastructure/helpers.py`：承接通用无状态辅助函数。
@@ -181,6 +182,13 @@ src/backend/api/ → src/backend/core/ → src/backend/engines/ → src/backend/
 4. `src/backend/infrastructure/` 负责具体集成，不包含业务编排。
 5. 配置、日志、数据库和通用辅助函数位于 `src/backend/infrastructure/` 下的正式模块。
 6. `src/backend/composition/` 位于四层之外，只负责创建并连接对象；四层模块不得反向依赖它。
+
+### 运行时配置 provider
+
+应用启动配置仍由环境变量 / `.env` 与 `config.toml` 提供。需要集中管理的非敏感运行时参数通过
+`infrastructure/config/providers/` 的 `ConfigProvider` 读取；composition root 选择本地 TOML
+或 Nacos 适配器，并把当前快照暴露为 `app.state.runtime_config`。新配置平台应实现同一契约，应用
+业务代码不直接导入平台 SDK。密钥、数据库连接串和 Nacos 客户端凭据始终由环境变量注入。
 
 ## 认证与会话域
 

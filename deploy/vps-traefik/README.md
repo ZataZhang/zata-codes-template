@@ -89,6 +89,11 @@ SERVER_USER
 SERVER_SSH_KEY
 ```
 
+To use Nacos runtime configuration, set `NACOS_SERVER_ADDR`, `NACOS_USERNAME`,
+and `NACOS_PASSWORD` in the server's `app.env` file. The backend image already
+includes the Nacos SDK. Namespace, Group, and Data ID use the defaults in
+`config.toml` unless you need to customize them.
+
 Optional `production` environment variables:
 
 ```text

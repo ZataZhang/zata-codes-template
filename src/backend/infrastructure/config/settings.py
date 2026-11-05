@@ -27,7 +27,7 @@ import os
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import quote_plus
 
 from dotenv import dotenv_values
@@ -230,6 +230,60 @@ class RedisSettings(BaseSettings):
         )
 
 
+class ConfigProviderSettings(BaseSettings):
+    """可替换运行时配置源的启动参数。"""
+
+    model_config = SettingsConfigDict(
+        env_file=(_PROJECT_ROOT_PATH / ".env", _PROJECT_ROOT_PATH / ".env.local"),
+        env_file_encoding="utf-8",
+        extra="ignore",
+        populate_by_name=True,
+    )
+
+    provider: Literal["local", "nacos"] = Field(
+        default="local",
+        validation_alias="provider",
+    )
+    nacos_server_addr: str = Field(
+        default="",
+        validation_alias=AliasChoices("NACOS_SERVER_ADDR", "nacos_server_addr"),
+    )
+    nacos_namespace_id: str = Field(
+        default="",
+    )
+    nacos_group: str = Field(
+        default="DEFAULT_GROUP",
+    )
+    nacos_data_id: str = Field(
+        default="my-app-runtime.json",
+    )
+    nacos_username_env: str = "NACOS_USERNAME"
+    nacos_password_env: str = "NACOS_PASSWORD"
+
+    @property
+    def nacos_username(self) -> str:
+        """按 config.toml 中声明的变量名读取 Nacos 应用账号。"""
+        return os.getenv(self.nacos_username_env, "").strip()
+
+    @property
+    def nacos_password(self) -> SecretStr:
+        """按 config.toml 中声明的变量名读取 Nacos 应用密码。"""
+        return SecretStr(os.getenv(self.nacos_password_env, ""))
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,  # noqa: ARG003
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """按环境变量、TOML、初始化参数的顺序加载配置 provider 参数。"""
+        toml_source: _TomlSectionSource = _TomlSectionSource(settings_cls, "config_provider")
+        return (env_settings, dotenv_settings, toml_source, init_settings)
+
+
 class AuthSettings(BaseSettings):
     """认证与会话配置：会话窗口与初始管理员种子（Cookie 名为接入层常量）。"""
 
@@ -310,6 +364,7 @@ class AppSettings(BaseSettings):
     mcp: MCPSettings = Field(default_factory=MCPSettings)
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
     redis: RedisSettings = Field(default_factory=RedisSettings)
+    config_provider: ConfigProviderSettings = Field(default_factory=ConfigProviderSettings)
     auth: AuthSettings = Field(default_factory=AuthSettings)
 
     base_dir: Path = _PROJECT_ROOT_PATH
@@ -520,6 +575,7 @@ __all__ = [
     "PRIMARY_MODEL_NAME_ENV",
     "AppSettings",
     "AuthSettings",
+    "ConfigProviderSettings",
     "DatabaseSettings",
     "ObservabilitySettings",
     "PrimaryModelConfigError",

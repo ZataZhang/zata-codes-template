@@ -78,6 +78,25 @@ name = "app_database"
 driver = "psycopg2"
 
 # =============================================================================
+# Runtime Configuration Provider
+# =============================================================================
+# `local` reads [runtime_config] below. A non-empty NACOS_SERVER_ADDR selects
+# the Nacos adapter automatically. Namespace, Group and Data ID stay here so
+# ordinary deployments only need the address and application credentials.
+[config_provider]
+provider = "local"
+nacos_server_addr = ""
+nacos_namespace_id = ""
+nacos_group = "DEFAULT_GROUP"
+nacos_data_id = "my-app-runtime.json"
+nacos_username_env = "NACOS_USERNAME"
+nacos_password_env = "NACOS_PASSWORD"
+
+# Runtime parameters available to application code through
+# `app.state.runtime_config` when using the local provider.
+[runtime_config]
+
+# =============================================================================
 # Sandbox Execution Backend (optional)
 # =============================================================================
 # 整段可选。**未配置 `[sandbox_agent]` 段时沙箱后端不注册**：`build_sandbox_provider()`
