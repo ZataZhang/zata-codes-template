@@ -1,0 +1,23 @@
+#!/bin/sh
+set -eu
+
+script_path=$0
+while [ -L "$script_path" ]; do
+  script_directory=$(CDPATH= cd -P "$(dirname "$script_path")" >/dev/null 2>&1 && pwd)
+  symlink_target=$(readlink "$script_path")
+  case "$symlink_target" in
+    /*) script_path=$symlink_target ;;
+    *) script_path=$script_directory/$symlink_target ;;
+  esac
+done
+
+script_directory=$(CDPATH= cd -P "$(dirname "$script_path")" >/dev/null 2>&1 && pwd)
+project_directory=$(CDPATH= cd -P "$script_directory/../../.." >/dev/null 2>&1 && pwd)
+project_python=$project_directory/.venv/bin/python
+
+if [ -x "$project_python" ]; then
+  exec "$project_python" -S "$script_directory/launch.py" --global "$@"
+fi
+
+exec uv run --project "$project_directory" --no-sync python \
+  "$script_directory/launch.py" --global "$@"

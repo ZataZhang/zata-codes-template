@@ -34,7 +34,7 @@
 ``stats_available=false``；不提供与二进制是两件事，不共用同一个空值。配对成立的重命名是这条
 的例外——它的两个数来自一次性索引上的 ``--numstat``，是真实改动量而不是整篇新增。
 
-未跟踪一段沿用文件树的目录剪枝（见 :data:`_PRUNED_DIRECTORY_NAMES`）：派生项目忘了把
+未跟踪一段沿用文件树的目录剪枝（见 :data:`filesystem.PRUNED_DIRECTORY_NAMES`）：派生项目忘了把
 依赖目录写进 ``.gitignore`` 时，整棵依赖树既不该进文件树，也不该淹没改动列表。
 
 重命名是这条口径上唯一的例外，而且必须例外：``git diff <rev> -- <新路径>`` 会把旧路径
@@ -87,6 +87,8 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from urllib.parse import quote
 
+import filesystem
+import instance
 import rendering
 import revisions
 from workspace_read import (
@@ -218,23 +220,6 @@ KNOWN_STAGE_SCOPES = frozenset({STAGE_SCOPE_PATH, STAGE_SCOPE_ALL})
 #: 刻意不收 `build` / `dist` / `site` 这类既可能是构建产物、也可能是真实源码目录的名字
 #: ——本仓库的 `scripts/build/` 就是源码。构建产物由 `.gitignore` 负责，那是「这不是源码」
 #: 的权威信号。
-_PRUNED_DIRECTORY_NAMES = frozenset(
-    {
-        ".git",
-        ".mypy_cache",
-        ".next",
-        ".pytest_cache",
-        ".ruff_cache",
-        ".tox",
-        ".venv",
-        "__pycache__",
-        "coverage",
-        "node_modules",
-        "site-packages",
-        "venv",
-    }
-)
-
 _HUNK_HEADER_PATTERN = re.compile(r"^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 
 _BINARY_DIFF_PREFIX = "Binary files "
@@ -256,11 +241,12 @@ _DIFF_METADATA_PREFIXES = (
 )
 
 
-def build_info_payload(repository_root: Path) -> WorkspacePayload:
+def build_info_payload(repository_root: Path, *, git_available: bool = True) -> WorkspacePayload:
     """给出界面启动所需的仓库元信息。
 
     Args:
-        repository_root (Path): 仓库根绝对路径。
+        repository_root (Path): 查看目标目录的绝对路径。
+        git_available (bool): 目标目录是否属于 Git 工作区。
 
     Returns:
         WorkspacePayload: 含仓库名、当前分支与渲染上限的应答。
@@ -269,7 +255,8 @@ def build_info_payload(repository_root: Path) -> WorkspacePayload:
         status_code=200,
         payload={
             "repo_name": repository_root.name,
-            "branch": _read_current_branch_name(repository_root),
+            "branch": _read_current_branch_name(repository_root) if git_available else "",
+            "git_available": git_available,
             "limits": {
                 "max_file_bytes": MAX_FILE_BYTES,
                 "max_file_label": MAX_FILE_BYTES_LABEL,
@@ -281,6 +268,8 @@ def build_info_payload(repository_root: Path) -> WorkspacePayload:
 def build_tree_payload(
     repository_root: Path,
     include_ignored: bool = False,
+    *,
+    git_available: bool = True,
 ) -> WorkspacePayload:
     """列出文件树要展示的仓库内路径，可按需包含被忽略文件。
 
@@ -288,17 +277,25 @@ def build_tree_payload(
     把列表撑大，目录名剪枝同样适用。忽略项只出现在文件树，不进入改动列表或暂存操作。
 
     Args:
-        repository_root (Path): 仓库根绝对路径。
+        repository_root (Path): 查看目标目录的绝对路径。
         include_ignored (bool): 是否附加被 Git 忽略的文件；默认关闭。
+        git_available (bool): 目标目录是否属于 Git 工作区；否则走普通目录扫描。
 
     Returns:
         WorkspacePayload: 含扁平路径、忽略路径和文件数的应答；前端据此自行组装成树。
     """
+    if not git_available:
+        file_paths = filesystem.collect_viewable_file_paths(repository_root)
+        return WorkspacePayload(
+            status_code=200,
+            payload={"paths": file_paths, "ignored_paths": [], "count": len(file_paths)},
+        )
+
     ignored_file_paths: list[str] = []
     if include_ignored:
         pruned_pathspecs = tuple(
             f":(exclude,glob)**/{directory_name}/**"
-            for directory_name in sorted(_PRUNED_DIRECTORY_NAMES)
+            for directory_name in sorted(filesystem.PRUNED_DIRECTORY_NAMES)
         )
         ignored_file_output = _run_git(
             repository_root,
@@ -712,10 +709,11 @@ def stage_changes(repository_root: Path, requested_path: str) -> WorkspacePayloa
 
 
 def stage_all_changes(repository_root: Path) -> WorkspacePayload:
-    """把工作区里全部改动加进索引（``git add -A``）——界面「改动」那一段的「全部暂存」。
+    """把查看根下的改动加进索引（``git add -A -- .``）——界面「改动」那一段的「全部暂存」。
 
     ``-A`` 正好对应「改动」那一段列出的东西：已改的、已删的、以及未被忽略的新文件都在内，
-    被忽略的文件永远不进索引。它不会漏掉删除，也不会把工作区里已暂存之后又改过的内容留在索引外。
+    被忽略的文件永远不进索引。pathspec ``.`` 把范围限制在当前查看根：项目内查看时是整个仓库，
+    ``zview`` 查看子目录时不会暂存目录外的改动。它不漏掉删除，也不把暂存后的新改动留在索引外。
 
     Args:
         repository_root (Path): 仓库根绝对路径。
@@ -724,7 +722,7 @@ def stage_all_changes(repository_root: Path) -> WorkspacePayload:
         WorkspacePayload: 成功时是 ``{"scope": "all"}``；git 拒绝时按
             :class:`WorkspaceCommandError` 冒泡。
     """
-    _run_git(repository_root, "add", "-A")
+    _run_git(repository_root, "add", "-A", "--", ".")
     return WorkspacePayload(status_code=200, payload={"scope": STAGE_SCOPE_ALL})
 
 
@@ -1353,7 +1351,8 @@ def format_size_label(byte_count: int) -> str:
 def _is_pruned_path(relative_path: str) -> bool:
     """判断路径是否位于文件树不展示的目录下。"""
     return any(
-        path_segment in _PRUNED_DIRECTORY_NAMES for path_segment in relative_path.split("/")[:-1]
+        path_segment in filesystem.PRUNED_DIRECTORY_NAMES
+        for path_segment in relative_path.split("/")[:-1]
     )
 
 
@@ -1551,13 +1550,13 @@ def _run_git(
     allowed_exit_codes: frozenset[int] = frozenset({0}),
     environment_overrides: dict[str, str] | None = None,
 ) -> str:
-    """在仓库根执行一次 ``git`` 命令并返回标准输出。
+    """在查看目标目录执行一次 ``git`` 命令并返回标准输出。
 
     读路径用的都是查询，写路径只有 ``git add``（见 :func:`stage_changes`）；两者共用这个
     入口，因此这里不假设调用方是只读的——边界由「哪些子命令被调用」决定，而不是由这个函数。
 
     Args:
-        repository_root (Path): 仓库根绝对路径。
+        repository_root (Path): Git 仓库根或其子目录的绝对路径。
         *git_arguments (str): 传给 ``git`` 的参数（不含 ``git`` 本身）。
         allowed_exit_codes (frozenset[int]): 视为成功的退出码。默认只认 ``0``；``git
             diff --no-index`` 这类「有差异即退出 1」的子命令由调用方显式放宽。
@@ -1571,8 +1570,12 @@ def _run_git(
     Raises:
         WorkspaceCommandError: ``git`` 的退出码不在 ``allowed_exit_codes`` 里。
     """
+    git_command = ["git", "--no-pager"]
+    if os.environ.get(instance.GIT_PREFIX_ENVIRONMENT_VARIABLE):
+        # `zview subdir` 用该配置让 diff 输出路径相对查看根，并排除仓库其他目录。
+        git_command.extend(["-c", "diff.relative=true"])
     completed_process = subprocess.run(
-        ["git", "--no-pager", *git_arguments],
+        [*git_command, *git_arguments],
         cwd=repository_root,
         capture_output=True,
         text=True,

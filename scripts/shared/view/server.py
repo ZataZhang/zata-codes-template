@@ -76,14 +76,16 @@ class ServerConfiguration:
     """一次服务进程的启动配置。
 
     Attributes:
-        repository_root (Path): 被查看仓库的根绝对路径。
+        repository_root (Path): 被查看目录的根绝对路径。
         port (int): 监听端口，由客户端入口选定。
         idle_timeout_seconds (float): 空闲回收时限；非正数表示关闭自动回收。
+        git_available (bool): 目标目录是否在 Git 工作区内。
     """
 
     repository_root: Path
     port: int
     idle_timeout_seconds: float
+    git_available: bool = True
 
 
 class ViewerHTTPServer(ThreadingHTTPServer):
@@ -118,6 +120,11 @@ class ViewerHTTPServer(ThreadingHTTPServer):
     def repository_root(self) -> Path:
         """本实例所服务的仓库根绝对路径。"""
         return self.configuration.repository_root
+
+    @property
+    def git_available(self) -> bool:
+        """本实例是否连接到 Git 仓库。"""
+        return self.configuration.git_available
 
     def mark_request_served(self) -> None:
         """刷新空闲计时的起点；被拒绝的请求同样算「有请求」。"""
@@ -215,11 +222,19 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
         elif route_path.startswith(_ASSET_ROUTE_PREFIX):
             self._serve_static_asset(route_path.removeprefix(_ASSET_ROUTE_PREFIX))
         elif route_path == "/api/info":
-            self._serve_workspace_payload(workspace.build_info_payload(repository_root))
+            self._serve_workspace_payload(
+                workspace.build_info_payload(
+                    repository_root, git_available=self.server.git_available
+                )
+            )
         elif route_path == "/api/tree":
             include_ignored = self._read_query_parameter(query_parameters, "include_ignored") == "1"
             self._serve_workspace_payload(
-                workspace.build_tree_payload(repository_root, include_ignored=include_ignored)
+                workspace.build_tree_payload(
+                    repository_root,
+                    include_ignored=include_ignored,
+                    git_available=self.server.git_available,
+                )
             )
         elif route_path == "/api/file":
             self._serve_workspace_payload(
@@ -229,12 +244,18 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
                 )
             )
         elif route_path == "/api/changes":
+            if not self.server.git_available:
+                self._send_json_payload(404, {"error": "该目录不在 Git 仓库中，没有改动列表。"})
+                return
             self._serve_workspace_payload(workspace.build_changes_payload(repository_root))
         elif route_path in {
             "/api/log",
             "/api/log/commit",
             "/api/log/diff",
         }:
+            if not self.server.git_available:
+                self._send_json_payload(404, {"error": "该目录不在 Git 仓库中，没有提交历史。"})
+                return
             # 历史模块只在首次请求 Git Log 时导入，保持默认视图的常驻开销较低。
             # 服务端 RSS 软预算（不含浏览器）：未访问历史时 ≤50 MiB，访问历史后 ≤80 MiB；
             # 稳定超过 100 MiB 时排查。这是维护目标，不是运行时硬限制。
@@ -274,6 +295,9 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
                     )
                 )
         elif route_path == "/api/diff":
+            if not self.server.git_available:
+                self._send_json_payload(404, {"error": "该目录不在 Git 仓库中，没有改动 diff。"})
+                return
             self._serve_workspace_payload(
                 workspace.build_diff_payload(
                     repository_root,
@@ -308,6 +332,9 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
         映射成具体命令，任何取值都不会作为字符串流进 ``git`` 或 shell——与改动分区同一条口径。
         """
         if requested_route_path == _STAGE_ROUTE_PATH:
+            if not self.server.git_available:
+                self._send_json_payload(405, {"error": "该目录不在 Git 仓库中，不能暂存文件。"})
+                return
             stage_request, failure_payload = self._read_write_request_body()
             if failure_payload is not None:
                 self._send_json_payload(failure_payload.status_code, failure_payload.payload)
@@ -450,6 +477,9 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
             encoded_relative_path (str): ``/raw/`` 之后、尚未解码的路径。
             revision_name (str): 历史版本取值；空串表示工作区当前版本。
         """
+        if revision_name and not self.server.git_available:
+            self._send_json_payload(404, {"error": "该目录不在 Git 仓库中，没有历史版本。"})
+            return
         decoded_relative_path = unquote(encoded_relative_path)
         raw_file_result = (
             workspace.build_revision_file_payload(
@@ -614,6 +644,11 @@ def main(argv: list[str] | None = None) -> int:
     argument_parser.add_argument("--repo-root", required=True, help="被查看仓库的根目录")
     argument_parser.add_argument("--port", type=int, required=True, help="监听端口")
     argument_parser.add_argument(
+        "--files-only",
+        action="store_true",
+        help="只浏览文件，不调用 Git 接口",
+    )
+    argument_parser.add_argument(
         "--idle-timeout",
         type=float,
         default=instance.DEFAULT_IDLE_TIMEOUT_SECONDS,
@@ -626,6 +661,7 @@ def main(argv: list[str] | None = None) -> int:
             repository_root=Path(parsed_arguments.repo_root).resolve(),
             port=parsed_arguments.port,
             idle_timeout_seconds=parsed_arguments.idle_timeout,
+            git_available=not parsed_arguments.files_only,
         )
     )
 

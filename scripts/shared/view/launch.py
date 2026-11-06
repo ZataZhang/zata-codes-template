@@ -1,14 +1,15 @@
-"""``just view`` 的客户端入口：复用既有实例，或起一个再打开。
+"""``just view`` 与全局 ``zview`` 的客户端入口：复用实例，或起一个再打开。
 
-``just view`` 默认落在**改动视图**——日常用的正是「看一眼改了什么」，文件视图由
+``just view`` 默认落在**改动视图**；``zview`` 默认查看当前目录，Git 子目录也显示其改动。
+文件视图由
 ``--files`` 显式选择。生命周期逻辑只有这一份实现，``just diff`` 只是转发到同一入口
-的薄别名。三条路径共用同一份登记（仓库根的 ``.env.view-state``）：
+的薄别名。项目内登记保存在仓库根的 ``.env.view-state``；全局登记和日志保存在用户缓存：
 
 - **打开路径**：读登记 → 三项新鲜度校验（进程存活 / 端口可连 / 仓库一致）→ 命中就
   拼 URL 直接打开并立刻返回，不重启进程；任一校验失败即判定陈旧，清理登记后转入
   启动路径。
 - **启动路径**：选端口（显式 ``--port`` → 登记值 → 8791 → 系统空闲端口）→ 以新会话
-  拉起服务并把日志写进 ``logs/`` → 轮询首个只读接口直到成功（不使用固定 ``sleep``）
+  拉起服务并把日志写进项目 ``logs/`` 或用户缓存 → 轮询首个只读接口直到成功（不使用固定 ``sleep``）
   → 写登记 → 打开浏览器。
 - **回收路径**：``--stop`` 读登记 → 终止进程 → 清理登记。结束实例走进程信号，不新增
   任何 HTTP 写路由——只读是硬边界，不为运维便利开第一个写口子。
@@ -17,6 +18,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import signal
 import socket
@@ -58,13 +60,17 @@ class LaunchRequest(NamedTuple):
     本模块每次 ``just view`` 都要在 150ms 的复用命中预算里被 import 一次。
 
     Attributes:
-        requested_path (str): 直达的文件或目录（仓库相对路径），空串表示仓库根。
+        requested_path (str): ``just view`` 的直达路径，或 ``zview`` 的目标目录；空串表示
+            仓库根或当前目录。
         view (str): 初始视图，``files`` 或 ``diff``；默认 ``diff``。
         requested_port (int | None): 显式 ``--port``；未给时为 ``None``。
         idle_timeout_seconds (float): 空闲回收时限；非正数表示关闭自动回收。
         no_reuse (bool): 强制新起实例，不复用既有实例。
         no_open (bool): 只打印 URL，不打开浏览器。
-        stop (bool): 回收本仓库的常驻实例。
+        stop (bool): 回收本次查看目标的常驻实例。
+        global_mode (bool): 是否按全局目录查看模式解析路径。
+        git_available (bool): 目标目录是否位于 Git 仓库中。
+        git_prefix (str): 目标目录在所属 Git 仓库中的相对路径前缀。
     """
 
     requested_path: str
@@ -74,6 +80,9 @@ class LaunchRequest(NamedTuple):
     no_reuse: bool
     no_open: bool
     stop: bool = False
+    global_mode: bool = False
+    git_available: bool = True
+    git_prefix: str = ""
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -101,13 +110,22 @@ def _run_launch_request(launch_request: LaunchRequest) -> int:
     Returns:
         int: 进程退出码。
     """
-    repository_root = instance.resolve_repository_root()
+    if launch_request.global_mode:
+        repository_root, launch_request = _resolve_global_target(launch_request)
+    else:
+        os.environ.pop(instance.GIT_PREFIX_ENVIRONMENT_VARIABLE, None)
+        os.environ.pop(instance.RUNTIME_DIRECTORY_ENVIRONMENT_VARIABLE, None)
+        repository_root = instance.resolve_repository_root()
     if launch_request.stop:
         return _stop_resident_instance(repository_root)
 
     remembered_instance = instance.read_instance_record(repository_root)
     if remembered_instance is not None and not launch_request.no_reuse:
-        if _is_instance_reusable(remembered_instance, repository_root):
+        if _is_instance_reusable(
+            remembered_instance,
+            repository_root,
+            git_available=launch_request.git_available,
+        ):
             return _open_resident_instance(remembered_instance, launch_request)
         print(
             f"登记项已陈旧（pid {remembered_instance.process_id}，"
@@ -133,15 +151,22 @@ def _parse_arguments(argv: list[str] | None) -> LaunchRequest:
     Returns:
         LaunchRequest: 解析结果。
     """
+    argument_values = sys.argv[1:] if argv is None else argv
     argument_parser = argparse.ArgumentParser(
-        prog="just view",
-        description="打开本机只读文件与改动查看器（只读，不写入被查看的仓库）。",
+        prog="zview" if "--global" in argument_values else "just view",
+        description="打开本机文件与改动查看器。",
+    )
+    argument_parser.add_argument(
+        "--global",
+        dest="global_mode",
+        action="store_true",
+        help=argparse.SUPPRESS,
     )
     argument_parser.add_argument(
         "path",
         nargs="?",
         default="",
-        help="打开后直达的文件或目录（仓库相对路径）",
+        help="目标目录（zview）或打开后直达的文件、目录（just view）",
     )
     view_selection_group = argument_parser.add_mutually_exclusive_group()
     view_selection_group.add_argument(
@@ -174,9 +199,9 @@ def _parse_arguments(argv: list[str] | None) -> LaunchRequest:
     argument_parser.add_argument(
         "--stop",
         action="store_true",
-        help="回收本仓库的常驻查看器实例，不打开界面",
+        help="回收当前查看目标的常驻查看器实例，不打开界面",
     )
-    parsed_arguments = argument_parser.parse_args(argv)
+    parsed_arguments = argument_parser.parse_args(argument_values)
 
     return LaunchRequest(
         requested_path=parsed_arguments.path,
@@ -190,17 +215,90 @@ def _parse_arguments(argv: list[str] | None) -> LaunchRequest:
         no_reuse=parsed_arguments.no_reuse,
         no_open=parsed_arguments.no_open,
         stop=parsed_arguments.stop,
+        global_mode=parsed_arguments.global_mode,
+    )
+
+
+def _resolve_global_target(launch_request: LaunchRequest) -> tuple[Path, LaunchRequest]:
+    """解析 `zview` 的目标目录、Git 子目录前缀与用户缓存位置。
+
+    Args:
+        launch_request (LaunchRequest): 命令行解析结果。
+
+    Returns:
+        tuple[Path, LaunchRequest]: 作为查看根目录的目标路径及补齐 Git 状态后的请求。
+
+    Raises:
+        ViewerLaunchError: 目标路径不存在、不是目录或无法解析。
+    """
+    requested_directory = Path(launch_request.requested_path or Path.cwd()).expanduser()
+    if not requested_directory.is_absolute():
+        requested_directory = Path.cwd() / requested_directory
+    try:
+        target_directory = requested_directory.resolve(strict=True)
+    except (OSError, RuntimeError) as path_error:
+        raise ViewerLaunchError(f"目标目录无法访问：{requested_directory}") from path_error
+    if not target_directory.is_dir():
+        raise ViewerLaunchError(f"目标路径不是文件夹：{target_directory}")
+
+    try:
+        git_repository_root = instance.resolve_repository_root(target_directory)
+    except (OSError, RuntimeError):
+        git_repository_root = None
+    if git_repository_root is not None:
+        try:
+            target_directory.relative_to((git_repository_root / ".git").resolve())
+        except ValueError:
+            pass
+        else:
+            git_repository_root = None
+    if git_repository_root is not None:
+        try:
+            git_prefix = target_directory.relative_to(git_repository_root).as_posix()
+        except ValueError:
+            git_repository_root = None
+            git_prefix = ""
+    else:
+        git_prefix = ""
+    git_available = git_repository_root is not None
+    if git_prefix == ".":
+        git_prefix = ""
+
+    cache_root_text = os.environ.get("XDG_CACHE_HOME")
+    cache_root = (
+        Path(cache_root_text).expanduser().resolve() if cache_root_text else Path.home() / ".cache"
+    )
+    target_hash = hashlib.sha256(os.fsencode(target_directory)).hexdigest()
+    runtime_directory = cache_root / "zview" / target_hash
+    try:
+        runtime_directory.mkdir(parents=True, exist_ok=True)
+    except OSError as cache_error:
+        raise ViewerLaunchError(f"无法创建查看器缓存目录：{runtime_directory}") from cache_error
+    os.environ[instance.RUNTIME_DIRECTORY_ENVIRONMENT_VARIABLE] = str(runtime_directory)
+    if git_prefix:
+        os.environ[instance.GIT_PREFIX_ENVIRONMENT_VARIABLE] = f"{git_prefix.rstrip('/')}/"
+    else:
+        os.environ.pop(instance.GIT_PREFIX_ENVIRONMENT_VARIABLE, None)
+
+    selected_view = launch_request.view if git_available else FILES_VIEW
+    return target_directory, launch_request._replace(
+        requested_path="",
+        view=selected_view,
+        git_available=git_available,
+        git_prefix=git_prefix,
     )
 
 
 def _is_instance_reusable(
     instance_record: instance.ViewInstanceRecord | None,
     repository_root: Path,
+    *,
+    git_available: bool,
 ) -> bool:
-    """三项新鲜度校验：仓库一致、进程存活、端口可连。
+    """四项新鲜度校验：目标一致、Git 模式一致、进程存活、端口可连。
 
-    三项缺一不可——单看进程存活会撞上进程号复用，单看端口可连会撞上端口被别的进程
-    占用；仓库一致这一项则让同一台机器上的多个派生项目互不串台。
+    四项缺一不可——单看进程存活会撞上进程号复用，单看端口可连会撞上端口被别的进程
+    占用；目标与 Git 模式检查让不同目录和文件系统模式互不串台。
 
     Args:
         instance_record (instance.ViewInstanceRecord | None): 登记记录。
@@ -212,6 +310,8 @@ def _is_instance_reusable(
     if instance_record is None:
         return False
     if instance_record.repository_root != repository_root:
+        return False
+    if instance_record.git_available != git_available:
         return False
     if not _is_process_alive(instance_record.process_id):
         return False
@@ -318,13 +418,14 @@ def _start_new_instance(
         requested_port=launch_request.requested_port,
         remembered_port=remembered_port,
     )
+    service_log_path = _resolve_service_log_path(repository_root)
     service_log_handle = _open_service_log(repository_root)
     try:
         service_process_id = _spawn_server_process(
             repository_root=repository_root,
             port=selected_port,
-            idle_timeout_seconds=launch_request.idle_timeout_seconds,
             service_log_handle=service_log_handle,
+            launch_request=launch_request,
         )
         is_ready = _wait_until_ready(port=selected_port, service_process_id=service_process_id)
     finally:
@@ -337,7 +438,7 @@ def _start_new_instance(
         raise ViewerLaunchError(
             f"查看器服务在 {_READY_TIMEOUT_SECONDS:.0f} 秒内未就绪"
             f"（pid {service_process_id}，端口 {selected_port}）。"
-            f"服务日志：{SERVICE_LOG_RELATIVE_PATH.as_posix()}"
+            f"服务日志：{service_log_path}"
         )
 
     instance.write_instance_record(
@@ -346,6 +447,7 @@ def _start_new_instance(
             port=selected_port,
             repository_root=repository_root,
             started_at_iso=time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+            git_available=launch_request.git_available,
         )
     )
     return _open_viewer_in_browser(
@@ -435,17 +537,32 @@ def _open_service_log(repository_root: Path) -> TextIO:
     Returns:
         TextIO: 已打开且可写文本的日志句柄，调用方负责关闭。
     """
-    service_log_path = repository_root / SERVICE_LOG_RELATIVE_PATH
+    service_log_path = _resolve_service_log_path(repository_root)
     service_log_path.parent.mkdir(parents=True, exist_ok=True)
     return service_log_path.open("a", encoding="utf-8")
+
+
+def _resolve_service_log_path(repository_root: Path) -> Path:
+    """给出日志路径；全局调用写到用户缓存，项目内调用沿用仓库 `logs/`。
+
+    Args:
+        repository_root (Path): 查看器根目录。
+
+    Returns:
+        Path: 日志文件路径。
+    """
+    runtime_directory = os.environ.get(instance.RUNTIME_DIRECTORY_ENVIRONMENT_VARIABLE)
+    if runtime_directory:
+        return Path(runtime_directory) / "logs" / SERVICE_LOG_RELATIVE_PATH.name
+    return repository_root / SERVICE_LOG_RELATIVE_PATH
 
 
 def _spawn_server_process(
     *,
     repository_root: Path,
     port: int,
-    idle_timeout_seconds: float,
     service_log_handle: TextIO,
+    launch_request: LaunchRequest,
 ) -> int:
     """以新会话拉起服务进程。
 
@@ -455,8 +572,8 @@ def _spawn_server_process(
     Args:
         repository_root (Path): 仓库根绝对路径。
         port (int): 监听端口。
-        idle_timeout_seconds (float): 空闲回收时限。
         service_log_handle (TextIO): 子进程标准输出与标准错误的目标。
+        launch_request (LaunchRequest): 本次调用的空闲时限与 Git 范围。
 
     Returns:
         int: 服务进程号。
@@ -464,22 +581,32 @@ def _spawn_server_process(
     import subprocess
 
     server_script_path = Path(__file__).resolve().parent / "server.py"
+    server_arguments = [
+        sys.executable,
+        str(server_script_path),
+        "--repo-root",
+        str(repository_root),
+        "--port",
+        str(port),
+        "--idle-timeout",
+        str(launch_request.idle_timeout_seconds),
+    ]
+    if not launch_request.git_available:
+        server_arguments.append("--files-only")
+    server_environment = os.environ.copy()
+    server_environment.pop(instance.GIT_PREFIX_ENVIRONMENT_VARIABLE, None)
+    if launch_request.git_prefix:
+        server_environment[instance.GIT_PREFIX_ENVIRONMENT_VARIABLE] = (
+            f"{launch_request.git_prefix.rstrip('/')}/"
+        )
     service_process = subprocess.Popen(
-        [
-            sys.executable,
-            str(server_script_path),
-            "--repo-root",
-            str(repository_root),
-            "--port",
-            str(port),
-            "--idle-timeout",
-            str(idle_timeout_seconds),
-        ],
+        server_arguments,
         stdin=subprocess.DEVNULL,
         stdout=service_log_handle,
         stderr=service_log_handle,
         start_new_session=True,
         close_fds=True,
+        env=server_environment,
     )
     return service_process.pid
 

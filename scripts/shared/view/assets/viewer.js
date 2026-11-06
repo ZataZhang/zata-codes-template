@@ -95,7 +95,6 @@
     tabHistory: document.getElementById("tab-history"),
     commitDiffExitButton: document.getElementById("commit-diff-exit"),
     diffCount: document.getElementById("diff-count"),
-    filterBar: document.querySelector(".filter"),
     filterInput: document.getElementById("filter-input"),
     refreshButton: document.getElementById("refresh-view"),
     refreshTimer: document.getElementById("refresh-timer"),
@@ -147,6 +146,8 @@
     isTreeWide: false,
     filterText: "",
     filePaths: [],
+    /** 当前目标是否连接到 Git；普通目录只开放文件视图。 */
+    gitAvailable: true,
     ignoredFilePaths: new Set(),
     includeIgnoredFiles: false,
     isLoadingIgnoredFiles: false,
@@ -205,6 +206,26 @@
   }
 
   /**
+   * 应用服务端返回的工作区信息，并按是否有 Git 同步可用视图。
+   * @param {{repo_name: string, branch: string, git_available?: boolean}} workspaceInfo 工作区信息。
+   */
+  function applyWorkspaceInfo(workspaceInfo) {
+    viewState.gitAvailable = workspaceInfo.git_available !== false;
+    if (!viewState.gitAvailable) {
+      viewState.view = FILES_VIEW;
+      viewState.historicalCommitContext = null;
+    }
+    elements.repoName.textContent = workspaceInfo.repo_name;
+    elements.branchChip.textContent = workspaceInfo.branch;
+    elements.branchChip.hidden = !viewState.gitAvailable;
+    document.querySelectorAll("[data-git-shortcut]").forEach((shortcutHint) => {
+      shortcutHint.hidden = !viewState.gitAvailable;
+    });
+    window.document.title = `${workspaceInfo.repo_name} · 只读查看器`;
+    renderViewTabs();
+  }
+
+  /**
    * 切换到「服务已退出」状态：左树置灰不可点，内容区给出重新连接指引。
    * @param {string} failureMessage 失败说明，用于状态条。
    */
@@ -213,7 +234,7 @@
     stopRefreshTimer();
     elements.treeBody.classList.add("is-stale");
     elements.statusDot.classList.add("down");
-    elements.statusText.textContent = "服务已退出 · 运行 just view 重新连接";
+    elements.statusText.textContent = "服务已退出 · 运行 zview 或 just view 重新连接";
     renderDisconnectedNotice(failureMessage);
   }
 
@@ -233,8 +254,8 @@
         isFailure: true,
         title: "服务已退出",
         paragraphs: [
-          "查看器空闲到时限后会自动退出（默认 30 分钟无任何请求），也可以用 just view --stop 立刻回收。",
-          "在仓库里重新执行 just view 会新起一个实例并打开新标签页，本页不再自动恢复。",
+          "查看器空闲到时限后会自动退出（默认 30 分钟无任何请求），也可以用 zview --stop 或 just view --stop 立刻回收。",
+          "在同一目标目录重新执行 zview，或在仓库里执行 just view，会新起一个实例并打开新标签页；本页不再自动恢复。",
         ],
         hint: failureMessage ? `本次请求失败原因：${failureMessage}` : "",
       })
@@ -390,9 +411,7 @@
     elements.refreshButton.setAttribute("aria-busy", "true");
     const didRefresh = await guardAgainstServiceExit(async () => {
       const infoResponse = await requestJson("/api/info");
-      elements.repoName.textContent = infoResponse.body.repo_name;
-      elements.branchChip.textContent = infoResponse.body.branch;
-      window.document.title = `${infoResponse.body.repo_name} · 只读查看器`;
+      applyWorkspaceInfo(infoResponse.body);
 
       if (viewState.view === HISTORY_VIEW) {
         const historyView = await ensureHistoryViewerLoaded();
@@ -449,9 +468,7 @@
     renderViewTabs();
     const didLoad = await guardAgainstServiceExit(async () => {
       const infoResponse = await requestJson("/api/info");
-      elements.repoName.textContent = infoResponse.body.repo_name;
-      elements.branchChip.textContent = infoResponse.body.branch;
-      window.document.title = `${infoResponse.body.repo_name} · 只读查看器`;
+      applyWorkspaceInfo(infoResponse.body);
 
       await loadFileTree();
     });
@@ -755,6 +772,7 @@
             viewerMeta: elements.viewerMeta,
             viewerBody: elements.viewerBody,
             statusHint: elements.statusHint,
+            filterInput: elements.filterInput,
           },
           requestJson,
           guardAgainstServiceExit,
@@ -809,11 +827,17 @@
     const isFilesView = viewState.view === FILES_VIEW;
     const isHistoryView = viewState.view === HISTORY_VIEW;
     const isHistoricalCommitDiffView = isDiffView && Boolean(viewState.historicalCommitContext);
+    elements.tabDiff.hidden = !viewState.gitAvailable;
+    elements.tabHistory.hidden = !viewState.gitAvailable;
     elements.tabFiles.setAttribute("aria-selected", String(isFilesView));
     elements.tabDiff.setAttribute("aria-selected", String(isDiffView));
     elements.tabHistory.setAttribute("aria-selected", String(isHistoryView));
     elements.bodyGrid.classList.toggle("is-history", isHistoryView);
-    elements.filterBar.hidden = isHistoryView;
+    elements.filterInput.placeholder = isHistoryView ? "过滤所选提交的文件…" : "过滤文件…";
+    elements.filterInput.setAttribute(
+      "aria-label",
+      isHistoryView ? "过滤所选提交的文件" : "过滤文件"
+    );
     elements.commitDiffExitButton.hidden = !isHistoricalCommitDiffView;
     elements.refreshButton.title = isHistoryView
       ? "重新读取 Git 历史（页面不会自动刷新）"
@@ -827,7 +851,8 @@
         ? "改动文件"
         : "文件树";
     elements.treeTitle.replaceChildren(treeTitleNode);
-    elements.ignoredToggle.hidden = isDiffView || isHistoryView;
+    elements.ignoredToggle.hidden =
+      !viewState.gitAvailable || isDiffView || isHistoryView;
     renderIgnoredFilesToggle();
   }
 
@@ -2177,7 +2202,11 @@
    * @param {string} pathToSelect 显式要选中的仓库相对路径；空串表示用目标视图的记忆。
    */
   async function switchView(nextView, pathToSelect = "") {
-    if (viewState.isDisconnected || viewState.view === nextView) {
+    if (
+      viewState.isDisconnected ||
+      viewState.view === nextView ||
+      (!viewState.gitAvailable && nextView !== FILES_VIEW)
+    ) {
       return;
     }
     viewState.view = nextView;
@@ -2329,7 +2358,11 @@
   });
   elements.filterInput.addEventListener("input", () => {
     viewState.filterText = elements.filterInput.value;
-    renderTree();
+    if (viewState.view === HISTORY_VIEW) {
+      historyViewer?.render();
+    } else {
+      renderTree();
+    }
   });
   window.document.addEventListener("keydown", (keyboardEvent) => {
     // 放大层开着时只认 Esc：底下的 f / d / 过滤快捷键不该在看一张大图时把视图换掉。

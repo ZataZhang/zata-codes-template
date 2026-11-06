@@ -1,12 +1,12 @@
-"""查看器常驻实例的登记与仓库定位。
+"""查看器常驻实例的登记与工作区定位。
 
 ``just view`` 的「秒开」来自复用既有实例，而复用判定完全落在这份登记上：登记
 记录实例的进程号、端口、仓库根与启动时间，客户端入口据此做三项新鲜度校验
-（进程存活 / 端口可连 / 仓库一致），服务端在空闲回收时据此清理自己那一条记录。
+（进程存活 / 端口可连 / 目标与模式一致），服务端在空闲回收时据此清理自己那一条记录。
 
-登记文件是仓库根的 ``.env.view-state``，被 ``.gitignore`` 的 ``.env*`` 规则覆盖，
-每个 worktree 天然独立——与既有的 ``.env.run-state`` 同构，不引入新的目录约定。
-它的字段集合是客户端与服务的共同契约，就在本文件里维护。
+项目内登记文件是仓库根的 ``.env.view-state``，被 ``.gitignore`` 的 ``.env*`` 规则覆盖，
+每个 worktree 天然独立。全局 ``zview`` 按目标目录哈希到用户缓存登记，避免在被查看目录写状态。
+两种模式的字段集合都是客户端与服务的共同契约，就在本文件里维护。
 
 本模块刻意只依赖标准库里的轻量部分：客户端入口的「秒开」路径会 import 它，任何
 在这里拖进来的重依赖（例如 ``http.server``）都会直接落在复用命中的耗时预算上。
@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import NamedTuple
 
@@ -32,6 +33,11 @@ _PID_FIELD_NAME = "VIEW_PID"
 _PORT_FIELD_NAME = "VIEW_PORT"
 _REPOSITORY_ROOT_FIELD_NAME = "VIEW_REPO_ROOT"
 _STARTED_AT_FIELD_NAME = "VIEW_STARTED_AT"
+_GIT_AVAILABLE_FIELD_NAME = "VIEW_GIT_AVAILABLE"
+
+# zview 的工作区状态放在用户缓存，避免查看非 Git 目录时向目标目录写文件。
+RUNTIME_DIRECTORY_ENVIRONMENT_VARIABLE = "ZATA_VIEW_RUNTIME_DIRECTORY"
+GIT_PREFIX_ENVIRONMENT_VARIABLE = "ZATA_VIEW_GIT_PREFIX"
 
 _INSTANCE_FIELD_NAMES = (
     _PID_FIELD_NAME,
@@ -55,12 +61,14 @@ class ViewInstanceRecord(NamedTuple):
         repository_root (Path): 实例所服务的仓库根绝对路径，用于判定登记是否属于
             当前仓库（同一台机器上并存多个派生项目时的主要判据）。
         started_at_iso (str): 实例启动时刻的 ISO-8601 字符串，仅供排障阅读。
+        git_available (bool): 服务是否连接到 Git 仓库。
     """
 
     process_id: int
     port: int
     repository_root: Path
     started_at_iso: str
+    git_available: bool = True
 
 
 def resolve_repository_root(start_directory: Path | None = None) -> Path:
@@ -128,6 +136,9 @@ def resolve_registry_path(repository_root: Path) -> Path:
     Returns:
         Path: 登记文件路径（不保证存在）。
     """
+    runtime_directory = os.environ.get(RUNTIME_DIRECTORY_ENVIRONMENT_VARIABLE)
+    if runtime_directory:
+        return Path(runtime_directory) / REGISTRY_FILE_NAME
     return repository_root / REGISTRY_FILE_NAME
 
 
@@ -165,12 +176,17 @@ def read_instance_record(repository_root: Path) -> ViewInstanceRecord | None:
         recorded_port = int(parsed_field_values[_PORT_FIELD_NAME])
     except ValueError:
         return None
+    # 老版的仓库内登记没有此字段；按旧行为视为 Git 仓库，允许平滑复用或回收。
+    git_available_value = parsed_field_values.get(_GIT_AVAILABLE_FIELD_NAME, "1")
+    if git_available_value not in {"0", "1"}:
+        return None
 
     return ViewInstanceRecord(
         process_id=recorded_process_id,
         port=recorded_port,
         repository_root=Path(parsed_field_values[_REPOSITORY_ROOT_FIELD_NAME]).resolve(),
         started_at_iso=parsed_field_values[_STARTED_AT_FIELD_NAME],
+        git_available=git_available_value == "1",
     )
 
 
@@ -188,6 +204,7 @@ def write_instance_record(instance_record: ViewInstanceRecord) -> None:
                 f"{_PORT_FIELD_NAME}={instance_record.port}",
                 f"{_REPOSITORY_ROOT_FIELD_NAME}={instance_record.repository_root}",
                 f"{_STARTED_AT_FIELD_NAME}={instance_record.started_at_iso}",
+                f"{_GIT_AVAILABLE_FIELD_NAME}={int(instance_record.git_available)}",
                 "",
             )
         ),

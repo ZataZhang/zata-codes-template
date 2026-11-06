@@ -274,6 +274,10 @@ _view_python := if os_family() == "windows" { justfile_directory() / ".venv/Scri
 view *args:
     exec {{ if path_exists(_view_python) == "true" { quote(_view_python) } else { "uv run --no-sync python" } }} -S "{{justfile_directory()}}/scripts/shared/view/launch.py" {{args}}
 
+# Install the global `zview` command in ~/.local/bin.
+view-install:
+    uv run --no-sync python "{{justfile_directory()}}/scripts/shared/view/install_global.py"
+
 # Thin alias: open the viewer in the diff view (already the default).
 diff *args:
     exec just view --diff {{args}}

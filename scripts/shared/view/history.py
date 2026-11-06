@@ -56,6 +56,8 @@ def build_git_history_payload(
         f"--skip={offset}",
         f"--max-count={limit}",
         f"--pretty=format:{_HISTORY_FORMAT}",
+        "--",
+        ".",
     )
     branch_refs, refs_by_commit = _read_branch_refs(repository_root)
     try:
@@ -320,8 +322,11 @@ def _read_commit_file_changes(
             "-r",
             "-M",
             "-z",
+            "--relative",
             str(parent_hashes[0]),
             commit_hash,
+            "--",
+            ".",
         )
     else:
         raw_change_output = workspace._run_git(
@@ -333,7 +338,10 @@ def _read_commit_file_changes(
             "-r",
             "-M",
             "-z",
+            "--relative",
             commit_hash,
+            "--",
+            ".",
         )
 
     change_tokens = raw_change_output.split("\x00")

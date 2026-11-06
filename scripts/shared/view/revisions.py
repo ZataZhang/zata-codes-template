@@ -13,9 +13,12 @@
 
 from __future__ import annotations
 
+import os
 import posixpath
 import subprocess
 from pathlib import Path
+
+import instance
 
 #: 改动视图的「旧侧」基准：已提交的 HEAD。
 HEAD_REVISION = "head"
@@ -113,7 +116,10 @@ def _build_git_expression(revision_name: str, relative_path: str) -> str:
     Returns:
         str: 形如 ``HEAD:docs/x.png`` / ``:0:docs/x.png`` 的表达式。
     """
-    return f"{_GIT_REVISION_PREFIX_BY_REVISION[revision_name]}:{posixpath.normpath(relative_path)}"
+    normalized_path = posixpath.normpath(relative_path)
+    git_prefix = os.environ.get(instance.GIT_PREFIX_ENVIRONMENT_VARIABLE, "")
+    repository_relative_path = f"{git_prefix}{normalized_path}" if git_prefix else normalized_path
+    return f"{_GIT_REVISION_PREFIX_BY_REVISION[revision_name]}:{repository_relative_path}"
 
 
 def _run_cat_file(

@@ -466,16 +466,31 @@
 
       const changeHeading = document.createElement("h3");
       changeHeading.className = "history-change-heading";
-      changeHeading.textContent = `改动文件（${selectedCommit.files.length}）`;
+      const fileFilterText = elements.filterInput.value.trim().toLowerCase();
+      const matchingChangedFiles = selectedCommit.files.filter((changedFile) => {
+        if (!fileFilterText) {
+          return true;
+        }
+        return [changedFile.path, changedFile.old_path]
+          .filter(Boolean)
+          .some((changedPath) => changedPath.toLowerCase().includes(fileFilterText));
+      });
+      changeHeading.textContent = fileFilterText
+        ? `改动文件（${matchingChangedFiles.length}/${selectedCommit.files.length}）`
+        : `改动文件（${selectedCommit.files.length}）`;
       detailPane.append(changeHeading);
       if (!selectedCommit.files.length) {
         detailPane.append(buildHistoryMessage("该提交相对首个父提交没有文件差异。"));
         return;
       }
+      if (!matchingChangedFiles.length) {
+        detailPane.append(buildHistoryMessage("没有匹配的改动文件。"));
+        return;
+      }
 
       const changedFilesList = document.createElement("div");
       changedFilesList.className = "history-changed-files";
-      for (const changedFile of selectedCommit.files) {
+      for (const changedFile of matchingChangedFiles) {
         const changedFileButton = document.createElement("button");
         changedFileButton.type = "button";
         changedFileButton.className = "history-changed-file";
@@ -504,7 +519,14 @@
       showCommitChangesButton.classList.add("history-diff-view-button");
       detailPane.append(showCommitChangesButton);
 
-      if (historyState.isLoadingHistoryDiff) {
+      const selectedFileMatchesFilter =
+        !fileFilterText ||
+        matchingChangedFiles.some(
+          (changedFile) => changedFile.path === historyState.selectedHistoryPath
+        );
+      if (fileFilterText && !selectedFileMatchesFilter) {
+        detailPane.append(buildHistoryMessage("从筛选结果中选择一个文件查看改动。"));
+      } else if (historyState.isLoadingHistoryDiff) {
         detailPane.append(buildHistoryMessage("正在读取文件改动…"));
       } else if (historyState.historyDiffErrorMessage) {
         detailPane.append(buildHistoryMessage(historyState.historyDiffErrorMessage, true));
