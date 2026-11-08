@@ -2,8 +2,8 @@
 
 支持三层配置源（优先级从高到低）：
 1. 环境变量 / .env / .env.local
-2. config.toml（非敏感配置）
-3. 代码中的默认值
+2. Nacos JSON 启动配置（配置了地址时）
+3. config.toml 与代码中的默认值
 
 需要调用大模型的派生项目，用 ``.env`` 的 ``MODEL_BASE_URL`` / ``MODEL_API_KEY`` /
 ``MODEL_NAME`` 三件套声明端点，经 :func:`load_primary_model_settings` 读取。模板
@@ -31,12 +31,14 @@ from typing import Any, Literal
 from urllib.parse import quote_plus
 
 from dotenv import dotenv_values
-from pydantic import AliasChoices, Field, SecretStr
+from pydantic import AliasChoices, Field, SecretStr, ValidationError
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
     SettingsConfigDict,
 )
+
+from .startup import load_startup_configuration
 
 _SETTINGS_FILE_PATH: Path = Path(__file__).resolve()
 _CONFIG_DIR_PATH: Path = _SETTINGS_FILE_PATH.parent
@@ -53,7 +55,7 @@ _dotenv_loaded_values: dict[str, str | None] = {}
 _dotenv_loaded_values.update(dotenv_values(_PROJECT_ROOT_PATH / ".env"))
 _dotenv_loaded_values.update(dotenv_values(_PROJECT_ROOT_PATH / ".env.local"))
 for _dotenv_key, _dotenv_value in _dotenv_loaded_values.items():
-    if _dotenv_value is not None and not os.environ.get(_dotenv_key):
+    if _dotenv_value is not None and _dotenv_key not in os.environ:
         os.environ[_dotenv_key] = _dotenv_value
 
 
@@ -257,6 +259,7 @@ class ConfigProviderSettings(BaseSettings):
     nacos_data_id: str = Field(
         default="my-app-runtime.json",
     )
+    nacos_poll_interval_seconds: int = Field(default=30, ge=5)
     nacos_username_env: str = "NACOS_USERNAME"
     nacos_password_env: str = "NACOS_PASSWORD"
 
@@ -565,7 +568,18 @@ def _ensure_no_proxy_for_local_services() -> None:
         os.environ["no_proxy"] = updated_no_proxy
 
 
-config: AppSettings = AppSettings()
+# 必须先于全局 Settings 和数据库等依赖初始化；连接参数不依赖远端文档。
+startup_runtime_config: dict[str, object] = load_startup_configuration(
+    ConfigProviderSettings(), config_file_path=_TOML_CONFIG_FILE_PATH
+)
+try:
+    config: AppSettings = AppSettings()
+except ValidationError as settings_error:
+    invalid_fields = ", ".join(
+        ".".join(str(field_part) for field_part in field_error["loc"])
+        for field_error in settings_error.errors(include_input=False, include_context=False)
+    )
+    raise ValueError("应用配置校验失败，请检查字段：" + invalid_fields) from None
 config.ensure_log_directory()
 _ensure_no_proxy_for_local_services()
 

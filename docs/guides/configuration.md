@@ -12,9 +12,12 @@
 
 总优先级从高到低：
 
-1. 环境变量（含 `.env` / `.env.local`）
-2. `config.toml`
-3. 代码默认值
+1. 进程环境变量（包括显式空值）
+2. `.env.local`
+3. `.env`
+4. Nacos JSON（配置了地址时）
+5. `config.toml`
+6. 代码默认值
 
 ## 关键配置模块
 
@@ -31,52 +34,63 @@
 - 推荐在 `config.toml` 中维护非敏感默认项。
 - 所有业务代码统一从 `config` 实例读取，不直接散落调用 `os.getenv`。
 
-## 可替换的运行时配置中心
+## Nacos 启动配置与本地开发
 
-模板默认使用本地 provider：它从 `config.toml` 的 `[runtime_config]` 表读取参数，不连接外部服务。
-需要集中管理或热更新非敏感运行时参数时，只需填写 Nacos 地址和应用账号；地址非空就会自动
-切换到 Nacos。连接信息和应用账号放在后端自己的 `.env` / `.env.local`，服务器部署则写入
-`deploy/vps-traefik/app.env`。
+本地开发继续使用 `.env.local`；未配置 Nacos 地址时不会连接外部配置服务。
+部署时可只在进程环境中提供 Nacos 连接参数，其余应用配置由 Nacos JSON 提供。
+程序先合并 `.env` / `.env.local`（进程已有的变量优先，包括空字符串），再解析本地
+`[config_provider]` 与环境变量中的连接信息，读取一次 Nacos，补充尚未声明的环境变量，
+最后创建全局 `AppSettings` 并校验各子配置。数据库引擎、迁移、Redis 等依赖在此后初始化。
+读取失败或文档无效会阻止启动，避免用默认值连到错误的数据库。
 
 ```dotenv
-NACOS_SERVER_ADDR=nacos:8848
+NACOS_SERVER_ADDR=https://nacos.example.com
 NACOS_USERNAME=application-reader
-NACOS_PASSWORD=由密钥管理器提供
+NACOS_PASSWORD=由部署环境提供
+NACOS_NAMESPACE_ID=staging
+NACOS_GROUP=MY_APP
+NACOS_DATA_ID=my-app-runtime.json
 ```
 
-Nacos SDK 已包含在项目依赖和后端镜像中，不需要额外安装开关。默认使用 public Namespace、
-`DEFAULT_GROUP` 和 `my-app-runtime.json`；需要调整作用域或 Data ID 时，只改 `config.toml` 的
-`[config_provider]`，普通使用无需设置这些字段。
+基础 URL 只填协议和域名，客户端自动请求 `/nacos/...` 路径，通过 HTTPS 443 访问。
+`host:port` 格式仍选择 Nacos Python SDK，需要 gRPC 9848 可达。Namespace 必须填写实际 ID，
+留空表示 public；Group / Data ID 必须与 Nacos 配置完全一致。
+连接参数只能来自本地环境及 TOML，远端文档不能包含 `NACOS_*`、`PROVIDER`、
+`CONFIG_PROVIDER`，或通过 `nacos_username_env` / `nacos_password_env` 指定的凭据变量。
+这些限制保证连接信息不依赖尚未读取的远端文档。
 
-Nacos 文档使用 JSON 对象格式，例如：
+Nacos 选择 JSON 类型，使用与 `.env.local` 相同的大写环境变量名：
 
 ```json
 {
-  "feature_flags": {
-    "new_flow": false
-  },
-  "limits": {
-    "max_batch_size": 20
+  "APP_NAME": "my-app-staging",
+  "DB_HOST": "database.internal",
+  "DB_PORT": 5432,
+  "REDIS_URL": "redis://redis.internal:6379/0",
+  "OBSERVABILITY_ENABLED": true,
+  "MCP_ALLOWED_HOSTS": ["app.example.com"],
+  "runtime_config": {
+    "feature_flags": {"new_flow": false}
   }
 }
 ```
 
-应用启动时会将快照放入 `app.state.runtime_config`；Nacos 更新经过 JSON 解析后会替换整份快照。
-消费者应在每次使用时读取当前快照。非法更新会被忽略，已有快照继续生效。本地 provider 不监听
-文件变化。Nacos SDK 会优先尝试本地 failover / snapshot，再读取服务端；没有可用本地快照且远程
-读取失败时，应用启动会报错，避免使用空配置继续运行。
+字符串保持原文，不执行 `${VAR}` 展开；数字、布尔、列表和对象编码成环境变量字符串，
+随后由现有 Settings 校验转换。`null` 不合法；不需要覆盖时省略该键，空字符串表示显式空值。
+任意派生项目的环境变量名也可使用，未知变量是否消费由派生项目的 Settings 决定。
+不要直接粘贴 `KEY=value` 文本到这个 JSON Data ID。
 
-`NACOS_SERVER_ADDR` 接受 `host:port`。VPS + Traefik 部署与 `zata-ops` 的 Nacos 容器共用
-`traefik` 网络时可用 `nacos:8848`。Dokploy 使用独立的 `dokploy-network`，需配置 Nacos 服务器私网
-地址并确认容器能访问，或由运维将两个容器接入同一个受控 Docker 网络。Nacos 客户端还需要 gRPC
-端口 `9848` 可达；不要把该端口作为 HTTP 路由代理。`NACOS_USERNAME`
-和 `NACOS_PASSWORD` 应使用专门的应用账号，并只授予目标 Namespace / Group / Data ID 的读取
-权限；它们与 Nacos 服务容器自身的 `NACOS_AUTH_TOKEN`、identity key/value 是不同凭据。
+启动配置按进程读取一次，修改 Nacos 后需要重启所有消费进程。当前应用装配不订阅更新，
+`NACOS_POLL_INTERVAL_SECONDS` 仅供显式使用底层 provider 订阅接口的派生实现使用。
+`runtime_config` 是可选的对象，作为启动快照暴露给 `app.state.runtime_config`；
+未启用 Nacos 时仍从本地 TOML 的 `[runtime_config]` 读取。旧的纯运行时 JSON 文档需要将业务键
+移入 `runtime_config`，顶层只放大写环境变量名。
 
-Nacos 仅用于非敏感运行时参数。数据库 URL、模型 API Key、应用密钥和 Nacos 客户端密码仍留在
-`.env` / `app.env` 或专门的密钥管理服务，禁止放入 Nacos 配置文档。切换其他配置平台时，在
-`src/backend/infrastructure/config/providers/` 实现同一 `ConfigProvider` 契约，并在 provider
-工厂中注册；消费方不直接导入 Nacos SDK。
+数据库、API Key 等敏感配置建议继续通过部署环境或密钥管理系统提供；
+如果存入 Nacos，拥有该配置读取权限的账号可以获取其值。Nacos 连接账号应使用应用只读账号。
+加载器复用现有 provider 的认证、读取、JSON 解析和关闭逻辑，不在日志中输出配置正文。
+本地 `.env.local` / 容器环境的同名项会覆盖 Nacos，因此线上不要保留不必要的旧覆盖项。
+
 
 ## 主模型配置
 

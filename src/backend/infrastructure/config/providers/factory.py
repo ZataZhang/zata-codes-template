@@ -1,10 +1,12 @@
 """根据启动配置构造运行时配置 provider。"""
 
 from pathlib import Path
+from urllib.parse import SplitResult, urlsplit
 
 from backend.infrastructure.config.settings import ConfigProviderSettings
 
 from .local_provider import LocalConfigProvider
+from .nacos_http_provider import NacosHttpConfigProvider
 from .nacos_provider import NacosConfigProvider
 from .protocol import ConfigProvider, ConfigProviderError
 
@@ -42,4 +44,25 @@ def build_config_provider(
         raise ConfigProviderError(
             "启用 Nacos provider 时必须填写：" + ", ".join(missing_nacos_values)
         )
-    return NacosConfigProvider(settings)
+    server_address: str = settings.nacos_server_addr.strip()
+    if "://" not in server_address:
+        if server_address.lower().startswith(("http:", "https:")):
+            raise ConfigProviderError("NACOS_SERVER_ADDR 的 HTTP(S) URL 格式无效。")
+        return NacosConfigProvider(settings)
+    try:
+        server_address_parts: SplitResult = urlsplit(server_address)
+    except ValueError as address_error:
+        raise ConfigProviderError("NACOS_SERVER_ADDR 格式无效。") from address_error
+    if server_address_parts.scheme in {"http", "https"}:
+        if not server_address_parts.netloc:
+            raise ConfigProviderError("NACOS_SERVER_ADDR 必须包含有效的 HTTP 主机名。")
+        if (
+            server_address_parts.path not in {"", "/"}
+            or server_address_parts.query
+            or server_address_parts.fragment
+        ):
+            raise ConfigProviderError(
+                "NACOS_SERVER_ADDR 仅填写 HTTP(S) 基础地址，不要附加路径或查询参数。"
+            )
+        return NacosHttpConfigProvider(settings)
+    raise ConfigProviderError("NACOS_SERVER_ADDR 仅支持 http(s) URL 或 host:port 格式。")

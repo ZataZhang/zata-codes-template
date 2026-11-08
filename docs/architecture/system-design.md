@@ -185,10 +185,13 @@ src/backend/api/ → src/backend/core/ → src/backend/engines/ → src/backend/
 
 ### 运行时配置 provider
 
-应用启动配置仍由环境变量 / `.env` 与 `config.toml` 提供。需要集中管理的非敏感运行时参数通过
-`infrastructure/config/providers/` 的 `ConfigProvider` 读取；composition root 选择本地 TOML
-或 Nacos 适配器，并把当前快照暴露为 `app.state.runtime_config`。新配置平台应实现同一契约，应用
-业务代码不直接导入平台 SDK。密钥、数据库连接串和 Nacos 客户端凭据始终由环境变量注入。
+应用启动配置通过 `infrastructure/config/startup.py` 在全局 Settings 创建前合并。
+优先级为进程环境变量 > `.env.local` > `.env` > Nacos JSON > TOML > 代码默认值。
+连接参数由本地配置独立提供；读取 Nacos 后才初始化 Settings、数据库引擎和迁移等依赖。
+Nacos 顶层 JSON 使用大写环境变量名，可选的 `runtime_config` 对象由 composition root 暴露为
+`app.state.runtime_config`。本地模式仍读取 TOML `[runtime_config]`。
+启动配置更新需重启进程；当前 composition root 不订阅远端更新。provider 的订阅能力仅作为
+派生项目显式实现热更新的适配接口，业务代码不直接导入平台 SDK。
 
 ## 认证与会话域
 

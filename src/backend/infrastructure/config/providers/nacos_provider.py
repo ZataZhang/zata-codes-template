@@ -1,12 +1,11 @@
 """Nacos 配置中心适配器。"""
 
-import json
 import logging
-from collections.abc import Mapping
 from typing import Any
 
 from backend.infrastructure.config.settings import ConfigProviderSettings
 
+from .nacos_helpers import parse_nacos_config_document
 from .protocol import ConfigProviderError, RuntimeConfigListener, RuntimeConfigSnapshot
 
 _LOGGER: logging.Logger = logging.getLogger(__name__)
@@ -110,12 +109,4 @@ class NacosConfigProvider:
 
     @staticmethod
     def _parse_config_document(config_content: str | None) -> RuntimeConfigSnapshot:
-        if not config_content:
-            raise ConfigProviderError("Nacos 配置为空或不存在。")
-        try:
-            parsed_config: object = json.loads(config_content)
-        except json.JSONDecodeError as parse_error:
-            raise ConfigProviderError("Nacos 配置必须是有效的 JSON 文档。") from parse_error
-        if not isinstance(parsed_config, Mapping):
-            raise ConfigProviderError("Nacos 配置的 JSON 根节点必须是对象。")
-        return dict(parsed_config)
+        return parse_nacos_config_document(config_content)

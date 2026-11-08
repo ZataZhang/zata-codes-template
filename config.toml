@@ -81,14 +81,16 @@ driver = "psycopg2"
 # Runtime Configuration Provider
 # =============================================================================
 # `local` reads [runtime_config] below. A non-empty NACOS_SERVER_ADDR selects
-# the Nacos adapter automatically. Namespace, Group and Data ID stay here so
-# ordinary deployments only need the address and application credentials.
+# Nacos automatically: an HTTP(S) URL uses Nacos 3 HTTP API; host:port uses SDK/gRPC.
+# Startup reads once before Settings; restart processes after configuration changes.
+# Namespace, Group and Data ID defaults stay here.
 [config_provider]
 provider = "local"
 nacos_server_addr = ""
 nacos_namespace_id = ""
 nacos_group = "DEFAULT_GROUP"
 nacos_data_id = "my-app-runtime.json"
+nacos_poll_interval_seconds = 30
 nacos_username_env = "NACOS_USERNAME"
 nacos_password_env = "NACOS_PASSWORD"
 

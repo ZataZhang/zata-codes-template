@@ -23,10 +23,9 @@ from backend.composition.run_tracing_wiring import build_run_tracing_components
 from backend.engines.mcp.server import create_mcp_server
 from backend.infrastructure.auth.redis_client import create_redis_client
 from backend.infrastructure.config.providers import (
-    RuntimeConfigSnapshot,
     build_config_provider,
 )
-from backend.infrastructure.config.settings import config
+from backend.infrastructure.config.settings import config, startup_runtime_config
 from backend.infrastructure.logger import logger
 from backend.infrastructure.persistence.database import SessionLocal
 
@@ -64,24 +63,20 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-        """在应用生命周期内加载运行时配置并启动 MCP 管理器。"""
-        config_provider = build_config_provider(
-            config.config_provider,
-            config_file_path=config.base_dir / "config.toml",
-        )
-        try:
-            _app.state.runtime_config = dict(await config_provider.load())
-
-            async def update_runtime_config(
-                runtime_config_snapshot: RuntimeConfigSnapshot,
-            ) -> None:
-                _app.state.runtime_config = dict(runtime_config_snapshot)
-
-            await config_provider.subscribe(update_runtime_config)
-            async with mcp_server.session_manager.run():
-                yield
-        finally:
-            await config_provider.close()
+        """在应用生命周期内暴露启动快照并启动 MCP 管理器。"""
+        if config.config_provider.provider == "nacos" or config.config_provider.nacos_server_addr:
+            _app.state.runtime_config = dict(startup_runtime_config)
+        else:
+            config_provider = build_config_provider(
+                config.config_provider,
+                config_file_path=config.base_dir / "config.toml",
+            )
+            try:
+                _app.state.runtime_config = dict(await config_provider.load())
+            finally:
+                await config_provider.close()
+        async with mcp_server.session_manager.run():
+            yield
 
     fastapi_app = FastAPI(
         title=config.app_name,
