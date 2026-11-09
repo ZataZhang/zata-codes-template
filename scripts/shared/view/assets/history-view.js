@@ -7,6 +7,9 @@
   "use strict";
 
   const HISTORY_PAGE_SIZE = 50;
+  const HISTORY_GRAPH_CELL_WIDTH = 8;
+  const HISTORY_GRAPH_LANE_COUNT = 6;
+  const HISTORY_GRAPH_SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 
   /**
    * @typedef {object} HistoryViewContext
@@ -278,7 +281,7 @@
           } else {
             const graphEdgeNode = document.createElement("div");
             graphEdgeNode.className = "history-edge-row";
-            graphEdgeNode.textContent = historyRow.graph;
+            graphEdgeNode.append(buildHistoryGraphRail(historyRow.graph, "edge"));
             pageSection.append(graphEdgeNode);
           }
         }
@@ -353,9 +356,8 @@
         String(historyState.selectedHistoryCommitHash === historyRow.hash)
       );
 
-      const graphPrefixNode = document.createElement("span");
-      graphPrefixNode.className = "history-graph-prefix";
-      graphPrefixNode.textContent = historyRow.graph_prefix;
+      const graphPrefixNode = buildHistoryGraphRail(historyRow.graph_prefix, "commit");
+      graphPrefixNode.classList.add("history-graph-prefix");
       const commitSummary = document.createElement("span");
       commitSummary.className = "history-commit-summary";
       const commitSubjectNode = document.createElement("span");
@@ -375,6 +377,80 @@
       commitSummary.append(commitSubjectNode, commitRefs);
       commitButton.append(graphPrefixNode, commitSummary, commitMeta);
       return commitButton;
+    }
+
+    /**
+     * 把 Git 的字符图转换成彩色轨道、连接线和圆形提交节点。
+     * @param {string} graphLine Git 输出的一行图形前缀。
+     * @param {"commit" | "edge"} rowKind 当前行是提交行还是连接行。
+     * @returns {SVGSVGElement} 装饰性提交图轨道。
+     */
+    function buildHistoryGraphRail(graphLine, rowKind) {
+      const isCommitRow = rowKind === "commit";
+      const graphHeight = isCommitRow ? 24 : 14;
+      let graphWidth = Math.max(
+        HISTORY_GRAPH_CELL_WIDTH * 2,
+        graphLine.length * HISTORY_GRAPH_CELL_WIDTH
+      );
+      for (let charIndex = 0; charIndex < graphLine.length; charIndex += 1) {
+        if (graphLine[charIndex] === "/" || graphLine[charIndex] === "\\") {
+          const graphStartX = Math.max(
+            HISTORY_GRAPH_CELL_WIDTH / 2,
+            charIndex * HISTORY_GRAPH_CELL_WIDTH - HISTORY_GRAPH_CELL_WIDTH / 2
+          );
+          graphWidth = Math.max(
+            graphWidth,
+            graphStartX + HISTORY_GRAPH_CELL_WIDTH * 2 + HISTORY_GRAPH_CELL_WIDTH / 2
+          );
+        }
+      }
+
+      const graphRail = document.createElementNS(HISTORY_GRAPH_SVG_NAMESPACE, "svg");
+      graphRail.classList.add("history-graph-rail");
+      graphRail.setAttribute("aria-hidden", "true");
+      graphRail.setAttribute("focusable", "false");
+      graphRail.setAttribute("viewBox", `0 0 ${graphWidth} ${graphHeight}`);
+      graphRail.setAttribute("width", String(graphWidth));
+      graphRail.setAttribute("height", String(graphHeight));
+
+      for (let charIndex = 0; charIndex < graphLine.length; charIndex += 1) {
+        const graphGlyph = graphLine[charIndex];
+        if (graphGlyph === " ") {
+          continue;
+        }
+
+        const graphLaneIndex = Math.floor(charIndex / 2) % HISTORY_GRAPH_LANE_COUNT;
+        const graphCellCenter = charIndex * HISTORY_GRAPH_CELL_WIDTH + HISTORY_GRAPH_CELL_WIDTH / 2;
+        const graphSegment = document.createElementNS(HISTORY_GRAPH_SVG_NAMESPACE, "path");
+        graphSegment.classList.add("history-graph-segment", `is-lane-${graphLaneIndex}`);
+
+        if (graphGlyph === "|" || graphGlyph === "*" || graphGlyph === "+") {
+          graphSegment.setAttribute("d", `M ${graphCellCenter} 1 V ${graphHeight - 1}`);
+          graphRail.append(graphSegment);
+          if (graphGlyph === "*" || graphGlyph === "+") {
+            const graphNode = document.createElementNS(HISTORY_GRAPH_SVG_NAMESPACE, "circle");
+            graphNode.classList.add("history-graph-node", `is-lane-${graphLaneIndex}`);
+            graphNode.setAttribute("cx", String(graphCellCenter));
+            graphNode.setAttribute("cy", String(graphHeight / 2));
+            graphNode.setAttribute("r", "3.2");
+            graphRail.append(graphNode);
+          }
+        } else if (graphGlyph === "/" || graphGlyph === "\\") {
+          const graphStartX = Math.max(
+            HISTORY_GRAPH_CELL_WIDTH / 2,
+            charIndex * HISTORY_GRAPH_CELL_WIDTH - HISTORY_GRAPH_CELL_WIDTH / 2
+          );
+          const graphEndX = graphStartX + HISTORY_GRAPH_CELL_WIDTH * 2;
+          const graphPath =
+            graphGlyph === "\\"
+              ? `M ${graphStartX} 1 L ${graphEndX} ${graphHeight - 1}`
+              : `M ${graphEndX} 1 L ${graphStartX} ${graphHeight - 1}`;
+          graphSegment.setAttribute("d", graphPath);
+          graphRail.append(graphSegment);
+        }
+      }
+
+      return graphRail;
     }
 
     /**

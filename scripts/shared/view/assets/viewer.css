@@ -24,6 +24,13 @@
   /* Changes 段（未暂存/未跟踪）文件名的淡绿：比 --add-mark 浅一档，名字读起来还是正文，
      但和 Staged Changes 里默认色的文件名并排时一眼可分。 */
   --name-unstaged: oklch(0.55 0.09 152);
+  /* Git 历史图各分支轨道使用克制的色相，节点与连线保持同色。 */
+  --history-lane-0: oklch(0.55 0.15 255);
+  --history-lane-1: oklch(0.56 0.13 155);
+  --history-lane-2: oklch(0.58 0.16 28);
+  --history-lane-3: oklch(0.56 0.14 305);
+  --history-lane-4: oklch(0.59 0.13 82);
+  --history-lane-5: oklch(0.54 0.13 205);
   /* 树的缩进参考线：比边框再淡一层，只在有层级的地方由 JS 按深度画出来。 */
   --indent-guide: color-mix(in oklab, var(--muted-foreground) 24%, transparent);
   --code-bg: oklch(0.995 0.002 250);
@@ -346,11 +353,26 @@ button, input, select { font: inherit; color: inherit; }
 .history-commit-row:focus-visible, .history-changed-file:focus-visible {
   position: relative; z-index: 1; outline: 2px solid var(--ring); outline-offset: -2px;
 }
-.history-graph-prefix, .history-edge-row {
-  color: var(--muted-foreground); font-family: var(--mono); font-size: 12px; line-height: 16px;
-  white-space: pre;
+.history-graph-prefix { display: block; flex: none; }
+.history-graph-rail { display: block; overflow: visible; }
+.history-graph-segment {
+  fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+  opacity: .82;
 }
-.history-edge-row { min-height: 14px; padding-left: 10px; line-height: 14px; }
+.history-graph-node {
+  fill: var(--history-node-fill, var(--card)); stroke: currentColor; stroke-width: 2.2;
+}
+.history-graph-rail .is-lane-0 { color: var(--history-lane-0); }
+.history-graph-rail .is-lane-1 { color: var(--history-lane-1); }
+.history-graph-rail .is-lane-2 { color: var(--history-lane-2); }
+.history-graph-rail .is-lane-3 { color: var(--history-lane-3); }
+.history-graph-rail .is-lane-4 { color: var(--history-lane-4); }
+.history-graph-rail .is-lane-5 { color: var(--history-lane-5); }
+.history-commit-row[aria-pressed='true'] .history-graph-rail {
+  --history-node-fill: color-mix(in oklab, var(--ring) 14%, var(--card));
+}
+.history-edge-row { display: flex; height: 14px; padding-left: 10px; }
+.history-edge-row .history-graph-rail { height: 14px; }
 .history-commit-summary { display: flex; min-width: 0; align-items: center; gap: 7px; }
 .history-commit-subject {
   overflow: hidden; min-width: 0; flex: 1; font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap;
