@@ -4,8 +4,9 @@
 本机回环地址、路由白名单固定；所有路径参数在 :mod:`workspace` 里解析成绝对路径后断言仍在
 仓库根之下。
 
-**写边界**：仓库侧的写操作是显式保存文本文件（``POST /api/file/save``）和暂存
-（``POST /api/stage``，只做 ``git add``）。另有一条不写仓库的写路由 ``POST /api/open``：
+**写边界**：仓库侧的写操作是显式保存文本文件（``POST /api/file/save``）、从 Markdown 预览
+切换任务项（``POST /api/file/toggle-task``）和暂存（``POST /api/stage``，只做 ``git add``）。
+另有一条不写仓库的写路由 ``POST /api/open``：
 把仓库内的文件交给系统默认应用打开（macOS ``open`` / Windows ``startfile`` / 其它
 ``xdg-open``），但在用户机器上有副作用。所有写路由都要求 ``Content-Type: application/json``：
 跨站表单式 POST 是「简单请求」，浏览器会直接发出去，而 JSON 类型会强制预检、预检又必然
@@ -64,6 +65,7 @@ _STAGE_ROUTE_PATH = "/api/stage"
 _OPEN_ROUTE_PATH = "/api/open"
 _FILE_SOURCE_ROUTE_PATH = "/api/file/source"
 _FILE_SAVE_ROUTE_PATH = "/api/file/save"
+_FILE_TOGGLE_TASK_ROUTE_PATH = "/api/file/toggle-task"
 _SCRIPT_NONCE_PLACEHOLDER = "__LOCAL_VIEW_SCRIPT_NONCE__"
 
 #: 通用写请求体的长度上限。文件保存有单独的上限，足以容纳 256 KiB 文本转成 JSON。
@@ -184,7 +186,9 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
             self._send_json_payload(500, {"error": f"读取仓库失败：{read_error}"})
 
     def do_POST(self) -> None:  # noqa: N802 - http.server 靠 do_<METHOD> 这个名字分发
-        """唯一的写方法入口：按路由分发给保存、暂存或在系统中打开，且只接受 JSON 请求体。
+        """唯一的写方法入口：按路由分发给保存、切换任务、暂存或在系统中打开。
+
+        只接受 JSON 请求体。
 
         要求 ``Content-Type: application/json`` 不是为了讲究，而是这里唯一说得通的防线：
         跨站表单式 POST 属于「简单请求」，浏览器会直接发出去（恶意页面读不到响应，但**副作用
@@ -201,6 +205,7 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
             failure_label = {
                 _OPEN_ROUTE_PATH: "打开",
                 _FILE_SAVE_ROUTE_PATH: "保存",
+                _FILE_TOGGLE_TASK_ROUTE_PATH: "更新任务",
             }.get(requested_route_path, "暂存")
             self._send_json_payload(500, {"error": f"{failure_label}失败：{write_error}"})
 
@@ -342,11 +347,49 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
         """按固定白名单分发写路由；白名单之外一律 405。
 
         写路由都要求是 JSON 对象：``POST /api/file/save`` 保存已有 UTF-8 文本并校验读取版本；
+        ``POST /api/file/toggle-task`` 只切换 Markdown 预览中已定位的任务复选框，并校验预览版本；
         ``POST /api/stage`` 的 ``scope`` 取值是封闭枚举（``path`` 或 ``all``）；
         ``POST /api/open`` 的 ``path`` 是仓库相对路径，越界与不存在都在
         :func:`workspace.open_path_in_system` 里按拒绝应答处理。路径会先在服务端校验，参数不会被
         当作任意 ``git`` 选项或 shell 命令执行。
         """
+        if requested_route_path == _FILE_TOGGLE_TASK_ROUTE_PATH:
+            task_toggle_request, failure_payload = self._read_write_request_body()
+            if failure_payload is not None:
+                self._send_json_payload(failure_payload.status_code, failure_payload.payload)
+                return
+
+            requested_path = task_toggle_request.get("path")
+            expected_revision = task_toggle_request.get("revision")
+            checkbox_index = task_toggle_request.get("checkbox_index")
+            is_checked = task_toggle_request.get("checked")
+            if (
+                not isinstance(requested_path, str)
+                or not isinstance(expected_revision, str)
+                or type(checkbox_index) is not int
+                or not isinstance(is_checked, bool)
+            ):
+                self._send_json_payload(
+                    400,
+                    {
+                        "error": "拒绝：任务切换需要字符串 path、revision、整数 checkbox_index "
+                        "和布尔 checked。"
+                    },
+                )
+                return
+            self._serve_workspace_payload(
+                file_edit.toggle_markdown_task_checkbox(
+                    self.server.repository_root,
+                    file_edit.MarkdownTaskToggleRequest(
+                        path=requested_path,
+                        expected_revision=expected_revision,
+                        checkbox_index=checkbox_index,
+                        is_checked=is_checked,
+                    ),
+                )
+            )
+            return
+
         if requested_route_path == _FILE_SAVE_ROUTE_PATH:
             file_save_request, failure_payload = self._read_write_request_body(
                 max_body_bytes=_MAX_FILE_SAVE_BODY_BYTES

@@ -517,6 +517,15 @@ button, input, select { font: inherit; color: inherit; }
 .preview.markdown p { margin: .75em 0; }
 .preview.markdown ul, .preview.markdown ol { margin: .75em 0; padding-left: 1.7em; }
 .preview.markdown li { margin: .25em 0; }
+.preview.markdown ul.task-list { list-style: none; padding-left: 1.45em; }
+.preview.markdown .task-list-item input[type="checkbox"] {
+  width: 13px; height: 13px; margin: 0 .45em .1em -1.45em; accent-color: var(--primary);
+  vertical-align: middle; cursor: pointer;
+}
+.preview.markdown .task-list-item input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--ring); outline-offset: 2px;
+}
+.preview.markdown .task-list-item input[type="checkbox"]:disabled { cursor: not-allowed; }
 .preview.markdown a { color: oklch(0.5 0.16 250); }
 .preview.markdown code {
   border-radius: 5px; background: var(--secondary); padding: 1px 6px;

@@ -172,6 +172,9 @@
     editDraftText: "",
     editRevision: "",
     editLineEnding: "lf",
+    /** 当前 Markdown 预览的版本摘要与任务切换状态。 */
+    markdownRevision: "",
+    isTogglingMarkdownTask: false,
     /** 非空时，改动视图展示只读的历史提交，而不是当前工作区。 */
     historicalCommitContext: null,
     /** 上次刷新的时刻（`performance.now()`，单调、不受改系统时间影响）。 */
@@ -949,6 +952,10 @@
    * @returns {boolean} 是否可以继续当前导航或刷新。
    */
   function confirmDiscardFileEdits({ restoreContent = true } = {}) {
+    if (viewState.isTogglingMarkdownTask) {
+      elements.statusHint.textContent = "正在更新任务，请稍候再切换。";
+      return false;
+    }
     if (viewState.isSavingFile) {
       elements.statusHint.textContent = "文件正在保存，完成后再切换。";
       return false;
@@ -988,6 +995,7 @@
     const isBusyLoading = viewState.isLoadingEditableSource;
     elements.editFileButton.hidden =
       !hasTextFile || viewState.isEditingFile || isBusyLoading || viewState.isDisconnected;
+    elements.editFileButton.disabled = viewState.isTogglingMarkdownTask;
     elements.saveFileButton.hidden = !viewState.isEditingFile || viewState.isDisconnected;
     elements.saveFileButton.disabled =
       viewState.isSavingFile || viewState.editDraftText === viewState.editSourceText;
@@ -1011,7 +1019,8 @@
       fileToEdit.kind !== "text" ||
       viewState.view !== FILES_VIEW ||
       viewState.isLoadingEditableSource ||
-      viewState.isSavingFile
+      viewState.isSavingFile ||
+      viewState.isTogglingMarkdownTask
     ) {
       return;
     }
@@ -2245,6 +2254,7 @@
     viewState.previewDescriptor = null;
     viewState.renderMode = SOURCE_MODE;
     viewState.markdownHtml = null;
+    viewState.markdownRevision = "";
     resetFileEditState();
     renderPreviewControls(null);
   }
@@ -2261,6 +2271,8 @@
     const previewMode = previewDescriptor ? previewDescriptor.mode : "";
     const isEditing = viewState.isEditingFile || viewState.isLoadingEditableSource;
     elements.previewSwitch.hidden = isEditing || previewMode !== "markdown";
+    elements.tabSource.disabled = viewState.isTogglingMarkdownTask;
+    elements.tabPreview.disabled = viewState.isTogglingMarkdownTask;
     elements.openExternal.hidden = isEditing || previewMode !== "external";
     if (previewMode === "external") {
       elements.openExternal.href = previewDescriptor.url;
@@ -2377,14 +2389,97 @@
         return;
       }
       viewState.markdownHtml = markdownResponse.body.html;
+      viewState.markdownRevision = markdownResponse.body.revision || "";
     }
     const previewNode = document.createElement("div");
     previewNode.className = "preview markdown";
     // 服务端渲染出的 HTML 片段；CSP 禁止预览内容里的脚本执行。
     previewNode.innerHTML = viewState.markdownHtml;
     elements.viewerBody.replaceChildren(previewNode);
+    bindMarkdownTaskCheckboxes(previewNode, viewState.loadedFile.path);
     elements.statusHint.textContent = "文件视图 · Markdown 预览（服务端渲染）";
     await renderMermaidDiagrams(previewNode);
+  }
+
+  /**
+   * 只启用服务端确认能映射回 Markdown 源码的任务复选框。
+   * @param {HTMLElement} previewNode 当前 Markdown 预览节点。
+   * @param {string} filePath 仓库相对路径。
+   */
+  function bindMarkdownTaskCheckboxes(previewNode, filePath) {
+    const taskCheckboxes = Array.from(
+      previewNode.querySelectorAll("li.task-list-item input[type='checkbox'][data-zview-task-index]")
+    );
+    for (const taskCheckbox of taskCheckboxes) {
+      taskCheckbox.disabled = viewState.isTogglingMarkdownTask || !viewState.markdownRevision;
+      taskCheckbox.title = "点击切换此任务状态";
+      const taskLabel = taskCheckbox.closest("li")?.textContent?.trim() || "任务项";
+      taskCheckbox.setAttribute("aria-label", `切换任务状态：${taskLabel}`);
+      if (taskCheckbox.dataset.zviewTaskBound === "true") {
+        continue;
+      }
+      taskCheckbox.dataset.zviewTaskBound = "true";
+      taskCheckbox.addEventListener("change", () => {
+        void toggleMarkdownTaskCheckbox(taskCheckbox, filePath, previewNode);
+      });
+    }
+  }
+
+  /**
+   * 保存 Markdown 预览中的任务状态，并在成功后重新加载文件内容。
+   * @param {HTMLInputElement} taskCheckbox 被点击的复选框。
+   * @param {string} filePath 仓库相对路径。
+   * @param {HTMLElement} previewNode 发起切换的 Markdown 预览节点。
+   */
+  async function toggleMarkdownTaskCheckbox(taskCheckbox, filePath, previewNode) {
+    if (viewState.isTogglingMarkdownTask || !viewState.markdownRevision) {
+      return;
+    }
+    const checkboxIndex = Number(taskCheckbox.dataset.zviewTaskIndex);
+    if (!Number.isInteger(checkboxIndex) || checkboxIndex < 0) {
+      taskCheckbox.checked = !taskCheckbox.checked;
+      elements.statusHint.textContent = "无法定位这个任务项，请重新打开 Markdown 预览。";
+      return;
+    }
+
+    const previousCheckedState = !taskCheckbox.checked;
+    const desiredCheckedState = taskCheckbox.checked;
+    viewState.isTogglingMarkdownTask = true;
+    renderPreviewControls(viewState.previewDescriptor);
+    bindMarkdownTaskCheckboxes(previewNode, filePath);
+    elements.statusHint.textContent = "正在保存任务状态…";
+    await guardAgainstServiceExit(async () => {
+      const toggleResponse = await requestJson("/api/file/toggle-task", {
+        method: "POST",
+        body: {
+          path: filePath,
+          revision: viewState.markdownRevision,
+          checkbox_index: checkboxIndex,
+          checked: desiredCheckedState,
+        },
+      });
+      if (toggleResponse.status !== 200) {
+        taskCheckbox.checked = previousCheckedState;
+        elements.statusHint.textContent = `任务状态未保存：${toggleResponse.body.error}`;
+        return;
+      }
+      await loadFileContent(filePath);
+      elements.statusHint.textContent = "任务状态已保存";
+    });
+
+    viewState.isTogglingMarkdownTask = false;
+    renderFileEditControls();
+    renderPreviewControls(viewState.previewDescriptor);
+    if (
+      viewState.view === FILES_VIEW &&
+      viewState.selectedPath === filePath &&
+      viewState.renderMode === PREVIEW_MODE
+    ) {
+      const currentPreviewNode = elements.viewerBody.querySelector(".preview.markdown");
+      if (currentPreviewNode) {
+        bindMarkdownTaskCheckboxes(currentPreviewNode, filePath);
+      }
+    }
   }
 
   /**
@@ -2392,7 +2487,11 @@
    * @param {"source"|"preview"} nextMode 目标模式。
    */
   async function setRenderMode(nextMode) {
-    if (!viewState.loadedFile || viewState.renderMode === nextMode) {
+    if (
+      !viewState.loadedFile ||
+      viewState.renderMode === nextMode ||
+      viewState.isTogglingMarkdownTask
+    ) {
       return;
     }
     viewState.renderMode = nextMode;

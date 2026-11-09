@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -35,6 +36,18 @@ class WorkspacePayload:
 #: 路径越界时的拒绝文案。文件读取、编辑保存、diff 与预览共用一份：分别各写一句时
 #: 任何一处漏更新都会让「越界」在不同接口上说法不一。
 OUTSIDE_REPOSITORY_REFUSAL_MESSAGE = "拒绝：该路径越出仓库范围，查看器不访问仓库外的文件。"
+
+
+def file_content_revision_digest(file_content: bytes) -> str:
+    """返回文件字节内容的 SHA-256 版本摘要。
+
+    Args:
+        file_content (bytes): 待计算摘要的原始文件字节。
+
+    Returns:
+        str: 小写十六进制 SHA-256 摘要。
+    """
+    return hashlib.sha256(file_content).hexdigest()
 
 
 def resolve_repository_path(repository_root: Path, requested_path: str) -> Path | None:

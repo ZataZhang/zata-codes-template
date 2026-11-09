@@ -1,20 +1,23 @@
-"""守护本机查看器服务端（读取、文本保存与暂存）的守卫测试（guard test）。
+"""守护本机查看器服务端（读取、文本保存、任务切换与暂存）的守卫测试（guard test）。
 
 本文件位于 ``tests/guards/shared/``，失败意味着源代码、配置或脚本违反了仓库约定。
 正确做法是修复触发它的源代码或配置，而不是修改本文件让测试通过；仅当约定
 本身需要变更时才改本文件，并同步更新相关约定文档。详见
 ``docs/ai-standards/testing.md`` 的 Guard Tests 小节。
 
-被测对象：``scripts/shared/view/server.py``、``file_edit.py``、``workspace.py``、
-``workspace_read.py``、``launch.py`` 与 ``instance.py``。核心
+被测对象：``scripts/shared/view/server.py``、``file_edit.py``、``rendering.py``、
+``workspace.py``、``workspace_read.py``、``launch.py`` 与 ``instance.py``。核心
 不变量：
 
-1. **写方法只有 ``POST`` 一个入口，路由白名单是文件保存、暂存与打开。** ``POST /api/file/save``
-   只保存已有的 UTF-8 文本文件，限制 256 KiB，并以 SHA-256 版本摘要拒绝覆盖编辑期间变化的文件；
-   ``POST /api/stage`` 只做 ``git add``；``POST /api/open`` 把仓库内文件交给系统默认应用打开
+1. **写方法只有 ``POST`` 一个入口，路由白名单是文件保存、任务切换、暂存与打开。**
+   ``POST /api/file/save`` 只保存已有的 UTF-8 文本文件，限制 256 KiB；
+   ``POST /api/file/toggle-task`` 只切换 Markdown 预览里已定位的任务复选框。两者都以 SHA-256
+   版本摘要拒绝覆盖期间变化的文件；``POST /api/stage`` 只做 ``git add``；``POST /api/open``
+   把仓库内文件交给系统默认应用打开
    （macOS ``open`` / Windows ``startfile`` / 其它 ``xdg-open``），对仓库零写入，但会在用户机器
    上拉起应用。``do_PUT`` / ``do_DELETE`` / ``do_PATCH`` 既不存在也一律 405，指向其它路径的
-   POST 同样 405。这条边界由用户拍板（暂存、打开与文本编辑），因此只能通过明确路由扩展；不能
+   POST 同样 405。这条边界由用户拍板（暂存、打开、文本编辑与任务切换），因此只能通过明确路由
+   扩展；不能
    因为「更明确地拒绝」而在其余写方法上补同名处理器。所有写路由都要求
    ``Content-Type: application/json``，跨站表单式 POST 因此不能执行副作用。首页 CSP 用每次请求
    生成的 nonce 信任查看器脚本，仓库原始 HTML/SVG 与 Markdown 预览里的脚本均禁用，防止仓库内容
@@ -659,11 +662,12 @@ def test_write_methods_outside_the_write_routes_are_refused(
         assert status_code == 405, f"{write_method} 未被拒绝：{status_code} {response_body}"
         assert "拒绝" in response_body["error"]
 
-    # 指错路由的 POST 同样不是写口：白名单只有那两条。
+    # 指错路由的 POST 同样不是写口：写操作只在明示的白名单路由上开放。
     for misplaced_route in (
         "/api/file?path=src/module.py",
         "/api/file/source?path=src/module.py",
         "/api/file/save/extra",
+        "/api/file/toggle-task/extra",
         "/api/stage/all",
         "/api/open/path",
     ):
@@ -836,6 +840,97 @@ def test_markdown_preview_is_rendered_on_demand(
     # 渲染过的反面证据：原文里的 Markdown 语法不该原样留在输出里。
     assert "| 列 | 值 |" not in rendered_html
     assert "```" not in rendered_html
+
+
+def test_markdown_task_checkboxes_toggle_without_editing_and_preserve_conflicts(
+    running_view_server: RunningViewServer,
+) -> None:
+    """预览复选框只改对应 Markdown 项，保留换行并拒绝陈旧预览。"""
+    markdown_file_path = running_view_server.repository_root / "docs" / "guide.md"
+    markdown_source = "\r\n".join(
+        [
+            "## Checklist",
+            "",
+            "- [ ] first task",
+            "- [X] second task",
+            "",
+            "```md",
+            "- [ ] fenced example",
+            "```",
+            "",
+        ]
+    )
+    markdown_file_path.write_bytes(markdown_source.encode("utf-8"))
+
+    preview_status, preview_body = running_view_server.request("/api/markdown?path=docs/guide.md")
+    assert preview_status == 200
+    assert preview_body["revision"]
+    assert preview_body["html"].count("data-zview-task-index=") == 2
+    assert 'data-zview-task-index="0"' in preview_body["html"]
+    assert 'data-zview-task-index="1"' in preview_body["html"]
+    assert "fenced example" in preview_body["html"]
+
+    first_toggle_status, first_toggle_body = running_view_server.request(
+        "/api/file/toggle-task",
+        method="POST",
+        json_body={
+            "path": "docs/guide.md",
+            "revision": preview_body["revision"],
+            "checkbox_index": 0,
+            "checked": True,
+        },
+    )
+    assert first_toggle_status == 200, first_toggle_body
+    assert first_toggle_body["saved"] is True
+    expected_source_after_first_toggle = markdown_source.replace(
+        "- [ ] first task", "- [x] first task", 1
+    )
+    assert markdown_file_path.read_bytes() == expected_source_after_first_toggle.encode("utf-8")
+
+    stale_toggle_status, stale_toggle_body = running_view_server.request(
+        "/api/file/toggle-task",
+        method="POST",
+        json_body={
+            "path": "docs/guide.md",
+            "revision": preview_body["revision"],
+            "checkbox_index": 1,
+            "checked": False,
+        },
+    )
+    assert stale_toggle_status == 409, stale_toggle_body
+    assert markdown_file_path.read_bytes() == expected_source_after_first_toggle.encode("utf-8")
+
+    refreshed_status, refreshed_body = running_view_server.request(
+        "/api/markdown?path=docs/guide.md"
+    )
+    assert refreshed_status == 200
+    second_toggle_status, second_toggle_body = running_view_server.request(
+        "/api/file/toggle-task",
+        method="POST",
+        json_body={
+            "path": "docs/guide.md",
+            "revision": refreshed_body["revision"],
+            "checkbox_index": 1,
+            "checked": False,
+        },
+    )
+    assert second_toggle_status == 200, second_toggle_body
+    expected_source_after_second_toggle = expected_source_after_first_toggle.replace(
+        "- [X] second task", "- [ ] second task", 1
+    )
+    assert markdown_file_path.read_bytes() == expected_source_after_second_toggle.encode("utf-8")
+
+    malformed_toggle_status, malformed_toggle_body = running_view_server.request(
+        "/api/file/toggle-task",
+        method="POST",
+        json_body={
+            "path": "docs/guide.md",
+            "revision": refreshed_body["revision"],
+            "checkbox_index": True,
+            "checked": False,
+        },
+    )
+    assert malformed_toggle_status == 400, malformed_toggle_body
 
 
 def test_markdown_preview_rewrites_relative_references(

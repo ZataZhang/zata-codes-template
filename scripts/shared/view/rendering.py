@@ -24,7 +24,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-#: Markdown 预览启用的扩展：围栏代码、表格、以及列表缩进不按 4 空格误判为代码块。
+#: Markdown 预览启用的扩展：围栏代码、表格、任务清单，以及列表缩进不按 4 空格误判为代码块。
 #: 刻意不启用 ``codehilite``——那会引入第二套 Pygments 产出，与 :func:`highlight_source_lines`
 #: 的行级高亮 CSS 抢同一批短类名。
 _MARKDOWN_EXTENSIONS = ("fenced_code", "tables", "sane_lists")
@@ -66,6 +66,15 @@ _ABSOLUTE_REFERENCE_PATTERN = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*:")
 _MERMAID_FENCE_PATTERN = re.compile(
     r'<pre><code class="language-mermaid">(?P<source>.*?)</code></pre>', re.DOTALL
 )
+_MARKDOWN_TASK_LINE_PATTERN = re.compile(
+    r"^(?:(?: {0,3}>[ \t]?))* {0,3}(?:[-+*]|\d+[.)])[ \t]+\[" r"(?P<state>[ xX])\](?=[ \t])"
+)
+_MARKDOWN_FENCE_OPEN_PATTERN = re.compile(r"^(?:(?: {0,3}>[ \t]?))* {0,3}(?P<fence>`{3,}|~{3,})")
+_MARKDOWN_TASK_ITEM_INPUT_PATTERN = re.compile(
+    r'(?P<item_prefix><li\b(?=[^>]*\bclass="[^"]*\btask-list-item\b)[^>]*>'
+    r"(?:\s*<p>)?\s*)(?P<input><input\b(?=[^>]*\btype=\"checkbox\")[^>]*>)",
+    re.DOTALL,
+)
 
 
 @dataclass(frozen=True)
@@ -81,6 +90,21 @@ class HighlightedSource:
     rendered_lines: list[str]
     language_label: str
     is_highlighted: bool
+
+
+@dataclass(frozen=True)
+class MarkdownTaskCheckboxPosition:
+    """Markdown 任务复选框在规范化源码中的位置。
+
+    Attributes:
+        line_index (int): 源码中的零基行号。
+        state_column (int): ``[ ]`` / ``[x]`` 中状态字符的零基列号。
+        is_checked (bool): 当前任务是否已勾选。
+    """
+
+    line_index: int
+    state_column: int
+    is_checked: bool
 
 
 @dataclass(frozen=True)
@@ -153,11 +177,121 @@ def render_markdown_document(source_text: str) -> str | None:
     """
     try:
         import markdown
+        import pymdownx.tasklist as tasklist
     except ImportError:
         return None
-    return _turn_mermaid_fences_into_diagram_blocks(
-        markdown.markdown(source_text, extensions=list(_MARKDOWN_EXTENSIONS))
+    rendered_html = markdown.markdown(
+        source_text,
+        extensions=[*_MARKDOWN_EXTENSIONS, tasklist.TasklistExtension()],
     )
+    rendered_html = _annotate_markdown_task_checkboxes(rendered_html, source_text)
+    return _turn_mermaid_fences_into_diagram_blocks(rendered_html)
+
+
+def find_markdown_task_checkbox_positions(
+    source_text: str,
+) -> list[MarkdownTaskCheckboxPosition]:
+    """查找 Markdown 任务列表复选框，并跳过围栏代码块。
+
+    Args:
+        source_text (str): 使用 LF 换行的 Markdown 源码。
+
+    Returns:
+        list[MarkdownTaskCheckboxPosition]: 按预览顺序排列的源码位置。
+    """
+    checkbox_positions: list[MarkdownTaskCheckboxPosition] = []
+    active_fence_character = ""
+    active_fence_length = 0
+    active_fence_close_pattern: re.Pattern[str] | None = None
+    for line_index, source_line in enumerate(source_text.splitlines()):
+        if active_fence_character:
+            if active_fence_close_pattern and active_fence_close_pattern.match(source_line):
+                active_fence_character = ""
+                active_fence_length = 0
+                active_fence_close_pattern = None
+            continue
+
+        fence_match = _MARKDOWN_FENCE_OPEN_PATTERN.match(source_line)
+        if fence_match:
+            fence_marker = fence_match.group("fence")
+            active_fence_character = fence_marker[0]
+            active_fence_length = len(fence_marker)
+            active_fence_close_pattern = re.compile(
+                rf"^(?:(?: {{0,3}}>[ \t]?))* {{0,3}}"
+                rf"{re.escape(active_fence_character)}{{{active_fence_length},}}[ \t]*$"
+            )
+            continue
+
+        checkbox_match = _MARKDOWN_TASK_LINE_PATTERN.match(source_line)
+        if checkbox_match:
+            checkbox_positions.append(
+                MarkdownTaskCheckboxPosition(
+                    line_index=line_index,
+                    state_column=checkbox_match.start("state"),
+                    is_checked=checkbox_match.group("state").lower() == "x",
+                )
+            )
+    return checkbox_positions
+
+
+def replace_markdown_task_checkbox(
+    source_text: str, checkbox_index: int, is_checked: bool
+) -> str | None:
+    """按预览序号修改一项 Markdown 任务，无法定位时返回 ``None``。
+
+    Args:
+        source_text (str): 使用 LF 换行的 Markdown 源码。
+        checkbox_index (int): 预览中的零基任务复选框序号。
+        is_checked (bool): 保存后的勾选状态。
+
+    Returns:
+        str | None: 更新后的源码；序号超出当前任务列表时为 ``None``。
+    """
+    checkbox_positions = find_markdown_task_checkbox_positions(source_text)
+    if checkbox_index < 0 or checkbox_index >= len(checkbox_positions):
+        return None
+    checkbox_position = checkbox_positions[checkbox_index]
+    source_lines = source_text.split("\n")
+    source_line = source_lines[checkbox_position.line_index]
+    replacement_state = "x" if is_checked else " "
+    source_lines[checkbox_position.line_index] = (
+        source_line[: checkbox_position.state_column]
+        + replacement_state
+        + source_line[checkbox_position.state_column + 1 :]
+    )
+    return "\n".join(source_lines)
+
+
+def _annotate_markdown_task_checkboxes(rendered_html: str, source_text: str) -> str:
+    """给可定位的任务复选框编号；源码和渲染结果不一致时全部保持禁用。"""
+    checkbox_positions = find_markdown_task_checkbox_positions(source_text)
+    checkbox_matches = list(_MARKDOWN_TASK_ITEM_INPUT_PATTERN.finditer(rendered_html))
+    if len(checkbox_positions) != len(checkbox_matches):
+        return rendered_html
+
+    rendered_checked_states = [
+        bool(re.search(r"\bchecked(?:\s|=|/|>)", checkbox_match.group("input")))
+        for checkbox_match in checkbox_matches
+    ]
+    if rendered_checked_states != [position.is_checked for position in checkbox_positions]:
+        return rendered_html
+
+    checkbox_index = 0
+
+    def annotate_checkbox(checkbox_match: re.Match[str]) -> str:
+        nonlocal checkbox_index
+        current_index = checkbox_index
+        checkbox_index += 1
+        item_prefix = checkbox_match.group("item_prefix")
+        input_markup = checkbox_match.group("input")
+        attribute_insertion = f' data-zview-task-index="{current_index}"'
+        if input_markup.endswith("/>"):
+            input_markup = f"{input_markup[:-2]}{attribute_insertion}/>"
+        else:
+            input_markup = f"{input_markup[:-1]}{attribute_insertion}>"
+        return item_prefix + input_markup
+
+    return _MARKDOWN_TASK_ITEM_INPUT_PATTERN.sub(annotate_checkbox, rendered_html)
 
 
 def _turn_mermaid_fences_into_diagram_blocks(rendered_html: str) -> str:

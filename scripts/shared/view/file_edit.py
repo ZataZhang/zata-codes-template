@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import os
 import re
 import stat
@@ -14,11 +13,13 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+import rendering
 import workspace
 from workspace_read import (
     OUTSIDE_REPOSITORY_REFUSAL_MESSAGE,
     WorkspacePayload,
     build_refusal_payload,
+    file_content_revision_digest,
     resolve_repository_path,
 )
 
@@ -41,6 +42,23 @@ class FileEditRequest:
     source_text: str
     expected_revision: str
     line_ending: str
+
+
+@dataclass(frozen=True)
+class MarkdownTaskToggleRequest:
+    """一个带预览版本校验的 Markdown 任务状态切换请求。
+
+    Attributes:
+        path (str): 仓库相对路径。
+        expected_revision (str): 生成预览时返回的 SHA-256 摘要。
+        checkbox_index (int): Markdown 预览中的零基任务序号。
+        is_checked (bool): 保存后的任务勾选状态。
+    """
+
+    path: str
+    expected_revision: str
+    checkbox_index: int
+    is_checked: bool
 
 
 @dataclass(frozen=True)
@@ -186,6 +204,66 @@ def save_file_content(
     )
 
 
+def toggle_markdown_task_checkbox(
+    repository_root: Path, toggle_request: MarkdownTaskToggleRequest
+) -> WorkspacePayload:
+    """按 Markdown 预览序号切换任务项，并校验预览期间文件没有变化。
+
+    Args:
+        repository_root (Path): 被查看目录的根绝对路径。
+        toggle_request (MarkdownTaskToggleRequest): 路径、版本、任务序号和目标状态。
+
+    Returns:
+        WorkspacePayload: 保存结果；越界、非 Markdown、不可编辑或版本冲突时为拒绝应答。
+    """
+    resolved_path = resolve_repository_path(repository_root, toggle_request.path)
+    if resolved_path is None:
+        return build_refusal_payload(403, OUTSIDE_REPOSITORY_REFUSAL_MESSAGE)
+    normalized_relative_path = Path(toggle_request.path).as_posix()
+    if workspace.resolve_preview_descriptor(normalized_relative_path) != {"mode": "markdown"}:
+        return build_refusal_payload(400, "拒绝：只能切换 Markdown 文件中的任务复选框。")
+    if toggle_request.checkbox_index < 0:
+        return build_refusal_payload(400, "拒绝：任务复选框序号无效。")
+    if not _FILE_REVISION_PATTERN.fullmatch(toggle_request.expected_revision):
+        return build_refusal_payload(400, "拒绝：文件版本标识无效，请重新读取预览后再试。")
+
+    current_snapshot = _read_editable_file_snapshot(resolved_path, normalized_relative_path)
+    if isinstance(current_snapshot, WorkspacePayload):
+        return current_snapshot
+    if _file_revision(current_snapshot.raw_file_bytes) != toggle_request.expected_revision:
+        return _markdown_task_conflict_payload()
+
+    replacement_source = rendering.replace_markdown_task_checkbox(
+        current_snapshot.source_text,
+        toggle_request.checkbox_index,
+        toggle_request.is_checked,
+    )
+    if replacement_source is None:
+        return build_refusal_payload(400, "拒绝：预览中的任务复选框已无法定位，请重新读取预览。")
+    if replacement_source == current_snapshot.source_text:
+        return WorkspacePayload(
+            status_code=200,
+            payload={
+                "path": normalized_relative_path,
+                "revision": toggle_request.expected_revision,
+                "saved": False,
+            },
+        )
+
+    save_payload = save_file_content(
+        repository_root,
+        FileEditRequest(
+            path=toggle_request.path,
+            source_text=replacement_source,
+            expected_revision=toggle_request.expected_revision,
+            line_ending=current_snapshot.line_ending,
+        ),
+    )
+    if save_payload.status_code == 409:
+        return _markdown_task_conflict_payload()
+    return save_payload
+
+
 def _read_editable_file_snapshot(
     file_path: Path, normalized_relative_path: str
 ) -> EditableFileSnapshot | WorkspacePayload:
@@ -241,7 +319,7 @@ def _read_editable_file_snapshot(
 
 def _file_revision(raw_file_bytes: bytes) -> str:
     """返回原始文件字节的 SHA-256 摘要，用于检测并发编辑。"""
-    return hashlib.sha256(raw_file_bytes).hexdigest()
+    return file_content_revision_digest(raw_file_bytes)
 
 
 def _file_edit_conflict_payload() -> WorkspacePayload:
@@ -249,3 +327,8 @@ def _file_edit_conflict_payload() -> WorkspacePayload:
     return build_refusal_payload(
         409, "文件在编辑期间已更改或被删除。你的草稿仍保留，请取消编辑后重新读取。"
     )
+
+
+def _markdown_task_conflict_payload() -> WorkspacePayload:
+    """构造任务状态保存期间文件发生变化时的提示。"""
+    return build_refusal_payload(409, "文件在打开预览后已更改。任务状态未保存，请重新读取后再试。")

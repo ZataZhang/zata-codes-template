@@ -4,11 +4,11 @@
 查询（``ls-files`` / ``diff`` / ``rev-parse`` / ``cat-file``）；文件保存由独立的
 :mod:`file_edit` 处理。被忽略的未跟踪文件默认不列出；文件树可显式请求它们，改动与暂存口径不变。
 
-文件写入只允许两种显式操作：:mod:`file_edit` 原子保存仓库内已有的 UTF-8 文本文件，并用
-SHA-256 版本摘要拒绝覆盖编辑期间已变化的文件；:func:`stage_changes` 与
-:func:`stage_all_changes`（``git add``）只把工作区改动记进索引，不改内容、不提交、不丢弃、
-不取消暂存。文件编辑只开放给 256 KiB 以内、UTF-8 有效且换行格式统一的普通文件；不创建、删除
-或重命名文件。写入前再次解析路径并断言仍在仓库内。
+文件内容写入只允许显式保存已有的 UTF-8 文本文件，或从 Markdown 预览切换一个任务复选框；两者
+都由 :mod:`file_edit` 原子保存，并用 SHA-256 版本摘要拒绝覆盖期间已变化的文件。文件编辑只开放给
+256 KiB 以内、UTF-8 有效且换行格式统一的普通文件；不创建、删除或重命名文件。
+:func:`stage_changes` 与 :func:`stage_all_changes`（``git add``）只把工作区改动记进索引，不改内容、
+不提交、不丢弃、不取消暂存。写入前再次解析路径并断言仍在仓库内。
 
 文件编辑是用户明确提出的新能力；它仍须遵守本机查看器的 HTTP 写入边界：所有写操作都由唯一的
 ``POST`` 入口接收 JSON，仓库原始 HTML/SVG 的预览禁用脚本，查看器首页用 CSP nonce 限定可信脚本。
@@ -71,7 +71,8 @@ diff 先在不带 pathspec 的完整 diff 上查出旧路径，再把新旧两�
 :func:`resolve_preview_descriptor` 按后缀判定），``kind: "image"`` 加 ``url`` 则直接告诉界面
 「这个文件是图片，去这个地址取」。后缀判定只写在服务端这一处，界面不复制任何后缀表。
 ``/api/file/source`` 按需返回可编辑文件的规范化源码、原换行格式和版本摘要；
-``POST /api/file/save`` 提交新源码与读取时的摘要，保存成功后原子替换文件。
+``POST /api/file/save`` 提交新源码，``POST /api/file/toggle-task`` 切换预览中的任务项；两者都
+携带读取时的摘要并原子替换文件。
 
 所有对外路径参数先经 :func:`resolve_repository_path` 解析成绝对路径并断言仍在仓库根
 之下，越界一律拒绝，且拒绝信息不回声任何绝对路径。改动分区取值是封闭枚举，任何取值都
@@ -102,6 +103,7 @@ from workspace_read import (
     WorkspaceCommandError,
     WorkspacePayload,
     build_refusal_payload,
+    file_content_revision_digest,
     resolve_repository_path,
 )
 
@@ -553,8 +555,18 @@ def build_markdown_payload(repository_root: Path, requested_path: str) -> Worksp
             f"拒绝：文件超过 {MAX_FILE_BYTES_LABEL} 的渲染上限，请用本地编辑器打开。",
         )
 
+    try:
+        markdown_file_bytes = resolved_path.read_bytes()
+    except OSError:
+        return build_refusal_payload(500, "读取 Markdown 文件失败，请检查文件是否仍存在且可读。")
+    if len(markdown_file_bytes) > MAX_FILE_BYTES:
+        return build_refusal_payload(
+            400,
+            f"拒绝：文件超过 {MAX_FILE_BYTES_LABEL} 的渲染上限，请用本地编辑器打开。",
+        )
+
     rendered_html = rendering.render_markdown_document(
-        resolved_path.read_bytes().decode("utf-8", errors="replace")
+        markdown_file_bytes.decode("utf-8", errors="replace")
     )
     if rendered_html is None:
         return build_refusal_payload(
@@ -566,6 +578,7 @@ def build_markdown_payload(repository_root: Path, requested_path: str) -> Worksp
         status_code=200,
         payload={
             "format": "markdown",
+            "revision": file_content_revision_digest(markdown_file_bytes),
             "html": rendering.rebase_relative_references(
                 rendered_html,
                 posixpath.dirname(normalized_relative_path),

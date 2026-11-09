@@ -153,7 +153,7 @@ view *args:
 
 ## Local File Viewer
 
-`just view`（仅本模板仓库提供）与安装后的全局 `zview` 起一个只绑 `127.0.0.1` 的查看器（文件树 + 文件内容与文本编辑 + 改动视图 + 按需加载的本地/远程 Git Log 图与提交 diff + 暂存 + 在系统中打开），
+`just view`（仅本模板仓库提供）与安装后的全局 `zview` 起一个只绑 `127.0.0.1` 的查看器（文件树 + 文件内容与文本编辑 + Markdown 任务清单直点切换 + 改动视图 + 按需加载的本地/远程 Git Log 图与提交 diff + 暂存 + 在系统中打开），
 逻辑在 `scripts/shared/view/`。这里只记与工具链
 约定相关的部分。
 
@@ -161,8 +161,9 @@ view *args:
 目标目录作为工作区根：Git 子目录中的 Git 命令按该子树过滤；非 Git 目录走文件系统扫描，
 不在目标目录写入登记或日志。
 
-- **仓库写操作只保存已有文本文件或暂存。** `POST /api/file/save` 接受不超过 256 KiB 的 UTF-8
-  文本、保留原换行格式，并用读取时的 SHA-256 摘要拒绝覆盖并发修改；不创建、删除或重命名文件。
+- **仓库写操作只保存已有文本文件、切换 Markdown 任务状态或暂存。** `POST /api/file/save` 接受
+  不超过 256 KiB 的 UTF-8 文本、保留原换行格式；`POST /api/file/toggle-task` 只切换预览中定位到的
+  Markdown 任务复选框。两者都用 SHA-256 摘要拒绝覆盖并发修改，不创建、删除或重命名文件。
   `POST /api/stage` 只做 `git add`；`POST /api/open` 把仓库内路径交给系统默认应用，不写仓库。
   所有写路由都要求 `Content-Type: application/json`，跨站表单式 POST 因此不能执行副作用。服务端只
   定义一个 `do_POST` 写方法处理器，路由白名单外的写请求一律拒绝；`/api/open` 只把 `resolve()` 后
