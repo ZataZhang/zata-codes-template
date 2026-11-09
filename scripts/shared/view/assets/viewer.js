@@ -1,9 +1,8 @@
 /**
- * 只读文件与改动查看器的前端交互。
+ * 本机文件与改动查看器的前端交互。
  *
- * 数据全部来自本机只读接口（/api/info、/api/tree、/api/file、/api/changes、/api/log、
- * /api/diff、/api/markdown），页面不做任何写入，也不做心跳轮询——一旦开始轮询，服务端的空闲自动
- * 回收就会静默失效。
+ * 数据来自本机查看器接口。文件视图支持编辑已有 UTF-8 文本并显式保存；改动视图、Git Log 与预览
+ * 保持只读。页面不做心跳轮询——一旦开始轮询，服务端的空闲自动回收就会静默失效。
  *
  * 改动视图在界面上分两段展示，与 VSCode 对齐：`Staged Changes` 与 `Changes`（后者由服务端
  * 的「未暂存」与「未跟踪」两段合并而来）。**同一个文件可以同时出现在两段里**（暂存了几个 hunk
@@ -14,10 +13,9 @@
  * 等提交的部分），`Changes` 默认展开（那才是手头正在改的），见 CHANGE_GROUPS 的
  * defaultExpanded。
  *
- * 页面有两个写动作：`Changes` 里的加号（标题旁那一个、以及每个文件旁那一个）会把改动
- * 加进索引（`POST /api/stage`）；内容区头部的「在系统中打开」把当前文件交给系统默认应用
- * （`POST /api/open`，不写仓库）。除此之外页面不写入任何东西——没有提交、没有撤销暂存、
- * 没有丢弃改动，服务端也只有这两条写路由。
+ * 文件视图的编辑器通过 `POST /api/file/save` 显式保存当前文件；`Changes` 里的加号通过
+ * `POST /api/stage` 暂存；内容区头部的「在系统中打开」通过 `POST /api/open` 调起系统应用。
+ * 编辑只允许保存已有文本文件，改动与历史视图不提供写操作。
  *
  * 文件与改动视图各自记一份「上一次看的那一个」（成功读到内容才记），切视图时还原，而不是每次
  * 都回到空态。Git Log 是独立的按需视图，分页状态在切换期间保留。
@@ -41,6 +39,9 @@
  */
 (() => {
   "use strict";
+
+  /** CSP nonce 由服务端按页面请求生成，动态加载的受信脚本沿用它。 */
+  const VIEWER_SCRIPT_NONCE = document.currentScript?.nonce || "";
 
   const FILES_VIEW = "files";
   const DIFF_VIEW = "diff";
@@ -107,6 +108,9 @@
     viewerPath: document.getElementById("viewer-path"),
     copyPathButton: document.getElementById("copy-path"),
     openInSystemButton: document.getElementById("open-in-system"),
+    editFileButton: document.getElementById("edit-file"),
+    saveFileButton: document.getElementById("save-file"),
+    cancelFileEditButton: document.getElementById("cancel-file-edit"),
     previewSwitch: document.getElementById("preview-switch"),
     tabSource: document.getElementById("tab-source"),
     tabPreview: document.getElementById("tab-preview"),
@@ -157,6 +161,17 @@
     isRefreshing: false,
     /** 一次暂存请求是否正在进行；同样防连点——连点会发出两遍 `git add`。 */
     isStaging: false,
+    /** 当前文件是否正在编辑、读取可编辑源码或保存。 */
+    isEditingFile: false,
+    isLoadingEditableSource: false,
+    isSavingFile: false,
+    /** 每次切换/重置编辑上下文都递增，用来丢弃过期的源码响应。 */
+    fileEditLoadToken: 0,
+    /** 编辑器原文、草稿、版本摘要和原始换行格式。 */
+    editSourceText: "",
+    editDraftText: "",
+    editRevision: "",
+    editLineEnding: "lf",
     /** 非空时，改动视图展示只读的历史提交，而不是当前工作区。 */
     historicalCommitContext: null,
     /** 上次刷新的时刻（`performance.now()`，单调、不受改系统时间影响）。 */
@@ -184,9 +199,8 @@
   /**
    * 请求一个接口。
    *
-   * GET 是只读读取；`POST` 只用于两条写路由——暂存（`/api/stage`）与在系统中打开
-   * （`/api/open`），且必须带 JSON 请求体：服务端用 `Content-Type: application/json`
-   * 把跨站表单式 POST 挡在预检外。
+   * GET 读取本机内容；`POST` 用于编辑保存、暂存或在系统中打开，且必须带 JSON 请求体：
+   * 服务端用 `Content-Type: application/json` 把跨站表单式 POST 挡在预检外。
    * @param {string} requestUrl 接口地址。
    * @param {{method?: string, body?: object}} [requestOptions] 方法与 JSON 请求体；缺省是 GET。
    * @returns {Promise<{status: number, body: object}>} 应答状态码与 JSON 正文。
@@ -221,7 +235,7 @@
     document.querySelectorAll("[data-git-shortcut]").forEach((shortcutHint) => {
       shortcutHint.hidden = !viewState.gitAvailable;
     });
-    window.document.title = `${workspaceInfo.repo_name} · 只读查看器`;
+    window.document.title = `${workspaceInfo.repo_name} · 本机文件查看器`;
     renderViewTabs();
   }
 
@@ -247,19 +261,30 @@
     elements.copyPathButton.hidden = true;
     elements.copyPathButton.dataset.copied = "false";
     elements.openInSystemButton.hidden = true;
+    elements.editFileButton.hidden = true;
+    elements.saveFileButton.hidden = true;
+    elements.cancelFileEditButton.hidden = true;
     renderPreviewControls(null);
     elements.viewerMeta.textContent = "";
-    elements.viewerBody.replaceChildren(
-      buildNotice({
-        isFailure: true,
-        title: "服务已退出",
-        paragraphs: [
-          "查看器空闲到时限后会自动退出（默认 30 分钟无任何请求），也可以用 zview --stop 或 just view --stop 立刻回收。",
-          "在同一目标目录重新执行 zview，或在仓库里执行 just view，会新起一个实例并打开新标签页；本页不再自动恢复。",
-        ],
-        hint: failureMessage ? `本次请求失败原因：${failureMessage}` : "",
-      })
-    );
+    const disconnectedNotice = buildNotice({
+      isFailure: true,
+      title: "服务已退出",
+      paragraphs: [
+        "查看器空闲到时限后会自动退出（默认 30 分钟无任何请求），也可以用 zview --stop 或 just view --stop 立刻回收。",
+        "在同一目标目录重新执行 zview，或在仓库里执行 just view，会新起一个实例并打开新标签页；本页不再自动恢复。",
+      ],
+      hint: failureMessage ? `本次请求失败原因：${failureMessage}` : "",
+    });
+    const disconnectedContent = [disconnectedNotice];
+    if (hasUnsavedFileEdits()) {
+      const retainedDraft = document.createElement("textarea");
+      retainedDraft.className = "file-editor-retained";
+      retainedDraft.setAttribute("aria-label", "服务退出前未保存的草稿");
+      retainedDraft.readOnly = true;
+      retainedDraft.value = viewState.editDraftText;
+      disconnectedContent.push(retainedDraft);
+    }
+    elements.viewerBody.replaceChildren(...disconnectedContent);
   }
 
   /**
@@ -405,6 +430,9 @@
       (viewState.view === HISTORY_VIEW &&
         (historyViewer?.isLoading() || historyViewModuleLoading))
     ) {
+      return;
+    }
+    if (!confirmDiscardFileEdits({ restoreContent: false })) {
       return;
     }
     viewState.isRefreshing = true;
@@ -753,6 +781,7 @@
 
     historyViewModuleLoading = new Promise((resolve, reject) => {
       const historyScript = document.createElement("script");
+      historyScript.nonce = VIEWER_SCRIPT_NONCE;
       historyScript.src = "/assets/history-view.js";
       historyScript.onload = resolve;
       historyScript.onerror = () => {
@@ -903,6 +932,226 @@
     elements.openInSystemButton.hidden = !repositoryPath || isHistoricalCommitDiff;
     elements.openFileButton.hidden =
       !repositoryPath || viewState.view !== DIFF_VIEW || isHistoricalCommitDiff;
+    renderFileEditControls();
+  }
+
+  /**
+   * 判断当前编辑器是否有未保存的草稿。
+   * @returns {boolean} 草稿是否与最初读取的源码不同。
+   */
+  function hasUnsavedFileEdits() {
+    return viewState.isEditingFile && viewState.editDraftText !== viewState.editSourceText;
+  }
+
+  /**
+   * 在离开当前文件前保护草稿；确认后退出编辑态并恢复文件预览。
+   * @param {{restoreContent?: boolean}} [options] 是否在当前视图中立即恢复文件内容。
+   * @returns {boolean} 是否可以继续当前导航或刷新。
+   */
+  function confirmDiscardFileEdits({ restoreContent = true } = {}) {
+    if (viewState.isSavingFile) {
+      elements.statusHint.textContent = "文件正在保存，完成后再切换。";
+      return false;
+    }
+    if (hasUnsavedFileEdits() && !window.confirm("文件有未保存的修改，要放弃草稿吗？")) {
+      return false;
+    }
+    if (viewState.isEditingFile || viewState.isLoadingEditableSource) {
+      resetFileEditState();
+      if (restoreContent && viewState.loadedFile && viewState.view === FILES_VIEW) {
+        void renderLoadedFile();
+      }
+    }
+    return true;
+  }
+
+  /**
+   * 清除编辑状态并让尚未完成的源码读取响应失效。
+   */
+  function resetFileEditState() {
+    viewState.fileEditLoadToken += 1;
+    viewState.isEditingFile = false;
+    viewState.isLoadingEditableSource = false;
+    viewState.isSavingFile = false;
+    viewState.editSourceText = "";
+    viewState.editDraftText = "";
+    viewState.editRevision = "";
+    viewState.editLineEnding = "lf";
+    renderFileEditControls();
+  }
+
+  /**
+   * 按当前文件和编辑状态同步编辑、保存、取消按钮。
+   */
+  function renderFileEditControls() {
+    const hasTextFile = viewState.view === FILES_VIEW && viewState.loadedFile?.kind === "text";
+    const isBusyLoading = viewState.isLoadingEditableSource;
+    elements.editFileButton.hidden =
+      !hasTextFile || viewState.isEditingFile || isBusyLoading || viewState.isDisconnected;
+    elements.saveFileButton.hidden = !viewState.isEditingFile || viewState.isDisconnected;
+    elements.saveFileButton.disabled =
+      viewState.isSavingFile || viewState.editDraftText === viewState.editSourceText;
+    elements.cancelFileEditButton.hidden =
+      (!viewState.isEditingFile && !isBusyLoading) || viewState.isDisconnected;
+    elements.cancelFileEditButton.disabled = viewState.isSavingFile;
+    if (viewState.isEditingFile && viewState.loadedFile) {
+      elements.viewerMeta.textContent = `${viewState.loadedFile.language} · ${
+        hasUnsavedFileEdits() ? "有未保存修改" : "编辑中"
+      }`;
+    }
+  }
+
+  /**
+   * 按需读取文件源码与版本摘要，然后进入编辑态。
+   */
+  async function beginFileEdit() {
+    const fileToEdit = viewState.loadedFile;
+    if (
+      !fileToEdit ||
+      fileToEdit.kind !== "text" ||
+      viewState.view !== FILES_VIEW ||
+      viewState.isLoadingEditableSource ||
+      viewState.isSavingFile
+    ) {
+      return;
+    }
+    const filePath = fileToEdit.path;
+    const loadToken = viewState.fileEditLoadToken + 1;
+    viewState.fileEditLoadToken = loadToken;
+    viewState.isLoadingEditableSource = true;
+    renderFileEditControls();
+    renderPreviewControls(viewState.previewDescriptor);
+    elements.statusHint.textContent = "正在读取可编辑文本…";
+
+    const didLoad = await guardAgainstServiceExit(async () => {
+      const sourceResponse = await requestJson(
+        `/api/file/source?path=${encodeURIComponent(filePath)}`
+      );
+      if (
+        loadToken !== viewState.fileEditLoadToken ||
+        viewState.selectedPath !== filePath ||
+        viewState.view !== FILES_VIEW
+      ) {
+        return;
+      }
+      if (sourceResponse.status !== 200) {
+        elements.statusHint.textContent = `无法编辑：${sourceResponse.body.error}`;
+        return;
+      }
+      viewState.isEditingFile = true;
+      viewState.editSourceText = sourceResponse.body.source;
+      viewState.editDraftText = sourceResponse.body.source;
+      viewState.editRevision = sourceResponse.body.revision;
+      viewState.editLineEnding = sourceResponse.body.line_ending;
+      renderFileEditor();
+      renderFileEditControls();
+      elements.statusHint.textContent = "编辑文本 · ⌘/Ctrl+S 保存 · 取消可放弃草稿";
+    });
+    if (loadToken === viewState.fileEditLoadToken) {
+      viewState.isLoadingEditableSource = false;
+      renderFileEditControls();
+      if (!didLoad || !viewState.isEditingFile) {
+        renderPreviewControls(viewState.previewDescriptor);
+      }
+    }
+  }
+
+  /**
+   * 创建文本编辑器并连接草稿更新事件。
+   */
+  function renderFileEditor() {
+    const editorShell = document.createElement("section");
+    editorShell.className = "file-editor";
+    const editorHint = document.createElement("div");
+    editorHint.className = "file-editor-hint";
+    editorHint.textContent = "正在编辑仓库中的这个文件。保存会直接写回工作区。";
+    const editorTextarea = document.createElement("textarea");
+    editorTextarea.className = "file-editor-textarea";
+    editorTextarea.setAttribute("aria-label", `编辑 ${viewState.selectedPath}`);
+    editorTextarea.autocomplete = "off";
+    editorTextarea.autocapitalize = "off";
+    editorTextarea.spellcheck = false;
+    editorTextarea.wrap = "off";
+    editorTextarea.value = viewState.editDraftText;
+    editorTextarea.addEventListener("input", () => {
+      viewState.editDraftText = editorTextarea.value;
+      renderFileEditControls();
+    });
+    editorTextarea.addEventListener("keydown", (keyboardEvent) => {
+      if (keyboardEvent.key === "Tab") {
+        keyboardEvent.preventDefault();
+        const selectionStart = editorTextarea.selectionStart;
+        const selectionEnd = editorTextarea.selectionEnd;
+        editorTextarea.setRangeText("  ", selectionStart, selectionEnd, "end");
+        editorTextarea.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+    });
+    editorShell.append(editorHint, editorTextarea);
+    elements.viewerBody.replaceChildren(editorShell);
+    editorTextarea.focus();
+  }
+
+  /**
+   * 保存当前编辑器内容；版本冲突时保留草稿供用户复制或取消。
+   */
+  async function saveFileEdit() {
+    const editorTextarea = elements.viewerBody.querySelector(".file-editor-textarea");
+    const filePath = viewState.loadedFile?.path;
+    if (!viewState.isEditingFile || !editorTextarea || !filePath || viewState.isSavingFile) {
+      return;
+    }
+    viewState.editDraftText = editorTextarea.value;
+    if (!hasUnsavedFileEdits()) {
+      renderFileEditControls();
+      return;
+    }
+    viewState.isSavingFile = true;
+    renderFileEditControls();
+    elements.statusHint.textContent = "正在保存文件…";
+    const didSaveRequest = await guardAgainstServiceExit(async () => {
+      const saveResponse = await requestJson("/api/file/save", {
+        method: "POST",
+        body: {
+          path: filePath,
+          source: viewState.editDraftText,
+          revision: viewState.editRevision,
+          line_ending: viewState.editLineEnding,
+        },
+      });
+      if (saveResponse.status !== 200) {
+        elements.statusHint.textContent = `保存失败：${saveResponse.body.error}`;
+        return;
+      }
+      viewState.editSourceText = viewState.editDraftText;
+      viewState.editRevision = saveResponse.body.revision;
+      viewState.isSavingFile = false;
+      renderFileEditControls();
+      elements.statusHint.textContent = "文件已保存";
+    });
+    if (!didSaveRequest) {
+      viewState.isSavingFile = false;
+      renderFileEditControls();
+      return;
+    }
+    if (viewState.isEditingFile) {
+      viewState.isSavingFile = false;
+      renderFileEditControls();
+    }
+  }
+
+  /**
+   * 取消文件编辑并恢复源码或 Markdown 预览。
+   */
+  function cancelFileEdit() {
+    if (!confirmDiscardFileEdits({ restoreContent: false })) {
+      return;
+    }
+    const filePath = viewState.selectedPath;
+    if (filePath && viewState.view === FILES_VIEW) {
+      void guardAgainstServiceExit(async () => {
+        await loadFileContent(filePath);
+      });
+    }
   }
 
   /**
@@ -1394,7 +1643,7 @@
   /**
    * 发起一次暂存请求，并把界面拉到暂存之后的状态。
    *
-   * 这是页面唯一的写操作（`POST /api/stage`，服务端只做 `git add`）。暂存之后那个文件就不在
+   * 这是改动视图里的写操作（`POST /api/stage`，服务端只做 `git add`）。暂存之后那个文件就不在
    * 「Changes」里了：把选中项的分区清空，交给重新取回的列表按分区顺序解析——它自然落到
    * 「Staged Changes」那一侧，而不是留下一句「该文件在此区段下没有改动」，看着像把手上的东西
    * 弄丢了。
@@ -1646,7 +1895,7 @@
       const ignoredBadge = document.createElement("span");
       ignoredBadge.className = "ignored-badge";
       ignoredBadge.textContent = "忽略";
-      ignoredBadge.title = "被 Git 忽略；只在文件树中只读查看，不进入改动或暂存";
+      ignoredBadge.title = "被 Git 忽略；可在文件视图编辑，但不进入改动列表或暂存";
       rowButton.append(ignoredBadge);
     }
 
@@ -1665,6 +1914,9 @@
    * @param {string} sectionName 分区取值；文件视图不用。
    */
   async function selectPath(repositoryPath, sectionName = "") {
+    if (!confirmDiscardFileEdits({ restoreContent: false })) {
+      return;
+    }
     viewState.selectedPath = repositoryPath;
     viewState.selectedSection =
       viewState.view === DIFF_VIEW
@@ -1699,7 +1951,7 @@
     if (fileBody.kind === "image") {
       // 图片没有逐行正文，也就没有「源码 / 预览」可切：内容区就是这张图，头部不摆预览控件。
       elements.viewerMeta.textContent = fileBody.size_label;
-      elements.statusHint.textContent = "只读视图 · 图片预览";
+      elements.statusHint.textContent = "文件视图 · 图片预览";
       renderImagePreview(fileBody);
       return;
     }
@@ -1993,6 +2245,7 @@
     viewState.previewDescriptor = null;
     viewState.renderMode = SOURCE_MODE;
     viewState.markdownHtml = null;
+    resetFileEditState();
     renderPreviewControls(null);
   }
 
@@ -2006,8 +2259,9 @@
    */
   function renderPreviewControls(previewDescriptor) {
     const previewMode = previewDescriptor ? previewDescriptor.mode : "";
-    elements.previewSwitch.hidden = previewMode !== "markdown";
-    elements.openExternal.hidden = previewMode !== "external";
+    const isEditing = viewState.isEditingFile || viewState.isLoadingEditableSource;
+    elements.previewSwitch.hidden = isEditing || previewMode !== "markdown";
+    elements.openExternal.hidden = isEditing || previewMode !== "external";
     if (previewMode === "external") {
       elements.openExternal.href = previewDescriptor.url;
     } else {
@@ -2024,13 +2278,14 @@
   async function renderLoadedFile() {
     const fileBody = viewState.loadedFile;
     elements.viewerMeta.textContent = `${fileBody.language} · ${fileBody.line_count} 行 · ${fileBody.size_label}`;
+    renderFileEditControls();
     if (viewState.renderMode === PREVIEW_MODE) {
       await renderMarkdownPreview();
       return;
     }
     elements.statusHint.textContent = fileBody.highlighted
-      ? "只读视图 · 服务端语法高亮"
-      : "只读视图 · 未安装语法高亮依赖，已降级为纯文本";
+      ? "文件视图 · 服务端语法高亮"
+      : "文件视图 · 未安装语法高亮依赖，已降级为纯文本";
     renderCodeLines(fileBody.lines);
   }
 
@@ -2049,6 +2304,7 @@
     if (mermaidLoadPromise === null) {
       mermaidLoadPromise = new Promise((resolve, reject) => {
         const mermaidScriptNode = document.createElement("script");
+        mermaidScriptNode.nonce = VIEWER_SCRIPT_NONCE;
         mermaidScriptNode.src = "/assets/mermaid.min.js";
         mermaidScriptNode.addEventListener("load", () => {
           if (window.mermaid) {
@@ -2089,7 +2345,7 @@
     try {
       mermaidLibrary = await loadMermaidLibrary();
     } catch (loadError) {
-      elements.statusHint.textContent = `只读视图 · ${loadError.message}，Mermaid 图按源码显示`;
+      elements.statusHint.textContent = `文件视图 · ${loadError.message}，Mermaid 图按源码显示`;
       return;
     }
     mermaidLibrary.initialize({
@@ -2100,7 +2356,7 @@
     try {
       await mermaidLibrary.run({ nodes: diagramNodes });
     } catch (renderError) {
-      elements.statusHint.textContent = `只读视图 · 有 Mermaid 图没画出来：${renderError.message}`;
+      elements.statusHint.textContent = `文件视图 · 有 Mermaid 图没画出来：${renderError.message}`;
     }
   }
 
@@ -2117,18 +2373,17 @@
       );
       if (markdownResponse.status !== 200) {
         await setRenderMode(SOURCE_MODE);
-        elements.statusHint.textContent = `只读视图 · 无法生成预览：${markdownResponse.body.error}`;
+        elements.statusHint.textContent = `文件视图 · 无法生成预览：${markdownResponse.body.error}`;
         return;
       }
       viewState.markdownHtml = markdownResponse.body.html;
     }
     const previewNode = document.createElement("div");
     previewNode.className = "preview markdown";
-    // 服务端渲染出的 HTML 片段。Markdown 正文里的 raw HTML 会在这里执行——预览是用户
-    // 主动点开的一次，且查看器是绑在回环上的本机工具。
+    // 服务端渲染出的 HTML 片段；CSP 禁止预览内容里的脚本执行。
     previewNode.innerHTML = viewState.markdownHtml;
     elements.viewerBody.replaceChildren(previewNode);
-    elements.statusHint.textContent = "只读视图 · Markdown 预览（服务端渲染）";
+    elements.statusHint.textContent = "文件视图 · Markdown 预览（服务端渲染）";
     await renderMermaidDiagrams(previewNode);
   }
 
@@ -2209,6 +2464,9 @@
     ) {
       return;
     }
+    if (!confirmDiscardFileEdits({ restoreContent: false })) {
+      return;
+    }
     viewState.view = nextView;
     resetFilePreview();
     renderViewTabs();
@@ -2263,6 +2521,9 @@
     ) {
       return;
     }
+    if (!confirmDiscardFileEdits()) {
+      return;
+    }
     viewState.isLoadingIgnoredFiles = true;
     viewState.includeIgnoredFiles = !viewState.includeIgnoredFiles;
     elements.ignoredToggle.disabled = true;
@@ -2302,6 +2563,15 @@
   });
   elements.copyPathButton.addEventListener("click", () => {
     void copyCurrentViewerPath();
+  });
+  elements.editFileButton.addEventListener("click", () => {
+    void beginFileEdit();
+  });
+  elements.saveFileButton.addEventListener("click", () => {
+    void saveFileEdit();
+  });
+  elements.cancelFileEditButton.addEventListener("click", () => {
+    cancelFileEdit();
   });
   // 交给系统打开：与「复制路径」一样现取 selectedPath，不在渲染时捕获进闭包——
   // 每点一个条目都会换一份路径，捕获的那份会开错文件。
@@ -2365,6 +2635,21 @@
     }
   });
   window.document.addEventListener("keydown", (keyboardEvent) => {
+    if (viewState.isEditingFile && (keyboardEvent.metaKey || keyboardEvent.ctrlKey)) {
+      if (keyboardEvent.key.toLowerCase() === "s") {
+        keyboardEvent.preventDefault();
+        void saveFileEdit();
+        return;
+      }
+    }
+    if (viewState.isEditingFile && keyboardEvent.key === "Escape") {
+      keyboardEvent.preventDefault();
+      cancelFileEdit();
+      return;
+    }
+    if (keyboardEvent.target instanceof HTMLTextAreaElement) {
+      return;
+    }
     // 放大层开着时只认 Esc：底下的 f / d / 过滤快捷键不该在看一张大图时把视图换掉。
     if (!elements.imageZoom.hidden) {
       if (keyboardEvent.key === "Escape") {
@@ -2387,6 +2672,12 @@
     } else if (keyboardEvent.key === "/") {
       keyboardEvent.preventDefault();
       elements.filterInput.focus();
+    }
+  });
+  window.addEventListener("beforeunload", (unloadEvent) => {
+    if (hasUnsavedFileEdits()) {
+      unloadEvent.preventDefault();
+      unloadEvent.returnValue = "";
     }
   });
 

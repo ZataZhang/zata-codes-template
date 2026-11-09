@@ -4,14 +4,14 @@
 本机回环地址、路由白名单固定；所有路径参数在 :mod:`workspace` 里解析成绝对路径后断言仍在
 仓库根之下。
 
-**写边界**：仓库侧的写操作只有「暂存」——``POST /api/stage``，它只做 ``git add``。另有一条
-不写仓库的写路由 ``POST /api/open``：把仓库内的文件交给系统默认应用打开（macOS ``open`` /
-Windows ``startfile`` / 其它 ``xdg-open``），对被查看仓库零写入，但在用户机器上有副作用，
-因此与暂存走同一条口径。两条写路由都要求 ``Content-Type: application/json``：跨站表单式
-POST 是「简单请求」，浏览器会直接发出去，而 JSON 类型会强制预检、预检又必然失败，于是
-「某个网页在你不知情时改动你的索引（或拉起应用）」这条路径被封住。其余写方法
-（PUT / DELETE / PATCH）仍然一律 405。要开新的写口之前，请先读
-:mod:`workspace` 的模块 docstring——那条边界是用户拍板收窄过的。
+**写边界**：仓库侧的写操作是显式保存文本文件（``POST /api/file/save``）和暂存
+（``POST /api/stage``，只做 ``git add``）。另有一条不写仓库的写路由 ``POST /api/open``：
+把仓库内的文件交给系统默认应用打开（macOS ``open`` / Windows ``startfile`` / 其它
+``xdg-open``），但在用户机器上有副作用。所有写路由都要求 ``Content-Type: application/json``：
+跨站表单式 POST 是「简单请求」，浏览器会直接发出去，而 JSON 类型会强制预检、预检又必然
+失败。查看器首页使用每次请求生成的 CSP 脚本 nonce；仓库原始 HTML/SVG 由 ``/raw/`` 返回时
+禁用脚本，避免仓库内容借同源执行代码触发保存。其余写方法（PUT / DELETE / PATCH）仍一律
+405。边界说明见 :mod:`workspace` 的模块 docstring。
 
 空闲回收：服务按「最后一次请求时间」计时，超过时限即优雅退出并清理登记文件。页面
 刻意不做心跳轮询，因此「关掉标签页」即等同于进入空闲——这是自动回收路径成立的前提，
@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import secrets
 import signal
 import sys
 import threading
@@ -32,6 +33,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
+import file_edit
 import instance
 import rendering
 import workspace
@@ -55,16 +57,18 @@ _STATIC_CONTENT_TYPES_BY_FILENAME = {
 
 _READ_METHOD_HANDLER_PREFIX = "do_"
 
-#: 写方法入口只有 ``POST`` 一个；路由白名单是「暂存」与「在系统中打开」两条——前者是
-#: 服务对仓库的唯一写操作，后者不写仓库但会在用户机器上拉起应用（见
+#: 写方法入口只有 ``POST`` 一个；具体写操作由白名单路由分发（见
 #: :meth:`ViewerRequestHandler.do_POST`）。
 _WRITE_METHOD_HANDLER_NAME = "do_POST"
 _STAGE_ROUTE_PATH = "/api/stage"
 _OPEN_ROUTE_PATH = "/api/open"
+_FILE_SOURCE_ROUTE_PATH = "/api/file/source"
+_FILE_SAVE_ROUTE_PATH = "/api/file/save"
+_SCRIPT_NONCE_PLACEHOLDER = "__LOCAL_VIEW_SCRIPT_NONCE__"
 
-#: 写请求体的长度上限。两类写请求都只有一个小对象，超出它的都不是本服务的正常调用；不设上限的话，
-#: 一句 ``Content-Length: 10GB`` 就足以让服务端在读取时分配内存。
+#: 通用写请求体的长度上限。文件保存有单独的上限，足以容纳 256 KiB 文本转成 JSON。
 _MAX_WRITE_BODY_BYTES = 64 * 1024
+_MAX_FILE_SAVE_BODY_BYTES = workspace.MAX_FILE_BYTES * 6 + 4096
 
 _IDLE_CHECK_INTERVAL_SECONDS = 5.0
 _MIN_IDLE_CHECK_INTERVAL_SECONDS = 0.1
@@ -89,7 +93,7 @@ class ServerConfiguration:
 
 
 class ViewerHTTPServer(ThreadingHTTPServer):
-    """只读查看器服务：绑定回环地址并持有空闲计时状态。
+    """本机文件与改动查看器服务：绑定回环地址并持有空闲计时状态。
 
     Attributes:
         configuration (ServerConfiguration): 本次启动配置。
@@ -138,7 +142,7 @@ class ViewerHTTPServer(ThreadingHTTPServer):
 
 
 class ViewerRequestHandler(BaseHTTPRequestHandler):
-    """只读查看器的请求处理器：白名单路由，且只放行读取方法。"""
+    """本机查看器的请求处理器：固定读取路由与少量 JSON 写入路由。"""
 
     server: ViewerHTTPServer
 
@@ -151,7 +155,7 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
         """把 ``do_<方法>`` 名字解析成对应的处理器：``POST`` 走写口，其余一律拒绝。
 
         这里刻意不逐个定义写方法（PUT / DELETE / PATCH）对应的处理器名字：写边界的可审查性
-        依赖「除暂存之外服务端根本不存在写方法处理入口」这一事实，逐个定义同名方法会让
+        依赖「所有写操作都由一个 POST 入口按路由白名单分发」这一事实，逐个定义同名方法会让
         「``scripts/shared/view/`` 下搜不到写方法处理器」这类静态断言失去判别力。
         ``http.server`` 的分发正是 ``hasattr(self, "do_" + command)`` 加 ``getattr``，因此按
         前缀返回同一个拒绝处理器即可覆盖其余非读取方法。
@@ -180,12 +184,12 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
             self._send_json_payload(500, {"error": f"读取仓库失败：{read_error}"})
 
     def do_POST(self) -> None:  # noqa: N802 - http.server 靠 do_<METHOD> 这个名字分发
-        """唯一的写方法入口：按路由分发给「暂存」或「在系统中打开」，且只接受 JSON 请求体。
+        """唯一的写方法入口：按路由分发给保存、暂存或在系统中打开，且只接受 JSON 请求体。
 
         要求 ``Content-Type: application/json`` 不是为了讲究，而是这里唯一说得通的防线：
         跨站表单式 POST 属于「简单请求」，浏览器会直接发出去（恶意页面读不到响应，但**副作用
         已经发生**）。JSON 类型会强制浏览器先发预检，而本服务不返回任何 CORS 头，预检必然
-        失败——于是「某个网页在你不知情时改动你的索引（或拉起应用）」这条路径被封住。非 JSON
+        失败。首页 CSP nonce 与 ``/raw/`` 禁用脚本共同阻止仓库内容借同源脚本触发保存。非 JSON
         一律 415，绝不「宽容地」处理。
         """
         self.server.mark_request_served()
@@ -193,18 +197,20 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
         try:
             self._dispatch_write_request(requested_route_path)
         except workspace.WorkspaceCommandError as write_error:
-            # open_path_in_system 把自身的失败都转成了拒绝应答，正常不会走到这里；
-            # 标签仍按路由区分，免得万一冒出时把「打开失败」说成「暂存失败」。
-            failure_label = "打开" if requested_route_path == _OPEN_ROUTE_PATH else "暂存"
+            # 具体操作把常见失败都转成拒绝应答；标签仍按路由区分，避免异常时误报操作。
+            failure_label = {
+                _OPEN_ROUTE_PATH: "打开",
+                _FILE_SAVE_ROUTE_PATH: "保存",
+            }.get(requested_route_path, "暂存")
             self._send_json_payload(500, {"error": f"{failure_label}失败：{write_error}"})
 
     def _refuse_non_read_method(self) -> None:
-        """拒绝除暂存与打开之外的写方法：本服务只提供「读」与这两条写路由。"""
+        """拒绝不支持的 HTTP 方法：本服务只接受 GET 与白名单里的 POST 路由。"""
         self.server.mark_request_served()
         self._send_json_payload(
             405,
             {
-                "error": "拒绝：本服务只接受 GET 请求与暂存、在系统中打开用的 POST，"
+                "error": "拒绝：本服务只接受 GET 请求与白名单操作用的 JSON POST，"
                 "不提供提交、撤销暂存或丢弃改动接口。",
                 "method": self.command,
             },
@@ -239,6 +245,13 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
         elif route_path == "/api/file":
             self._serve_workspace_payload(
                 workspace.build_file_payload(
+                    repository_root,
+                    self._read_query_parameter(query_parameters, "path"),
+                )
+            )
+        elif route_path == _FILE_SOURCE_ROUTE_PATH:
+            self._serve_workspace_payload(
+                file_edit.build_editable_source_payload(
                     repository_root,
                     self._read_query_parameter(query_parameters, "path"),
                 )
@@ -321,16 +334,57 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
             )
         else:
             # 不回声请求路径：未知路由的应答里没有任何来自请求的可控内容。
-            self._send_json_payload(404, {"error": "未知路由：本服务只提供白名单内的只读接口。"})
+            self._send_json_payload(
+                404, {"error": "未知路由：本服务只提供白名单内的文件查看接口。"}
+            )
 
     def _dispatch_write_request(self, requested_route_path: str) -> None:
         """按固定白名单分发写路由；白名单之外一律 405。
 
-        写路由有两条，请求体都要求是 JSON 对象：``POST /api/stage`` 的 ``scope`` 取值是封闭
-        枚举（``path`` 或 ``all``）；``POST /api/open`` 的 ``path`` 是仓库相对路径，越界与
-        不存在都在 :func:`workspace.open_path_in_system` 里按拒绝应答处理。两类取值都由服务端
-        映射成具体命令，任何取值都不会作为字符串流进 ``git`` 或 shell——与改动分区同一条口径。
+        写路由都要求是 JSON 对象：``POST /api/file/save`` 保存已有 UTF-8 文本并校验读取版本；
+        ``POST /api/stage`` 的 ``scope`` 取值是封闭枚举（``path`` 或 ``all``）；
+        ``POST /api/open`` 的 ``path`` 是仓库相对路径，越界与不存在都在
+        :func:`workspace.open_path_in_system` 里按拒绝应答处理。路径会先在服务端校验，参数不会被
+        当作任意 ``git`` 选项或 shell 命令执行。
         """
+        if requested_route_path == _FILE_SAVE_ROUTE_PATH:
+            file_save_request, failure_payload = self._read_write_request_body(
+                max_body_bytes=_MAX_FILE_SAVE_BODY_BYTES
+            )
+            if failure_payload is not None:
+                self._send_json_payload(failure_payload.status_code, failure_payload.payload)
+                return
+
+            requested_path = file_save_request.get("path")
+            source_text = file_save_request.get("source")
+            expected_revision = file_save_request.get("revision")
+            line_ending = file_save_request.get("line_ending")
+            if not all(
+                isinstance(field_value, str)
+                for field_value in (requested_path, source_text, expected_revision, line_ending)
+            ):
+                self._send_json_payload(
+                    400,
+                    {"error": "拒绝：保存需要字符串 path、source、revision 和 line_ending。"},
+                )
+                return
+            assert isinstance(requested_path, str)
+            assert isinstance(source_text, str)
+            assert isinstance(expected_revision, str)
+            assert isinstance(line_ending, str)
+            self._serve_workspace_payload(
+                file_edit.save_file_content(
+                    self.server.repository_root,
+                    file_edit.FileEditRequest(
+                        path=requested_path,
+                        source_text=source_text,
+                        expected_revision=expected_revision,
+                        line_ending=line_ending,
+                    ),
+                )
+            )
+            return
+
         if requested_route_path == _STAGE_ROUTE_PATH:
             if not self.server.git_available:
                 self._send_json_payload(405, {"error": "该目录不在 Git 仓库中，不能暂存文件。"})
@@ -384,6 +438,8 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
 
     def _read_write_request_body(
         self,
+        *,
+        max_body_bytes: int = _MAX_WRITE_BODY_BYTES,
     ) -> tuple[dict[str, object], workspace_read.WorkspacePayload | None]:
         """读取并校验写请求的 JSON 对象体。
 
@@ -409,12 +465,12 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
             return {}, workspace_read.build_refusal_payload(400, "拒绝：Content-Length 不合法。")
         if content_length <= 0:
             return {}, workspace_read.build_refusal_payload(400, "拒绝：请求体为空。")
-        if content_length > _MAX_WRITE_BODY_BYTES:
+        if content_length > max_body_bytes:
             # 刻意不读这段正文，因此这条连接必须关掉：HTTP/1.1 连接要被复用，留着一段没读完的
             # 正文会让下一次请求读到它的残余。
             self.close_connection = True
             return {}, workspace_read.build_refusal_payload(
-                413, f"拒绝：请求体超过 {_MAX_WRITE_BODY_BYTES} 字节的上限。"
+                413, f"拒绝：请求体超过 {max_body_bytes} 字节的上限。"
             )
 
         try:
@@ -453,8 +509,24 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
             return
 
         asset_bytes = (_ASSETS_DIRECTORY_PATH / asset_name).read_bytes()
+        script_nonce = ""
+        if asset_name == "index.html":
+            script_nonce = secrets.token_urlsafe(18)
+            asset_bytes = asset_bytes.replace(
+                _SCRIPT_NONCE_PLACEHOLDER.encode("ascii"), script_nonce.encode("ascii")
+            )
         self.send_response(200)
         self.send_header("Content-Type", content_type)
+        if asset_name == "index.html":
+            self.send_header(
+                "Content-Security-Policy",
+                "default-src 'self'; "
+                f"script-src 'nonce-{script_nonce}' 'strict-dynamic'; "
+                "style-src 'self' 'unsafe-inline'; "
+                "img-src 'self' data: blob:; font-src 'self' data:; "
+                "connect-src 'self'; worker-src 'self' blob:; object-src 'none'; "
+                "base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+            )
         self.send_header("Content-Length", str(len(asset_bytes)))
         # 本地开发工具不缓存：改了页面就应该立刻看到。
         self.send_header("Cache-Control", "no-store")
@@ -500,6 +572,14 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
         # 表外后缀是二进制流。不声明 nosniff 时浏览器会按内容嗅探，把一个 .txt 当 HTML
         # 执行——即使它从来没有以 text/html 供出过。
         self.send_header("X-Content-Type-Options", "nosniff")
+        if raw_file_result.content_type.startswith(("text/html", "image/svg+xml")):
+            self.send_header(
+                "Content-Security-Policy",
+                "default-src 'self' data: blob:; script-src 'none'; "
+                "style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; "
+                "font-src 'self' data:; object-src 'none'; base-uri 'none'; "
+                "form-action 'none'; frame-ancestors 'none'",
+            )
         # 与其它读取路径一致：本地开发工具不缓存，改了文件就应该立刻看到。
         self.send_header("Cache-Control", "no-store")
         self.end_headers()

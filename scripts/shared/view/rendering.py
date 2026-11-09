@@ -139,8 +139,8 @@ def render_markdown_document(source_text: str) -> str | None:
     的 dev 依赖，但缺失即降级——派生项目做 ``uv sync --no-dev`` 时预览入口不出现，源码
     高亮照旧。
 
-    正文里的 raw HTML 不做清洗。查看器绑在回环上、只有读与暂存两种能力，预览又是用户主动
-    点开的一次；这里刻意不做清洗——清洗过的结果已经不是文件本身。
+    正文里的 raw HTML 不做清洗，浏览器 CSP 会禁用其中的脚本。这里保留文件原本的展示结构，
+    防止清洗后的片段与实际文件内容不一致。
 
     mermaid 围栏会改成 :func:`_turn_mermaid_fences_into_diagram_blocks` 认得的形态，图
     由浏览器的 mermaid.js 画；服务端不认识 mermaid，也就没有语法可校验。
@@ -199,8 +199,8 @@ def rebase_relative_references(
     只改标签里的 ``src`` / ``href`` 属性，不动正文文本、不动代码块（见模块级
     :data:`_MARKUP_TAG_PATTERN` 的说明）。markdown 语法写的图片与链接、以及正文里手写的
     raw HTML 标签，走的都是这一条路。扫描只看「像不像一个标签」，因此 raw HTML 块里
-    ``<script>`` 字符串中写着标签形状的内容也会被改写——预览里的 raw HTML 本来就会被执行，
-    这一档按同一口径接受。
+    ``<script>`` 字符串中写着标签形状的内容也会被改写；预览显示 raw HTML，但浏览器 CSP
+    会禁用其中的脚本。
 
     以下引用一律**原样保留**，因为猜错比不改更糟：
 

@@ -1,9 +1,9 @@
-"""只读读取的公共契约：应答信封、拒绝应答、``git`` 调用失败的错误类型，以及路径越界断言。
+"""查看器接口的公共契约：应答信封、拒绝应答、命令错误类型，以及路径越界断言。
 
-查看器的每个读取用例（文件树、正文、改动、diff、预览、`/raw/`）都长在同一套词汇上：返回
-一个 :class:`WorkspacePayload`，拒绝时用 :func:`build_refusal_payload`，而任何来自界面的
-路径都必须先过 :func:`resolve_repository_path`。这些词汇与「具体读什么」无关，因此单独放在
-这里——否则每加一种读取都要把它们复制一遍，或者把模块撑到没人愿意读。
+查看器的读取用例与受控写入都长在同一套词汇上：返回一个 :class:`WorkspacePayload`，拒绝时用
+:func:`build_refusal_payload`，而任何来自界面的路径都必须先过 :func:`resolve_repository_path`。
+这些词汇与「具体读写什么」无关，因此单独放在这里——否则每加一种操作都要把它们复制一遍，
+或者把模块撑到没人愿意读。
 
 **边界只有这一处**：路径先 ``resolve()`` 再断言仍在仓库根之下，符号链接指向仓库外时只有
 解析后才会暴露；拒绝信息里绝不带绝对路径，否则「越界被拒绝」本身就成了仓库外路径的探测口。
@@ -16,12 +16,12 @@ from pathlib import Path
 
 
 class WorkspaceCommandError(RuntimeError):
-    """一次 ``git`` 调用失败（非零退出）。读取路径与那唯一一个写路径共用它。"""
+    """一次 ``git`` 调用失败（非零退出）；git 读取和暂存路径共用它。"""
 
 
 @dataclass(frozen=True)
 class WorkspacePayload:
-    """一个只读接口的应答：HTTP 状态码加 JSON 载荷。
+    """一个查看器接口的应答：HTTP 状态码加 JSON 载荷。
 
     Attributes:
         status_code (int): 应答的 HTTP 状态码。
@@ -32,9 +32,9 @@ class WorkspacePayload:
     payload: dict[str, object]
 
 
-#: 路径越界时的拒绝文案。三个读取入口（正文、diff、预览）共用一份：分别各写一句时
+#: 路径越界时的拒绝文案。文件读取、编辑保存、diff 与预览共用一份：分别各写一句时
 #: 任何一处漏更新都会让「越界」在不同接口上说法不一。
-OUTSIDE_REPOSITORY_REFUSAL_MESSAGE = "拒绝：该路径越出仓库范围，只读查看器不读取仓库外的文件。"
+OUTSIDE_REPOSITORY_REFUSAL_MESSAGE = "拒绝：该路径越出仓库范围，查看器不访问仓库外的文件。"
 
 
 def resolve_repository_path(repository_root: Path, requested_path: str) -> Path | None:

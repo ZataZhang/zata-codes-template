@@ -295,6 +295,7 @@ button, input, select { font: inherit; color: inherit; }
 }
 .head-action:hover { background: var(--secondary); color: var(--foreground); }
 .head-action:focus-visible { border-color: var(--ring); outline: none; }
+.head-action:disabled { opacity: .55; cursor: not-allowed; }
 /* 刷新按钮：图标 + 文字；成功那一刻把图标换成对勾（与「复制路径」同一套反馈做法）。 */
 .head-action svg {
   width: 13px; height: 13px; flex: none; fill: none; stroke: currentColor;
@@ -310,6 +311,23 @@ button, input, select { font: inherit; color: inherit; }
   color: var(--muted-foreground); font-size: 11.5px;
 }
 .viewer-body { min-height: 0; flex: 1; overflow: auto; background: var(--code-bg); }
+
+.file-editor {
+  display: flex; min-width: 0; min-height: 100%; flex-direction: column; gap: 8px; padding: 12px;
+}
+.file-editor-hint { color: var(--muted-foreground); font-size: 11.5px; }
+.file-editor textarea {
+  width: 100%; min-height: 320px; flex: 1; resize: none;
+  border: 1px solid var(--border); border-radius: 8px; outline: none;
+  background: var(--card); color: var(--foreground); padding: 14px;
+  font: 12.5px/1.65 var(--mono); tab-size: 2; white-space: pre;
+}
+.file-editor textarea:focus { border-color: var(--ring); box-shadow: 0 0 0 2px color-mix(in oklab, var(--ring) 22%, transparent); }
+.file-editor-retained {
+  width: calc(100% - 24px); min-height: 180px; flex: 1; margin: 0 12px 12px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--card); color: var(--foreground);
+  padding: 14px; font: 12.5px/1.65 var(--mono); white-space: pre; overflow: auto;
+}
 
 .history-layout {
   display: grid; width: 100%; height: 100%; min-height: 0;

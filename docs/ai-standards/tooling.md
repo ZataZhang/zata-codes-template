@@ -151,9 +151,9 @@ view *args:
 - `just frontend dev` 与 `just frontend-public dev` 会委托给对应的 `just run` target，因此同样读取 `.env.run-state`，不会绕过已保存端口。
 - `just run docker` 会把 `.env.run-state` 作为最后一层 Compose 插值环境，动态设置三个主机端口；容器内部端口仍固定为 backend `8000`、admin `80`、public `3000`，不属于需要随机化的主机端口。
 
-## Local Read-Only Viewer
+## Local File Viewer
 
-`just view`（仅本模板仓库提供）与安装后的全局 `zview` 起一个只绑 `127.0.0.1` 的查看器（文件树 + 文件内容 + 改动视图 + 按需加载的本地/远程 Git Log 图与提交 diff + 暂存 + 在系统中打开），
+`just view`（仅本模板仓库提供）与安装后的全局 `zview` 起一个只绑 `127.0.0.1` 的查看器（文件树 + 文件内容与文本编辑 + 改动视图 + 按需加载的本地/远程 Git Log 图与提交 diff + 暂存 + 在系统中打开），
 逻辑在 `scripts/shared/view/`。这里只记与工具链
 约定相关的部分。
 
@@ -161,13 +161,14 @@ view *args:
 目标目录作为工作区根：Git 子目录中的 Git 命令按该子树过滤；非 Git 目录走文件系统扫描，
 不在目标目录写入登记或日志。
 
-- **仓库写操作只有暂存；另有一条会拉起本机应用的操作。** `POST /api/stage` 只做 `git add`；
-  `POST /api/open` 把仓库内路径交给系统默认应用，不写仓库。两条路由都要求
-  `Content-Type: application/json`——跨站表单式 POST 是「简单请求」，浏览器会直接发出去，而
-  JSON 强制预检、预检必然失败，于是跨站页面不能借此改动索引或拉起应用。服务端只定义一个
-  `do_POST` 写方法处理器，路由白名单只有这两条，其余写方法与路由一律拒绝；`/api/open` 只把
-  `resolve()` 后仍在仓库内的路径作为单个 argv 参数传给平台打开器，不经过 shell。开新的写路由前
-  仍需先与用户确认。
+- **仓库写操作只保存已有文本文件或暂存。** `POST /api/file/save` 接受不超过 256 KiB 的 UTF-8
+  文本、保留原换行格式，并用读取时的 SHA-256 摘要拒绝覆盖并发修改；不创建、删除或重命名文件。
+  `POST /api/stage` 只做 `git add`；`POST /api/open` 把仓库内路径交给系统默认应用，不写仓库。
+  所有写路由都要求 `Content-Type: application/json`，跨站表单式 POST 因此不能执行副作用。服务端只
+  定义一个 `do_POST` 写方法处理器，路由白名单外的写请求一律拒绝；`/api/open` 只把 `resolve()` 后
+  仍在仓库内的路径作为单个 argv 参数传给平台打开器，不经过 shell。首页使用一次性 CSP nonce；
+  仓库 HTML/SVG 与 Markdown 预览脚本禁用，阻止仓库内容借同源调用写接口。新增写路由时同步更新
+  本节、文件查看器指南与 `tests/guards/shared/test_view_server.py` 的安全边界说明。
 
 - **常驻是刻意的，回收是必须的。** 查看器进程常驻本机换取「第二次打开是秒开」，因此
   它必须同时具备自动回收（默认 30 分钟无任何 HTTP 请求即退出）与显式回收
@@ -179,9 +180,8 @@ view *args:
 - **实例登记按 worktree 独立。** 登记文件是仓库根的 `.env.view-state`，与 Run Port State
   的 `.env.run-state` 同构：被 `.gitignore` 的 `.env*` 规则覆盖、不进版本库。端口实际值
   只写在登记文件里，不在文档中硬编码。
-- **结束实例走进程信号，不走 HTTP。** `POST /api/stage` 与 `POST /api/open` 都是给用户的操作，
-  不是运维通道：只绑回环，除这两条路由外不注册任何写路由。今天为了「结束服务」借用户操作口，明天就会有
-  人顺手加「保存文件」。
+- **结束实例走进程信号，不走 HTTP。** 保存、暂存与打开路由都服务于用户文件操作，不是运维通道；
+  不要借用它们实现服务管理，也不要把管理接口混入用户操作白名单。
 - **性能承诺只覆盖进程侧。** 复用命中路径有 150ms 预算，这也是 `just view` / `just diff`
   刻意写成普通单行 recipe 而不是 `#!/usr/bin/env bash` shebang 的原因：`just` 执行
   shebang recipe 每次要多花约 200ms 起一个临时脚本。浏览器冷启动不在承诺内。

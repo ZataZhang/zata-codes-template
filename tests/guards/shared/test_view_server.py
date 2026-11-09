@@ -1,24 +1,25 @@
-"""守护本机查看器服务端（读 + 仅暂存）的守卫测试（guard test）。
+"""守护本机查看器服务端（读取、文本保存与暂存）的守卫测试（guard test）。
 
 本文件位于 ``tests/guards/shared/``，失败意味着源代码、配置或脚本违反了仓库约定。
 正确做法是修复触发它的源代码或配置，而不是修改本文件让测试通过；仅当约定
 本身需要变更时才改本文件，并同步更新相关约定文档。详见
 ``docs/ai-standards/testing.md`` 的 Guard Tests 小节。
 
-被测对象：``scripts/shared/view/server.py``、``launch.py`` 与 ``instance.py``。核心
+被测对象：``scripts/shared/view/server.py``、``file_edit.py``、``workspace.py``、
+``workspace_read.py``、``launch.py`` 与 ``instance.py``。核心
 不变量：
 
-1. **写方法只有 ``POST`` 一个入口，路由白名单是「暂存」与「打开」两条。** ``POST /api/stage``
-   只做 ``git add``——那是服务端对仓库的**唯一**写操作；``POST /api/open`` 把仓库内文件交给
-   系统默认应用打开（macOS ``open`` / Windows ``startfile`` / 其它 ``xdg-open``），对仓库
-   零写入，但会在用户机器上拉起应用，因此走同一条写口径。``do_PUT`` / ``do_DELETE`` /
-   ``do_PATCH`` 既不存在也一律 405，指向别的路由的 POST 同样 405。这条边界由用户拍板两次
-   放宽（2026-09-22 暂存、2026-10-16 打开），因此它既不能悄悄扩大，也不能因为「更明确地拒绝」
-   而在其余写方法上补同名处理器——那样 ``rg -n "def do_PUT" scripts/shared/view/`` 这类静态
-   断言就失去判别力。两条写路由都额外要求 ``Content-Type: application/json``：跨站表单式
-   POST 是「简单请求」，浏览器会直接发出去，而 JSON 类型强制预检、预检又必然失败，于是
-   「某个网页在你不知情时改动你的索引（或拉起应用）」这条路被封住。``/api/open`` 交给系统
-   命令的只能是 ``resolve()`` 之后仍在仓库根之下的路径，且作为单个 argv 元素、绝不经过 shell。
+1. **写方法只有 ``POST`` 一个入口，路由白名单是文件保存、暂存与打开。** ``POST /api/file/save``
+   只保存已有的 UTF-8 文本文件，限制 256 KiB，并以 SHA-256 版本摘要拒绝覆盖编辑期间变化的文件；
+   ``POST /api/stage`` 只做 ``git add``；``POST /api/open`` 把仓库内文件交给系统默认应用打开
+   （macOS ``open`` / Windows ``startfile`` / 其它 ``xdg-open``），对仓库零写入，但会在用户机器
+   上拉起应用。``do_PUT`` / ``do_DELETE`` / ``do_PATCH`` 既不存在也一律 405，指向其它路径的
+   POST 同样 405。这条边界由用户拍板（暂存、打开与文本编辑），因此只能通过明确路由扩展；不能
+   因为「更明确地拒绝」而在其余写方法上补同名处理器。所有写路由都要求
+   ``Content-Type: application/json``，跨站表单式 POST 因此不能执行副作用。首页 CSP 用每次请求
+   生成的 nonce 信任查看器脚本，仓库原始 HTML/SVG 与 Markdown 预览里的脚本均禁用，防止仓库内容
+   借同源执行代码调用保存接口。``/api/open`` 交给系统命令的只能是 ``resolve()`` 之后仍在仓库根
+   之下的路径，且作为单个 argv 元素、绝不经过 shell。
 2. **路径不得越出仓库。** ``..`` 与符号链接都要在 ``resolve()`` 之后再断言，顺序颠倒
    时符号链接逃逸会漏网；拒绝信息本身也不得回声绝对路径，否则「被拒绝」就成了仓库外
    路径的探测口。
@@ -33,7 +34,7 @@
 5. **陈旧登记必须被接管，且登记清理不得误伤他人。** 复用判定依赖三项交叉校验
    （进程存活 / 端口可连 / 仓库一致）；空闲回收清理登记时要确认登记仍属于自己，
    否则 ``--no-reuse`` 起的更新实例会被旧实例顺手抹掉登记。
-6. **服务只绑本机回环地址。** 绑成 ``0.0.0.0`` 会把一个只读接口开给整个局域网。
+6. **服务只绑本机回环地址。** 绑成 ``0.0.0.0`` 会把文件读取与保存接口开给整个局域网。
 7. **重命名的配对不能被 pathspec 吃掉。** ``git diff <rev> -- <新路径>`` 会把旧路径
    排除出候选，同一个文件随即降级成「新增」且正文整篇算成新增行；单文件 diff 必须
    先查出旧路径、再把新旧两条路径一起交给 git。纯重命名则要能自我说明，不能被界面
@@ -66,7 +67,7 @@
 15. **普通 ``mv`` 的重命名要配出来，而且只能靠一次性索引。** ``-M`` 对 ``git diff`` 收在眼里的
     路径才有效，而它从不收录未跟踪文件，「工作区删除 + 未跟踪新文件」因此在真实索引上永远配不出
     对。补齐手段是在仓库之外的一个临时 ``GIT_INDEX_FILE`` 上跑 ``git add -N``：真实索引一个字节
-    都不许改（查看器对仓库只有一个写口，就是 ``POST /api/stage``），临时目录用完必须清掉。配对只改
+    都不许改（这条用例只检查暂存口对索引的写入），临时目录用完必须清掉。配对只改
     **呈现**——未跟踪那一段列出的路径集合、段级的 ``stats_available``、以及未暂存段里那条删除，
     全都与终端逐项一致；一个删除配多个相似候选时也只能出一条 ``R``。
 
@@ -151,7 +152,7 @@ def _flip_one_byte(payload: bytes) -> bytes:
 
 
 #: 这些写方法的处理器名字不得出现在服务端源码里：写方法入口只有 ``do_POST`` 一个（路由
-#: 白名单是 /api/stage 与 /api/open），其余写方法既不存在也一律 405（逐个定义同名方法会让
+#: 白名单是文件保存、/api/stage 与 /api/open），其余写方法既不存在也一律 405（逐个定义同名方法会让
 #: 静态断言失去判别力）。
 _FORBIDDEN_WRITE_METHOD_HANDLER_NAMES = ("do_PUT", "do_DELETE", "do_PATCH")
 
@@ -650,8 +651,7 @@ def test_malformed_path_parameters_are_refused_not_dropped(
 def test_write_methods_outside_the_write_routes_are_refused(
     running_view_server: RunningViewServer,
 ) -> None:
-    """写路由只有 ``POST /api/stage`` 与 ``POST /api/open``：其它路由上的 POST、
-    以及全部 PUT/DELETE/PATCH 一律 405。"""
+    """白名单以外的 POST、以及全部 PUT/DELETE/PATCH 一律 405。"""
     for write_method in ("PUT", "DELETE", "PATCH"):
         status_code, response_body = running_view_server.request(
             "/api/file?path=src/module.py", method=write_method
@@ -660,7 +660,13 @@ def test_write_methods_outside_the_write_routes_are_refused(
         assert "拒绝" in response_body["error"]
 
     # 指错路由的 POST 同样不是写口：白名单只有那两条。
-    for misplaced_route in ("/api/file?path=src/module.py", "/api/stage/all", "/api/open/path"):
+    for misplaced_route in (
+        "/api/file?path=src/module.py",
+        "/api/file/source?path=src/module.py",
+        "/api/file/save/extra",
+        "/api/stage/all",
+        "/api/open/path",
+    ):
         misplaced_status, misplaced_body = running_view_server.request(
             misplaced_route, method="POST", json_body={"scope": "all"}
         )
@@ -678,7 +684,7 @@ def test_write_methods_outside_the_write_routes_are_refused(
 def test_server_source_has_exactly_one_write_method_handler() -> None:
     """服务端源码里只能有**一个**写方法处理器，且必须是 ``do_POST``。
 
-    这条静态断言与「写边界只剩那两条路由」互为因果：一旦有人为了「更明确地拒绝」而给
+    这条静态断言与「写方法只有 POST 一个入口」互为因果：一旦有人为了「更明确地拒绝」而给
     PUT / DELETE / PATCH 定义同名方法，写边界的可审查性就没了；而多出第二个写方法入口
     （比如某个顺手加上的 ``do_DELETE``）也会在这里显形——``rg -n "def do_" scripts/shared/view/``
     扫一眼能数清写方法入口，是这条边界唯一的看护方式。
@@ -1709,7 +1715,7 @@ def test_rename_detection_never_writes_the_real_index_or_leaks_its_scratch_index
 ) -> None:
     """一次性索引只用来查配对：真实索引一个字节都不许改，临时目录也必须清干净。
 
-    查看器的写边界只有一个「暂存」口子（``POST /api/stage``）。这套探测在索引上跑的确实是
+    这套探测只检查工作区读取链路不会修改真实索引；实际 ``git add -N`` 在索引上跑的确实是
     ``git add -N``，环境变量一旦指错，改动列表就会**顺手把用户的文件加进索引**——越界得最安静，
     也最难事后发现。服务进程的 ``TMPDIR`` 被圈在用例目录里，所以「没留下东西」是可判定的。
     """
