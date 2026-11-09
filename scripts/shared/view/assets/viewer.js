@@ -728,6 +728,34 @@
   }
 
   /**
+   * 工作区文件保存后只同步顶部改动数，保留当前文件内容与目录树状态。
+   * @param {string} savedActionMessage 保存成功时的提示文案。
+   * @returns {Promise<boolean>} 是否已同步最新改动数；非 Git 目录视为无需同步。
+   */
+  async function refreshChangedFileCountAfterWrite(savedActionMessage) {
+    if (!viewState.gitAvailable || viewState.historicalCommitContext) {
+      return true;
+    }
+
+    let didRefreshChangedFileCount = false;
+    await guardAgainstServiceExit(async () => {
+      const changesResponse = await requestJson("/api/changes");
+      if (changesResponse.status !== 200) {
+        return;
+      }
+      viewState.changedSections = changesResponse.body.sections;
+      elements.diffCount.textContent = String(countVisibleChangedFiles());
+      elements.diffCount.hidden = false;
+      didRefreshChangedFileCount = true;
+    });
+
+    if (!didRefreshChangedFileCount && !viewState.isDisconnected) {
+      elements.statusHint.textContent = `${savedActionMessage}，但改动数暂未更新；请手动刷新。`;
+    }
+    return didRefreshChangedFileCount;
+  }
+
+  /**
    * 用历史提交的文件列表填充既有改动树，并按需读取当前选中项的提交 diff。
    */
   async function loadHistoricalCommitFiles() {
@@ -1117,6 +1145,7 @@
     viewState.isSavingFile = true;
     renderFileEditControls();
     elements.statusHint.textContent = "正在保存文件…";
+    let didSaveFileSuccessfully = false;
     const didSaveRequest = await guardAgainstServiceExit(async () => {
       const saveResponse = await requestJson("/api/file/save", {
         method: "POST",
@@ -1133,6 +1162,7 @@
       }
       viewState.editSourceText = viewState.editDraftText;
       viewState.editRevision = saveResponse.body.revision;
+      didSaveFileSuccessfully = true;
       viewState.isSavingFile = false;
       renderFileEditControls();
       elements.statusHint.textContent = "文件已保存";
@@ -1145,6 +1175,9 @@
     if (viewState.isEditingFile) {
       viewState.isSavingFile = false;
       renderFileEditControls();
+    }
+    if (didSaveFileSuccessfully) {
+      await refreshChangedFileCountAfterWrite("文件已保存");
     }
   }
 
@@ -2465,6 +2498,7 @@
       }
       await loadFileContent(filePath);
       elements.statusHint.textContent = "任务状态已保存";
+      await refreshChangedFileCountAfterWrite("任务状态已保存");
     });
 
     viewState.isTogglingMarkdownTask = false;
