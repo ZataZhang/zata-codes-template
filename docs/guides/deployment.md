@@ -181,8 +181,19 @@ Repository secrets：
 | Secret | 用途 |
 | --- | --- |
 | `SERVER_HOST` | VPS IP 或域名。 |
-| `SERVER_USER` | 通常为 `deploy`。 |
-| `SERVER_SSH_KEY` | 由你自己（或 `zata-ops env provision` 流程）准备的 deploy 用户 SSH 私钥完整内容。 |
+| `SERVER_USER` | 项目专用部署用户，例如 `<slug>-deploy`。 |
+| `SERVER_SSH_KEY` | 项目专用部署用户的独立 SSH 私钥完整内容。 |
+| `SERVER_KNOWN_HOSTS` | 经已有可信渠道核验的服务器主机公钥，遵循 known_hosts 格式。 |
+| `SERVER_PORT` | 可选 SSH 端口；不填为 22。 |
+
+在已有管理员连接中核对主机公钥指纹后再设置 `SERVER_KNOWN_HOSTS`，不要直接信任未经核对的
+`ssh-keyscan` 输出；非 22 端口使用 `[host]:port`。示例启用严格主机校验和批处理认证。
+部署用户需能写应用目录、读 `app.env` 并拉取私有镜像。Docker 组权限接近 root，
+无需配置通用免密 sudo；独立部署用户不等于严格权限隔离，也不是初始化命令自动创建的承诺。
+
+生产发布按目标串行，而非 Git ref，避免不同 tag 同时更新同一应用。派生项目增加 staging 时，
+构建应读取对应 environment 配置，并采用 `<SHA>-staging` / `<SHA>-production` 等隔离标签，
+防止共用 registry 时覆盖同名镜像。
 
 可选 `production` environment variables：
 
@@ -207,6 +218,21 @@ workflow 示例构建 backend、admin（`frontend-admin/`）和 public（`fronte
 - 避免把真实密钥写入仓库。
 - 为不同环境准备差异化配置，例如开发、测试、生产。
 - `zata-ops` 自动加载当前 CWD 下的 `.env` / `.env.local`，所以备份 / S3 配置可以放在与应用相同的 env 文件里，但应用容器自身不再读取 S3 credentials。
+
+## 后台任务与迁移边界
+
+可选 VPS workflow 是 Compose 发布示例，未内置 Celery、任务排空或自动回滚。
+带计费、长时间任务的派生项目应先暂停领取新任务，再等待 active / reserved / scheduled 全部为空；
+队列为空不代表 Worker 空闲。状态未知或排空超时时终止发布并恢复消费，不强制停止任务。
+失败回滚前也需排空新 Worker 可能已领取的任务。业务项目的服务名和容器布局不应照搬到模板。
+
+上线前核对目标 SHA 是否包含远程 main 的已知修复，记录实际源码与镜像版本。
+即使最终使用 OSS，上传和结果处理仍需非 root 用户可写的临时目录；
+权限错误应快速失败，网络操作应有超时和有界退避。上游任务已完成时优先恢复已有结果，
+不要盲目重新提交或重放早确认的任务，以免重复消耗额度。
+
+验收应区分配置完成、SSH 通过、镜像拉取、任务控制预演和实际发布成功。
+保持线上镜像不变的预演，不能证明新版本上线或生产故障回滚已经验证。
 
 ## 可观测性建议
 

@@ -62,7 +62,7 @@ nav:
       - API 与部署安全基线: guides/security.md
       - Model Context Protocol: guides/mcp.md
       - 前端 i18n（中英文双语）: guides/i18n.md
-      - 部署指南: guides/deployment.md
+      - 部署指南（SSH / 后台任务边界）: guides/deployment.md
       - 可观测性: guides/observability.md
       - Run 执行轨迹: guides/run-tracing.md
       - 备份与恢复: guides/backup.md

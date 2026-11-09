@@ -11,7 +11,7 @@ permissions:
   packages: write
 
 concurrency:
-  group: deploy-vps-traefik-${{ github.ref }}
+  group: deploy-vps-traefik-production
   cancel-in-progress: false
 
 env:
@@ -109,13 +109,16 @@ jobs:
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
           SERVER_PORT: ${{ secrets.SERVER_PORT }}
           SERVER_SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
+          SERVER_KNOWN_HOSTS: ${{ secrets.SERVER_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
           printf '%s\n' "$SERVER_SSH_KEY" > ~/.ssh/deploy-vps-traefik
           chmod 600 ~/.ssh/deploy-vps-traefik
-          ssh-keyscan -p "${SERVER_PORT:-22}" "$SERVER_HOST" >> ~/.ssh/known_hosts
+          test -n "$SERVER_KNOWN_HOSTS" || { echo "Missing verified SERVER_KNOWN_HOSTS" >&2; exit 1; }
+          printf '%s\n' "$SERVER_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
 
       - name: Update compose images and restart
         env:
@@ -131,7 +134,8 @@ jobs:
           SERVER_PORT="${SERVER_PORT:-22}"
           APP_DIR="${APP_DIR:-/opt/apps/zata-codes-template}"
 
-          ssh -i ~/.ssh/deploy-vps-traefik -p "$SERVER_PORT" \
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -i ~/.ssh/deploy-vps-traefik -p "$SERVER_PORT" \
             "${SERVER_USER}@${SERVER_HOST}" \
             "APP_DIR='$APP_DIR' BACKEND_IMAGE='$BACKEND_IMAGE' ADMIN_IMAGE='$ADMIN_IMAGE' PUBLIC_IMAGE='$PUBLIC_IMAGE' bash -s" <<'REMOTE'
           set -euo pipefail

@@ -102,12 +102,21 @@ Configure the `production` environment secrets:
 SERVER_HOST
 SERVER_USER
 SERVER_SSH_KEY
+SERVER_KNOWN_HOSTS
+# SERVER_PORT (optional; default 22)
 ```
 
 To use Nacos runtime configuration, set `NACOS_SERVER_ADDR`, `NACOS_USERNAME`,
 and `NACOS_PASSWORD` in the server's `app.env` file. The backend image already
 includes the Nacos SDK. Namespace, Group, and Data ID use the defaults in
 `config.toml` unless you need to customize them.
+
+Use a project-specific deployment user and key, such as `<slug>-deploy`. Verify
+the host key through an existing trusted channel before setting
+`SERVER_KNOWN_HOSTS`. Production deployments are serialized across Git refs.
+Docker group membership grants privileges close to root. This Compose example
+does not implement background-task draining or automatic rollback; see the
+[deployment guide](../../docs/guides/deployment.md).
 
 Optional `production` environment variables:
 
