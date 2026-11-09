@@ -1,6 +1,6 @@
 ---
 name: readable-html
-description: "[Created 2026-11-03] 把一份要给人看的内容写成图文并重的单文件 HTML 页：架构说明、业务流程与操作说明、方案对比与决策建议、复盘 / 进展汇报 / 调研结论。统一的设计令牌（浅色 / 深色）、按数据形态编码的颜色、内联 SVG 图表组件（分层图、扇出汇聚、泳道图、时间线）和写作约定；每种页面类型有自己的结构配方。Use when 用户要 做一个 HTML 给人看, 写成页面, 画架构图, 流程图, 泳道图, 方案对比页, 决策建议页, 复盘报告, 进展汇报页, 调研结论页, 给团队 / 老板看的说明页, 或嫌页面「文字太多 / 只有图没说明 / 不好看」。Not for 改动 diff 报告（git-diff-report）、需要用户逐题作答的决策页（decision-board）、可点击 UI 原型（interactive-ui-prototype）、纯文字长文或公众号稿（zata-writer）。"
+description: "[Created 2026-11-03, Updated 2026-11-06] 把一份要给人看的内容写成图文并重的单文件 HTML 页：架构说明、业务流程与操作说明、方案对比与决策建议、复盘 / 进展汇报 / 调研结论。统一的设计令牌（浅色 / 深色）、按数据形态编码的颜色、内联 SVG 图表组件（分层图、扇出汇聚、泳道图、时间线、带动画的动态流程图）和写作约定；每种页面类型有自己的结构配方。Use when 用户要 做一个 HTML 给人看, 写成页面, 画架构图, 流程图, 动态流程图, 炫酷的架构动画, 泳道图, 方案对比页, 决策建议页, 复盘报告, 进展汇报页, 调研结论页, 给团队 / 老板看的说明页, 或嫌页面「文字太多 / 只有图没说明 / 不好看」。Not for 改动 diff 报告（git-diff-report）、需要用户逐题作答的决策页（decision-board）、可点击 UI 原型（interactive-ui-prototype）、纯文字长文或公众号稿（zata-writer）。"
 user-invocable: true
 allowed-tools:
   - Read
@@ -72,7 +72,16 @@ allowed-tools:
 | 标签 | `.chip.c-ok` / `.c-warn` / `.c-info` | 表格里的状态（如「直接执行 / 需要确认」） |
 | 两栏 | `.two` | 左说明右示例，窄屏自动单栏 |
 
-**SVG 组件**：`band`（分层）、`box`（方框）、`arrow`（连线）、`fan` / `merge`（一对多扇出、多对一汇聚）、`swimlane`（阶段 × 角色泳道）、`timeline`（横向时间线）、`label`（连线旁说明）。用法见 `svg_kit.py` 的 docstring。
+**SVG 组件**：`band`（分层）、`box`（方框）、`arrow`（连线）、`fan` / `merge`（一对多扇出、多对一汇聚）、`swimlane`（阶段 × 角色泳道）、`timeline`（横向时间线）、`label`（连线旁说明）、`flow` + `FlowNode`（动态流程图）。用法见 `svg_kit.py` 的 docstring。
+
+**动态流程图（`flow`）**：一个光点沿连线移动，经过的节点依次点亮，下方字幕逐步说明，可在几个场景之间切换或自动轮播。适合架构页里「一次请求怎么流过系统」，也适合汇报时让人一眼看到链路上缺的那一环。
+
+- 和静态分层图放在一起，不替代静态图和表格：放在前面用来先抓住注意力、讲清主链路，放在后面用来演示已讲过的结构；一页一到两张。
+- 列是阶段（如入口、身份、运行时、能力、上下文、闸门、产出），行是不同链路；建议 4-7 列、2-4 行，2-5 个场景，每个场景 4-8 步。
+- 节点状态：`ok` 已具备，`part` 部分（紫框），`plan` 规划中（琥珀色虚线并闪烁），`gate` 身份、权限等关键节点。被多条链路共用的节点用 `rowspan` 纵向跨行。规划中的链路在连线选项里加 `plan=True`。
+- 想强调缺口时，让主场景故意经过 `plan` 节点，字幕写明「这一步还没做」。
+- 每步字幕写成一句完整的话，说清这一步做了什么；可选 `bus` 画底部总线（如统一 Trace），每个场景播完点亮一次。
+- 外观是深色控制台风格，浅色和深色主题下一致；`prefers-reduced-motion` 时不播放，直接点亮整条路径。相邻两步之间没有连线会直接报错。
 
 **尺寸与文字**（超出就会重叠，这是最常见的问题）：
 
@@ -107,7 +116,7 @@ allowed-tools:
 ```python
 import sys
 sys.path.insert(0, "<本 skill 目录>/scripts")
-from svg_kit import Lane, Section, arrow, band, box, fan, label, legend, merge, page, svg, swimlane, timeline
+from svg_kit import FlowNode, Lane, Section, arrow, band, box, fan, flow, label, legend, merge, page, svg, swimlane, timeline
 ```
 
 每张图一段代码，返回 `svg(...)`；每节组装成 `Section(anchor, nav, html, part)`；最后用 `page(...)` 拼成整页写盘。运行 `python scripts/svg_kit.py --demo /tmp/readable-demo.html` 可以看到所有组件的示例。
@@ -127,6 +136,7 @@ print('svg ok')" <输出.html>
 # 整页截图（片段输出时先在前面补 <!doctype html><meta charset="utf-8">）
 "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --disable-gpu \
   --window-size=1300,5200 --screenshot=/tmp/shot.png file://<输出.html>
+# 页面里有动态流程图时加 --virtual-time-budget=6000，让动画先跑几步再截图
 ```
 
 自己看一遍截图，重点检查最长的标题是否溢出方框、方框是否重叠、箭头是否指对。看一次、修一轮，不反复截图。

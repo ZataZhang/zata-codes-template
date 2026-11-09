@@ -79,9 +79,9 @@ just ops-dashboard --mock     # 终端状态看板
 - `<slug>-admin`：管理平台前端（`frontend-admin/`），Nginx 监听 80 端口，通过 `admin.${DOMAIN}` 访问。
 - `<slug>-public`：前台官网（`frontend-public/`），Next.js standalone 监听 3000 端口，通过 `${DOMAIN}` 访问。
 
-两个前端都直接面向最终用户：public 站点负责营销首页和登录/注册，admin 站点负责登录后的管理 Dashboard。public 前端在容器内通过 `API_BASE_URL` 直接调用后端；admin 前端通过 Nginx 的 `/api/*` 代理到 Compose 项目名对应的专属后端网络别名。模板不再包含 `<slug>-backup` 服务——备份能力由独立的 `zata-ops` CLI 提供，通过 Dokploy Scheduled Job 调用即可。
+两个前端都直接面向最终用户：public 站点负责营销首页和登录/注册，admin 站点负责登录后的管理 Dashboard。两个前端都通过 `/api/*` 代理到 Compose 项目名对应的专属后端别名。Traefik 只对 `/api/` 路由应用速率、并发和 1 MiB 请求体上限，页面与静态资源使用普通站点路由。模板不再包含 `<slug>-backup` 服务——备份能力由独立的 `zata-ops` CLI 提供，通过 Dokploy Scheduled Job 调用即可。
 
-> **网络别名隔离**：模板源文件中的服务名和卷名使用 `zata-codes-template-` 占位前缀。`just copy <slug>` 会将其替换为项目目录名，生成 `<slug>-backend` / `<slug>-admin` / `<slug>-public` 名称。Dokploy Compose 再以 `${COMPOSE_PROJECT_NAME}-backend` 为后端添加显式网络别名，admin Nginx 和 public 前端都通过该别名访问后端。多个栈共用外部 `dokploy-network` 时，客户端不依赖可能重复的 Compose 服务名别名，避免 Docker DNS 将请求轮询到其他项目的后端。
+> **网络边界**：`just copy <slug>` 会把 Compose 服务和卷的占位前缀替换为项目名。生产栈只让 admin/public 前端接入共享的 `dokploy-network` 或 `traefik` 网络；后端只加入项目私有 `backend-app` 网络。前端通过 `${COMPOSE_PROJECT_NAME}-backend` 别名访问后端，后端不发布宿主机端口，也不直接暴露给共享入口网络。
 >
 > **Traefik 全局名称**：router、service 和 middleware 名称使用 `${COMPOSE_PROJECT_NAME}` 前缀。Docker Compose 会把实际 Compose 项目名提供给文件插值；Dokploy 为各 Compose 部署生成独立项目名，因此复用模板部署新应用时会自动获得不同路由名称，无需手动修改。若多个部署被强制使用相同项目名，仍会冲突。
 >
@@ -118,7 +118,9 @@ Docker DNS 运行时重解析可以避免 Dokploy 或 Docker Compose 只重建 b
 
 `deploy/vps-traefik/` 提供一条可选的自托管 VPS 部署路径，适用于不走 Dokploy、但仍希望使用 Docker Compose + 宿主机级 Traefik 的项目。该目录会随 `just copy <slug>` 一起实例化，默认占位前缀 `zata-codes-template` 会替换为新项目目录名。
 
-该路径也使用 `${COMPOSE_PROJECT_NAME}-backend` 作为显式网络别名；Admin 和 Public 都通过该别名访问后端，避免多个项目共用 Traefik 外部网络时误连到其他后端。
+该路径使用 `${COMPOSE_PROJECT_NAME}-backend` 作为显式网络别名。后端与前端通过项目私有 `backend-app` 网络通信；只有 Admin 和 Public 连接外部 Traefik 网络。`/api/` 路由另有来源速率、并发和 1 MiB 请求体上限，限值可在 `.env` 中调整。
+
+生产 Compose 默认启用 API 限流、HTTPS Cookie 和后端私有网络。上游 CDN/WAF、宿主机防火墙、源站保护和告警仍需在实际云账号与服务器上配置；详见[API 与部署安全基线](security.md)。
 
 目录内容：
 

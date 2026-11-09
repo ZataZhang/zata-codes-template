@@ -92,3 +92,6 @@ tasks/evidence/**
 
 # 全量档成本棘轮的临时 junit 产物（check_test_budget.py 的输入，不入库）
 .test-budget-junit.xml
+
+# 本机 Agent 补充指令（不提交私密环境信息）
+/AGENTS.local.md

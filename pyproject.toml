@@ -47,7 +47,8 @@ where = ["src"]
 
 [dependency-groups]
 dev = [
-    "fakeredis>=2.21.0",
+    # 限流存储在真实 Redis 上执行 Lua 原子脚本；测试替身也需 Lua extra 才能运行同一脚本。
+    "fakeredis[lua]>=2.21.0",
     # httpx 已经在 [project.dependencies] 中作为运行期依赖声明（沙箱云后端模块级
     # import）。这里额外声明 socks extra：starlette.testclient / fastapi.testclient
     # 在 import 阶段就硬性要求 httpx，tests/ 下还直接用其 ASGITransport /

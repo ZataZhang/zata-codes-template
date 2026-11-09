@@ -43,7 +43,8 @@ RUN pnpm build
 FROM nginx:1.27-alpine
 
 # 只替换 Compose 注入的后端地址，保留 $host、$remote_addr 等 Nginx 自身变量。
-ENV NGINX_ENVSUBST_FILTER=^BACKEND_UPSTREAM$
+ENV NGINX_ENVSUBST_FILTER=^(BACKEND_UPSTREAM|API_MAX_BODY_SIZE)$
+ENV API_MAX_BODY_SIZE=1048576
 
 # Copy built static assets
 COPY --from=builder /app/frontend-admin/dist /usr/share/nginx/html

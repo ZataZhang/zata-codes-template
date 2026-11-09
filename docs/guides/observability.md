@@ -37,7 +37,7 @@
 
 ### 2. RED 指标
 
-`/metrics` 端点暴露：
+启用后，私有后端 `/metrics` 端点暴露：
 
 - `http_requests_total{method,status,path}`
 - `http_request_duration_seconds{method,status,path}`
@@ -65,7 +65,7 @@
 ```toml
 [observability]
 enabled = true
-metrics_enabled = true
+metrics_enabled = false
 request_id_enabled = true
 log_format = "text"
 service_name = "zata-codes-template-backend"
@@ -73,11 +73,12 @@ service_version = "0.1.0"
 deployment_environment = "development"
 ```
 
-默认值统一维护在 `config.toml` 的 `[observability]` section。如需在特定环境临时覆盖，可通过环境变量传入：
+指标默认关闭，避免通过公开前端代理泄露运行状态。`docker-compose.monitoring.yml` 只在本地监控网络内启用指标；生产启用时，采集器必须通过私有后端网络访问，公开前端的 `/api/metrics` 会返回 404。默认值统一维护在 `config.toml` 的 `[observability]` section。如需在特定环境临时覆盖，可通过环境变量传入：
 
 ```env
 OBSERVABILITY_LOG_FORMAT=json
 OBSERVABILITY_DEPLOYMENT_ENVIRONMENT=staging
+OBSERVABILITY_METRICS_ENABLED=true
 ```
 
 配置优先级遵循仓库统一约定：env > `.env`/`.env.local` > `config.toml` > 代码默认值。
@@ -98,6 +99,14 @@ OBSERVABILITY_LOG_FORMAT=json uv run python -m backend.main
 访问 `http://localhost:8000/health` 后在终端观察日志输出。
 
 ### 查看指标
+
+先在一个终端临时启用并启动后端：
+
+```bash
+OBSERVABILITY_METRICS_ENABLED=true uv run python -m backend.main
+```
+
+再在另一个终端访问；只在本机或私有网络启用和抓取：
 
 ```bash
 curl http://localhost:8000/metrics

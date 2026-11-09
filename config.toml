@@ -21,9 +21,31 @@ log_level = "INFO"
 # MCP Streamable HTTP Security
 # =============================================================================
 [mcp]
+# MCP HTTP 端点默认关闭；启用前先配置身份认证与私有入口。
+enabled = false
 # 默认仅接受本机访问。部署 MCP 时将 Host 精确加入白名单，不要使用通配符。
 allowed_hosts = ["localhost:*", "127.0.0.1:*", "[::1]:*"]
 allowed_origins = []
+
+# =============================================================================
+# HTTP 请求安全基线
+# =============================================================================
+[security]
+rate_limit_enabled = true
+request_body_max_bytes = 1048576
+api_requests_per_minute = 120
+public_login_ip_attempts = 10
+public_login_identifier_attempts = 30
+admin_login_ip_attempts = 5
+admin_login_identifier_attempts = 20
+login_ip_window_seconds = 300
+login_identifier_window_seconds = 900
+register_ip_attempts = 5
+register_window_seconds = 3600
+
+[auth]
+# 本地 HTTP 开发设为 false；生产 Compose 默认覆盖为 true。
+cookie_secure = false
 
 # =============================================================================
 # Template Sync Settings
@@ -153,7 +175,7 @@ allow_internet_access = false
 # =============================================================================
 [observability]
 enabled = true
-metrics_enabled = true
+metrics_enabled = false
 request_id_enabled = true
 log_format = "text"
 service_name = "my-app-backend"

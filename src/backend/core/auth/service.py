@@ -5,6 +5,10 @@ from __future__ import annotations
 import uuid
 
 from backend.core.auth.models import AuthDomain, AuthenticatedPrincipal
+from backend.core.auth.password_policy import (
+    MAX_PASSWORD_UTF8_BYTES,
+    is_password_within_byte_limit,
+)
 from backend.core.shared.interfaces.password_hasher import PasswordHasher
 from backend.core.shared.interfaces.session_store import ISessionStore
 from backend.core.shared.interfaces.user_account_repository import (
@@ -60,6 +64,9 @@ class AuthService:
         Raises:
             ValueError: 凭据无效或账户被禁用。
         """
+        if not is_password_within_byte_limit(password):
+            raise ValueError("用户名或密码错误")
+
         normalized_identifier: str = identifier.strip().lower()
         matched_account: UserAccount | None = self._repository.find_by_identifier(
             normalized_identifier
@@ -96,6 +103,8 @@ class AuthService:
         normalized_identifier: str = identifier.strip().lower()
         cleaned_display_name: str = display_name.strip()
         cleaned_password: str = password.strip()
+        if not is_password_within_byte_limit(cleaned_password):
+            raise ValueError(f"Password must not exceed {MAX_PASSWORD_UTF8_BYTES} UTF-8 bytes")
         if not normalized_identifier:
             raise ValueError("邮箱不能为空")
         if not cleaned_display_name:

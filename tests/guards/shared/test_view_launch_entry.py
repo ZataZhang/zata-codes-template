@@ -1,22 +1,23 @@
-"""守护 ``just view`` 客户端入口的守卫测试（guard test）。
+"""守护全局 ``zview`` 客户端入口的守卫测试（guard test）。
 
 本文件位于 ``tests/guards/shared/``，失败意味着源代码、配置或脚本违反了仓库约定。
 正确做法是修复触发它的源代码或配置，而不是修改本文件让测试通过；仅当约定
 本身需要变更时才改本文件，并同步更新相关约定文档。详见
 ``docs/ai-standards/testing.md`` 的 Guard Tests 小节。
 
-被测对象：``justfile.shared`` 的 ``view`` recipe 与 ``scripts/shared/view/launch.py``。
+被测对象：``justfile.shared``、``scripts/shared/view/zview`` 与 ``launch.py``。
 核心不变量：
 
 **入口必须能在 ``-S``（跳过 site 初始化）下运行，因此它的 import 闭包只能是标准库
-加同目录的兄弟模块。**
+加同目录的兄弟模块；``just view`` 与 ``just diff`` 是模板仓库私有入口，不得出现在共享
+justfile 中。**
 
-``just view`` 的复用命中路径有 150ms 的进程侧预算。site 初始化要扫一堆路径与 ``.pth`` 文件，
+``zview`` 的复用命中路径有 150ms 的进程侧预算。site 初始化要扫一堆路径与 ``.pth`` 文件，
 本机实测空载只省约 1.5ms，但在 CPU 被别的进程挤占时省约 30ms——预算真正吃紧的正是
-机器忙的时候，所以 recipe 显式传 ``-S`` 跳过 site 初始化。
+机器忙的时候，所以入口显式传 ``-S`` 跳过 site 初始化。
 
 代价是这条入口进程里 **没有 site-packages**：``launch.py`` 一旦 import 任何第三方包
-（或 import 一个模块级 import 了第三方包的兄弟模块），``just view`` 会在启动瞬间
+（或 import 一个模块级 import 了第三方包的兄弟模块），``zview`` 会在启动瞬间
 ImportError，而这条路径平时不会被业务测试覆盖，坏掉时很难第一时间归因。语法高亮
 依赖 ``pygments`` 只出现在服务进程里，那个进程由 ``launch.py`` 单独以**不带** ``-S``
 的方式拉起，因此不受这条约束影响。
@@ -31,9 +32,10 @@ from pathlib import Path
 _PROJECT_ROOT_PATH = Path(__file__).resolve().parents[3]
 _VIEW_SCRIPTS_PATH = _PROJECT_ROOT_PATH / "scripts" / "shared" / "view"
 _LAUNCH_SCRIPT_PATH = _VIEW_SCRIPTS_PATH / "launch.py"
-_JUSTFILE_PATH = _PROJECT_ROOT_PATH / "justfile.shared"
+_ZVIEW_SCRIPT_PATH = _VIEW_SCRIPTS_PATH / "zview"
+_SHARED_JUSTFILE_PATH = _PROJECT_ROOT_PATH / "justfile.shared"
 
-#: skip site 初始化的 CPython 开关；recipe 传了它，下面的 import 约束才成立。
+#: skip site 初始化的 CPython 开关；zview 入口传入后，下面的 import 约束才成立。
 _NO_SITE_FLAG = "-S"
 
 
@@ -80,38 +82,25 @@ def _transitive_import_closure(entry_script_path: Path) -> dict[str, set[str]]:
     return import_closure
 
 
-def _view_recipe_body_lines() -> list[str]:
-    """取出 ``justfile.shared`` 里 ``view`` recipe 的首行正文。
+def test_view_recipes_are_not_shared() -> None:
+    """模板仓库私有的 ``view`` 与 ``diff`` recipe 不得随模板同步分发。"""
+    shared_justfile_lines = _SHARED_JUSTFILE_PATH.read_text(encoding="utf-8").splitlines()
+    private_view_recipe_lines = [
+        justfile_line
+        for justfile_line in shared_justfile_lines
+        if justfile_line.startswith(("view ", "view:", "diff ", "diff:"))
+    ]
 
-    Returns:
-        list[str]: recipe 正文行（不含 recipe 头与注释）。
-    """
-    recipe_body_lines: list[str] = []
-    is_inside_view_recipe = False
-    for justfile_line in _JUSTFILE_PATH.read_text(encoding="utf-8").splitlines():
-        if justfile_line.startswith("view "):
-            is_inside_view_recipe = True
-            continue
-        if not is_inside_view_recipe:
-            continue
-        if justfile_line.startswith((" ", "\t")) and justfile_line.strip():
-            recipe_body_lines.append(justfile_line)
-            continue
-        break
-    return recipe_body_lines
+    assert not private_view_recipe_lines, (
+        "justfile.shared 中仍有模板仓库私有的查看器 recipe：" f"{private_view_recipe_lines}"
+    )
 
 
-def test_view_recipe_runs_the_launch_entry_without_site_initialization() -> None:
-    """``view`` recipe 必须给入口传 ``-S``，否则下面那条 import 约束就失去意义。
-
-    这条断言把「预算 → ``-S`` → import 只能标准库」这条因果链钉在测试里：任何一环
-    被单独拿掉，都会在这里显形，而不是等到某天 ``just view`` 突然起不来。
-    """
-    recipe_body_text = "\n".join(_view_recipe_body_lines())
-    assert recipe_body_text, "justfile.shared 里找不到 view recipe 的正文"
-    assert (
-        f" {_NO_SITE_FLAG} " in f" {recipe_body_text} "
-    ), "view recipe 没有传 -S：复用命中路径会退回完整的 site 初始化，机器忙时多花约 30ms"
+def test_global_zview_entry_runs_the_launch_script_without_site_initialization() -> None:
+    """全局 ``zview`` 在项目 venv 可用时必须用 ``-S`` 启动入口。"""
+    zview_script_text = _ZVIEW_SCRIPT_PATH.read_text(encoding="utf-8")
+    no_site_invocation = f'"$project_python" {_NO_SITE_FLAG} "$script_directory/launch.py"'
+    assert no_site_invocation in zview_script_text
 
 
 def test_launch_entry_import_closure_is_standard_library_only() -> None:
@@ -132,7 +121,7 @@ def test_launch_entry_import_closure_is_standard_library_only() -> None:
                 continue
             non_standard_library_names.append(f"{module_name}.py -> {imported_name}")
 
-    hint = f"（{_LAUNCH_SCRIPT_PATH} 由 justfile.shared 的 view recipe 以 -S 启动）"
+    hint = f"（{_LAUNCH_SCRIPT_PATH} 由 zview 入口以 -S 启动）"
     assert not non_standard_library_names, (
         f"launch 入口在 -S 下无法 import 这些非标准库模块{hint}：" f"{non_standard_library_names}"
     )

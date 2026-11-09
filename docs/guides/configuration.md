@@ -25,6 +25,7 @@
 - **数据库配置**：后端类型、主机、端口、库名、驱动。
 - **可观测性配置**：指标/请求 ID 开关、服务名、日志格式。
 - **认证配置**：初始管理员种子、会话窗口。
+- **HTTP 安全配置**：请求体上限、API 限流、生产 Cookie 安全属性。
 - **主模型配置**：调用大模型所需的端点三件套（见下节，按需启用）。
 - **基础设施配置**：Redis 等（派生项目按需扩展）。
 
@@ -33,6 +34,7 @@
 - 推荐在 `.env` 中存放密钥与敏感信息。
 - 推荐在 `config.toml` 中维护非敏感默认项。
 - 所有业务代码统一从 `config` 实例读取，不直接散落调用 `os.getenv`。
+- 生产安全项的阈值与代理边界见[API 与部署安全基线](security.md)。
 
 ## Nacos 启动配置与本地开发
 
@@ -90,6 +92,13 @@ Nacos 选择 JSON 类型，使用与 `.env.local` 相同的大写环境变量名
 如果存入 Nacos，拥有该配置读取权限的账号可以获取其值。Nacos 连接账号应使用应用只读账号。
 加载器复用现有 provider 的认证、读取、JSON 解析和关闭逻辑，不在日志中输出配置正文。
 本地 `.env.local` / 容器环境的同名项会覆盖 Nacos，因此线上不要保留不必要的旧覆盖项。
+
+`NACOS_SERVER_ADDR` 接受 `host:port`。生产 Compose 的后端只加入项目私有 `backend-app` 网络，
+不再加入共享 Traefik / Dokploy 网络。若 Nacos 运行在另一个容器中，应将它接入受控的项目私有网络，
+或配置后端可达的私网地址。Nacos 客户端还需要 gRPC
+端口 `9848` 可达；不要把该端口作为 HTTP 路由代理。`NACOS_USERNAME`
+和 `NACOS_PASSWORD` 应使用专门的应用账号，并只授予目标 Namespace / Group / Data ID 的读取
+权限；它们与 Nacos 服务容器自身的 `NACOS_AUTH_TOKEN`、identity key/value 是不同凭据。
 
 
 ## 主模型配置

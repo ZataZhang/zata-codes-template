@@ -2,13 +2,14 @@
 """给人看的 HTML 说明页：SVG 图表组件、CSS 设计令牌与页面外壳。
 
 提供分层带（band）、方框（box）、箭头（arrow）、泳道（swimlane）、时间线（timeline）
-等内联 SVG 组件，以及一套随主题切换的 CSS 设计令牌和页面外壳。生成脚本只负责组织内容，
+等内联 SVG 组件、带动画的流程图（flow），以及一套随主题切换的 CSS 设计令牌和页面外壳。生成脚本只负责组织内容，
 所有颜色都经由 CSS 类引用令牌，因此浅色与深色主题下的图表都能保持可读。
 
 用法::
 
     import sys; sys.path.insert(0, "<skill>/scripts")
     from svg_kit import box, band, arrow, label, svg, swimlane, timeline, legend, page
+    from svg_kit import FlowNode, flow  # 动态流程图
 
     body = svg(1200, 400, box(20, 20, 200, 80, "标题", ["说明"], "agent"), "示例图")
     html = page(title="示例", eyebrow="Demo", h1="示例页面", thesis="一句话定位", sections=[...])
@@ -331,6 +332,224 @@ def timeline(
     return svg(width, axis_y + 122, "".join(parts), aria_label)
 
 
+@dataclass(frozen=True)
+class FlowNode:
+    """动态流程图中的一个节点。
+
+    Attributes:
+        id (str): 节点标识，只用 ASCII 字母、数字、下划线，在同一张图内唯一。
+        col (int): 所在列（从 0 开始）。
+        row (int): 所在行（从 0 开始）。
+        title (str): 标题。列宽约 148px 时不超过 10 个中文字。
+        sub (str): 说明行，不超过 14 个中文字。
+        status (str): ``ok``（已具备）、``part``（部分）、``plan``（规划中，琥珀色虚线并缓慢闪烁）
+            或 ``gate``（闸门、身份等关键节点，深色底）。
+        rowspan (int): 纵向跨几行，用于「身份与授权」这类被多条链路共用的节点。
+    """
+
+    id: str
+    col: int
+    row: int
+    title: str
+    sub: str = ""
+    status: str = "ok"
+    rowspan: int = 1
+
+
+def flow(
+    columns: Sequence[str],
+    nodes: Sequence[FlowNode],
+    edges: Sequence[tuple],
+    scenarios: dict[str, tuple[str, str, Sequence[tuple[str, str]]]],
+    *,
+    uid: str = "fx",
+    bus: tuple[str, str] | None = None,
+    footer: str = "",
+    done_text: str = "",
+    aria_label: str = "动态流程图",
+) -> str:
+    """绘制带动画的流程图：一个光点沿连线移动，经过的节点依次点亮，下方字幕逐步说明。
+
+    适合在架构页里放在静态分层图之后，用 2-5 个真实场景演示「一次请求怎么流过系统」。
+    图是深色控制台风格，浅色和深色主题下保持同一外观；``prefers-reduced-motion`` 时不播放动画，
+    直接点亮整条路径。返回完整 HTML 片段（场景按钮 + SVG + 字幕 + 图例 + 脚本），一页可以放多张，
+    用不同的 ``uid`` 区分。
+
+    Args:
+        columns (Sequence[str]): 列标题，从左到右，例如「入口、身份、运行时、能力、上下文、闸门、产出」。建议 4-7 列。
+        nodes (Sequence[FlowNode]): 节点。
+        edges (Sequence[tuple]): 连线 ``(起点 id, 终点 id)`` 或 ``(起点 id, 终点 id, 选项)``；
+            选项为 dict，可含 ``plan=True``（琥珀色，表示规划中的链路）和 ``label="A2A"``（连线旁短标签）。
+            同一行相邻节点画直线，同一列画竖线，其他画曲线；连到跨行节点时取对端的纵坐标。
+        scenarios (dict): ``{key: (按钮标题, 按钮小字, [(节点 id, 这一步的说明), ...])}``。
+            相邻两步之间必须有连线，否则抛出 ``ValueError``。
+        uid (str): 元素 id 前缀，一页多张图时各不相同。
+        bus (tuple[str, str] | None): 底部总线 ``(标题, 说明)``，例如「全链路 Trace」；最后一行各节点用虚线接入。
+            每个场景播完总线会亮一下。
+        footer (str): 总线下方的虚线说明框，例如基础设施。
+        done_text (str): 每个场景播完后字幕显示的话。
+        aria_label (str): 图的无障碍名称。
+
+    Returns:
+        str: HTML 片段。
+    """
+    import json
+
+    gap, top, step, node_h = 22, 56, 90, 64
+    node_w = (1200 - 32 - gap * (len(columns) - 1)) / len(columns)
+    by_id = {node.id: node for node in nodes}
+    rows = max(node.row + node.rowspan for node in nodes)
+
+    def rect(node: FlowNode) -> tuple[float, float, float, float]:
+        height = node_h + (node.rowspan - 1) * step
+        return 16 + node.col * (node_w + gap), top + node.row * step, node_w, height
+
+    def edge_path(a: str, b: str) -> str:
+        ax, ay, aw, ah = rect(by_id[a])
+        bx, by_, bw, bh = rect(by_id[b])
+        if abs(ax - bx) < 1:
+            x = ax + aw / 2
+            return f"M{x} {ay + ah}V{by_ - 4}" if by_ > ay else f"M{x} {ay}V{by_ + bh + 4}"
+        y1, y2 = ay + ah / 2, by_ + bh / 2
+        if by_id[a].rowspan > 1:
+            y1 = min(max(y2, ay + 20), ay + ah - 20)
+        if by_id[b].rowspan > 1:
+            y2 = min(max(y1, by_ + 20), by_ + bh - 20)
+        x1, x2 = (ax + aw, bx - 4) if bx > ax else (ax, bx + bw + 4)
+        if abs(y1 - y2) < 1:
+            return f"M{x1} {y1}H{x2}"
+        mid = (x1 + x2) / 2
+        return f"M{x1} {y1}C{mid} {y1} {mid} {y2} {x2} {y2}"
+
+    edge_keys: set[tuple[str, str]] = set()
+    edge_parts: list[str] = []
+    for spec in edges:
+        a, b = spec[0], spec[1]
+        opts = spec[2] if len(spec) > 2 else {}
+        if a not in by_id or b not in by_id:
+            raise ValueError(f"连线引用了不存在的节点：{a} → {b}")
+        edge_keys.add((a, b))
+        path_d = edge_path(a, b)
+        css_class = "fx-e" + (" fx-plan-e" if opts.get("plan") else "")
+        edge_parts.append(
+            f'<path id="{uid}-e-{a}-{b}" d="{path_d}" class="{css_class}" marker-end="url(#{uid}-mk)"/>'
+        )
+        if opts.get("label"):
+            ax, ay, aw, ah = rect(by_id[a])
+            bx, by_, _bw, _bh = rect(by_id[b])
+            edge_parts.append(
+                f'<text x="{(ax + aw / 2 + bx + _bw / 2) / 2 + 8}" y="{(ay + ah + by_) / 2 + 4}" class="fx-tag">{esc(opts["label"])}</text>'
+                if abs(ax - bx) < 1
+                else f'<text x="{(ax + aw + bx) / 2 + 6}" y="{(ay + ah / 2 + by_ + _bh / 2) / 2 + 4}" class="fx-tag">{esc(opts["label"])}</text>'
+            )
+    for key, (_title, _sub, steps) in scenarios.items():
+        for (a, _), (b, _) in zip(steps, steps[1:]):
+            if (a, b) not in edge_keys:
+                raise ValueError(f"场景 {key} 的第 {a} → {b} 步没有对应连线")
+
+    height = top + rows * step - (step - node_h) + 24
+    parts = [
+        f'<defs><filter id="{uid}-glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4" result="b"/>'
+        '<feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>'
+        f'<pattern id="{uid}-dots" width="22" height="22" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1.1" class="fx-dotgrid"/></pattern>'
+        f'<marker id="{uid}-mk" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8z" class="fx-mk"/></marker></defs>'
+    ]
+    body_height_placeholder = len(parts)
+    parts.append("")
+    for index, name in enumerate(columns):
+        parts.append(
+            f'<text x="{16 + index * (node_w + gap) + node_w / 2}" y="36" class="fx-head" text-anchor="middle">{esc(name)}</text>'
+        )
+    parts.extend(edge_parts)
+    if bus:
+        last_row = {node.col: node for node in nodes if node.row + node.rowspan == rows}
+        for node in last_row.values():
+            x, y, w, h = rect(node)
+            parts.append(f'<path d="M{x + w / 2} {y + h}V{height + 2}" class="fx-tap"/>')
+    for node in nodes:
+        x, y, w, h = rect(node)
+        parts.append(
+            f'<g id="{uid}-n-{node.id}" class="fx-n fx-{node.status}"><rect x="{x}" y="{y}" width="{w}" height="{h}" rx="10" class="fx-r"/>'
+            f'<text x="{x + w / 2}" y="{y + h / 2 - 4}" class="fx-t" text-anchor="middle">{esc(node.title)}</text>'
+            f'<text x="{x + w / 2}" y="{y + h / 2 + 15}" class="fx-s" text-anchor="middle">{esc(node.sub)}</text></g>'
+        )
+    if bus:
+        parts.append(
+            f'<g id="{uid}-n-bus" class="fx-n fx-part"><rect x="16" y="{height + 4}" width="1168" height="46" rx="10" class="fx-r"/>'
+            f'<text x="600" y="{height + 24}" class="fx-t" text-anchor="middle">{esc(bus[0])}</text>'
+            f'<text x="600" y="{height + 41}" class="fx-s" text-anchor="middle">{esc(bus[1])}</text></g>'
+        )
+        height += 58
+    if footer:
+        parts.append(
+            f'<rect x="16" y="{height + 4}" width="1168" height="36" rx="10" class="fx-infra"/>'
+            f'<text x="600" y="{height + 27}" class="fx-s" text-anchor="middle">{esc(footer)}</text>'
+        )
+        height += 48
+    height += 12
+    parts[body_height_placeholder] = (
+        f'<rect width="1200" height="{height}" rx="16" class="fx-bg"/><rect width="1200" height="{height}" rx="16" fill="url(#{uid}-dots)"/>'
+    )
+    parts.append(
+        f'<circle id="{uid}-dot" r="5.5" class="fx-particle" filter="url(#{uid}-glow)" cx="-20" cy="-20"/>'
+    )
+    svg_html = (
+        f'<svg id="{uid}-svg" viewBox="0 0 1200 {height}" role="img" aria-label="{esc(aria_label)}" '
+        f'style="min-width:1040px;display:block">' + "".join(parts) + "</svg>"
+    )
+    data = json.dumps(
+        {
+            "done": done_text,
+            "bus": bool(bus),
+            "s": {
+                k: {"title": t, "sys": s, "steps": list(st)} for k, (t, s, st) in scenarios.items()
+            },
+        },
+        ensure_ascii=False,
+    ).replace("</", "<\\/")
+    return (
+        f'<div class="fx-ctl" role="group" aria-label="选择场景" id="{uid}-ctl"></div>'
+        f'<div class="fx-box">{svg_html}</div>'
+        f'<div class="fx-cap" aria-live="polite"><b id="{uid}-step">准备</b><span id="{uid}-text">选择一个场景，或等待自动轮播。</span></div>'
+        '<div class="fx-key"><span><i class="fx-k-ok"></i>已具备</span><span><i class="fx-k-part"></i>部分</span>'
+        '<span><i class="fx-k-plan"></i>规划中</span><span><i class="fx-k-on"></i>本次经过</span></div>'
+        f"<script>(function(D,U){{{_FLOW_JS}}})({data},{json.dumps(uid)});</script>"
+    )
+
+
+_FLOW_JS: str = r"""
+const svg=document.getElementById(U+"-svg"),dot=document.getElementById(U+"-dot");
+const stepEl=document.getElementById(U+"-step"),textEl=document.getElementById(U+"-text"),ctl=document.getElementById(U+"-ctl");
+const reduce=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const keys=Object.keys(D.s);let mode=keys.length>1?"auto":keys[0],run=0;
+function btn(k,label,sub){const b=document.createElement("button");b.type="button";b.className="fx-btn";
+  b.textContent=label;if(sub){const s=document.createElement("small");s.textContent=sub;b.appendChild(s);}
+  b.setAttribute("aria-pressed",k===mode);
+  b.addEventListener("click",function(){mode=k;ctl.querySelectorAll(".fx-btn").forEach(function(x){x.setAttribute("aria-pressed",x===b);});start();});ctl.appendChild(b);}
+if(keys.length>1)btn("auto","自动轮播","");keys.forEach(function(k){btn(k,D.s[k].title,D.s[k].sys);});
+function clear(){svg.querySelectorAll(".on").forEach(function(e){e.classList.remove("on");});dot.setAttribute("cx",-20);dot.setAttribute("cy",-20);}
+function node(id){return document.getElementById(U+"-n-"+id);}
+function edge(a,b){return document.getElementById(U+"-e-"+a+"-"+b);}
+function wait(ms,id){return new Promise(function(res,rej){setTimeout(function(){id===run?res():rej();},ms);});}
+function travel(path,id){return new Promise(function(res,rej){const L=path.getTotalLength(),t0=performance.now(),dur=Math.max(450,L*2.4);
+  function f(t){if(id!==run)return rej();const k=Math.min(1,(t-t0)/dur),e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2,pt=path.getPointAtLength(e*L);
+    dot.setAttribute("cx",pt.x);dot.setAttribute("cy",pt.y);k<1?requestAnimationFrame(f):res();}requestAnimationFrame(f);});}
+async function play(k,id){const S=D.s[k],s=S.steps;clear();
+  if(reduce){s.forEach(function(st,i){node(st[0]).classList.add("on");if(i)edge(s[i-1][0],st[0]).classList.add("on");});
+    if(D.bus)node("bus").classList.add("on");stepEl.textContent=S.title;textEl.textContent=s.map(function(x){return x[1];}).join(" → ");return;}
+  for(let i=0;i<s.length;i++){
+    if(i){const e=edge(s[i-1][0],s[i][0]);e.classList.add("on");await travel(e,id);}
+    node(s[i][0]).classList.add("on");stepEl.textContent=S.title+" "+(i+1)+"/"+s.length;textEl.textContent=s[i][1];await wait(1500,id);}
+  if(D.bus)node("bus").classList.add("on");
+  if(D.done){stepEl.textContent=S.title+" 完成";textEl.textContent=D.done;}
+  await wait(2600,id);}
+async function start(){const id=++run;
+  try{if(mode==="auto"){let i=0;while(true){await play(keys[i%keys.length],id);if(reduce)return;i++;}}
+      else{while(true){await play(mode,id);if(reduce)return;}}}catch(e){}}
+start();
+"""
+
+
 LEGEND_ITEMS: dict[str, str] = {
     "agent": "Agent 与运行时",
     "files": "工作态资料",
@@ -460,6 +679,44 @@ svg text{font-family:var(--body)}
 .ar-acc{stroke:var(--accent);stroke-opacity:.9}
 .ar-dash{stroke-dasharray:5 4}
 .mk{fill:var(--muted)}.mk-acc{fill:var(--accent)}
+/* 动态流程图（flow）：深色控制台外观，浅色与深色主题下保持一致，令牌只在这里定义一次 */
+:root{--fx-bg:#0a1222;--fx-dotc:#1b2a47;--fx-node:#101c33;--fx-line:#2a3f68;--fx-text:#e4ecfb;--fx-sub:#8ea2c8;
+--fx-flow:#3d8bff;--fx-hot:#56dcff;--fx-plan:#f0a33a;--fx-part:#a493ff;--fx-gate:#16284a}
+.fx-box{border-radius:16px;overflow-x:auto;background:var(--fx-bg)}
+.fx-bg{fill:var(--fx-bg)}.fx-dotgrid{fill:var(--fx-dotc)}
+.fx-head{font:600 11px/1 var(--mono);letter-spacing:.16em;fill:var(--fx-sub)}
+.fx-tag{font:600 10.5px/1 var(--mono);fill:var(--fx-hot)}
+.fx-r{fill:var(--fx-node);stroke:var(--fx-line);stroke-width:1.4;transition:stroke .3s}
+.fx-gate .fx-r{fill:var(--fx-gate)}
+.fx-t{font:600 13px/1 var(--body);fill:var(--fx-text)}
+.fx-s{font:400 11px/1 var(--body);fill:var(--fx-sub)}
+.fx-part .fx-r{stroke:var(--fx-part)}
+.fx-plan .fx-r{stroke:var(--fx-plan);stroke-dasharray:5 4;animation:fx-pulse 2.4s ease-in-out infinite}
+.fx-plan .fx-s{fill:var(--fx-plan)}
+.fx-n.on .fx-r{stroke:var(--fx-hot);stroke-width:2.2;filter:drop-shadow(0 0 6px var(--fx-hot))}
+.fx-n.on.fx-plan .fx-r{stroke:var(--fx-plan);filter:drop-shadow(0 0 6px var(--fx-plan))}
+.fx-e{fill:none;stroke:var(--fx-line);stroke-width:1.6;stroke-dasharray:3 7;animation:fx-flow 1.2s linear infinite}
+.fx-plan-e{stroke:var(--fx-plan);stroke-opacity:.6}
+.fx-e.on{stroke:var(--fx-flow);stroke-width:2.4;stroke-dasharray:none;filter:drop-shadow(0 0 4px var(--fx-flow))}
+.fx-plan-e.on{stroke:var(--fx-plan);stroke-opacity:1}
+.fx-mk{fill:var(--fx-line)}
+.fx-tap{stroke:var(--fx-line);stroke-width:1.2;stroke-dasharray:2 5}
+.fx-infra{fill:none;stroke:var(--fx-line);stroke-dasharray:4 4}
+.fx-particle{fill:var(--fx-hot)}
+@keyframes fx-flow{to{stroke-dashoffset:-20}}
+@keyframes fx-pulse{50%{stroke-opacity:.35}}
+.fx-ctl{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 12px}
+.fx-btn{font:600 12.5px/1 var(--body);padding:8px 14px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--fg);cursor:pointer}
+.fx-btn small{font-weight:400;color:var(--muted);margin-left:6px}
+.fx-btn[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+.fx-btn[aria-pressed="true"] small{color:inherit;opacity:.8}
+.fx-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.fx-cap{display:flex;gap:12px;align-items:baseline;margin-top:12px;padding:12px 16px;border-radius:10px;background:var(--soft);font-size:14px}
+.fx-cap b{font:600 12px/1 var(--mono);color:var(--accent);white-space:nowrap}
+.fx-key{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12.5px;color:var(--muted);margin-top:10px}
+.fx-key i{display:inline-block;width:18px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px;border:2px solid var(--fx-line);background:var(--fx-node)}
+.fx-key .fx-k-part{border-color:var(--fx-part)}.fx-key .fx-k-plan{border-color:var(--fx-plan);border-style:dashed}.fx-key .fx-k-on{border-color:var(--fx-hot)}
+@media (prefers-reduced-motion:reduce){.fx-e,.fx-plan .fx-r{animation:none}}
 """
 
 
@@ -656,6 +913,62 @@ def _demo() -> str:
         '<div class="opt rec"><span class="chip c-ok">推荐 · 方案 B</span><h3>沿用现有服务加缓存</h3>'
         "<ul><li>改动集中在一个模块</li><li>大流量时需要再评估</li></ul></div></div>"
     )
+    flow_html = flow(
+        ["入口", "权限", "Agent", "数据", "确认", "产出"],
+        [
+            FlowNode("mail", 0, 0, "客户邮件", "带客户 ID"),
+            FlowNode("chat", 0, 1, "在线会话", "网页 · App"),
+            FlowNode("scope", 1, 0, "确定范围", "团队 ∩ 客户", "gate", rowspan=2),
+            FlowNode("agent", 2, 0, "对话型 Agent", "起草回复"),
+            FlowNode("order", 3, 0, "订单系统", "实时事实"),
+            FlowNode("kb", 3, 1, "知识库", "检索 · 引用", "part"),
+            FlowNode("review", 4, 0, "客服确认", "规划中", "plan"),
+            FlowNode("reply", 5, 0, "回复客户", "附引用"),
+        ],
+        [
+            ("mail", "scope"),
+            ("chat", "scope"),
+            ("scope", "agent"),
+            ("agent", "order"),
+            ("agent", "kb", {"label": "检索"}),
+            ("order", "review", {"plan": True}),
+            ("review", "reply", {"plan": True}),
+        ],
+        {
+            "mail": (
+                "邮件工单",
+                "",
+                [
+                    ("mail", "收到客户邮件"),
+                    ("scope", "按团队和客户确定能看的数据"),
+                    ("agent", "Agent 起草回复"),
+                    ("order", "查订单状态"),
+                    ("review", "客服确认（规划中）"),
+                    ("reply", "发出回复"),
+                ],
+            ),
+            "chat": (
+                "知识问答",
+                "",
+                [
+                    ("chat", "客户在线提问"),
+                    ("scope", "确定范围"),
+                    ("agent", "Agent 判断需要查资料"),
+                    ("kb", "检索知识库并引用"),
+                ],
+            ),
+        },
+        uid="demo-flow",
+        bus=("运行记录", "每一步写入同一条调用链"),
+        done_text="每一步都写入运行记录，可回放。",
+    )
+    sections.append(
+        Section(
+            "flow",
+            "动态流程",
+            f'<h2>动态流程</h2><p class="lead">光点沿连线移动，经过的节点依次点亮；琥珀色虚线是规划中的环节。</p>{flow_html}',
+        )
+    )
     sections.append(Section("decision", "方案取舍", decision_html, part="其他页面类型的组件"))
     sections.append(
         Section("timeline", "时间线", f'<h2>事件经过</h2><div class="fig">{timeline_svg}</div>')
@@ -664,7 +977,7 @@ def _demo() -> str:
         title="工单平台架构示例",
         eyebrow="Demo · Architecture Explainer",
         h1="客服工单平台架构示例",
-        thesis="示例页：演示分层图、扇出与汇聚、泳道图、方案卡片与时间线。<b>内容为虚构。</b>",
+        thesis="示例页：演示分层图、扇出与汇聚、泳道图、动态流程图、方案卡片与时间线。<b>内容为虚构。</b>",
         sections=sections,
         footer="示例内容，仅用于展示组件用法。",
     )

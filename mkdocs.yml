@@ -59,6 +59,7 @@ nav:
       - 工具与命令: ai-standards/tooling.md
   - 使用指南:
       - 配置加载顺序与 Nacos: guides/configuration.md
+      - API 与部署安全基线: guides/security.md
       - Model Context Protocol: guides/mcp.md
       - 前端 i18n（中英文双语）: guides/i18n.md
       - 部署指南: guides/deployment.md
@@ -67,7 +68,7 @@ nav:
       - 备份与恢复: guides/backup.md
       - 沙箱执行后端: guides/sandbox-runtime.md
       - 想法 Inbox: guides/idea-inbox.md
-      - 文件与改动查看器（just view / zview）: guides/file-viewer.md
+      - 文件与改动查看器（zview / 本仓库 just view）: guides/file-viewer.md
       - PRD Skill 指南: guides/prd-skill.md
       - 对话中的 PR 交付: guides/ai-pr.md
       - Agent 数据集构建: guides/agent-dataset.md

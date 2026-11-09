@@ -7,6 +7,7 @@ Use this package when you manage a plain Ubuntu/Debian VPS yourself and want:
 
 - Docker Engine and Compose installed on the host.
 - A host-level Traefik gateway on an external Docker network.
+- A private project network for the backend and frontend-to-backend traffic.
 - An application directory such as `/opt/apps/zata-codes-template`.
 - GitHub Actions or local SSH deploys that update immutable image tags.
 
@@ -21,7 +22,7 @@ Use this package when you manage a plain Ubuntu/Debian VPS yourself and want:
 
 | File | Purpose |
 | --- | --- |
-| `docker-compose.yml` | Production app compose file behind the external Traefik network. |
+| `docker-compose.yml` | Production app compose file with a private backend network and Traefik API limits. |
 | `.env.example` | Deployment metadata template: domain, network, image references. |
 | `app.env.example` | Runtime configuration and secrets template. |
 | `github-actions-deploy.yml.example` | Optional workflow example for build-push-SSH deployment. |
@@ -56,6 +57,20 @@ Copy `docker-compose.yml`, `.env.example`, and `app.env.example` into
 values, then `docker compose up -d`. The compose file references images via
 `${BACKEND_IMAGE}` / `${FRONTEND_IMAGE}`; the GitHub Actions example rewrites
 those on every release.
+
+Only the frontend containers join the shared Traefik network. Backend traffic
+uses the project-scoped `backend-app` network, and the backend has no published
+host port. The Compose file enables Uvicorn proxy headers because only the
+frontends can reach the backend there; do not attach unrelated containers to
+that private network. Configure CDN/WAF trusted forwarding and origin firewall
+rules on the host/provider as described in the repository's security guide.
+
+The `/api/` routers have per-source rate limits, in-flight request caps, and a
+1 MiB body limit. Tune those at the edge with the `*_API_*` values in `.env`;
+keep `TRAEFIK_CLIENT_IP_DEPTH=0` for direct clients. If a CDN/load balancer is
+in front, first configure Traefik to trust only that provider's forwarding
+addresses, then set the depth for the sanitized `X-Forwarded-For` chain.
+Application-side API and login limits are configured separately in `app.env`.
 
 `app.env` no longer contains S3 / backup variables — backup-related settings
 live alongside `zata-ops` (typically in the same project's `.env.local`).

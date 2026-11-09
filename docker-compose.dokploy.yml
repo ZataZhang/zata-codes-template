@@ -18,8 +18,8 @@
 # Job, cron, GitHub Actions, etc.).
 # -----------------------------------------------------------------------------
 
-# Dokploy 为每个 Compose 部署分配唯一项目名。所有栈共用外部
-# dokploy-network，因此用项目名生成后端网络别名。
+# Dokploy 为每个 Compose 部署分配唯一项目名。只有前端连接共享的
+# dokploy-network；后端只加入本项目的 backend-app 私有网络。
 x-backend-network-alias: &backend-network-alias
   "${COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME is required}-backend"
 x-backend-upstream: &backend-upstream
@@ -45,8 +45,13 @@ services:
     environment:
       - HOST=0.0.0.0
       - PORT=8000
+      - FORWARDED_ALLOW_IPS=${FORWARDED_ALLOW_IPS:-*}
       - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL
+      - AUTH_COOKIE_SECURE=${AUTH_COOKIE_SECURE:-true}
+      - SECURITY_RATE_LIMIT_ENABLED=${SECURITY_RATE_LIMIT_ENABLED:-true}
+      - OBSERVABILITY_METRICS_ENABLED=${OBSERVABILITY_METRICS_ENABLED:-false}
+      - MCP_ENABLED=${MCP_ENABLED:-false}
       - AUTH_ADMIN_BOOTSTRAP_USERNAME
       - AUTH_ADMIN_BOOTSTRAP_PASSWORD
       - APP_BOOTSTRAP_EMAIL
@@ -71,7 +76,7 @@ services:
       - zata-codes-template-backend-logs:/app/logs
       - zata-codes-template-backend-data:/app/data
     networks:
-      dokploy-network:
+      backend-app:
         aliases:
           - *backend-network-alias
     deploy:
@@ -96,9 +101,11 @@ services:
         condition: service_healthy
     environment:
       BACKEND_UPSTREAM: *backend-upstream
+      API_MAX_BODY_SIZE: ${ADMIN_API_MAX_BODY_BYTES:-1048576}
     restart: unless-stopped
     networks:
       - dokploy-network
+      - backend-app
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=dokploy-network"
@@ -111,6 +118,20 @@ services:
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-admin.tls=true"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-admin.tls.certresolver=letsencrypt"
       - "traefik.http.services.${COMPOSE_PROJECT_NAME}-admin.loadbalancer.server.port=80"
+      - "traefik.http.middlewares.${COMPOSE_PROJECT_NAME}-admin-api-rate.ratelimit.average=${ADMIN_API_RATE_LIMIT_AVERAGE:-60}"
+      - "traefik.http.middlewares.${COMPOSE_PROJECT_NAME}-admin-api-rate.ratelimit.period=${ADMIN_API_RATE_LIMIT_PERIOD:-1m}"
+      - "traefik.http.middlewares.${COMPOSE_PROJECT_NAME}-admin-api-rate.ratelimit.burst=${ADMIN_API_RATE_LIMIT_BURST:-20}"
+      - "traefik.http.middlewares.${COMPOSE_PROJECT_NAME}-admin-api-rate.ratelimit.sourcecriterion.ipstrategy.depth=${TRAEFIK_CLIENT_IP_DEPTH:-0}"
+      - "traefik.http.middlewares.${COMPOSE_PROJECT_NAME}-admin-api-inflight.inflightreq.amount=${ADMIN_API_MAX_INFLIGHT:-20}"
+      - "traefik.http.middlewares.${COMPOSE_PROJECT_NAME}-admin-api-body.buffering.maxrequestbodybytes=${ADMIN_API_MAX_BODY_BYTES:-1048576}"
+      - "traefik.http.middlewares.${COMPOSE_PROJECT_NAME}-admin-api-body.buffering.memrequestbodybytes=${ADMIN_API_MAX_BODY_BYTES:-1048576}"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-admin-api.rule=Host(`admin.${DOMAIN:?Set DOMAIN in Dokploy environment}`) && PathPrefix(`/api/`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-admin-api.entrypoints=websecure"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-admin-api.priority=100"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-admin-api.tls=true"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-admin-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-admin-api.middlewares=${COMPOSE_PROJECT_NAME}-admin-api-rate,${COMPOSE_PROJECT_NAME}-admin-api-inflight,${COMPOSE_PROJECT_NAME}-admin-api-body"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-admin-api.service=${COMPOSE_PROJECT_NAME}-admin"
     deploy:
       resources:
         limits:
@@ -136,6 +157,7 @@ services:
     restart: unless-stopped
     networks:
       - dokploy-network
+      - backend-app
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=dokploy-network"
@@ -148,6 +170,20 @@ services:
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-public.tls=true"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-public.tls.certresolver=letsencrypt"
       - "traefik.http.services.${COMPOSE_PROJECT_NAME}-public.loadbalancer.server.port=3000"
+      - "traefik.http.middlewares.${COMPOSE_PROJECT_NAME}-public-api-rate.ratelimit.average=${PUBLIC_API_RATE_LIMIT_AVERAGE:-120}"
+      - "traefik.http.middlewares.${COMPOSE_PROJECT_NAME}-public-api-rate.ratelimit.period=${PUBLIC_API_RATE_LIMIT_PERIOD:-1m}"
+      - "traefik.http.middlewares.${COMPOSE_PROJECT_NAME}-public-api-rate.ratelimit.burst=${PUBLIC_API_RATE_LIMIT_BURST:-60}"
+      - "traefik.http.middlewares.${COMPOSE_PROJECT_NAME}-public-api-rate.ratelimit.sourcecriterion.ipstrategy.depth=${TRAEFIK_CLIENT_IP_DEPTH:-0}"
+      - "traefik.http.middlewares.${COMPOSE_PROJECT_NAME}-public-api-inflight.inflightreq.amount=${PUBLIC_API_MAX_INFLIGHT:-40}"
+      - "traefik.http.middlewares.${COMPOSE_PROJECT_NAME}-public-api-body.buffering.maxrequestbodybytes=${PUBLIC_API_MAX_BODY_BYTES:-1048576}"
+      - "traefik.http.middlewares.${COMPOSE_PROJECT_NAME}-public-api-body.buffering.memrequestbodybytes=${PUBLIC_API_MAX_BODY_BYTES:-1048576}"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-public-api.rule=Host(`${DOMAIN:?Set DOMAIN in Dokploy environment}`) && PathPrefix(`/api/`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-public-api.entrypoints=websecure"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-public-api.priority=100"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-public-api.tls=true"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-public-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-public-api.middlewares=${COMPOSE_PROJECT_NAME}-public-api-rate,${COMPOSE_PROJECT_NAME}-public-api-inflight,${COMPOSE_PROJECT_NAME}-public-api-body"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}-public-api.service=${COMPOSE_PROJECT_NAME}-public"
     deploy:
       resources:
         limits:
@@ -162,5 +198,6 @@ volumes:
   zata-codes-template-backend-data:
 
 networks:
+  backend-app: {}
   dokploy-network:
     external: true

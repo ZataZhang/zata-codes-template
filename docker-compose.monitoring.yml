@@ -31,6 +31,8 @@ services:
     environment:
       # JSON logs are required for the Vector -> Loki pipeline.
       - OBSERVABILITY_LOG_FORMAT=json
+      # Metrics are enabled only inside this local monitoring network.
+      - OBSERVABILITY_METRICS_ENABLED=true
       # Optional overrides for central mode.
       - OBSERVABILITY_SERVICE_NAME=${OBSERVABILITY_SERVICE_NAME:-zata-codes-template-backend}
       - OBSERVABILITY_SERVICE_VERSION=${OBSERVABILITY_SERVICE_VERSION:-0.1.0}

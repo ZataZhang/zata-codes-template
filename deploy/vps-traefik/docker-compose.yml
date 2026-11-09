@@ -32,8 +32,9 @@ services:
     environment:
       - HOST=0.0.0.0
       - PORT=8000
+      - FORWARDED_ALLOW_IPS=*
+      - AUTH_COOKIE_SECURE=${AUTH_COOKIE_SECURE:-true}
       - OBSERVABILITY_ENABLED=${OBSERVABILITY_ENABLED:-true}
-      - OBSERVABILITY_METRICS_ENABLED=${OBSERVABILITY_METRICS_ENABLED:-true}
       - OBSERVABILITY_REQUEST_ID_ENABLED=${OBSERVABILITY_REQUEST_ID_ENABLED:-true}
       - OBSERVABILITY_LOG_FORMAT=${OBSERVABILITY_LOG_FORMAT:-text}
       - OBSERVABILITY_SERVICE_NAME=${OBSERVABILITY_SERVICE_NAME:-zata-codes-template-backend}
@@ -56,7 +57,7 @@ services:
       - zata-codes-template-backend-logs:/app/logs
       - zata-codes-template-backend-data:/app/data
     networks:
-      traefik:
+      backend-app:
         aliases:
           - *backend-network-alias
     labels:
@@ -81,9 +82,11 @@ services:
         condition: service_healthy
     environment:
       BACKEND_UPSTREAM: *backend-upstream
+      API_MAX_BODY_SIZE: ${ADMIN_API_MAX_BODY_BYTES:-1048576}
     restart: unless-stopped
     networks:
       - traefik
+      - backend-app
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=${TRAEFIK_NETWORK:-traefik}"
@@ -96,6 +99,20 @@ services:
       - "traefik.http.routers.zata-codes-template-admin.tls=true"
       - "traefik.http.routers.zata-codes-template-admin.tls.certresolver=letsencrypt"
       - "traefik.http.services.zata-codes-template-admin.loadbalancer.server.port=80"
+      - "traefik.http.middlewares.zata-codes-template-admin-api-rate.ratelimit.average=${ADMIN_API_RATE_LIMIT_AVERAGE:-60}"
+      - "traefik.http.middlewares.zata-codes-template-admin-api-rate.ratelimit.period=${ADMIN_API_RATE_LIMIT_PERIOD:-1m}"
+      - "traefik.http.middlewares.zata-codes-template-admin-api-rate.ratelimit.burst=${ADMIN_API_RATE_LIMIT_BURST:-20}"
+      - "traefik.http.middlewares.zata-codes-template-admin-api-rate.ratelimit.sourcecriterion.ipstrategy.depth=${TRAEFIK_CLIENT_IP_DEPTH:-0}"
+      - "traefik.http.middlewares.zata-codes-template-admin-api-inflight.inflightreq.amount=${ADMIN_API_MAX_INFLIGHT:-20}"
+      - "traefik.http.middlewares.zata-codes-template-admin-api-body.buffering.maxrequestbodybytes=${ADMIN_API_MAX_BODY_BYTES:-1048576}"
+      - "traefik.http.middlewares.zata-codes-template-admin-api-body.buffering.memrequestbodybytes=${ADMIN_API_MAX_BODY_BYTES:-1048576}"
+      - "traefik.http.routers.zata-codes-template-admin-api.rule=Host(`admin.${DOMAIN:?Set DOMAIN in .env}`) && PathPrefix(`/api/`)"
+      - "traefik.http.routers.zata-codes-template-admin-api.entrypoints=websecure"
+      - "traefik.http.routers.zata-codes-template-admin-api.priority=100"
+      - "traefik.http.routers.zata-codes-template-admin-api.tls=true"
+      - "traefik.http.routers.zata-codes-template-admin-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.zata-codes-template-admin-api.middlewares=zata-codes-template-admin-api-rate,zata-codes-template-admin-api-inflight,zata-codes-template-admin-api-body"
+      - "traefik.http.routers.zata-codes-template-admin-api.service=zata-codes-template-admin"
     deploy:
       resources:
         limits:
@@ -120,6 +137,7 @@ services:
     restart: unless-stopped
     networks:
       - traefik
+      - backend-app
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=${TRAEFIK_NETWORK:-traefik}"
@@ -132,6 +150,20 @@ services:
       - "traefik.http.routers.zata-codes-template-public.tls=true"
       - "traefik.http.routers.zata-codes-template-public.tls.certresolver=letsencrypt"
       - "traefik.http.services.zata-codes-template-public.loadbalancer.server.port=3000"
+      - "traefik.http.middlewares.zata-codes-template-public-api-rate.ratelimit.average=${PUBLIC_API_RATE_LIMIT_AVERAGE:-120}"
+      - "traefik.http.middlewares.zata-codes-template-public-api-rate.ratelimit.period=${PUBLIC_API_RATE_LIMIT_PERIOD:-1m}"
+      - "traefik.http.middlewares.zata-codes-template-public-api-rate.ratelimit.burst=${PUBLIC_API_RATE_LIMIT_BURST:-60}"
+      - "traefik.http.middlewares.zata-codes-template-public-api-rate.ratelimit.sourcecriterion.ipstrategy.depth=${TRAEFIK_CLIENT_IP_DEPTH:-0}"
+      - "traefik.http.middlewares.zata-codes-template-public-api-inflight.inflightreq.amount=${PUBLIC_API_MAX_INFLIGHT:-40}"
+      - "traefik.http.middlewares.zata-codes-template-public-api-body.buffering.maxrequestbodybytes=${PUBLIC_API_MAX_BODY_BYTES:-1048576}"
+      - "traefik.http.middlewares.zata-codes-template-public-api-body.buffering.memrequestbodybytes=${PUBLIC_API_MAX_BODY_BYTES:-1048576}"
+      - "traefik.http.routers.zata-codes-template-public-api.rule=Host(`${DOMAIN:?Set DOMAIN in .env}`) && PathPrefix(`/api/`)"
+      - "traefik.http.routers.zata-codes-template-public-api.entrypoints=websecure"
+      - "traefik.http.routers.zata-codes-template-public-api.priority=100"
+      - "traefik.http.routers.zata-codes-template-public-api.tls=true"
+      - "traefik.http.routers.zata-codes-template-public-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.zata-codes-template-public-api.middlewares=zata-codes-template-public-api-rate,zata-codes-template-public-api-inflight,zata-codes-template-public-api-body"
+      - "traefik.http.routers.zata-codes-template-public-api.service=zata-codes-template-public"
     deploy:
       resources:
         limits:
@@ -146,6 +178,7 @@ volumes:
   zata-codes-template-backend-data:
 
 networks:
+  backend-app: {}
   traefik:
     name: ${TRAEFIK_NETWORK:-traefik}
     external: true

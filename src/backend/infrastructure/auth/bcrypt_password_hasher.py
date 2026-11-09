@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import bcrypt
 
-from backend.core.shared.interfaces.password_hasher import PasswordHasher
+from backend.core.shared.interfaces.password_hasher import MAX_PASSWORD_UTF8_BYTES, PasswordHasher
 
-# bcrypt 算法仅消费前 72 字节，超长输入需先截断以避免 4.x 抛错。
-_BCRYPT_MAX_BYTES: int = 72
+# bcrypt 只消费固定上限内的输入字节；调用方先校验，本类保留截断以兼容旧哈希。
+_BCRYPT_MAX_BYTES: int = MAX_PASSWORD_UTF8_BYTES
 
 
 def _encode_truncated(plain_password: str) -> bytes:

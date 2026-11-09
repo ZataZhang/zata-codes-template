@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -36,19 +35,18 @@ class AuthComponents:
 
 def build_auth_components(
     session_factory: Any,
-    redis_client_factory: Callable[[str], Any],
+    redis_client: Any,
 ) -> AuthComponents:
     """创建两套隔离的认证域。
 
     Args:
         session_factory: SQLAlchemy 会话工厂；账户仓库每个操作使用独立短事务。
-        redis_client_factory: Redis 客户端工厂。
+        redis_client: 已由 composition root 创建的 Redis 客户端。
 
     Returns:
         认证域组件集合。
     """
 
-    redis_client = redis_client_factory(config.redis.url)
     password_hasher = BcryptPasswordHasher()
     public_user_repository = SqlAlchemyUserAccountRepository(
         session_factory=session_factory,

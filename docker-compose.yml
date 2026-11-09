@@ -28,8 +28,13 @@ services:
     environment:
       - HOST=0.0.0.0
       - PORT=8000
+      - FORWARDED_ALLOW_IPS=${FORWARDED_ALLOW_IPS:-127.0.0.1}
       - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=${REDIS_URL}
+      - AUTH_COOKIE_SECURE=${AUTH_COOKIE_SECURE:-false}
+      - SECURITY_RATE_LIMIT_ENABLED=${SECURITY_RATE_LIMIT_ENABLED:-true}
+      - OBSERVABILITY_METRICS_ENABLED=${OBSERVABILITY_METRICS_ENABLED:-false}
+      - MCP_ENABLED=${MCP_ENABLED:-false}
       - AUTH_ADMIN_BOOTSTRAP_USERNAME=${AUTH_ADMIN_BOOTSTRAP_USERNAME:-}
       - AUTH_ADMIN_BOOTSTRAP_PASSWORD=${AUTH_ADMIN_BOOTSTRAP_PASSWORD:-}
       - APP_BOOTSTRAP_EMAIL=${APP_BOOTSTRAP_EMAIL:-}
@@ -100,6 +105,7 @@ services:
         condition: service_healthy
     environment:
       BACKEND_UPSTREAM: zata-codes-template-backend:8000
+      API_MAX_BODY_SIZE: ${ADMIN_API_MAX_BODY_BYTES:-1048576}
     restart: unless-stopped
 
   zata-codes-template-public:

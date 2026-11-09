@@ -140,7 +140,7 @@ class ObservabilitySettings(BaseSettings):
     )
 
     enabled: bool = Field(default=True)
-    metrics_enabled: bool = Field(default=True)
+    metrics_enabled: bool = Field(default=False)
     request_id_enabled: bool = Field(default=True)
     log_format: str = Field(default="text")
     service_name: str = Field(default="app-backend")
@@ -301,6 +301,7 @@ class AuthSettings(BaseSettings):
     admin_bootstrap_password: SecretStr = SecretStr("")
     session_sliding_days: int = 15
     session_absolute_days: int = 60
+    cookie_secure: bool = True
 
     @classmethod
     def settings_customise_sources(
@@ -322,10 +323,11 @@ class AuthSettings(BaseSettings):
 
 
 class MCPSettings(BaseSettings):
-    """MCP Streamable HTTP 的 Host 与 Origin 安全白名单。"""
+    """MCP Streamable HTTP 的启用状态及 Host / Origin 安全白名单。"""
 
     model_config = SettingsConfigDict(env_prefix="MCP_", extra="ignore")
 
+    enabled: bool = False
     allowed_hosts: list[str] = Field(
         default_factory=lambda: ["localhost:*", "127.0.0.1:*", "[::1]:*"]
     )
@@ -344,6 +346,42 @@ class MCPSettings(BaseSettings):
 
         toml_source: _TomlSectionSource = _TomlSectionSource(settings_cls, "mcp")
         return (env_settings, toml_source, init_settings)
+
+
+class SecuritySettings(BaseSettings):
+    """HTTP 请求资源与调用频率保护配置。"""
+
+    model_config = SettingsConfigDict(
+        env_prefix="SECURITY_",
+        env_file=(_PROJECT_ROOT_PATH / ".env", _PROJECT_ROOT_PATH / ".env.local"),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    rate_limit_enabled: bool = True
+    request_body_max_bytes: int = Field(default=1_048_576, ge=1)
+    api_requests_per_minute: int = Field(default=120, ge=1)
+    public_login_ip_attempts: int = Field(default=10, ge=1)
+    public_login_identifier_attempts: int = Field(default=30, ge=1)
+    admin_login_ip_attempts: int = Field(default=5, ge=1)
+    admin_login_identifier_attempts: int = Field(default=20, ge=1)
+    login_ip_window_seconds: int = Field(default=300, ge=1)
+    login_identifier_window_seconds: int = Field(default=900, ge=1)
+    register_ip_attempts: int = Field(default=5, ge=1)
+    register_window_seconds: int = Field(default=3600, ge=1)
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,  # noqa: ARG003
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """按环境变量、dotenv、TOML 与初始化参数的优先级加载安全配置。"""
+        toml_source: _TomlSectionSource = _TomlSectionSource(settings_cls, "security")
+        return (env_settings, dotenv_settings, toml_source, init_settings)
 
 
 class AppSettings(BaseSettings):
@@ -366,6 +404,7 @@ class AppSettings(BaseSettings):
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     mcp: MCPSettings = Field(default_factory=MCPSettings)
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
+    security: SecuritySettings = Field(default_factory=SecuritySettings)
     redis: RedisSettings = Field(default_factory=RedisSettings)
     config_provider: ConfigProviderSettings = Field(default_factory=ConfigProviderSettings)
     auth: AuthSettings = Field(default_factory=AuthSettings)
@@ -596,6 +635,7 @@ __all__ = [
     "PrimaryModelSettings",
     "RedisSettings",
     "RunTracingSettings",
+    "SecuritySettings",
     "config",
     "load_primary_model_settings",
     "load_run_tracing_settings",

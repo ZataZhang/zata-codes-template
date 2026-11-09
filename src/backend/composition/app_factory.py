@@ -15,8 +15,11 @@ from backend.api.admin import admin_auth_router, admin_user_router, run_trace_ro
 from backend.api.auth_router import router as auth_router
 from backend.api.health_router import health_router
 from backend.api.metrics_router import metrics_router
+from backend.api.middleware.api_rate_limit import ApiRateLimitMiddleware
 from backend.api.middleware.prometheus_metrics import PrometheusMetricsMiddleware
+from backend.api.middleware.request_body_limit import RequestBodyLimitMiddleware
 from backend.api.middleware.request_context import RequestContextMiddleware
+from backend.api.security.rate_limiter import ApiRateLimitConfig, ApiRateLimiter
 from backend.composition.auth_wiring import build_auth_components
 from backend.composition.bootstrap import run_migrations, seed_admin_user, seed_public_user
 from backend.composition.run_tracing_wiring import build_run_tracing_components
@@ -28,6 +31,7 @@ from backend.infrastructure.config.providers import (
 from backend.infrastructure.config.settings import config, startup_runtime_config
 from backend.infrastructure.logger import logger
 from backend.infrastructure.persistence.database import SessionLocal
+from backend.infrastructure.security.redis_rate_limit_store import RedisRateLimitStore
 
 
 def _load_project_version() -> str:
@@ -59,7 +63,11 @@ def create_app(
 
     run_migrations()
     project_version = _load_project_version()
-    mcp_server = create_mcp_server(app_name=config.app_name, app_version=project_version)
+    mcp_server = (
+        create_mcp_server(app_name=config.app_name, app_version=project_version)
+        if config.mcp.enabled
+        else None
+    )
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
@@ -75,7 +83,10 @@ def create_app(
                 _app.state.runtime_config = dict(await config_provider.load())
             finally:
                 await config_provider.close()
-        async with mcp_server.session_manager.run():
+        if mcp_server is not None:
+            async with mcp_server.session_manager.run():
+                yield
+        else:
             yield
 
     fastapi_app = FastAPI(
@@ -84,11 +95,34 @@ def create_app(
         lifespan=lifespan,
     )
     fastapi_app.state.runtime_config = {}
+    fastapi_app.state.auth_cookie_secure = config.auth.cookie_secure
     session_factory = SessionLocal
+    redis_client = redis_client_factory(config.redis.url)
     auth_components = build_auth_components(
         session_factory,
-        redis_client_factory,
+        redis_client,
     )
+    api_rate_limiter = ApiRateLimiter(
+        rate_limit_store=RedisRateLimitStore(redis_client),
+        config=ApiRateLimitConfig(
+            enabled=config.security.rate_limit_enabled,
+            api_requests_per_minute=config.security.api_requests_per_minute,
+            public_login_ip_attempts=config.security.public_login_ip_attempts,
+            public_login_identifier_attempts=config.security.public_login_identifier_attempts,
+            admin_login_ip_attempts=config.security.admin_login_ip_attempts,
+            admin_login_identifier_attempts=config.security.admin_login_identifier_attempts,
+            login_ip_window_seconds=config.security.login_ip_window_seconds,
+            login_identifier_window_seconds=config.security.login_identifier_window_seconds,
+            register_ip_attempts=config.security.register_ip_attempts,
+            register_window_seconds=config.security.register_window_seconds,
+        ),
+    )
+    fastapi_app.state.api_rate_limiter = api_rate_limiter
+    fastapi_app.add_middleware(
+        RequestBodyLimitMiddleware,
+        max_body_bytes=config.security.request_body_max_bytes,
+    )
+    fastapi_app.add_middleware(ApiRateLimitMiddleware, rate_limiter=api_rate_limiter)
 
     fastapi_app.state.public_auth_service = auth_components.public_auth_service
     fastapi_app.state.admin_auth_service = auth_components.admin_auth_service
@@ -115,19 +149,20 @@ def create_app(
     ):
         fastapi_app.include_router(api_router)
 
-    fastapi_app.mount(
-        "/api/mcp",
-        mcp_server.streamable_http_app(
-            streamable_http_path="/",
-            json_response=True,
-            stateless_http=True,
-            transport_security=TransportSecuritySettings(
-                allowed_hosts=config.mcp.allowed_hosts,
-                allowed_origins=config.mcp.allowed_origins,
+    if mcp_server is not None:
+        fastapi_app.mount(
+            "/api/mcp",
+            mcp_server.streamable_http_app(
+                streamable_http_path="/",
+                json_response=True,
+                stateless_http=True,
+                transport_security=TransportSecuritySettings(
+                    allowed_hosts=config.mcp.allowed_hosts,
+                    allowed_origins=config.mcp.allowed_origins,
+                ),
             ),
-        ),
-        name="mcp",
-    )
+            name="mcp",
+        )
 
     observability_settings = config.observability
     if observability_settings.enabled:

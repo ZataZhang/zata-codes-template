@@ -316,7 +316,7 @@ AUTH_ADMIN_BOOTSTRAP_PASSWORD=change-me-please
 - **种子 admin**：`src/backend/composition/bootstrap.py` 启动时，若配置了
   `AUTH_ADMIN_BOOTSTRAP_*` 且该用户名不存在，则创建一个管理员；两项任一为空则
   跳过（不影响 public 流程）。
-- **Cookie 安全**:本地开发 `secure=False`(http);生产经反代终止 TLS 后应置 `True`。Cookie 名是接入层常量(`session_id` / `admin_session_id`),会话窗口天数与 admin 种子来自 `AuthSettings`。
+- **Cookie 安全**:生产 Compose 默认启用 `Secure`，本地 HTTP 开发由 `config.toml` 显式设为 `false`。生产使用 Compose 以外的启动方式时，应设置 `AUTH_COOKIE_SECURE=true`。Cookie 名是接入层常量(`session_id` / `admin_session_id`),会话窗口天数、Cookie 安全选项与 admin 种子来自 `AuthSettings`。
 - **会话窗口**:`AUTH_SESSION_SLIDING_DAYS`(默认 15)、`AUTH_SESSION_ABSOLUTE_DAYS`(默认 60)。
 
 !!! danger "本地直接运行需注意"

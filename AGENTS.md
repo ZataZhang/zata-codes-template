@@ -5,6 +5,8 @@
 
 ## Read Order
 
+若仓库根目录存在 `AGENTS.local.md`，先读取本机补充指令；本地提示词约定见 `docs/ai-standards/index.md`。
+
 任何任务都先读：
 
 1. `docs/ai-standards/index.md` — 规范地图与权威关系

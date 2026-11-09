@@ -9,6 +9,7 @@ from __future__ import annotations
 from fastapi import HTTPException, Request
 from starlette.status import HTTP_401_UNAUTHORIZED
 
+from backend.api.security.rate_limiter import ApiRateLimiter
 from backend.core.auth.directory import PublicUserDirectory
 from backend.core.auth.models import AuthenticatedPrincipal
 from backend.core.auth.service import AuthService
@@ -37,6 +38,11 @@ def get_public_user_directory(request: Request) -> PublicUserDirectory:
 def get_run_trace_use_case(request: Request) -> RunTraceUseCase:
     """从应用状态获取 Run 执行轨迹诊断用例（admin 域专用）。"""
     return request.app.state.run_trace_use_case
+
+
+def get_api_rate_limiter(request: Request) -> ApiRateLimiter:
+    """从应用状态获取共享 API 限流策略。"""
+    return request.app.state.api_rate_limiter
 
 
 def _resolve_principal(

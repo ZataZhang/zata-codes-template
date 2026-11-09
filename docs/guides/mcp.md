@@ -4,7 +4,7 @@
 
 ## 当前入口
 
-默认 MCP endpoint 为 `POST /api/mcp`，使用无会话的 Streamable HTTP。模板只注册 `application_info` 工具，返回应用名称和版本。工具在 `src/backend/engines/mcp/server.py` 中注册，派生项目可以在同一个 `MCPServer` 上添加领域工具、资源和 prompts。
+默认关闭 MCP HTTP endpoint。设置 `MCP_ENABLED=true` 后，endpoint 为 `POST /api/mcp`，使用无会话的 Streamable HTTP。模板只注册 `application_info` 工具，返回应用名称和版本。工具在 `src/backend/engines/mcp/server.py` 中注册，派生项目可以在同一个 `MCPServer` 上添加领域工具、资源和 prompts。
 
 SDK 2.x 的核心实现支持 MCP `2026-07-28`，并保留较早的 Streamable HTTP 与 stdio 协议版本。模板只开放 HTTP endpoint；HTTP+SSE 已被 MCP 规范弃用，不作为新入口提供。Tasks 属于独立扩展，当前 SDK 版本尚未实现，因此模板不声明该扩展。
 
@@ -34,7 +34,7 @@ def lookup_order(order_id: str) -> dict[str, str]:
     return {"order_id": order_id, "status": "processing"}
 ```
 
-模板默认未接入用户身份认证，当前只暴露应用名称和版本。派生项目在注册返回用户数据、凭证或其他敏感信息的工具前，必须先为 MCP 请求加入与该工具匹配的认证和授权策略。
+模板默认未启用 MCP，也未接入用户身份认证。启用后，当前工具只返回应用名称和版本；不要把 MCP 入口直接发布到公网。派生项目在注册返回用户数据、凭证或其他敏感信息的工具前，必须先为 MCP 请求加入与该工具匹配的认证和授权策略，并配置专用的私有入口。
 
 ## Host 与 Origin 安全设置
 
@@ -42,6 +42,7 @@ SDK 的 DNS rebinding 防护默认开启。`config.toml` 的 `[mcp]` 默认只�
 
 ```toml
 [mcp]
+enabled = true
 allowed_hosts = ["mcp.example.com"]
 allowed_origins = ["https://mcp.example.com"]
 ```

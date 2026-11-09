@@ -22,9 +22,9 @@
 - 用 `uv` 代替 `pip` / `conda`
 - 用 `just` 代替手工记忆零散命令
 
-读代码与看改动优先用 `just view`（本机浏览界面：不编辑仓库，可暂存改动或把当前文件交给系统默认应用打开），而不是
-为此起一个完整 IDE；它和 `just docs-serve` / `just prd review` 属于同一类「一条命令起一个
-本机页面」。需要
+读代码与看改动优先用本机查看器（已安装时用 `zview`；模板仓库还提供私有快捷入口 `just view`，
+两者都不编辑仓库，可暂存改动或把当前文件交给系统默认应用打开），而不是为此起一个完整 IDE；
+它和 `just docs-serve` / `just prd review` 属于同一类「一条命令起一个本机页面」。需要
 **可发送、可归档**的改动报告时仍走 `skills/git-diff-report/`，两者职责不重叠。
 
 ## Common Commands
@@ -49,9 +49,9 @@
 | `just test-budget [junit]` | 检查全量档成本是否超过 `test-budget.json` 上限（棘轮）；本机只强制条数，墙钟只报告，CI 才带 `--enforce-seconds` |
 | `just test-debt [top]` | 测试瘦身证据：重复用例块、最贵重复文件、最慢文件榜；只出证据不改代码 |
 | `just bench-test` | 验证 warm / after-edit 场景的 `just test` 是否满足 30 秒预算 |
-| `just view [路径]` | 打开本机改动查看器（默认改动视图，按 `Staged Changes` / `Changes` 两段列出，后者由未暂存与未跟踪合并而来；重命名合并为一条 `R` 项并标出旧路径——包括普通 `mv` 造成的「删除 + 未跟踪新文件」，服务端在仓库外的一次性索引上按内容相似度配对，真实索引不受影响；`--files` 切文件视图；`Git Log` 首次打开时才加载代码与本地/远程分支提交图，每页 50 条；选中提交后可跳转到既有改动界面浏览该提交的文件列表与逐文件 diff；`Changes` 旁的加号可 `git add`；内容区头部可把当前文件交给系统默认应用打开）；第二条命令起复用常驻实例（秒开） |
+| `just view [路径]` | **仅模板仓库私有，不随 `just sync-template` 同步。** 打开本机改动查看器（默认改动视图，按 `Staged Changes` / `Changes` 两段列出，后者由未暂存与未跟踪合并而来；重命名合并为一条 `R` 项并标出旧路径——包括普通 `mv` 造成的「删除 + 未跟踪新文件」，服务端在仓库外的一次性索引上按内容相似度配对，真实索引不受影响；`--files` 切文件视图；`Git Log` 首次打开时才加载代码与本地/远程分支提交图，每页 50 条；选中提交后可跳转到既有改动界面浏览该提交的文件列表与逐文件 diff；`Changes` 旁的加号可 `git add`；内容区头部可把当前文件交给系统默认应用打开）；第二条命令起复用常驻实例（秒开） |
 | `just view-install` / `zview [目录]` | 安装并调用全局查看器；相对目录从当前 shell 目录解析，Git 仓库子目录只显示该子树的文件、改动和历史，普通目录只浏览文件；全局登记与日志保存在用户缓存目录 |
-| `just diff` | `just view --diff` 的薄别名 |
+| `just diff` | 模板仓库私有的 `just view --diff` 薄别名 |
 | `uv run mkdocs build` | 验证文档站点 |
 | `just docs-serve` | 本地预览文档 |
 | `just ai check <file> [claude\|kimi]` | 用 AI 审查单个文件；使用 kimi 时会自动恢复当前工作目录的上一个会话，方便追问 |
@@ -153,7 +153,7 @@ view *args:
 
 ## Local Read-Only Viewer
 
-`just view` 与安装后的全局 `zview` 起一个只绑 `127.0.0.1` 的查看器（文件树 + 文件内容 + 改动视图 + 按需加载的本地/远程 Git Log 图与提交 diff + 暂存 + 在系统中打开），
+`just view`（仅本模板仓库提供）与安装后的全局 `zview` 起一个只绑 `127.0.0.1` 的查看器（文件树 + 文件内容 + 改动视图 + 按需加载的本地/远程 Git Log 图与提交 diff + 暂存 + 在系统中打开），
 逻辑在 `scripts/shared/view/`。这里只记与工具链
 约定相关的部分。
 
