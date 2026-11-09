@@ -154,8 +154,10 @@ def run_settings_process(
     )
 
 
+@pytest.mark.parametrize("document_format", ["json", "dotenv"])
 def test_settings_and_database_use_remote_config_before_initialization(
     startup_project: Path,
+    document_format: str,
     nacos_server: tuple[ThreadingHTTPServer, dict[str, object]],
 ) -> None:
     """进程、两份 dotenv、Nacos、TOML 按约定覆盖，数据库初始化使用远端 URL。"""
@@ -171,6 +173,12 @@ def test_settings_and_database_use_remote_config_before_initialization(
             "runtime_config": {"feature_enabled": True},
         }
     )
+    if document_format == "dotenv":
+        remote_values = json.loads(state["content"])
+        state["content"] = "\n".join(
+            f"{key}={json.dumps(value) if not isinstance(value, str) else value}"
+            for key, value in remote_values.items()
+        )
     (startup_project / ".env").write_text("DB_PORT=5444\nAPP_NAME=dotenv-name\n", encoding="utf-8")
     (startup_project / ".env.local").write_text(
         "DB_HOST=local-db\nAPP_NAME=local-name\n", encoding="utf-8"

@@ -15,7 +15,7 @@
 1. 进程环境变量（包括显式空值）
 2. `.env.local`
 3. `.env`
-4. Nacos JSON（配置了地址时）
+4. Nacos JSON 或 text/dotenv（配置了地址时）
 5. `config.toml`
 6. 代码默认值
 
@@ -39,7 +39,7 @@
 ## Nacos 启动配置与本地开发
 
 本地开发继续使用 `.env.local`；未配置 Nacos 地址时不会连接外部配置服务。
-部署时可只在进程环境中提供 Nacos 连接参数，其余应用配置由 Nacos JSON 提供。
+部署时可只在进程环境中提供 Nacos 连接参数，其余应用配置由 Nacos JSON 或 text/dotenv 提供。
 程序先合并 `.env` / `.env.local`（进程已有的变量优先，包括空字符串），再解析本地
 `[config_provider]` 与环境变量中的连接信息，读取一次 Nacos，补充尚未声明的环境变量，
 最后创建全局 `AppSettings` 并校验各子配置。数据库引擎、迁移、Redis 等依赖在此后初始化。
@@ -61,7 +61,23 @@ NACOS_DATA_ID=my-app-runtime.json
 `CONFIG_PROVIDER`，或通过 `nacos_username_env` / `nacos_password_env` 指定的凭据变量。
 这些限制保证连接信息不依赖尚未读取的远端文档。
 
-Nacos 选择 JSON 类型，使用与 `.env.local` 相同的大写环境变量名：
+Nacos 可选择 `text` 类型，一行一个环境变量，正文遵循 dotenv 语法：
+
+```dotenv
+APP_NAME=my-app-staging
+DB_HOST=database.internal
+DB_PORT=5432
+REDIS_URL=redis://redis.internal:6379/0
+OBSERVABILITY_ENABLED=false
+MCP_ALLOWED_HOSTS='["app.example.com"]'
+runtime_config='{"feature_flags":{"new_flow":false}}'
+```
+
+变量名使用大写环境变量名；`runtime_config` 是唯一允许的小写特殊键，值必须是 JSON 对象。
+支持注释、引号、空值和引号内多行值，不展开 `${VAR}`；重复键、未赋值键、非法语法和 NUL 均拒绝。
+Data ID 后缀不决定解析格式；沿用现有 ID 时无需改连接配置。
+
+也兼容原有 JSON 类型，使用与 `.env.local` 相同的大写环境变量名：
 
 ```json
 {
@@ -80,7 +96,7 @@ Nacos 选择 JSON 类型，使用与 `.env.local` 相同的大写环境变量名
 字符串保持原文，不执行 `${VAR}` 展开；数字、布尔、列表和对象编码成环境变量字符串，
 随后由现有 Settings 校验转换。`null` 不合法；不需要覆盖时省略该键，空字符串表示显式空值。
 任意派生项目的环境变量名也可使用，未知变量是否消费由派生项目的 Settings 决定。
-不要直接粘贴 `KEY=value` 文本到这个 JSON Data ID。
+选择 JSON 类型时使用 JSON 正文；dotenv 正文选择 `text` 类型。损坏的 JSON 不会回退解析为 dotenv。
 
 启动配置按进程读取一次，修改 Nacos 后需要重启所有消费进程。当前应用装配不订阅更新，
 `NACOS_POLL_INTERVAL_SECONDS` 仅供显式使用底层 provider 订阅接口的派生实现使用。
@@ -90,7 +106,7 @@ Nacos 选择 JSON 类型，使用与 `.env.local` 相同的大写环境变量名
 
 数据库、API Key 等敏感配置建议继续通过部署环境或密钥管理系统提供；
 如果存入 Nacos，拥有该配置读取权限的账号可以获取其值。Nacos 连接账号应使用应用只读账号。
-加载器复用现有 provider 的认证、读取、JSON 解析和关闭逻辑，不在日志中输出配置正文。
+加载器复用现有 provider 的认证、读取、文档解析和关闭逻辑，不在日志中输出配置正文。
 本地 `.env.local` / 容器环境的同名项会覆盖 Nacos，因此线上不要保留不必要的旧覆盖项。
 
 `NACOS_SERVER_ADDR` 接受 `host:port`。生产 Compose 的后端只加入项目私有 `backend-app` 网络，

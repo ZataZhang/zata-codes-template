@@ -1,4 +1,4 @@
-"""通过 Nacos 3 HTTP Client API 读取并轮询 JSON 配置。"""
+"""通过 Nacos 3 HTTP Client API 读取并轮询 JSON 或 dotenv 配置。"""
 
 import asyncio
 import hashlib
@@ -40,7 +40,7 @@ class NacosHttpConfigProvider:
         self._listener: RuntimeConfigListener | None = None
 
     async def load(self) -> RuntimeConfigSnapshot:
-        """读取指定 Data ID 的当前 JSON 配置。
+        """读取指定 Data ID 的当前 JSON 或 dotenv 配置。
 
         Returns:
             已解析的运行时配置快照。
