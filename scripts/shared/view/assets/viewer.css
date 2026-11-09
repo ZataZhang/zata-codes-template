@@ -70,8 +70,7 @@ button, input, select { font: inherit; color: inherit; }
 .topbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 9px 12px; }
 .repo { display: inline-flex; align-items: center; gap: 7px; font-weight: 650; }
 .repo-mark {
-  display: grid; width: 24px; height: 24px; place-items: center;
-  border-radius: 7px; background: var(--primary); color: var(--primary-foreground); font-size: 12px;
+  display: block; width: 24px; height: 24px; flex: none; border-radius: 7px;
 }
 .chip {
   border-radius: 999px; background: var(--secondary); color: var(--muted-foreground);

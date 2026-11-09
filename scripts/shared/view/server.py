@@ -49,6 +49,7 @@ _ASSET_ROUTE_PREFIX = "/assets/"
 _STATIC_CONTENT_TYPES_BY_FILENAME = {
     "index.html": "text/html; charset=utf-8",
     "viewer.css": "text/css; charset=utf-8",
+    "zview-mark.svg": "image/svg+xml",
     "history-view.js": "application/javascript; charset=utf-8",
     "viewer.js": "application/javascript; charset=utf-8",
     # 第三方产物（mermaid 的官方压缩包），只在页面真的遇到 mermaid 围栏时才按需取。
@@ -541,8 +542,8 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
         """按固定文件名白名单返回静态资源。
 
         资源名来自请求路径，因此这里用白名单而不是拼接路径：没有可以拼接的路径，就
-        没有可以逃逸的路径。查看器自己的页面资源是手写的三个文件，加上一份第三方
-        产物（mermaid，见 :data:`_STATIC_CONTENT_TYPES_BY_FILENAME`），数量固定，
+        没有可以逃逸的路径。查看器自己的页面资源使用固定名单，包含一份品牌 SVG；
+        第三方产物（mermaid，见 :data:`_STATIC_CONTENT_TYPES_BY_FILENAME`）也在名单里，
         所以白名单足够；仓库内文件的按路径取用走另一条路由（见
         :meth:`_serve_raw_file`），那里的防护是解析成绝对路径之后再断言。
         """

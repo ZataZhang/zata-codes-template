@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <defs>
+    <linearGradient id="zview-brand" x1="5" y1="4" x2="43" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7658E8" />
+      <stop offset="1" stop-color="#12AFA8" />
+    </linearGradient>
+  </defs>
+  <rect width="48" height="48" rx="14" fill="url(#zview-brand)" />
+  <path d="M12 13h24v4.5L19.5 30.5H36V35H12v-4.5L28.5 17.5H12V13Z" fill="#fff" />
+</svg>

@@ -4,6 +4,7 @@
 Changes」两段列出有改动的文件，右边是逐行 diff，顶部可以一键切到文件树视图。它代替「为了读
 一个文件或看一眼 diff 就开一个完整 IDE」这件事。文件视图里 Markdown 默认按渲染结果打开、图片
 直接显示、HTML 可以在新标签页里当真实文档打开，边界见下文「预览的边界」一节。
+顶部品牌标识和浏览器标签图标共用同一张 SVG，替换方式见 [zview 品牌标识](zview-branding.md)。
 
 本仓库还提供项目私有的 `just view` 与 `just diff` 快捷入口，定义在根目录 `justfile`，不会被
 `just sync-template` 同步。查看器实现仍在共享脚本目录，`just view-install` 可安装全局 `zview`，

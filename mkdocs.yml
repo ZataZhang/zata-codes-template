@@ -69,6 +69,7 @@ nav:
       - 沙箱执行后端: guides/sandbox-runtime.md
       - 想法 Inbox: guides/idea-inbox.md
       - 文件与改动查看器（zview / 本仓库 just view）: guides/file-viewer.md
+      - zview 品牌标识: guides/zview-branding.md
       - PRD Skill 指南: guides/prd-skill.md
       - 对话中的 PR 交付: guides/ai-pr.md
       - Agent 数据集构建: guides/agent-dataset.md
