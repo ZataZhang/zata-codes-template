@@ -32,6 +32,7 @@ class NacosHttpConfigProvider:
             base_url=settings.nacos_server_addr.strip().rstrip("/"),
             timeout=httpx.Timeout(10.0),
             follow_redirects=False,
+            trust_env=False,
         )
         self._access_token: str = ""
         self._access_token_expires_at: float = 0.0

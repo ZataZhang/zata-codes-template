@@ -56,6 +56,10 @@ def build_config_provider(
     if server_address_parts.scheme in {"http", "https"}:
         if not server_address_parts.netloc:
             raise ConfigProviderError("NACOS_SERVER_ADDR 必须包含有效的 HTTP 主机名。")
+        if server_address_parts.username is not None or server_address_parts.password is not None:
+            raise ConfigProviderError(
+                "NACOS_SERVER_ADDR 不应包含账号或密码；请使用 NACOS_USERNAME 和 NACOS_PASSWORD。"
+            )
         if (
             server_address_parts.path not in {"", "/"}
             or server_address_parts.query
