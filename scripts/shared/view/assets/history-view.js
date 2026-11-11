@@ -275,9 +275,11 @@
         const pageHeading = document.createElement("h2");
         pageHeading.textContent = `提交 ${firstCommitNumber}–${lastCommitNumber}`;
         pageSection.append(pageHeading);
+        let isFirstHistoryCommit = historyPage.offset === 0;
         for (const historyRow of historyPage.rows) {
           if (historyRow.kind === "commit") {
-            pageSection.append(buildHistoryCommitRow(historyRow));
+            pageSection.append(buildHistoryCommitRow(historyRow, isFirstHistoryCommit));
+            isFirstHistoryCommit = false;
           } else {
             const graphEdgeNode = document.createElement("div");
             graphEdgeNode.className = "history-edge-row";
@@ -346,7 +348,7 @@
      * @param {object} historyRow 服务端返回的提交图行。
      * @returns {HTMLButtonElement} 可交互的提交行。
      */
-    function buildHistoryCommitRow(historyRow) {
+    function buildHistoryCommitRow(historyRow, isHistoryTopCommit = false) {
       const commitButton = document.createElement("button");
       commitButton.type = "button";
       commitButton.className = "history-commit-row";
@@ -356,8 +358,21 @@
         String(historyState.selectedHistoryCommitHash === historyRow.hash)
       );
 
-      const graphPrefixNode = buildHistoryGraphRail(historyRow.graph_prefix, "commit");
+      const graphPrefixNode = buildHistoryGraphRail(
+        historyRow.graph_prefix,
+        "commit",
+        isHistoryTopCommit
+      );
       graphPrefixNode.classList.add("history-graph-prefix");
+      const hasBranchRef = historyRow.refs.some(
+        (refLabel) => refLabel.kind === "local" || refLabel.kind === "remote"
+      );
+      if (hasBranchRef) {
+        graphPrefixNode.classList.add("has-branch-ref");
+      }
+      if (historyRow.is_head) {
+        graphPrefixNode.classList.add("is-head");
+      }
       const commitSummary = document.createElement("span");
       commitSummary.className = "history-commit-summary";
       const commitSubjectNode = document.createElement("span");
@@ -383,9 +398,10 @@
      * 把 Git 的字符图转换成彩色轨道、连接线和圆形提交节点。
      * @param {string} graphLine Git 输出的一行图形前缀。
      * @param {"commit" | "edge"} rowKind 当前行是提交行还是连接行。
+     * @param {boolean} isHistoryTopCommit 是否为历史列表中的第一条提交。
      * @returns {SVGSVGElement} 装饰性提交图轨道。
      */
-    function buildHistoryGraphRail(graphLine, rowKind) {
+    function buildHistoryGraphRail(graphLine, rowKind, isHistoryTopCommit = false) {
       const isCommitRow = rowKind === "commit";
       const graphHeight = isCommitRow ? 24 : 14;
       let graphWidth = Math.max(
@@ -425,7 +441,13 @@
         graphSegment.classList.add("history-graph-segment", `is-lane-${graphLaneIndex}`);
 
         if (graphGlyph === "|" || graphGlyph === "*" || graphGlyph === "+") {
-          graphSegment.setAttribute("d", `M ${graphCellCenter} 1 V ${graphHeight - 1}`);
+          const graphSegmentStartY = isHistoryTopCommit && graphGlyph === "*"
+            ? graphHeight / 2
+            : 1;
+          graphSegment.setAttribute(
+            "d",
+            `M ${graphCellCenter} ${graphSegmentStartY} V ${graphHeight - 1}`
+          );
           graphRail.append(graphSegment);
           if (graphGlyph === "*" || graphGlyph === "+") {
             const graphNode = document.createElementNS(HISTORY_GRAPH_SVG_NAMESPACE, "circle");

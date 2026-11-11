@@ -379,6 +379,13 @@ button, input, select { font: inherit; color: inherit; }
 .history-graph-node {
   fill: var(--history-node-fill, var(--card)); stroke: currentColor; stroke-width: 2.2;
 }
+.history-graph-prefix.has-branch-ref .history-graph-node {
+  fill: currentColor; stroke-width: 1.8; r: 4;
+}
+.history-graph-prefix.is-head .history-graph-node {
+  stroke: var(--foreground); stroke-width: 1.8; r: 4.5;
+  filter: drop-shadow(0 0 1.5px var(--card));
+}
 .history-graph-rail .is-lane-0 { color: var(--history-lane-0); }
 .history-graph-rail .is-lane-1 { color: var(--history-lane-1); }
 .history-graph-rail .is-lane-2 { color: var(--history-lane-2); }
