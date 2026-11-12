@@ -86,7 +86,8 @@ Prefer the repository's existing evidence publisher. A Keda-style implementation
 - linked PRD and PR;
 - verified head commit and verified Git tree;
 - verifier verdict and required-gate summary;
-- one section per RV item;
+- when the PRD has a primary demo script, a **primary demo** block first: the one recording made for humans, linked directly, followed by one line per scripted step stating what the screen shows, with any mocked step marked `mock, not verified`;
+- one section per RV item (folded under a collapsible block when a primary demo is present);
 - reproducible command;
 - evidence file links and SHA-256;
 - key text output quoted inline;
