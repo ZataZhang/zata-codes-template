@@ -493,7 +493,7 @@ HTML 报告仍固定在 `tests/playwright-e2e/playwright-report/`，可用 `just
 
 - 日常迭代先跑 `just lint`，确认 staged 变更与真实 pre-commit hook 一致。
 - 涉及复用边界、架构、AI 规范入口或重复风险时补跑 `just lint --reuse`。
-- 最终交付、PRD 归档或合并前跑 `just lint --repo`；若无法运行总入口，至少跑 `just lint --full`、`just lint --reuse`、`just test` 和受影响文档的 `uv run mkdocs build --strict`。`just test` 只覆盖本地核心档，涉及后端行为交付时另跑 `just test all`。
+- 最终交付、PRD 归档或合并前跑 `just lint --repo`；若无法运行总入口，至少跑 `just lint --full`、`just lint --reuse`、`just test` 和受影响文档的 `uv run mkdocs build --strict`。`just test` 只覆盖本地核心档，全量交给 CI（PR 改动无法映射到测试时自动跑全量，main 上始终全量，见「CI：PR 轻量档、main 全量档」）；改动跨层契约或数据库迁移、想在合并前就拿到全量信号时，再手动跑 `just test all`。
 
 ## AI 实现后的验证证据
 
