@@ -287,7 +287,9 @@ jobs:
 
   e2e:
     name: Playwright E2E (no-auth)
-    runs-on: ubuntu-latest
+    # ubuntu-latest 已切到 26.04，锁定的 Playwright 1.60 不支持该系统，
+    # `playwright install chromium` 直接失败；升级 Playwright 前固定在 24.04。
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - name: Checkout repository
