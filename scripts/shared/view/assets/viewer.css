@@ -14,6 +14,9 @@
   --border: oklch(0.929 0.013 255.508);
   --ring: oklch(0.704 0.04 256.788);
   --success: oklch(0.55 0.14 152);
+  /* 「已合并到默认分支」的标记色。比 --success 深一档：结论用实心胶囊压在白底上，
+     与浅绿的分支引用拉开明度差，不会被读成又一个分支标签。 */
+  --merged-mark: oklch(0.45 0.12 155);
   --add: oklch(0.72 0.14 152 / 22%);
   --del: oklch(0.62 0.2 25 / 16%);
   --add-mark: oklch(0.5 0.13 152);
@@ -334,8 +337,9 @@ button, input, select { font: inherit; color: inherit; }
 }
 .history-graph-pane { display: flex; min-width: 0; min-height: 0; flex-direction: column; }
 .history-branch-list {
-  display: flex; flex: none; gap: 16px; overflow-x: auto; border-bottom: 1px solid var(--border);
-  background: var(--card); padding: 8px 12px;
+  /* 换行而不是横向滚动：被裁掉的分支等于没显示，而「哪个分支已合入」正是要先看到的结论。 */
+  display: flex; flex: none; flex-wrap: wrap; gap: 8px 16px;
+  border-bottom: 1px solid var(--border); background: var(--card); padding: 8px 12px;
 }
 .history-branch-group { display: flex; flex: none; align-items: center; gap: 8px; }
 .history-branch-group + .history-branch-group { border-left: 1px solid var(--border); padding-left: 16px; }
@@ -343,7 +347,7 @@ button, input, select { font: inherit; color: inherit; }
   flex: none; margin: 0; color: var(--muted-foreground); font-size: 10.5px; font-weight: 650;
   white-space: nowrap;
 }
-.history-branch-items { display: flex; gap: 5px; }
+.history-branch-items { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
 .history-branch-button {
   display: inline-flex; max-width: 240px; align-items: center; border: 1px solid transparent;
   border-radius: 999px; background: transparent; padding: 0; cursor: pointer;
@@ -353,6 +357,30 @@ button, input, select { font: inherit; color: inherit; }
 }
 .history-branch-button:focus-visible { border-color: var(--ring); outline: none; }
 .history-branch-button .history-ref { overflow: hidden; text-overflow: ellipsis; }
+.history-branch-button.is-already-merged .history-ref { opacity: .62; }
+.history-branch-button.is-already-merged:hover .history-ref,
+.history-branch-button.is-already-merged[aria-pressed='true'] .history-ref { opacity: 1; }
+.history-ref.is-already-merged { opacity: .62; }
+.history-merge-badge {
+  flex: none; margin-left: 3px; border: 1px solid var(--border); border-radius: 999px;
+  background: var(--card); padding: 0 5px; color: var(--muted-foreground);
+  font-size: 9.5px; font-weight: 650; line-height: 1.55; white-space: nowrap;
+}
+.history-merge-badge.is-base { color: var(--foreground); }
+.history-merge-badge.is-merged, .history-merge-badge.is-replayed {
+  border-color: transparent; background: var(--merged-mark); color: #fff; font-weight: 700;
+}
+.history-merge-badge.is-ahead, .history-merge-badge.is-diverged {
+  border-color: color-mix(in oklab, oklch(0.7 0.15 80) 42%, var(--border));
+  color: oklch(0.48 0.12 70);
+}
+.history-merge-target {
+  flex: none; border: 1px solid var(--border); border-radius: 999px; background: transparent;
+  padding: 0 6px; color: var(--muted-foreground); font-size: 9.5px; font-weight: 650;
+  line-height: 1.55; white-space: nowrap; cursor: pointer;
+}
+.history-merge-target:hover { background: var(--secondary); color: var(--foreground); }
+.history-merge-target:focus-visible { border-color: var(--ring); outline: none; }
 .history-graph-list { min-height: 0; flex: 1; overflow: auto; background: var(--card); }
 .history-page { overflow: hidden; background: var(--card); }
 .history-page + .history-page { border-top: 1px solid var(--border); }
@@ -385,6 +413,20 @@ button, input, select { font: inherit; color: inherit; }
 .history-graph-prefix.is-head .history-graph-node {
   stroke: var(--foreground); stroke-width: 1.8; r: 4.5;
   filter: drop-shadow(0 0 1.5px var(--card));
+}
+/* 内容已在基准分支里的分支：节点画成虚线圈，行首留一道淡绿，和未合并的实心泳道区分开。 */
+.history-graph-prefix.is-merged-branch .history-graph-node {
+  fill: var(--card); stroke: var(--merged-mark); stroke-dasharray: 2 1.8; opacity: .8;
+}
+.history-commit-row.is-merged-branch-commit {
+  box-shadow: inset 2px 0 0 color-mix(in oklab, var(--merged-mark) 58%, transparent);
+}
+.history-commit-row.is-merged-branch-commit .history-commit-subject { color: var(--muted-foreground); }
+.history-merged-pill {
+  display: inline-flex; flex: none; align-items: center; border-radius: 999px;
+  background: var(--merged-mark); color: #fff; padding: 1px 9px;
+  font-size: 10px; font-weight: 700; line-height: 1.7; white-space: nowrap;
+  box-shadow: 0 1px 2px color-mix(in oklab, var(--merged-mark) 30%, transparent);
 }
 .history-graph-rail .is-lane-0 { color: var(--history-lane-0); }
 .history-graph-rail .is-lane-1 { color: var(--history-lane-1); }
