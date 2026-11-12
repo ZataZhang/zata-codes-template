@@ -99,9 +99,11 @@ STOPWORD_TOKENS = frozenset(
 )
 
 # src/backend/<layer> -> 需要跟着跑的测试目录，按四层依赖方向向外扩一层。
+# 派生项目常把测试按层放在 tests/<层名>/（如 tests/api、tests/core），所以每层都把同名目录
+# 列在首位；不存在的目录在映射时会被跳过。
 LAYER_TEST_DIRS: dict[str, tuple[str, ...]] = {
-    "api": ("tests/backend", "tests/composition", "tests/rv-api"),
-    "core": ("tests/backend", "tests/composition", "tests/engines"),
+    "api": ("tests/api", "tests/backend", "tests/composition", "tests/rv-api"),
+    "core": ("tests/core", "tests/backend", "tests/composition", "tests/engines"),
     "engines": ("tests/engines", "tests/backend"),
     "infrastructure": ("tests/infrastructure", "tests/backend", "tests/engines"),
     "composition": ("tests/composition", "tests/backend"),
