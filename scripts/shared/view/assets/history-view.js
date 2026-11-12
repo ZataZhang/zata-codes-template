@@ -40,6 +40,7 @@
     const historyState = {
       historyPages: [],
       historyBranchRefs: [],
+      historyBaseBranch: "",
       historyOffset: 0,
       historyIsLoaded: false,
       isLoadingHistory: false,
@@ -67,6 +68,7 @@
       if (requestOptions.reset) {
         historyState.historyPages = [];
         historyState.historyBranchRefs = [];
+        historyState.historyBaseBranch = "";
         historyState.historyOffset = 0;
         historyState.historyIsLoaded = false;
         historyState.hasMoreHistory = true;
@@ -107,6 +109,7 @@
         }
         if (historyPage.offset === 0) {
           historyState.historyBranchRefs = historyPage.branch_refs || [];
+          historyState.historyBaseBranch = historyPage.base_branch || "";
         }
         historyState.historyIsLoaded = true;
         historyState.hasMoreHistory = historyPage.has_more;
@@ -222,8 +225,9 @@
       const remoteBranchCount = historyState.historyBranchRefs.filter(
         (branchRef) => branchRef.kind === "remote"
       ).length;
+      const branchMergeSummary = buildBranchMergeSummary();
       elements.viewerMeta.textContent = historyState.historyOffset
-        ? `已加载 ${historyState.historyOffset} 条 · 本地 ${localBranchCount} · 远程 ${remoteBranchCount}`
+        ? `已加载 ${historyState.historyOffset} 条 · 本地 ${localBranchCount} · 远程 ${remoteBranchCount}${branchMergeSummary}`
         : "按需读取 · 每页 50 条";
 
       const historyLayout = document.createElement("div");
@@ -254,6 +258,10 @@
         branchGroupItems.className = "history-branch-items";
         for (const branchRef of branchRefs) {
           branchGroupItems.append(buildHistoryBranchButton(branchRef));
+          const mergeTargetButton = buildBranchMergeTargetButton(branchRef);
+          if (mergeTargetButton) {
+            branchGroupItems.append(mergeTargetButton);
+          }
         }
         branchGroup.append(branchGroupTitle, branchGroupItems);
         branchList.append(branchGroup);
@@ -267,6 +275,7 @@
 
       const graphList = document.createElement("div");
       graphList.className = "history-graph-list";
+      const mergedLaneBranchByCommit = buildMergedLaneBranchByCommit();
       for (const historyPage of historyState.historyPages) {
         const pageSection = document.createElement("div");
         pageSection.className = "history-page";
@@ -278,7 +287,9 @@
         let isFirstHistoryCommit = historyPage.offset === 0;
         for (const historyRow of historyPage.rows) {
           if (historyRow.kind === "commit") {
-            pageSection.append(buildHistoryCommitRow(historyRow, isFirstHistoryCommit));
+            pageSection.append(
+              buildHistoryCommitRow(historyRow, isFirstHistoryCommit, mergedLaneBranchByCommit)
+            );
             isFirstHistoryCommit = false;
           } else {
             const graphEdgeNode = document.createElement("div");
@@ -344,11 +355,167 @@
     }
 
     /**
+     * 汇总本地分支相对基准分支的合并情况，供顶栏显示「有几个分支的内容已经在基准分支」。
+     * @returns {string} 以 ` · ` 开头的片段；没有基准分支或没有已合入分支时返回空串。
+     */
+    function buildBranchMergeSummary() {
+      const baseBranchName = historyState.historyBaseBranch;
+      if (!baseBranchName) {
+        return "";
+      }
+      const mergedBranchRefs = historyState.historyBranchRefs.filter(
+        (branchRef) => branchRef.kind === "local" && isBranchAlreadyMerged(branchRef)
+      );
+      if (!mergedBranchRefs.length) {
+        return "";
+      }
+      const replayedBranchCount = mergedBranchRefs.filter(
+        (branchRef) => branchRef.merge_state === "replayed"
+      ).length;
+      const replayedNote = replayedBranchCount ? `（其中 ${replayedBranchCount} 个为 squash）` : "";
+      return ` · ${mergedBranchRefs.length} 个分支的内容已在 ${baseBranchName}${replayedNote}`;
+    }
+
+    /**
+     * 创建提交行最前面的实心胶囊：一行里最该先看到的结论就是「这条分支已经合过了」。
+     * @returns {HTMLSpanElement} 实心胶囊。
+     */
+    function buildMergedBranchPill() {
+      const mergedPill = document.createElement("span");
+      mergedPill.className = "history-merged-pill";
+      mergedPill.textContent = `✓ 已合并到 ${historyState.historyBaseBranch}`;
+      mergedPill.title = `该分支的内容已经进入 ${historyState.historyBaseBranch}`;
+      return mergedPill;
+    }
+
+    /**
+     * 创建「跳到基准分支上对应提交」的按钮；没有可指认的提交时返回 null。
+     *
+     * squash 合并时分支与那个提交没有祖先关系，提交图上互不相连，直接给一个可点的落点
+     * 比让读者自己比对补丁更实用。
+     * @param {{name: string, merged_into?: {hash: string, short_hash: string, subject: string} | null}} branchRef 分支引用。
+     * @returns {HTMLButtonElement | null} 跳转按钮。
+     */
+    function buildBranchMergeTargetButton(branchRef) {
+      const mergedIntoCommit = branchRef.merged_into;
+      if (!mergedIntoCommit || hasLocalTwin(branchRef)) {
+        return null;
+      }
+      const targetButton = document.createElement("button");
+      targetButton.type = "button";
+      targetButton.className = "history-merge-target";
+      targetButton.textContent = `→ ${mergedIntoCommit.short_hash}`;
+      targetButton.title = `${branchRef.name} 的内容已进入 ${historyState.historyBaseBranch} 的 ${mergedIntoCommit.short_hash}：${mergedIntoCommit.subject}；点击查看该提交`;
+      targetButton.addEventListener("click", () => {
+        void selectHistoryCommit(mergedIntoCommit.hash);
+      });
+      return targetButton;
+    }
+
+    /**
+     * 建立「提交哈希 → 已合入分支」映射，用来在提交图上标出这些分支自己的提交。
+     * @returns {Map<string, object>} 提交哈希到分支引用的映射。
+     */
+    function buildMergedLaneBranchByCommit() {
+      const mergedLaneBranchByCommit = new Map();
+      for (const branchRef of historyState.historyBranchRefs) {
+        if (branchRef.kind !== "local") {
+          continue;
+        }
+        for (const commitHash of branchRef.lane_commits || []) {
+          if (!mergedLaneBranchByCommit.has(commitHash)) {
+            mergedLaneBranchByCommit.set(commitHash, branchRef);
+          }
+        }
+      }
+      return mergedLaneBranchByCommit;
+    }
+
+    /**
+     * 判断远程引用是否有同名本地分支：两者状态相同，再显示一遍只会把分支行撑宽。
+     * @param {{name: string, kind: string}} branchRef 分支引用。
+     * @returns {boolean} 存在同名本地分支时为 true。
+     */
+    function hasLocalTwin(branchRef) {
+      if (branchRef.kind !== "remote") {
+        return false;
+      }
+      const branchName = branchRef.name.replace(/^[^/]+\//, "");
+      return historyState.historyBranchRefs.some(
+        (otherBranchRef) => otherBranchRef.kind === "local" && otherBranchRef.name === branchName
+      );
+    }
+
+    /**
+     * 判断分支是否已进入基准分支：祖先合并，或提交已以其他 SHA 进入。
+     * @param {{merge_state?: string}} branchRef 分支引用。
+     * @returns {boolean} 已合入时为 true。
+     */
+    function isBranchAlreadyMerged(branchRef) {
+      return branchRef.merge_state === "merged" || branchRef.merge_state === "replayed";
+    }
+
+    /**
+     * 创建分支合并状态徽标；服务端没有给出状态时不显示。
+     * @param {{merge_state?: string, ahead?: number | null, behind?: number | null}} branchRef 分支引用。
+     * @returns {HTMLSpanElement | null} 状态徽标。
+     */
+    function buildBranchMergeBadge(branchRef) {
+      const mergeState = branchRef.merge_state;
+      if (!mergeState || mergeState === "unknown" || hasLocalTwin(branchRef)) {
+        return null;
+      }
+      const baseBranchName = historyState.historyBaseBranch || "基准分支";
+      // 结论写在徽标里：只说「内容已合入」时，读者还得自己推断合进了哪个分支。
+      const badgeTextByState = {
+        base: "基准",
+        merged: `✓ 已合并到 ${baseBranchName}`,
+        replayed: `✓ 已合并到 ${baseBranchName}`,
+        ahead: `未合入 ↑${branchRef.ahead}`,
+        diverged: `未合入 ↑${branchRef.ahead} ↓${branchRef.behind}`,
+      };
+      const badgeText = badgeTextByState[mergeState];
+      if (!badgeText) {
+        return null;
+      }
+      const mergeBadge = document.createElement("span");
+      mergeBadge.className = `history-merge-badge is-${mergeState}`;
+      mergeBadge.textContent = badgeText;
+      mergeBadge.title = buildBranchMergeTitle(branchRef);
+      return mergeBadge;
+    }
+
+    /**
+     * 生成合并状态徽标的悬停说明。
+     * @param {{merge_state?: string, ahead?: number | null, behind?: number | null}} branchRef 分支引用。
+     * @returns {string} 悬停说明。
+     */
+    function buildBranchMergeTitle(branchRef) {
+      const baseBranchName = historyState.historyBaseBranch || "基准分支";
+      if (branchRef.merge_state === "base") {
+        return `这是用于比较的基准分支：${baseBranchName}`;
+      }
+      if (branchRef.merge_state === "merged") {
+        return `该分支已并入 ${baseBranchName}（快进或合并提交）`;
+      }
+      if (branchRef.merge_state === "replayed") {
+        return `该分支的提交已以其他 SHA 进入 ${baseBranchName}（squash / rebase），提交图上仍画成独立泳道`;
+      }
+      return `相对 ${baseBranchName} 领先 ${branchRef.ahead} 个提交、落后 ${branchRef.behind} 个提交`;
+    }
+
+    /**
      * 渲染一个提交图节点，可显示分支引用并选择该提交。
      * @param {object} historyRow 服务端返回的提交图行。
+     * @param {boolean} isHistoryTopCommit 是否为历史列表中的第一条提交。
+     * @param {Map<string, object>} mergedLaneBranchByCommit 提交哈希到已合入分支的映射。
      * @returns {HTMLButtonElement} 可交互的提交行。
      */
-    function buildHistoryCommitRow(historyRow, isHistoryTopCommit = false) {
+    function buildHistoryCommitRow(
+      historyRow,
+      isHistoryTopCommit = false,
+      mergedLaneBranchByCommit = new Map()
+    ) {
       const commitButton = document.createElement("button");
       commitButton.type = "button";
       commitButton.className = "history-commit-row";
@@ -373,6 +540,14 @@
       if (historyRow.is_head) {
         graphPrefixNode.classList.add("is-head");
       }
+      const mergedLaneBranchRef = mergedLaneBranchByCommit.get(historyRow.hash);
+      if (mergedLaneBranchRef) {
+        // 这条泳道里的提交属于一个内容已经在基准分支里的分支：图上要看得出来，否则读者
+        // 只会看到一条与主线不相连的独立分支，误以为还需要合并。
+        commitButton.classList.add("is-merged-branch-commit");
+        graphPrefixNode.classList.add("is-merged-branch");
+        commitButton.title = `该提交属于 ${mergedLaneBranchRef.name}，其内容已进入 ${historyState.historyBaseBranch}`;
+      }
       const commitSummary = document.createElement("span");
       commitSummary.className = "history-commit-summary";
       const commitSubjectNode = document.createElement("span");
@@ -380,6 +555,12 @@
       commitSubjectNode.textContent = historyRow.subject;
       const commitRefs = document.createElement("span");
       commitRefs.className = "history-commit-refs";
+      const hasMergedLocalRef = historyRow.refs.some(
+        (refLabel) => refLabel.kind === "local" && isBranchAlreadyMerged(refLabel)
+      );
+      if (hasMergedLocalRef) {
+        commitRefs.append(buildMergedBranchPill());
+      }
       if (historyRow.is_head) {
         commitRefs.append(buildHistoryRefBadge({ name: "HEAD", kind: "head" }));
       }
@@ -492,6 +673,14 @@
             : refLabel.kind === "head"
               ? "当前 HEAD"
               : `Git 标签：${refLabel.name}`;
+      if (isBranchAlreadyMerged(refLabel)) {
+        // 已进基准分支的引用降低存在感：它们在图上仍是独立泳道，容易让人误以为待合并。
+        refBadge.classList.add("is-already-merged");
+        refBadge.title +=
+          refLabel.merge_state === "replayed"
+            ? "（提交已以其他 SHA 合入基准分支）"
+            : "（已合并到基准分支）";
+      }
       return refBadge;
     }
 
@@ -510,7 +699,14 @@
         String(historyState.selectedHistoryCommitHash === branchRef.hash)
       );
       branchButton.title = `查看 ${branchRef.name} 的最新提交`;
+      if (isBranchAlreadyMerged(branchRef)) {
+        branchButton.classList.add("is-already-merged");
+      }
       branchButton.append(buildHistoryRefBadge(branchRef));
+      const mergeBadge = buildBranchMergeBadge(branchRef);
+      if (mergeBadge) {
+        branchButton.append(mergeBadge);
+      }
       return branchButton;
     }
 
