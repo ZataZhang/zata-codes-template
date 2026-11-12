@@ -272,6 +272,28 @@ def test_src_change_maps_only_into_the_test_dirs_of_its_layer(fake_repo: Path) -
     assert selected_tests == ["tests/engines/test_sandbox_engine.py"]
 
 
+def test_src_change_maps_into_a_test_dir_named_after_its_layer(fake_repo: Path) -> None:
+    """按层建测试目录的项目（tests/api、tests/core）也要能映射到。"""
+    _write_repo_files(
+        fake_repo,
+        {
+            "src/backend/api/billing_router.py": "",
+            "tests/api/test_billing_router.py": _test_module_source(1),
+            "src/backend/core/quota_service.py": "",
+            "tests/core/test_quota_service.py": _test_module_source(1),
+        },
+    )
+
+    selected_tests, _needs_full_run, _reasons = tiers.select_changed_tests(
+        ["src/backend/api/billing_router.py", "src/backend/core/quota_service.py"]
+    )
+
+    assert selected_tests == [
+        "tests/api/test_billing_router.py",
+        "tests/core/test_quota_service.py",
+    ]
+
+
 @pytest.mark.parametrize(
     "changed_source",
     ["src/backend/api/main.py", "src/backend/api/db.py", "src/backend/api/utils.py"],
