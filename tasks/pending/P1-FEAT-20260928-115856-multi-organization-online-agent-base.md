@@ -1,18 +1,19 @@
 # PRD: 多组织通用在线 Agent 底座
 
-> ✅ **交付前置**：无，可立即开工。
+> ⛔ **交付前置**：排在 `P1-FEAT-20261112-142923-organizations-and-two-tier-admins` 之后开工。组织表、普通用户归属与平台/组织两级管理员由那份 PRD 交付；先做本 PRD 就得重复实现组织隔离的权限地基，或交付一个无组织范围的临时运行链。
 > 结构化声明见 §8 Delivery Dependencies，**那里是唯一事实源**。
 
 > ⬜ **验收状态**：未开工。
 > 本行是 §9 Acceptance Checklist 的投影，**那里是唯一事实源**。
 
 > 本 PRD 分为 Part A 人审层和 Part B 执行器层。Part A 用于确认目标行为和关键取舍；Part B 记录实现路径与验证证据。
+> 组织与两级管理员已拆至上游 PRD `P1-FEAT-20261112-142923-organizations-and-two-tier-admins`；本 PRD 在其地基上落地 Agent / Run / Skill / A2A 的组织范围。
 
 ## Feature Overview (功能一览)
 
 > 本块是 §10 Functional Requirements 的简明投影；行为验收以 §1 行为样例为准。
 
-- **同一部署服务多个组织**（FR-1、FR-2）：组织成员只能看到本组织授权的 Agent、运行、Skill 与资产；平台管理员和组织管理员的权限分开。
+- **同一部署服务多个组织**（FR-1、FR-2）：组织与两级管理员由上游 PRD 交付；本 PRD 让组织成员只能看到本组织授权的 Agent、运行、Skill 与资产。
 - **从创建到运行的在线闭环**（FR-3、FR-4）：管理员发布 Agent，成员从浏览器选择 Agent、发起运行、查看增量结果和历史记录。
 - **可追溯的 Skill 变更**（FR-5）：授权人员更新 Skill 时生成不可变新版本，可比较并以新版本恢复旧内容。
 - **明确的执行边界**（FR-6）：本地执行只开放模型调用与平台审核的受控工具，Agent 间调用按 FR-11 走 A2A；缺失必需能力时清楚显示不可运行，不执行租户代码、宿主命令或跨组织调用。
@@ -47,10 +48,10 @@
 
 **我默默定了这些**
 
-- 同一部署支持多个组织；首版一个普通用户只归属一个组织，避免含糊的跨组织会话切换。
-- 平台管理员管理组织与授权，组织管理员管理本组织 Agent 和 Skill；普通成员只能使用被授权能力。
+- 组织表、普通用户归属（一人一个组织）与平台/组织两级管理员由上游 PRD `P1-FEAT-20261112-142923-organizations-and-two-tier-admins` 交付，本 PRD 直接复用其组织归属与角色模型。
+- 组织管理员管理本组织 Agent 和 Skill；普通成员只能使用被授权能力；平台管理员管理组织与管理员（经上游 PRD 的页面）。
 - 迁移采用当前模板的目录、认证和 Run 契约作为目标形态；来源仓库是可挑选的实现参考，不整体覆盖目标仓库。
-- 现有 Run 和用户数据归入显式的默认组织，迁移不删除历史运行或事件。
+- 现有 Run 数据归入上游 PRD 创建的显式默认组织，迁移不删除历史运行或事件。
 - `just copy` 与 `sync-template` 继续是正式能力，派生项目收到可运行的中性底座。
 - 默认模型仍由现有三项环境配置提供；不把来源仓库的供应商目录当成平台事实。
 - 首版的本地执行只开放模型与平台审核的受控工具，Agent 间调用只走受权 A2A；租户不能上传代码运行或请求执行命令。现有沙箱端口保留为工程能力，但不对在线租户开放。
@@ -65,6 +66,8 @@
 - 不把“去商标”理解为仅替换界面文字；发布资产、示例、文档和分发权都必须检查。
 
 本 PRD 把需求读成一个能在线创建、运行、治理并通过 A2A 与独立 Agent 协作的**多组织模板底座**。组织归属必须在登录、查询、运行、A2A、工具和持久化路径一致生效；失败必须显式返回。模板复制和同步能力属于交付的一部分。只有证据证明可独立迁移的通用实现才从两个来源迁入。
+
+- [ ] 我确认这段解读与行为样例准确表达了我的需求。
 
 ### What The User Gets
 
@@ -82,20 +85,22 @@
 
 ## 2. Human Review Map (介入与风险地图)
 
-### 决策一：组织与管理员的边界
+### 决策一：业务数据的组织范围（组织与管理员本身已移交上游 PRD）
 
-建议采用一个用户归属一个组织、平台管理员不默认读取组织业务数据的模式。现有双域登录继续存在，组织身份由服务端会话解析，不能由请求方任意指定。存量用户和 Run 归入一个显式默认组织，事件与历史不得丢失。错误的归属会造成跨组织数据暴露，属于本 PRD 最重要的安全决定。
+组织表、普通用户归属、平台/组织两级管理员及其创建、启停、解绑，已整体移交 `P1-FEAT-20261112-142923-organizations-and-two-tier-admins`。原已确认决策（首版一个普通用户归属一个组织；平台管理员接触组织业务数据必须经显式授权和审计）已原样搬入该 PRD §2 并保留已确认状态，本 PRD 不再重复决策。
 
-**已确认：** 首版一个普通用户归属一个组织；平台管理员接触组织业务数据必须经显式授权和审计。
+本 PRD 在该地基上落地业务数据的组织范围：Agent、Run/event、Skill、资产按组织隔离；组织管理员管理本组织 Agent 与 Skill；平台管理员不因平台身份自动浏览成员内容。组织身份由服务端会话解析，不能由请求方任意指定；存量 Run 归入上游创建的默认组织，事件与历史不得丢失。错误的归属会造成跨组织数据暴露，属于本 PRD 最重要的安全决定。
+
+**请确认：** 业务数据（Agent / Run / Skill / 资产）按上述组织范围隔离，是否同意？
+
+- [ ] 同意（推荐）
 
 **验收：** 用两个真实组织的账号互相读取 Agent、运行、Skill 和资产都失败；迁移后原账号仍能读取自己的历史。
 
 ```mermaid
 erDiagram
-    ORGANIZATION ||--o{ USER_MEMBERSHIP : contains
-    PUBLIC_USER ||--o| USER_MEMBERSHIP : belongs_to
-    ORGANIZATION ||--o{ ADMIN_MEMBERSHIP : delegates
-    ADMIN_USER ||--o| ADMIN_MEMBERSHIP : manages
+    ORGANIZATION ||--o{ PUBLIC_USER : contains
+    ORGANIZATION ||--o{ ADMIN_USER : "delegates（role=org）"
     ORGANIZATION ||--o{ AGENT : owns
     AGENT ||--o{ RUN : starts
     ORGANIZATION ||--o{ RUN : scopes
@@ -104,11 +109,17 @@ erDiagram
     RUN }o--o| SKILL_VERSION : freezes
 ```
 
+组织与管理员的表结构细节见上游 PRD §2 决策一。
+
 ### 决策二：Agent 运行与可用性
 
 建议保留稳定 Agent 身份，运行开始时冻结 Agent、模型和 Skill 的有效版本；状态和增量事件只走一条持久化链。本地执行仅允许模型与平台审核的受控工具，Agent 间委派使用已授权 A2A 对端；租户不能提交可执行代码或命令。模型或必需工具不可用时，Agent 显示不可运行并拒绝启动，不能暗中换另一个执行方式。
 
-**已确认：** 稳定 Agent 身份、单一运行事实源和失败闭合的可用性规则。
+**已确认（2026-09-28，原样保留）：** 稳定 Agent 身份、单一运行事实源和失败闭合的可用性规则。
+
+**请确认：** 沿用上述已确认结论，是否同意？
+
+- [ ] 同意沿用（推荐）
 
 **验收：** 用户从前台提交一次运行，能看到同一运行的过程、最终结果与历史；关闭页面后重新进入，状态和内容仍一致；不可用时不会产生伪成功。
 
@@ -116,7 +127,11 @@ erDiagram
 
 建议把声明式 Skill 的正文与版本治理作为通用能力纳入，但只迁入独立于市场、积分和社交的路径。Skill 可以包含说明与非可执行参考资料，不能包含租户可运行脚本或上传代码包。恢复旧内容应追加一个新版本，不能修改或删除既有历史；运行必须记录实际采用的 Skill 版本。否则源仓库的多条写入入口会形成不同的版本事实。
 
-**已确认：** Skill 保留线性版本历史，恢复旧内容生成新版本；首版不包含 Skill 市场交易。
+**已确认（2026-09-28，原样保留）：** Skill 保留线性版本历史，恢复旧内容生成新版本；首版不包含 Skill 市场交易。
+
+**请确认：** 沿用上述已确认结论，是否同意？
+
+- [ ] 同意沿用（推荐）
 
 **验收：** 管理员在浏览器里查看差异并恢复旧内容后，历史顺序和两个已完成运行所引用的版本均可核对。
 
@@ -124,7 +139,11 @@ erDiagram
 
 首版采用 A2A 双向互通：获授权的外部客户端可发现并调用本组织发布的 Agent；本组织 Agent 可调用已登记、已授权的外部 Agent。独立 Agent 之间使用 A2A；Agent 使用模型与受控工具仍走原有内部接口。外部任务与平台运行记录要能一一追溯，组织边界必须在两个方向成立。管理员能清楚看到对外发布状态和已授权对端，不能由普通消息临时指定未知地址。
 
-**已确认：** 首版交付双向互通；以受控对端目录和组织授权限制流量，不开放任意 URL 调用。
+**已确认（2026-09-28，原样保留）：** 首版交付双向互通；以受控对端目录和组织授权限制流量，不开放任意 URL 调用。
+
+**请确认：** 沿用上述已确认结论，是否同意？
+
+- [ ] 同意沿用（推荐）
 
 **验收：** 外部客户端可用 A2A 发消息、看状态、订阅结果与取消任务；本平台 Agent 能调用已授权外部 Agent，并将结果和失败归入同一运行历史。其他组织的凭据及未登记对端均不能访问或触发请求。
 
@@ -140,11 +159,11 @@ erDiagram
 
 ### 组织成员
 
-从公开前台登录、选择本组织可见 Agent、发送消息，看到实时状态和结果；再次打开历史可读到同一次运行的内容。注册和登录入口继续使用既有 public 会话；未加入组织或组织停用时收到明确的不可用提示。
+从公开前台登录、选择本组织可见 Agent、发送消息，看到实时状态和结果；再次打开历史可读到同一次运行的内容。注册和登录入口继续使用既有 public 会话；组织停用时收到明确的不可用提示（组织归属由上游 PRD 保证，默认组织兜底）。
 
 ### 组织管理员与平台管理员
 
-组织管理员从管理后台发布 Agent、管理 Skill 版本、管理 A2A 发布与对端授权、查看本组织运行轨迹；平台管理员创建或停用组织并分配组织管理员，不因平台身份自动浏览成员内容。既有 admin 登录域保持独立。A2A 调用方使用专门的组织范围服务凭据，不能复用管理员浏览器 Cookie。
+组织管理员从管理后台发布 Agent、管理 Skill 版本、管理 A2A 发布与对端授权、查看本组织运行轨迹；平台管理员经上游 PRD 的组织与管理员页创建或停用组织、分配组织管理员，不因平台身份自动浏览成员内容。既有 admin 登录域保持独立。A2A 调用方使用专门的组织范围服务凭据，不能复用管理员浏览器 Cookie。
 
 ### 部署者与派生项目维护者
 
@@ -177,7 +196,7 @@ erDiagram
 
 前端影响：`frontend-public/app/(app)/` 增加 Agent 目录、会话/运行页面和状态组件，经 `frontend-public/lib/api/` 调用新 API；`frontend-admin/src/routes/_authenticated/`、`features/` 与 `api/` 增加组织、Agent、Skill 管理，复用现有运行轨迹入口。前台使用 `just run frontend-public` / `pnpm build`，后台使用 `just run frontend` / `pnpm build`，真实 UI 使用 `just e2e` 和独立 Playwright 包；先按该包 `README.md` 适配用例。部署沿用 `docker-compose.yml`、`deploy/vps-traefik/docker-compose.yml` 和 `docs/guides/deployment.md` 的三服务形态，检查生产 Next rewrite 与后台 Nginx `/api` 转发。
 
-现有 PRD 关系：`tasks/pending/` 无待执行 PRD，因此没有硬依赖；归档的 `20260518-164340-prd-decouple-template-from-business.md` 曾明确将模板定位为无业务骨架，本 PRD 经用户新目标批准后取代这项**产品定位**，但保留其避免厂商硬编码和分发污染的原则。归档的双域认证 PRD 继续作为认证兼容依据。
+现有 PRD 关系：硬依赖 `tasks/pending/P1-FEAT-20261112-142923-organizations-and-two-tier-admins.md`（组织表、用户归属、两级管理员与权限基线，见 §8）；与 `P1-SECURITY-20261112-134527-admin-oidc-sign-in.md`、`P1-FEAT-20261112-134527-registration-policy-and-user-oidc.md` 无顺序依赖，但都改 `core/auth/`，后合者解决冲突。归档的 `20260518-164340-prd-decouple-template-from-business.md` 曾明确将模板定位为无业务骨架，本 PRD 经用户新目标批准后取代这项**产品定位**，但保留其避免厂商硬编码和分发污染的原则。归档的双域认证 PRD 继续作为认证兼容依据。
 
 主要重复风险：三套 Run/会话状态、两个 Skill 版本写入口、把 Next 前台整体换成 Vite、源仓库迁移链并入模板、复制品牌包。各项均须禁止。
 
@@ -199,7 +218,7 @@ erDiagram
 | 新建微服务/第二套 Run Store | 拒绝；模板已有 Run 事实源和四层装配，平行实现会破坏历史与轨迹一致性。 |
 | 仅迁入后端，前台后补 | 拒绝；目标是在线可用底座，缺浏览器入口无法验证实际用户闭环。 |
 
-范围凝聚判断：组织隔离、Agent Run、Skill 版本和 A2A 看似可分别编码，但首版对外承诺的是同一套受组织授权的 Agent/Run；把 A2A 单独后置会交付一个无法满足已确认互通要求的首版，拆开组织/Run 又会产生临时无隔离运行或第二次迁移。因此保留一个目标状态，并以入站/出站协议 oracle 显式核查新增风险。市场、积分、Outlook 集成可独立交付，故明确排除。
+范围凝聚判断：组织与管理员地基已按用户确认拆至上游 PRD；本 PRD 保留 Agent Run、Skill 版本和 A2A 一个目标状态——首版对外承诺的是同一套受组织授权的 Agent/Run，把 A2A 单独后置会交付一个无法满足已确认互通要求的首版，拆开 Run/Skill 又会产生临时无隔离运行或第二次迁移。因此保留一个目标状态，并以入站/出站协议 oracle 显式核查新增风险。市场、积分、Outlook 集成可独立交付，故明确排除。
 
 ## 7. Implementation Guide
 
@@ -216,10 +235,10 @@ erDiagram
 ```text
 .
 ├── Database / Migration
-│   ├── alembic/versions/                         [新增] 【总结】通过生成器建立组织、Agent、Skill 版本及既有 Run 归属迁移，保留历史事件。
-│   └── src/backend/infrastructure/persistence/models/ [修改] 【总结】增加组织、Agent、Skill 关系并扩展现有 Run 归属字段。
+│   ├── alembic/versions/                         [新增] 【总结】通过生成器建立 Agent、Skill 版本及既有 Run 组织归属迁移（组织表与用户归属由上游 PRD 交付），保留历史事件。
+│   └── src/backend/infrastructure/persistence/models/ [修改] 【总结】增加 Agent、Skill 模型并扩展现有 Run 组织归属字段。
 ├── Domain
-│   ├── src/backend/core/auth/                     [修改] 【总结】从服务端会话解析组织身份与管理员权限。
+│   ├── src/backend/core/auth/                     [修改] 【总结】复用上游 PRD 会话解析的组织身份与管理员角色，落到业务用例授权。
 │   ├── src/backend/core/agent/                    [新增] 【总结】管理稳定 Agent 身份、发布与 Run 创建/取消用例。
 │   ├── src/backend/core/skill/                    [新增] 【总结】统一 Skill 版本、差异和恢复规则。
 │   ├── src/backend/core/a2a/                      [新增] 【总结】定义对端授权、入站调用和出站委派用例，不存第二套 Task 状态。
@@ -238,7 +257,7 @@ erDiagram
 ├── Frontend
 │   ├── frontend-public/app/(app)/                  [新增] 【总结】增加 Agent 目录和真实会话页面。
 │   ├── frontend-public/lib/api/                    [修改] 【总结】同步 Agent、Run、Skill 类型与调用路径。
-│   ├── frontend-admin/src/routes/_authenticated/   [新增] 【总结】增加组织、Agent 与 Skill 治理路由。
+│   ├── frontend-admin/src/routes/_authenticated/   [新增] 【总结】增加 Agent 与 Skill 治理路由（组织与管理员页由上游 PRD 交付）。
 │   ├── frontend-admin/src/features/                [新增] 【总结】增加发布、版本差异、A2A 对外状态与对端授权界面。
 │   └── frontend-admin/src/api/                     [修改] 【总结】同步管理 API 与类型。
 ├── Template / Docs / Tests
@@ -256,7 +275,7 @@ erDiagram
 
 | Change point | Tier | 决定性原因 | Intervention | Oracle / gate |
 |---|---|---|---|---|
-| 组织归属、迁移、管理员权限 | R3 | 跨租户授权与历史数据；安全及数据库固定区 | 人工确认 | rv-1 |
+| Run/Agent/Skill 组织归属与迁移 | R3 | 跨租户授权与历史数据；安全及数据库固定区（组织与管理员权限模型由上游 PRD 交付并验收） | 人工确认 | rv-1 |
 | Agent 创建、幂等、状态及事件 | R3 | 并发执行和持久结果；core 固定区 | 人工确认 | rv-2 |
 | Skill 版本、恢复与快照 | R2 | 持久版本与历史语义；core 固定区 | 人工确认 | rv-3 |
 | A2A 双向协议、外部身份与对端网络访问 | R3 | 外部信任边界与跨组织数据/凭据风险 | 人工确认 | rv-7（与 rv-1 的组织负控联动） |
@@ -317,7 +336,7 @@ ER 目标结构见 §2 决策一。具体新表、索引、外键和存量 Run �
   tier: R3
   test_layer: e2e
   required_for_acceptance: true
-  presentation: "最终证据目录的 rv-2-agent-run.png 与真实运行录屏；同视口并排对照目标原型，检查运行 ID、状态、结果和历史"
+  presentation: "tasks/evidence/<prd-stem>/rv-2-agent-run.png 与 rv-2-agent-run.webm；同视口并排对照目标原型，检查运行 ID、状态、结果和历史"
   critical_value_source: "管理页创建 Agent 后显示的 ID 与前台选择项；Run ID 从浏览器实际请求/响应及页面取得，不在测试中重构"
   must_cross: "管理 UI → admin API → Agent commit → 成员 UI → 正式 Run API → event commit → SSE/轮询 → 新页面历史读取 → 管理轨迹"
   forbidden_bypasses: "组件预览、直接调 core、伪造 Run ID、只检查写响应、/api/api/agent-runs 或旧兼容路由、任何租户代码或命令执行回退"
@@ -334,7 +353,7 @@ ER 目标结构见 §2 决策一。具体新表、索引、外键和存量 Run �
   tier: R2
   test_layer: e2e
   required_for_acceptance: true
-  presentation: "最终证据目录的 rv-3-skill-version.png；与目标原型并排展示版本差异和恢复后的线性历史"
+  presentation: "tasks/evidence/<prd-stem>/rv-3-skill-version.png；与目标原型并排展示版本差异和恢复后的线性历史"
   critical_value_source: "管理界面创建的 Skill 与版本 ID、界面展示的旧版内容；恢复请求直接使用该选择"
   must_cross: "管理 UI → 版本 API → 行锁与 commit → 新请求版本列表 → Run 创建快照 → 历史 Run 读取"
   forbidden_bypasses: "直接改版本表、删除旧版本、前端假造差异、绕过版本写入用例"
@@ -410,67 +429,80 @@ ER 目标结构见 §2 决策一。具体新表、索引、外键和存量 Run �
 
 - Group: multi-organization-online-agent-base
 - Depends on tasks/issues:
-  - none
-- Gate type: none
-- Notes: 已检查 `tasks/pending/`，无上游待执行 PRD；来源仓库只作只读迁移参考。
+  - P1-FEAT-20261112-142923-organizations-and-two-tier-admins
+- Gate type: hard
+- Sequence: via-main
+- Notes: 组织表、普通用户归属与两级管理员权限由上游 PRD 交付；本 PRD 复用其组织 scope 与角色。与两份 OIDC PRD 无顺序依赖，后合者解决 core/auth 冲突。来源仓库只作只读迁移参考。
 
 ## 9. Acceptance Checklist
 
 ### 9.1 人读呈递区（Human Review Surface）
 
-| 人要看的结果 | 交付时呈递物 | 约 10 秒自检 |
-|---|---|---|
-| Agent 从发布到运行和历史闭环 | `tasks/evidence/<本 PRD stem>/rv-2-agent-run.png` 与录屏；交付时填绝对路径、内嵌截图、给出 `open "<绝对路径>"`；PR 中并排呈递原型与真实图 | 查看页面 Run ID、终态与重开历史是否相同 |
-| Skill 更新、差异与恢复 | `tasks/evidence/<本 PRD stem>/rv-3-skill-version.png`；交付时填绝对路径、内嵌截图、给出 `open "<绝对路径>"`；PR 中并排呈递原型与真实图 | 查看恢复生成的新版本号，并确认旧版本仍在 |
+**主演示脚本**
 
-`rv-1`、`rv-4`、`rv-5`、`rv-6`、`rv-7` 的越权、资产、模板、部署与 A2A 协议门禁由 verifier 审阅，成功日志不占人审页面。上表是未来交付的呈递槽位；PRD 创建时尚无截图，不得把目标原型当成真实验收证据。交付报告必须以相同内容开头，并将静态图片相对路径内嵌、注明本地证据限制与可执行打开命令；最终回复或已授权 PR 的证据评论直接呈递该页面。
+1. 组织管理员登录管理后台，发布一个已配置模型的 Agent（真实管理页面；模型传输为本地替身，mock，未验证真实模型）。
+2. 本组织成员在前台选择该 Agent 并提交消息：屏幕显示逐步更新的运行状态与最终回复。
+3. 关闭页面后重新进入历史：同一 Run 的终态与内容一致；切到管理端查看同一运行的低敏轨迹。
+4. 授权人员更新 Skill、比较两个版本、把旧版本内容恢复为新的当前版本：版本历史线性、旧记录不变。
+5. 用恢复后的版本再发起一次运行：新运行冻结所选版本，旧运行仍指向原版本。
+
+| 结果 | 呈递物 | 10 秒自查 |
+|---|---|---|
+| Agent 从发布到运行和历史闭环（rv-2） | `tasks/evidence/<prd-stem>/rv-2-agent-run.png`、`rv-2-agent-run.webm`（交付时内嵌） | 页面 Run ID、终态与重开历史一致；录屏末帧为历史页 |
+| Skill 更新、差异与恢复（rv-3） | `tasks/evidence/<prd-stem>/rv-3-skill-version.png`（交付时内嵌） | 恢复生成的新版本号可见，旧版本仍在 |
+
+未在此展示（verifier 负责）：rv-1 跨组织负控、rv-4 分发审计、rv-5 模板复制、rv-6 容器部署、rv-7 A2A 双向协议。
+
+上表是未来交付的呈递槽位；PRD 创建时尚无截图，不得把目标原型当成真实验收证据。交付时静态图片以仓库相对路径内嵌（如 `![Agent 运行](rv-2-agent-run.png)`）、注明本地证据限制并附可执行 `open` 命令；交付报告以相同内容开头（`## 人审导航 / Human Review Navigation`），最终回复或已授权 PR 的证据评论直接呈递该页面。原型与真实截图须同状态、视口、主题、代表数据并排，分别标注设计意图与真实验证层级。
 
 ### 9.2 Acceptance Evidence Package
 
-#### Human-Confirmed
+按风险排序：rv-2、rv-1、rv-7（R3，含人审）→ rv-3（R2，人审）→ rv-4、rv-5、rv-6（R1）。
 
-- [ ] 确认 §2 的组织归属与管理员权限决定；证据为 `rv-1` 两组织负控、迁移前后数据对账和独立 verifier 结论。
+### Human-Confirmed (来自 Part A 风险地图)
+
+- [ ] 确认 §2 的业务数据组织范围决定（组织与管理员本身由上游 PRD 验收）；证据为 `rv-1` 两组织负控、迁移前后数据对账和独立 verifier 结论。
 - [ ] 确认 §2 的稳定 Agent/单一 Run 事实源与失败闭合决定；证据为 `rv-2` 真实页面、历史和轨迹呈递。
 - [ ] 确认 §2 的 Skill 线性版本与恢复决定；证据为 `rv-3` 差异、版本链和两个 Run 快照呈递。
 - [ ] 确认 §2 的 A2A 双向互通与受控对端决定；证据为 `rv-7` 双向协议、跨组织和受限地址负控及 Run/Task 对账。
 - [ ] 审阅 §9.1 的真实前台与管理后台图、原型对照及披露差异；证据为最终可打开的人审呈递页或 PR 证据评论。
 
-#### Architecture Acceptance
+### Architecture Acceptance
 
 - [ ] 只保留一套 Run/event 存储和 Skill 版本写入口；`rg` 引用清单与架构检查结果入证据包。
 - [ ] A2A Task 与现有 Run 的映射、远端 Task 与父 Run 的关联均可追溯；无第二套任务状态存储；Agent Card 仅声明实际实现的 A2A 1.0 REST 能力。
 - [ ] `api/core/engines/infrastructure/composition` 依赖符合现有约束；记录 `just lint --reuse` 的架构与重复检测结果。
 
-#### Data And Security Acceptance
+### Data And Security Acceptance
 
 - [ ] `rv-1` 从真实会话跨组织负控变红/修复后变绿，PostgreSQL/MySQL 升降级、历史 Run/event 数量和归属对账均留证。
-- [ ] 组织停用、无组织、被禁用 Agent、无模型配置及未审核工具均拒绝新的 Run，且不泄露内容、不产生伪成功；在线 API 无租户代码或命令执行路径。证据来自正式 API 与新请求查询。
+- [ ] 组织停用、被禁用 Agent、无模型配置及未审核工具均拒绝新的 Run，且不泄露内容、不产生伪成功；在线 API 无租户代码或命令执行路径。证据来自正式 API 与新请求查询。
 - [ ] `rv-7` 证明入站凭据与任务读取按组织隔离，出站仅访问已批准对端；DNS/IP、重定向和凭据传播负控没有外呼或泄漏，任务流与取消在新请求中一致。
 
-#### Behavior And Frontend Acceptance
+### Behavior And Frontend Acceptance
 
 - [ ] `rv-2` 与 `rv-3` 的真实页面流程通过；请求记录证明前端使用正式 API，截图标注 `real user flow`，并与相同状态的目标原型并排呈递。
 - [ ] 管理界面能查看 Agent 的 A2A 发布状态、卡片地址和本组织获授权对端；真实管理页面操作与后续 A2A 入站/出站结果一致。
 - [ ] 运行状态、事件、Skill 版本和历史在新会话/新请求中仍一致；证据列出关键 ID 来源、事务边界、禁止旁路、独立读取和最终 Git tree。
 
-#### Dependency And Documentation Acceptance
+### Dependency And Documentation Acceptance
 
 - [ ] `rv-4` 的分发清单覆盖源码、配置、文档、图片/字体、压缩包、二进制元数据及拟公开的 Git 历史；所有来源资产均有保留/替换/排除及权利核对记录，未把私有值写入证据。
 - [ ] `rv-5` 的实际 `just copy` 项目能启动并列出同步候选；`README.md`、`docs/architecture/`、`docs/guides/`、`mkdocs.yml` 与实际契约一致。
 - [ ] `rv-6` 的三服务生产容器构建与同源 API 代理通过，前台静态包和 HTTP 响应无模型密钥；记录容器入口与环境需求，不要求实际公网部署。
 
-#### Validation Acceptance
+### Validation Acceptance
 
 - [ ] `just test`、相关前端构建、`just e2e` 真实入口、A2A 独立实现互通和 `uv run mkdocs build --strict` 结果入证据包；真实模型/外部 Agent 连接若无凭据明确标为未验证及阻塞条件。
 - [ ] 每项关键证据绑定最终 Git tree；入口、存储、权限或 UI 改动后重收相关 `rv-id`，独立 verifier 给出有效 `PASS`，无未解决 `BLOCKER` 或 `REVIEW_INCIDENT / INCONCLUSIVE`。
 
-#### Delivery Readiness
+### Delivery Readiness
 
 - [ ] §10 全部要求完成，无未解决发布和隔离阻塞；若有 PR，正文唯一关联本 PRD 并明确“合并即验收”，证据评论呈递 §9.1；合并后核对最终 tree 才能回填与归档。
 
 ## 10. Functional Requirements
 
-- **FR-1**：组织归属。平台管理员可建/停用组织并授予组织管理员；一个 public 用户首版最多归属一个组织，会话由服务端解析组织。
+- **FR-1**：组织范围生效。复用上游 PRD 的组织、用户归属与两级管理员；Agent、Run、Skill 与资产写入时记录组织归属，会话由服务端解析组织，请求方不能指定。
 - **FR-2**：权限隔离。Agent、Run/event、Skill、资源/产物与管理员诊断按组织和 owner 授权；平台管理员无默认业务数据读取权；越权响应无存在性泄漏。
 - **FR-3**：Agent 治理。组织管理员创建、配置、发布和停用稳定 Agent 身份；成员只见授权且可运行的 Agent，不可运行时显示原因。
 - **FR-4**：运行闭环。成员从真实前台创建、观察、取消并重开 Run；Agent、模型、Skill 在创建时冻结快照；既有 Run/event 是唯一持久事实源，管理轨迹从其投影。
@@ -519,3 +551,21 @@ ER 目标结构见 §2 决策一。具体新表、索引、外键和存量 Run �
 - Requirements and risks: pending — 按最终证据更新。
 - Reconciled differences:
   - pending
+
+## Change Log
+
+### 组织与两级管理员范围移交上游 PRD
+- Type: scope
+- Before: 本 PRD 包含组织表、用户归属、平台/组织管理员及其权限（§2 决策一、FR-1），无交付前置。
+- After: 组织与管理员整体移交 `P1-FEAT-20261112-142923-organizations-and-two-tier-admins`；本 PRD 硬依赖该 PRD，只保留 Agent / Run / Skill / A2A 的业务数据组织范围；原已确认决策（一人一个组织、平台管理员无默认业务数据读取权）原样搬入上游 PRD §2 并保留已确认状态。
+- Reason: 用户 2026-11-12 确认拆分：权限地基先行交付，多组织底座范围收窄；组织与管理员以模板本地管理为准。
+- Impact: FR-1 改为复用上游组织模型；§2 决策一改为业务数据组织范围；ER 图改为直接归属（无 membership 表）；交付前置与 §8 依赖更新；Run 回填默认组织仍在本 PRD。
+- Review: 待人工确认（§1 解读与 §2 决策一）。
+
+### 升级到 PRD 契约 v6 格式
+- Type: doc
+- Before: 旧格式——§1 无解读勾选框；§2 决策二/三/四 仅“已确认”文字、无请确认与勾选框；§9.1 无主演示脚本且呈递物要求“填绝对路径”；§9 分组用 #### 标题。
+- After: 补 §1 解读勾选框；§2 各决策补“请确认 + 勾选框”（已确认结论原样保留，标注 2026-09-28 来源，供在新格式下重新勾选留档）；§9.1 增加 5 步主演示脚本、呈递物改为仓库相对路径 + 内嵌 + open 命令（禁止提交物写绝对路径）；§9 分组标题规范为 ###，9.2 增加风险排序行；rv-2/rv-3 呈递物命名补 webm 与 <prd-stem>。
+- Reason: 用户 2026-11-12 要求把本 PRD 升级到现行 PRD skill（Machine Contract v6）格式，与同系列 OIDC / 组织 PRD 一致。
+- Impact: 仅格式与人审呈递契约升级；行为样例、oracle、FR、已确认决策实质与依赖关系均不变。
+- Review: 待人工确认（§1 解读与 §2 各决策勾选框）。
