@@ -10,6 +10,13 @@
   const HISTORY_GRAPH_CELL_WIDTH = 8;
   const HISTORY_GRAPH_LANE_COUNT = 6;
   const HISTORY_GRAPH_SVG_NAMESPACE = "http://www.w3.org/2000/svg";
+  /** 分栏宽度占比的本地存储键：拖拽调整后记住用户偏好。默认两侧都按 1:2 分配。 */
+  const HISTORY_GRAPH_WIDTH_STORAGE_KEY = "viewer.historyGraphWidthPercent";
+  const HISTORY_CODE_WIDTH_STORAGE_KEY = "viewer.historyCodeWidthPercent";
+  const HISTORY_GRAPH_WIDTH_DEFAULT_PERCENT = 100 / 3;
+  const HISTORY_CODE_WIDTH_DEFAULT_PERCENT = 100 / 3;
+  /** 方向键调整分栏宽度时的步长（百分比）。 */
+  const HISTORY_SPLIT_STEP_PERCENT = 2;
 
   /**
    * @typedef {object} HistoryViewContext
@@ -56,6 +63,22 @@
       isLoadingHistoryDiff: false,
       historyDiffErrorMessage: "",
     };
+    const graphSplitter = createHistorySplitter({
+      storageKey: HISTORY_GRAPH_WIDTH_STORAGE_KEY,
+      cssVariable: "--history-graph-width",
+      defaultPercent: HISTORY_GRAPH_WIDTH_DEFAULT_PERCENT,
+      ariaLabel: "调整提交图与提交详情的宽度",
+      leftMinWidthPx: 320,
+      rightMinWidthPx: 300,
+    });
+    const codeSplitter = createHistorySplitter({
+      storageKey: HISTORY_CODE_WIDTH_STORAGE_KEY,
+      cssVariable: "--history-info-width",
+      defaultPercent: HISTORY_CODE_WIDTH_DEFAULT_PERCENT,
+      ariaLabel: "调整提交信息与代码的宽度",
+      leftMinWidthPx: 260,
+      rightMinWidthPx: 320,
+    });
 
     /**
      * 按需读取下一页 Git 提交图；每页单独绘制，因此只请求并追加尚未显示的提交。
@@ -211,8 +234,10 @@
     function renderHistoryView() {
       const previousGraphScrollTop =
         elements.viewerBody.querySelector(".history-graph-list")?.scrollTop || 0;
-      const previousDetailScrollTop =
-        elements.viewerBody.querySelector(".history-detail-pane")?.scrollTop || 0;
+      const previousInfoScrollTop =
+        elements.viewerBody.querySelector(".history-info-pane")?.scrollTop || 0;
+      const previousCodeScrollTop =
+        elements.viewerBody.querySelector(".history-code-pane")?.scrollTop || 0;
       elements.viewerPath.textContent = "Git Log Graph";
       elements.copyPathButton.hidden = true;
       elements.openInSystemButton.hidden = true;
@@ -341,14 +366,29 @@
         graphList.append(endMessage);
       }
 
+      // 详情区再分两栏：左侧提交信息，右侧代码 diff，各自独立滚动。
       const detailPane = document.createElement("aside");
       detailPane.className = "history-detail-pane";
-      renderHistoryCommitDetails(detailPane);
+      const detailSplit = document.createElement("div");
+      detailSplit.className = "history-detail-split";
+      const infoPane = document.createElement("section");
+      infoPane.className = "history-info-pane";
+      infoPane.setAttribute("aria-label", "提交信息");
+      const codePane = document.createElement("section");
+      codePane.className = "history-code-pane";
+      codePane.setAttribute("aria-label", "文件改动");
+      renderHistoryCommitDetails(infoPane, codePane);
+      detailSplit.append(infoPane, codeSplitter.element, codePane);
+      detailPane.append(detailSplit);
       graphPane.append(branchList, graphList);
-      historyLayout.append(graphPane, detailPane);
+      historyLayout.append(graphPane, graphSplitter.element, detailPane);
       elements.viewerBody.replaceChildren(historyLayout);
+      // 挂载后才有真实宽度，此时按最小栏宽约束一次，避免窄窗口沿用过大占比。
+      graphSplitter.apply(historyLayout);
+      codeSplitter.apply(detailSplit);
       elements.viewerBody.querySelector(".history-graph-list").scrollTop = previousGraphScrollTop;
-      elements.viewerBody.querySelector(".history-detail-pane").scrollTop = previousDetailScrollTop;
+      elements.viewerBody.querySelector(".history-info-pane").scrollTop = previousInfoScrollTop;
+      elements.viewerBody.querySelector(".history-code-pane").scrollTop = previousCodeScrollTop;
       elements.statusHint.textContent = historyState.historyOffset
         ? `Git Log · ${historyState.historyOffset} 条提交`
         : "Git Log";
@@ -712,20 +752,21 @@
 
     /**
      * 渲染所选提交的信息、文件列表与逐行 diff。
-     * @param {HTMLElement} detailPane 提交详情侧栏。
+     * @param {HTMLElement} infoPane 提交信息栏。
+     * @param {HTMLElement} codePane 代码 diff 栏。
      */
-    function renderHistoryCommitDetails(detailPane) {
+    function renderHistoryCommitDetails(infoPane, codePane) {
       if (historyState.isLoadingHistoryCommit) {
-        detailPane.append(buildHistoryMessage("正在读取提交详情…"));
+        infoPane.append(buildHistoryMessage("正在读取提交详情…"));
         return;
       }
       if (historyState.historyCommitErrorMessage) {
-        detailPane.append(buildHistoryMessage(historyState.historyCommitErrorMessage, true));
+        infoPane.append(buildHistoryMessage(historyState.historyCommitErrorMessage, true));
         return;
       }
       const selectedCommit = historyState.selectedHistoryCommit;
       if (!selectedCommit) {
-        detailPane.append(buildHistoryMessage("点击左侧任一提交查看提交说明和文件改动。"));
+        infoPane.append(buildHistoryMessage("点击左侧任一提交查看提交说明和文件改动。"));
         return;
       }
 
@@ -740,7 +781,7 @@
       commitHash.className = "history-detail-hash mono";
       commitHash.textContent = selectedCommit.hash;
       commitHeader.append(commitTitle, commitSubject, commitHash);
-      detailPane.append(commitHeader);
+      infoPane.append(commitHeader);
 
       const commitMetadata = document.createElement("dl");
       commitMetadata.className = "history-commit-metadata";
@@ -751,12 +792,12 @@
         "比较基线",
         selectedCommit.parents.length ? `首个父提交 ${selectedCommit.parents[0].slice(0, 12)}` : "空树（根提交）"
       );
-      detailPane.append(commitMetadata);
+      infoPane.append(commitMetadata);
 
       const fullMessage = document.createElement("pre");
       fullMessage.className = "history-commit-message";
       fullMessage.textContent = selectedCommit.message;
-      detailPane.append(fullMessage);
+      infoPane.append(fullMessage);
 
       const changeHeading = document.createElement("h3");
       changeHeading.className = "history-change-heading";
@@ -772,13 +813,13 @@
       changeHeading.textContent = fileFilterText
         ? `改动文件（${matchingChangedFiles.length}/${selectedCommit.files.length}）`
         : `改动文件（${selectedCommit.files.length}）`;
-      detailPane.append(changeHeading);
+      infoPane.append(changeHeading);
       if (!selectedCommit.files.length) {
-        detailPane.append(buildHistoryMessage("该提交相对首个父提交没有文件差异。"));
+        infoPane.append(buildHistoryMessage("该提交相对首个父提交没有文件差异。"));
         return;
       }
       if (!matchingChangedFiles.length) {
-        detailPane.append(buildHistoryMessage("没有匹配的改动文件。"));
+        infoPane.append(buildHistoryMessage("没有匹配的改动文件。"));
         return;
       }
 
@@ -804,14 +845,14 @@
         changedFileButton.append(statusBadge, filePathNode);
         changedFilesList.append(changedFileButton);
       }
-      detailPane.append(changedFilesList);
+      infoPane.append(changedFilesList);
 
       const showCommitChangesButton = buildHistoryActionButton(
         "在改动视图查看全部改动",
         "show-in-diff-view"
       );
       showCommitChangesButton.classList.add("history-diff-view-button");
-      detailPane.append(showCommitChangesButton);
+      infoPane.append(showCommitChangesButton);
 
       const selectedFileMatchesFilter =
         !fileFilterText ||
@@ -819,11 +860,11 @@
           (changedFile) => changedFile.path === historyState.selectedHistoryPath
         );
       if (fileFilterText && !selectedFileMatchesFilter) {
-        detailPane.append(buildHistoryMessage("从筛选结果中选择一个文件查看改动。"));
+        codePane.append(buildHistoryMessage("从筛选结果中选择一个文件查看改动。"));
       } else if (historyState.isLoadingHistoryDiff) {
-        detailPane.append(buildHistoryMessage("正在读取文件改动…"));
+        codePane.append(buildHistoryMessage("正在读取文件改动…"));
       } else if (historyState.historyDiffErrorMessage) {
-        detailPane.append(buildHistoryMessage(historyState.historyDiffErrorMessage, true));
+        codePane.append(buildHistoryMessage(historyState.historyDiffErrorMessage, true));
       } else if (historyState.selectedHistoryDiff) {
         const selectedDiff = historyState.selectedHistoryDiff;
         const diffHeading = document.createElement("h3");
@@ -831,16 +872,16 @@
         diffHeading.textContent = selectedDiff.old_path
           ? `${selectedDiff.old_path} → ${selectedDiff.path}`
           : selectedDiff.path;
-        detailPane.append(diffHeading);
+        codePane.append(diffHeading);
         if (selectedDiff.binary) {
-          detailPane.append(buildHistoryMessage("二进制文件不提供逐行 diff。"));
+          codePane.append(buildHistoryMessage("二进制文件不提供逐行 diff。"));
         } else if (selectedDiff.empty) {
-          detailPane.append(buildHistoryMessage("该文件没有可显示的逐行改动。"));
+          codePane.append(buildHistoryMessage("该文件没有可显示的逐行改动。"));
         } else {
           if (selectedDiff.truncated) {
-            detailPane.append(buildHistoryMessage("改动较大，已截断到 4,000 行。"));
+            codePane.append(buildHistoryMessage("改动较大，已截断到 4,000 行。"));
           }
-          detailPane.append(buildDiffRowsNode(selectedDiff.rows));
+          codePane.append(buildDiffRowsNode(selectedDiff.rows));
         }
       }
     }
@@ -857,6 +898,169 @@
       const metadataValue = document.createElement("dd");
       metadataValue.textContent = value;
       metadataList.append(metadataLabel, metadataValue);
+    }
+
+    /**
+     * 读取上次拖拽后保存的分栏宽度占比。
+     * @param {string} storageKey 本地存储键。
+     * @param {number} defaultPercent 没有可用记录时的默认占比。
+     * @returns {number} 合法的左栏宽度百分比。
+     */
+    function readStoredHistoryWidthPercent(storageKey, defaultPercent) {
+      try {
+        const storedPercent = Number(global.localStorage.getItem(storageKey));
+        if (storedPercent > 0 && storedPercent < 100) {
+          return storedPercent;
+        }
+      } catch {
+        // 隐私模式等场景下 localStorage 不可用，直接用默认宽度。
+      }
+      return defaultPercent;
+    }
+
+    /**
+     * 按两侧最小像素宽度约束左栏占比，避免把某一栏拖到不可用。
+     * @param {number} requestedPercent 目标占比。
+     * @param {{containerWidth: number, leftMinWidthPx: number, rightMinWidthPx: number}} paneBounds 容器与两侧最小宽度。
+     * @returns {number} 约束后的占比。
+     */
+    function clampHistoryPanePercent(requestedPercent, paneBounds) {
+      const { containerWidth, leftMinWidthPx, rightMinWidthPx } = paneBounds;
+      if (containerWidth <= 0) {
+        return requestedPercent;
+      }
+      const halfWidth = containerWidth * 0.5;
+      const minPercent = (Math.min(leftMinWidthPx, halfWidth) / containerWidth) * 100;
+      const maxPercent = 100 - (Math.min(rightMinWidthPx, halfWidth) / containerWidth) * 100;
+      return Math.min(Math.max(requestedPercent, minPercent), Math.max(maxPercent, minPercent));
+    }
+
+    /**
+     * 创建可拖拽的竖向分隔条：支持指针拖动、方向键微调和双击复位。
+     * @param {object} splitterOptions 分隔条配置。
+     * @param {string} splitterOptions.storageKey 宽度占比的本地存储键。
+     * @param {string} splitterOptions.cssVariable 写入左栏宽度的 CSS 变量名。
+     * @param {number} splitterOptions.defaultPercent 默认左栏占比。
+     * @param {string} splitterOptions.ariaLabel 无障碍名称。
+     * @param {number} splitterOptions.leftMinWidthPx 左栏最小像素宽度。
+     * @param {number} splitterOptions.rightMinWidthPx 右栏最小像素宽度。
+     * @returns {{element: HTMLDivElement, apply: (container: HTMLElement) => void}} 分隔条节点，以及挂载后应用的宽度。
+     */
+    function createHistorySplitter(splitterOptions) {
+      const splitterWidthState = {
+        percent: readStoredHistoryWidthPercent(
+          splitterOptions.storageKey,
+          splitterOptions.defaultPercent
+        ),
+      };
+      const splitter = document.createElement("div");
+      splitter.className = "history-splitter";
+      splitter.tabIndex = 0;
+      splitter.setAttribute("role", "separator");
+      splitter.setAttribute("aria-orientation", "vertical");
+      splitter.setAttribute("aria-label", splitterOptions.ariaLabel);
+      splitter.setAttribute("aria-valuemin", "0");
+      splitter.setAttribute("aria-valuemax", "100");
+      splitter.title = "拖动调整宽度，双击恢复默认";
+      let isDragging = false;
+
+      const clampPercent = (requestedPercent, container) =>
+        clampHistoryPanePercent(requestedPercent, {
+          containerWidth: container.getBoundingClientRect().width,
+          leftMinWidthPx: splitterOptions.leftMinWidthPx,
+          rightMinWidthPx: splitterOptions.rightMinWidthPx,
+        });
+
+      const applyWidth = (container) => {
+        splitterWidthState.percent = clampPercent(splitterWidthState.percent, container);
+        container.style.setProperty(splitterOptions.cssVariable, `${splitterWidthState.percent}%`);
+        splitter.setAttribute("aria-valuenow", String(Math.round(splitterWidthState.percent)));
+      };
+
+      const storeWidth = () => {
+        try {
+          global.localStorage.setItem(
+            splitterOptions.storageKey,
+            String(splitterWidthState.percent)
+          );
+        } catch {
+          // 存储失败不影响本次拖拽结果。
+        }
+      };
+
+      const applyPointerPosition = (pointerEvent) => {
+        const container = splitter.parentElement;
+        if (!container) {
+          return;
+        }
+        const containerBounds = container.getBoundingClientRect();
+        if (!containerBounds.width) {
+          return;
+        }
+        const requestedPercent =
+          ((pointerEvent.clientX - containerBounds.left) / containerBounds.width) * 100;
+        splitterWidthState.percent = clampPercent(requestedPercent, container);
+        applyWidth(container);
+      };
+
+      const finishDrag = () => {
+        if (!isDragging) {
+          return;
+        }
+        isDragging = false;
+        delete splitter.dataset.dragging;
+        document.body.classList.remove("is-resizing-history");
+        storeWidth();
+      };
+
+      splitter.addEventListener("pointerdown", (pointerEvent) => {
+        if (pointerEvent.button !== 0) {
+          return;
+        }
+        isDragging = true;
+        splitter.dataset.dragging = "true";
+        splitter.setPointerCapture(pointerEvent.pointerId);
+        document.body.classList.add("is-resizing-history");
+        pointerEvent.preventDefault();
+      });
+      splitter.addEventListener("pointermove", (pointerEvent) => {
+        if (isDragging) {
+          applyPointerPosition(pointerEvent);
+        }
+      });
+      splitter.addEventListener("pointerup", finishDrag);
+      splitter.addEventListener("pointercancel", finishDrag);
+      splitter.addEventListener("dblclick", () => {
+        splitterWidthState.percent = splitterOptions.defaultPercent;
+        const container = splitter.parentElement;
+        if (container) {
+          applyWidth(container);
+        }
+        storeWidth();
+      });
+      splitter.addEventListener("keydown", (keyboardEvent) => {
+        const widthDelta =
+          keyboardEvent.key === "ArrowLeft"
+            ? -HISTORY_SPLIT_STEP_PERCENT
+            : keyboardEvent.key === "ArrowRight"
+              ? HISTORY_SPLIT_STEP_PERCENT
+              : 0;
+        if (!widthDelta) {
+          return;
+        }
+        const container = splitter.parentElement;
+        if (!container) {
+          return;
+        }
+        splitterWidthState.percent = clampPercent(
+          splitterWidthState.percent + widthDelta,
+          container
+        );
+        applyWidth(container);
+        storeWidth();
+        keyboardEvent.preventDefault();
+      });
+      return { element: splitter, apply: applyWidth };
     }
 
     /**

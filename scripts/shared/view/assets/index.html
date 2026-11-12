@@ -18,6 +18,17 @@
     </span>
     <span class="chip mono" id="branch-chip">…</span>
 
+    <!-- 历史提交的只读浏览：返回入口放在仓库名旁边，和「你在看哪条提交」同一处。 -->
+    <button type="button" class="head-action is-commit-return" id="commit-diff-exit" hidden>返回工作区改动</button>
+    <button type="button" class="head-action is-commit-return is-history-return" id="commit-history-back"
+            title="回到 Git Log 中这条提交的位置" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M19 12H5"></path>
+        <path d="m12 19-7-7 7-7"></path>
+      </svg>
+      <span>返回 Git Log</span>
+    </button>
+
     <div class="spacer"></div>
 
     <div class="segmented" role="tablist" aria-label="视图切换">
@@ -110,7 +121,6 @@
         </div>
         <!-- 从改动跳到文件：只在改动视图选中了条目时出现。 -->
         <button type="button" class="head-action" id="open-file" title="切到文件视图，查看该文件的完整正文" hidden>查看文件</button>
-        <button type="button" class="head-action" id="commit-diff-exit" hidden>返回工作区改动</button>
         <a class="head-action" id="open-external" target="_blank" rel="noopener" hidden>在新标签页打开</a>
 
         <span class="viewer-meta" id="viewer-meta"></span>

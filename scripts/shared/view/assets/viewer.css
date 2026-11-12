@@ -37,14 +37,27 @@
   /* 树的缩进参考线：比边框再淡一层，只在有层级的地方由 JS 按深度画出来。 */
   --indent-guide: color-mix(in oklab, var(--muted-foreground) 24%, transparent);
   --code-bg: oklch(0.995 0.002 250);
+  /* 仓库淡底色：色相由 viewer.js 按仓库名写入，这里只定义染色基准色。 */
+  --repo-tint-hue: 250;
+  --repo-tint-color: oklch(0.74 0.1 var(--repo-tint-hue));
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 }
 
 * { box-sizing: border-box; }
 
 body {
+  /* 整页按仓库色相轻微染色：只叠 4%–14%，正文对比度基本不受影响。 */
+  --background: color-mix(in oklab, var(--repo-tint-color) 8%, oklch(1 0 0));
+  --card: color-mix(in oklab, var(--repo-tint-color) 11%, oklch(1 0 0));
+  --secondary: color-mix(in oklab, var(--repo-tint-color) 9%, oklch(0.968 0.007 247.896));
+  --border: color-mix(in oklab, var(--repo-tint-color) 14%, oklch(0.929 0.013 255.508));
+  --code-bg: color-mix(in oklab, var(--repo-tint-color) 5%, oklch(0.995 0.002 250));
   margin: 0;
-  background: color-mix(in oklab, var(--secondary) 60%, var(--background));
+  background: color-mix(
+    in oklab,
+    var(--repo-tint-color) 13%,
+    color-mix(in oklab, var(--secondary) 60%, var(--background))
+  );
   color: var(--foreground);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
   font-size: 13.5px;
@@ -298,6 +311,27 @@ button, input, select { font: inherit; color: inherit; }
 .head-action:hover { background: var(--secondary); color: var(--foreground); }
 .head-action:focus-visible { border-color: var(--ring); outline: none; }
 .head-action:disabled { opacity: .55; cursor: not-allowed; }
+/* 历史提交的返回入口：实心胶囊、字号更大，和「在新标签页打开」这类次级文字按钮区分开。 */
+.head-action.is-commit-return {
+  min-height: 30px; border-color: transparent; border-radius: 999px;
+  background: color-mix(in oklab, var(--ring) 16%, var(--secondary));
+  padding: 0 15px; color: var(--foreground); font-size: 12.5px; font-weight: 650;
+}
+.head-action.is-commit-return:hover {
+  background: color-mix(in oklab, var(--ring) 26%, var(--secondary));
+}
+.head-action.is-commit-return:focus-visible { border-color: var(--ring); outline: none; }
+/* 返回 Git Log 是这一屏的主出口：用绿色实心胶囊加左箭头，和左边中性的「返回工作区改动」分开。 */
+.head-action.is-history-return {
+  gap: 6px;
+  background: color-mix(in oklab, var(--success) 15%, var(--card));
+  color: color-mix(in oklab, var(--success) 88%, var(--foreground));
+}
+.head-action.is-history-return:hover {
+  background: color-mix(in oklab, var(--success) 24%, var(--card));
+  color: color-mix(in oklab, var(--success) 72%, var(--foreground));
+}
+.head-action.is-history-return svg { width: 14px; height: 14px; }
 /* 刷新按钮：图标 + 文字；成功那一刻把图标换成对勾（与「复制路径」同一套反馈做法）。 */
 .head-action svg {
   width: 13px; height: 13px; flex: none; fill: none; stroke: currentColor;
@@ -333,30 +367,50 @@ button, input, select { font: inherit; color: inherit; }
 
 .history-layout {
   display: grid; width: 100%; height: 100%; min-height: 0;
-  grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.9fr);
+  /* 左栏提交图与右栏详情默认 1:2；宽度由分隔条拖拽写入变量。 */
+  grid-template-columns: minmax(0, var(--history-graph-width, 33.3333%)) 7px minmax(0, 1fr);
 }
+.history-splitter {
+  position: relative; cursor: col-resize; touch-action: none;
+  border-left: 1px solid var(--border); background: var(--card);
+}
+/* 视觉上是一条细线：hover / 拖动 / 键盘聚焦时才加宽高亮，避免常驻分割感过重。 */
+.history-splitter::after {
+  content: ""; position: absolute; top: 0; bottom: 0; left: 1px; width: 5px;
+  border-radius: 999px; background: transparent; transition: background .12s;
+}
+.history-splitter:hover::after, .history-splitter:focus-visible::after,
+.history-splitter[data-dragging='true']::after {
+  background: color-mix(in oklab, var(--ring) 48%, transparent);
+}
+.history-splitter:focus-visible { outline: none; }
+body.is-resizing-history, body.is-resizing-history * { cursor: col-resize !important; user-select: none; }
 .history-graph-pane { display: flex; min-width: 0; min-height: 0; flex-direction: column; }
 .history-branch-list {
   /* 换行而不是横向滚动：被裁掉的分支等于没显示，而「哪个分支已合入」正是要先看到的结论。 */
   display: flex; flex: none; flex-wrap: wrap; gap: 8px 16px;
   border-bottom: 1px solid var(--border); background: var(--card); padding: 8px 12px;
 }
-.history-branch-group { display: flex; flex: none; align-items: center; gap: 8px; }
+.history-branch-group { display: flex; max-width: 100%; flex: 0 1 auto; align-items: center; gap: 8px; }
 .history-branch-group + .history-branch-group { border-left: 1px solid var(--border); padding-left: 16px; }
 .history-branch-group h2 {
   flex: none; margin: 0; color: var(--muted-foreground); font-size: 10.5px; font-weight: 650;
   white-space: nowrap;
 }
-.history-branch-items { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.history-branch-items { display: flex; min-width: 0; flex: 0 1 auto; flex-wrap: wrap; align-items: center; gap: 5px; }
 .history-branch-button {
-  display: inline-flex; max-width: 240px; align-items: center; border: 1px solid transparent;
+  display: inline-flex; max-width: 100%; align-items: center; border: 1px solid transparent;
   border-radius: 999px; background: transparent; padding: 0; cursor: pointer;
 }
 .history-branch-button:hover, .history-branch-button[aria-pressed='true'] {
   border-color: var(--border); background: var(--secondary);
 }
 .history-branch-button:focus-visible { border-color: var(--ring); outline: none; }
-.history-branch-button .history-ref { overflow: hidden; text-overflow: ellipsis; }
+/* 分支名放不下就换行，不用省略号截断：窄栏下被裁掉的分支名等于看不见。 */
+.history-branch-button .history-ref {
+  max-width: 100%; overflow: visible; text-overflow: clip;
+  white-space: normal; overflow-wrap: anywhere;
+}
 .history-branch-button.is-already-merged .history-ref { opacity: .62; }
 .history-branch-button.is-already-merged:hover .history-ref,
 .history-branch-button.is-already-merged[aria-pressed='true'] .history-ref { opacity: 1; }
@@ -455,10 +509,19 @@ button, input, select { font: inherit; color: inherit; }
 .history-ref.is-remote { background: color-mix(in oklab, oklch(0.6 0.16 250) 13%, var(--card)); color: oklch(0.48 0.14 250); }
 .history-ref.is-head { background: var(--primary); color: var(--primary-foreground); }
 .history-ref.is-tag { background: color-mix(in oklab, oklch(0.7 0.15 80) 24%, var(--card)); color: oklch(0.48 0.12 70); }
-.history-detail-pane {
-  min-width: 0; min-height: 0; overflow: auto; border-left: 1px solid var(--border);
-  background: var(--card); padding: 14px 16px 24px;
+.history-detail-pane { min-width: 0; min-height: 0; overflow: hidden; background: var(--card); }
+/* 详情区内部再分两栏：提交信息与代码 diff 各自滚动，默认也按 1:2 分配。 */
+.history-detail-split {
+  display: grid; width: 100%; height: 100%; min-height: 0;
+  grid-template-columns: minmax(0, var(--history-info-width, 33.3333%)) 7px minmax(0, 1fr);
 }
+.history-info-pane { min-width: 0; min-height: 0; overflow: auto; padding: 14px 16px 24px; }
+.history-code-pane {
+  min-width: 0; min-height: 0; overflow: auto;
+  border-left: 1px solid var(--border); background: var(--code-bg); padding: 12px 0 24px;
+}
+.history-code-pane > .history-change-heading,
+.history-code-pane > .history-message { margin-right: 16px; margin-left: 16px; }
 .history-detail-header { border-bottom: 1px solid var(--border); padding-bottom: 11px; }
 .history-detail-header h2 { margin: 0; font-size: 14px; }
 .history-detail-subject { margin: 7px 0; font-size: 12.5px; font-weight: 600; overflow-wrap: anywhere; }
@@ -492,31 +555,34 @@ button, input, select { font: inherit; color: inherit; }
 .history-file-status.is-m, .history-file-status.is-d { background: var(--del); color: var(--del-mark); }
 .history-file-status.is-r, .history-file-status.is-c { background: var(--rename); color: var(--rename-mark); }
 .history-file-path { min-width: 0; font-family: var(--mono); font-size: 10.5px; overflow-wrap: anywhere; }
-.history-detail-pane > .code {
-  max-height: min(50vh, 620px); overflow: auto; margin: 8px -16px 0;
-  border-top: 1px solid var(--border); background: var(--code-bg); padding-bottom: 16px;
+/* diff 在独立代码栏里随栏滚动，不再限制自身高度。 */
+.history-code-pane > .code {
+  margin: 4px 0 0; border-top: 1px solid var(--border);
+  background: var(--code-bg); padding: 2px 0 16px;
 }
-.history-detail-pane > .code .row { width: max-content; min-width: 100%; grid-template-columns: 48px max-content; }
-.history-detail-pane > .code .src { padding-left: 8px; white-space: pre; }
-.history-detail-pane > .code .row.add { background: var(--add); }
-.history-detail-pane > .code .row.del { background: var(--del); }
-.history-detail-pane > .code .row.hunk { display: block; min-width: max-content; background: var(--secondary); padding: 3px 12px; white-space: pre; }
-.history-detail-pane > .code .row.add .src { color: var(--add-mark); }
-.history-detail-pane > .code .row.del .src { color: var(--del-mark); }
-.history-detail-pane .history-message { margin: 12px 0; padding: 6px 0; }
+.history-code-pane > .code .row { width: max-content; min-width: 100%; grid-template-columns: 48px max-content; }
+.history-code-pane > .code .src { padding-left: 8px; white-space: pre; }
+.history-code-pane > .code .row.add { background: var(--add); }
+.history-code-pane > .code .row.del { background: var(--del); }
+.history-code-pane > .code .row.hunk { display: block; min-width: max-content; background: var(--secondary); padding: 3px 12px; white-space: pre; }
+.history-code-pane > .code .row.add .src { color: var(--add-mark); }
+.history-code-pane > .code .row.del .src { color: var(--del-mark); }
+.history-info-pane .history-message,
+.history-code-pane .history-message { margin: 12px 0; padding: 6px 0; }
 .history-message { margin: 16px 4px; color: var(--muted-foreground); }
 .history-message.is-error { color: var(--destructive); }
 .history-load-more { display: flex; margin: 12px auto; }
-.history-detail-pane > .history-message { overflow-wrap: anywhere; }
+.history-info-pane > .history-message, .history-code-pane > .history-message { overflow-wrap: anywhere; }
 .history-branch-list .history-message { margin: 0; white-space: nowrap; }
 .history-graph-list > .history-message { padding: 12px; text-align: center; }
 .history-graph-list > .history-load-more { margin-top: 12px; }
-.history-branch-items { max-width: min(48vw, 620px); overflow-x: auto; }
-.history-branch-list, .history-graph-list, .history-detail-pane { scrollbar-width: thin; }
+.history-branch-items { max-width: 100%; }
+.history-branch-list, .history-graph-list,
+.history-info-pane, .history-code-pane { scrollbar-width: thin; }
 .history-branch-list::-webkit-scrollbar, .history-graph-list::-webkit-scrollbar,
-.history-detail-pane::-webkit-scrollbar { width: 8px; height: 8px; }
+.history-info-pane::-webkit-scrollbar, .history-code-pane::-webkit-scrollbar { width: 8px; height: 8px; }
 .history-branch-list::-webkit-scrollbar-thumb, .history-graph-list::-webkit-scrollbar-thumb,
-.history-detail-pane::-webkit-scrollbar-thumb {
+.history-info-pane::-webkit-scrollbar-thumb, .history-code-pane::-webkit-scrollbar-thumb {
   border-radius: 8px; background: color-mix(in oklab, var(--muted-foreground) 22%, transparent);
 }
 
@@ -706,7 +772,14 @@ button, input, select { font: inherit; color: inherit; }
   .body-grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: 216px minmax(0, 1fr); }
   .body-grid.is-history { grid-template-rows: minmax(0, 1fr); }
   .history-layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(220px, 42%) minmax(0, 1fr); }
-  .history-detail-pane { border-top: 1px solid var(--border); border-left: 0; }
+  /* 上下堆叠时拖拽左右分栏没有意义，隐藏分隔条并交回固定行高。 */
+  .history-splitter { display: none; }
+  .history-detail-pane { border-top: 1px solid var(--border); }
+  .history-detail-split {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(200px, 45%) minmax(0, 1fr);
+  }
+  .history-code-pane { border-top: 1px solid var(--border); border-left: 0; }
   .history-branch-items { max-width: 72vw; }
   /* 窄窗口下左树本来就占满整屏宽（文件名放得下），栏宽开关既不显示，也不该留下加宽态。 */
   .body-grid.is-tree-wide { grid-template-columns: minmax(0, 1fr); }
