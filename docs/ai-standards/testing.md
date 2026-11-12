@@ -115,15 +115,16 @@
 ## 测试分层与本地核心档
 
 本地档与 CI 的分工是**契约**：`just test` 只跑「可负担且与本次改动相关」的子集，全量交
-CI 与交付前的 `just test all`。不要靠反复跑本地档换安全感，跑全量的责任在 CI 与交付前
-那一次。
+CI。不要靠反复跑本地档换安全感，也不要在本地补跑全量再推送——跑全量的责任在 CI（见下方
+「CI：PR 轻量档、main 全量档」）。
 
 实测口径（2026-10-16 采集；本机与 CI 墙钟不可互比，见下）：
 
 | 档 | 命令 / 位置 | marker 口径 | 条数 | 本机墙钟 | CI 墙钟 |
 |---|---|---|---|---|---|
 | 本地核心档 | `just test` | `not slow and not real_api and not redis` ∩（名单 ∪ 改动测试 ∪ src 映射补跑 ∪ core 标记） | 约 440–530 | 注入一条改动后含 lint 前置 16.1s，其中 pytest 7.4s；同一棵树第二次命中 warm flag 0.9s | 不跑 |
-| CI 非 slow 全量档 | ci.yml `Run local test suite` | `not slow and not real_api and not redis` | 约 745 | 40–80s（同一天内随机器状态波动近一倍） | PostgreSQL 23.9s / MySQL 29.5s（回迁前 692 条） |
+| CI PR 轻量档 | ci.yml `Run PR light test suite`（仅 PR 且改动可映射时） | 同本地核心档，但改动按 PR 基线计算、src 映射不设预算 | 随改动而定 | 不跑 | 随改动而定 |
+| CI 非 slow 全量档 | ci.yml `Run local test suite`（push 到 main，或 PR 改动无法映射时） | `not slow and not real_api and not redis` | 约 745 | 40–80s（同一天内随机器状态波动近一倍） | PostgreSQL 23.9s / MySQL 29.5s（回迁前 692 条） |
 | 本地手动全集 | `just test all` | `-m ''`（含 slow / real_api / redis） | 全集 | 高于上一行 | 不跑 |
 
 **本机与 CI 的墙钟不可互比**：同一条全量命令在本机更慢、且随机器状态波动，所以棘轮的
@@ -181,14 +182,32 @@ sync 分发的 `scripts/shared/testing/test_tiers.py`）。规则：
 `check-test-flag` 校验的是 `.last_tested_commit`，因此它现在保证的是「**本地核心档绿**」，不是
 「全套绿」。这靠三处兜住：
 
-- CI 每次 PR 跑非 slow 全量档（`real_api` 与 `redis` 留给 `just test real` / 手工口径）。
+- CI 在 PR 上跑轻量档、在 main 上跑非 slow 全量档（`real_api` 与 `redis` 留给 `just test real` /
+  手工口径），见下一小节。
 - 守卫测试：`tests/guards/test_local_core_tier_budget.py` 钉住名单不超预算、文件不失踪、
   `justfile` 的 `--core-tier` 接线没被删、conftest 仍读取工作区测试计划、CI 全量步骤产出 junit、
   CI 的成本棘轮步骤存在且带 `--enforce-seconds`、上限配置自洽；选集与预算切分的**行为**由
   `tests/guards/shared/test_test_tiers.py` 覆盖，棘轮判定由
   `tests/guards/shared/test_check_test_budget.py` 覆盖。
-- 交付前 / PR 合并前跑一次 `just test all` 补齐全量。**`just lint --repo` 不能替代它**：总入口
-  内部调用的 `just test` 已经是核心档。改动跨层契约或数据库迁移时，不要只依赖核心档。
+- 合并前**不要求**本地再跑一遍全量：改动无法映射到测试时，PR 的 CI 会自己跑全量档；其余
+  情况由 main 上的全量档兜底。改动跨层契约或数据库迁移时，若想在合并前就拿到全量信号，再手动
+  跑 `just test all`。
+
+### CI：PR 轻量档、main 全量档
+
+PR 上反复跑全量会把每次小改动的反馈拉到分钟级，打断心流；所以 PR 只验与改动相关的测试，
+全量放到合入 main 之后：
+
+- `Choose test tier` 步骤调用 `test_tiers.py ci-tier`，以 `TEST_TIERS_BASE_REF=HEAD^1`（PR
+  合并提交的第一父提交，即目标分支）为基线收集改动。改动**全部**是 `src/backend/` 或 `tests/`
+  下的 Python 文件、且不碰全局影响面时走轻量档，否则走全量档。justfile、依赖锁、脚本、迁移、
+  workflow 这类改动没有可靠的「改动 → 测试」映射，宁可全量也不给假绿。
+- 轻量档复用本地核心档的 `--core-tier` 选择，但把 `JUST_MAPPED_BUDGET_SECONDS` 放开，映射到的
+  测试全部跑。成本棘轮只对全量档的 junit 生效，轻量档跳过。
+- push 到 main 一律跑全量档。main 失败时 `report-main-failure` job 开一个「main CI 失败」Issue
+  （已有未关闭的则追加评论）。看到它就修复或 revert 引入问题的 PR，不要在红的 main 上继续叠改动。
+- 代价：只在 main 上暴露的回归会晚一步被发现。这是用合并后的偶发红灯换每个 PR 的等待时间；
+  main 红灯必须当天处理，否则这笔交换不成立。
 
 ### 全量档成本棘轮
 
