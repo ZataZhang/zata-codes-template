@@ -1,6 +1,8 @@
 # PRD: 多组织通用在线 Agent 底座
 
-> ⛔ **交付前置**：排在 `P1-FEAT-20261112-142923-organizations-and-two-tier-admins` 之后开工。组织表、普通用户归属与平台/组织两级管理员由那份 PRD 交付；先做本 PRD 就得重复实现组织隔离的权限地基，或交付一个无组织范围的临时运行链。
+- GitHub Issue: https://github.com/ZataZhang/zata-codes-template/issues/58
+
+> ✅ **交付前置**：已满足。组织表、普通用户归属与平台/组织两级管理员已由 `P1-FEAT-20261112-142923-organizations-and-two-tier-admins` 交付；本 PRD 可复用该组织范围与角色模型。
 > 结构化声明见 §8 Delivery Dependencies，**那里是唯一事实源**。
 
 > ⬜ **验收状态**：未开工。
@@ -431,12 +433,11 @@ ER 目标结构见 §2 决策一。具体新表、索引、外键和存量 Run �
 
 ### Delivery Dependencies
 
-- Group: multi-organization-online-agent-base
 - Depends on tasks/issues:
-  - P1-FEAT-20261112-142923-organizations-and-two-tier-admins
-- Gate type: hard
+  - none
+- Gate type: none
 - Sequence: via-main
-- Notes: 组织表、普通用户归属与两级管理员权限由上游 PRD 交付；本 PRD 复用其组织 scope 与角色。与两份 OIDC PRD 无顺序依赖，后合者解决 core/auth 冲突。来源仓库只作只读迁移参考。
+- Notes: 原硬前置 `P1-FEAT-20261112-142923-organizations-and-two-tier-admins` 已归档交付（仍待人工验收）；本 PRD 复用其组织 scope 与角色。与两份 OIDC PRD 无顺序依赖，后合者解决 core/auth 冲突。来源仓库只作只读迁移参考。
 
 ## 9. Acceptance Checklist
 
@@ -560,6 +561,14 @@ ER 目标结构见 §2 决策一。具体新表、索引、外键和存量 Run �
   - pending
 
 ## Change Log
+
+### 刷新已交付的组织前置声明
+- Type: doc
+- Before: §8 仍将已归档交付的组织与两级管理员 PRD 作为硬依赖，并包含 KedaCode 已移除的 `Group` 字段；前置横幅仍写成待满足。
+- After: 前置横幅标明依赖已满足；§8 标记无待完成的上游依赖，并在 Notes 保留已交付 PRD 的关系说明；删除 `Group` 字段。
+- Reason: 上游 PRD 已归档交付，其组织与权限基线可直接复用；KedaCode 创建 Issue 需要硬依赖能映射到 GitHub Issue，而该归档 PRD 没有 Issue 链接。
+- Impact: 只更新已完成依赖的状态与结构化元数据，不改变产品范围、依赖历史或行为。
+- Review: 本 PRD 可按当前 KedaCode 格式扫描和创建 Issue。
 
 ### 组织与两级管理员范围移交上游 PRD
 - Type: scope
