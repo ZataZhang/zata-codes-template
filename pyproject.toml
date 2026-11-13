@@ -27,6 +27,7 @@ dependencies = [
     "python-json-logger>=2.0.7",
     "redis>=5.0.0",
     "uvicorn[standard]>=0.30.0",
+    "zata-oidc",
 ]
 
 [project.optional-dependencies]
@@ -44,6 +45,9 @@ tracing = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.uv.sources]
+zata-oidc = { path = "packages/oidc-client", editable = false }
 
 [dependency-groups]
 dev = [

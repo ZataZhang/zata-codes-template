@@ -36,3 +36,6 @@ class AuthenticatedPrincipal:
     display_name: str
     identifier: str
     domain: AuthDomain
+    role: str = "platform"
+    organization_id: str | None = None
+    organization_name: str | None = None

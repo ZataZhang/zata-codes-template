@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from './client'
+import { apiGet, apiPatch, apiPost } from './client'
 
 export type PublicUserStatus = 'active' | 'disabled'
 
@@ -8,6 +8,8 @@ export type PublicUser = {
   display_name: string
   status: PublicUserStatus
   created_at: string | null
+  organization_id: string
+  organization_name: string
 }
 
 export type PublicUserListResponse = {
@@ -22,6 +24,7 @@ export type ListPublicUsersParams = {
   page_size?: number
   status?: PublicUserStatus
   keyword?: string
+  organization_id?: string
 }
 
 /** List public users with optional filtering and pagination. */
@@ -44,4 +47,14 @@ export async function enablePublicUser(userId: string): Promise<PublicUser> {
 /** Disable a public user account. */
 export async function disablePublicUser(userId: string): Promise<PublicUser> {
   return apiPost<PublicUser>(`/admin/users/${userId}/disable`, {})
+}
+
+/** 更改普通用户所属组织。 */
+export async function setPublicUserOrganization(
+  userId: string,
+  organizationId: string
+): Promise<PublicUser> {
+  return apiPatch<PublicUser>(`/admin/users/${userId}/organization`, {
+    organization_id: organizationId,
+  })
 }

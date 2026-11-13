@@ -299,6 +299,7 @@ class AuthSettings(BaseSettings):
 
     admin_bootstrap_username: str = ""
     admin_bootstrap_password: SecretStr = SecretStr("")
+    admin_bootstrap_email: str = ""
     session_sliding_days: int = 15
     session_absolute_days: int = 60
     cookie_secure: bool = True
@@ -320,6 +321,73 @@ class AuthSettings(BaseSettings):
             toml_source,
             init_settings,
         )
+
+
+class AdminOidcSettings(BaseSettings):
+    """管理员 OIDC 客户端的显式配置。"""
+
+    model_config = SettingsConfigDict(
+        env_prefix="ADMIN_OIDC_",
+        env_file=(_PROJECT_ROOT_PATH / ".env", _PROJECT_ROOT_PATH / ".env.local"),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    enabled: bool = True
+    issuer: str = ""
+    client_id: str = ""
+    client_secret: SecretStr = SecretStr("")
+    callback_uri: str = ""
+
+    @property
+    def is_configured(self) -> bool:
+        """是否启用且具备启动 OIDC 协议客户端所需的全部连接参数。"""
+        return self.enabled and all(
+            value.strip()
+            for value in (
+                self.issuer,
+                self.client_id,
+                self.client_secret.get_secret_value(),
+                self.callback_uri,
+            )
+        )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,  # noqa: ARG003
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """按环境变量、dotenv、TOML 与初始化参数的优先级加载 OIDC 配置。"""
+        toml_source: _TomlSectionSource = _TomlSectionSource(settings_cls, "admin_oidc")
+        return (env_settings, dotenv_settings, toml_source, init_settings)
+
+
+class UserOidcSettings(AdminOidcSettings):
+    """普通用户 OIDC 客户端的显式配置。"""
+
+    model_config = SettingsConfigDict(
+        env_prefix="USER_OIDC_",
+        env_file=(_PROJECT_ROOT_PATH / ".env", _PROJECT_ROOT_PATH / ".env.local"),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,  # noqa: ARG003
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """按环境变量、dotenv、TOML 与初始化参数的优先级加载 public OIDC 配置。"""
+        toml_source: _TomlSectionSource = _TomlSectionSource(settings_cls, "user_oidc")
+        return (env_settings, dotenv_settings, toml_source, init_settings)
 
 
 class MCPSettings(BaseSettings):
@@ -408,6 +476,8 @@ class AppSettings(BaseSettings):
     redis: RedisSettings = Field(default_factory=RedisSettings)
     config_provider: ConfigProviderSettings = Field(default_factory=ConfigProviderSettings)
     auth: AuthSettings = Field(default_factory=AuthSettings)
+    admin_oidc: AdminOidcSettings = Field(default_factory=AdminOidcSettings)
+    user_oidc: UserOidcSettings = Field(default_factory=UserOidcSettings)
 
     base_dir: Path = _PROJECT_ROOT_PATH
     log_dir: Path = Field(default_factory=lambda: _PROJECT_ROOT_PATH / "logs")

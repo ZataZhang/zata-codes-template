@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { useAuthStore } from '@/stores/auth-store'
 import { useLayout } from '@/context/layout-provider'
 import {
   Sidebar,
@@ -7,7 +8,6 @@ import {
   SidebarHeader,
   SidebarRail,
 } from '@/components/ui/sidebar'
-import { useAuthStore } from '@/stores/auth-store'
 import { createNavGroups, sidebarTeams, sidebarUser } from './data/sidebar-data'
 import { NavGroup } from './nav-group'
 import { NavUser } from './nav-user'
@@ -26,7 +26,7 @@ export function AppSidebar() {
       }
     : sidebarUser
 
-  const navGroups = createNavGroups(t)
+  const navGroups = createNavGroups(t, auth.user?.role ?? null)
 
   return (
     <Sidebar collapsible={collapsible} variant={variant}>

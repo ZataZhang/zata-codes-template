@@ -1,7 +1,8 @@
 import React from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { useTranslation } from 'react-i18next'
 import { ArrowRight, ChevronRight, Laptop, Moon, Sun } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { useAuthStore } from '@/stores/auth-store'
 import { useSearch } from '@/context/search-provider'
 import { useTheme } from '@/context/theme-provider'
 import {
@@ -22,8 +23,9 @@ export function CommandMenu() {
   const { setTheme } = useTheme()
   const { open, setOpen } = useSearch()
   const { t } = useTranslation()
+  const { auth } = useAuthStore()
 
-  const navGroups = createNavGroups(t)
+  const navGroups = createNavGroups(t, auth.user?.role ?? null)
 
   const runCommand = React.useCallback(
     (command: () => unknown) => {

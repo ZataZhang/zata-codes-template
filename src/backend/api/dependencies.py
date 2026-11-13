@@ -6,12 +6,23 @@
 
 from __future__ import annotations
 
-from fastapi import HTTPException, Request
-from starlette.status import HTTP_401_UNAUTHORIZED
+from typing import Any
+
+from fastapi import Depends, HTTPException, Request
+from starlette.status import HTTP_401_UNAUTHORIZED, HTTP_403_FORBIDDEN
 
 from backend.api.security.rate_limiter import ApiRateLimiter
+from backend.core.auth.admin_directory import AdminDirectory
 from backend.core.auth.directory import PublicUserDirectory
-from backend.core.auth.models import AuthenticatedPrincipal
+from backend.core.auth.models import AuthDomain, AuthenticatedPrincipal
+from backend.core.auth.oidc_login import (
+    AdminOidcAccountResolver,
+    OidcLoginDependencies,
+    OidcLoginService,
+    UserOidcAccountResolver,
+)
+from backend.core.auth.organization_directory import OrganizationDirectory
+from backend.core.auth.registration_policy_service import RegistrationPolicyService
 from backend.core.auth.service import AuthService
 from backend.core.run_tracing import RunTraceUseCase
 
@@ -28,6 +39,56 @@ def get_public_auth_service(request: Request) -> AuthService:
 def get_admin_auth_service(request: Request) -> AuthService:
     """从应用状态获取 admin 域认证服务。"""
     return request.app.state.admin_auth_service
+
+
+def get_admin_oidc_gateway(request: Request) -> Any | None:
+    """从应用状态获取已配置的管理员 OIDC 协议客户端。"""
+    return request.app.state.admin_oidc_gateway
+
+
+def get_admin_oidc_login_service(
+    request: Request,
+    gateway: Any | None = Depends(get_admin_oidc_gateway),
+) -> OidcLoginService | None:
+    """组合管理员 OIDC 用例；配置不完整时返回空值。"""
+    if gateway is None:
+        return None
+    return OidcLoginService(
+        dependencies=OidcLoginDependencies(
+            gateway=gateway,
+            transaction_store=request.app.state.admin_oidc_transaction_store,
+            account_resolver=AdminOidcAccountResolver(request.app.state.admin_user_repository),
+            session_store=request.app.state.admin_session_store,
+            domain=AuthDomain.ADMIN,
+        )
+    )
+
+
+def get_public_oidc_gateway(request: Request) -> Any | None:
+    """从应用状态获取已配置的 public OIDC 协议客户端。"""
+    return request.app.state.public_oidc_gateway
+
+
+def get_public_oidc_login_service(
+    request: Request,
+    gateway: Any | None = Depends(get_public_oidc_gateway),
+) -> OidcLoginService | None:
+    """组合 public OIDC 用例；配置不完整时返回空值。"""
+    if gateway is None:
+        return None
+    return OidcLoginService(
+        dependencies=OidcLoginDependencies(
+            gateway=gateway,
+            transaction_store=request.app.state.public_oidc_transaction_store,
+            account_resolver=UserOidcAccountResolver(
+                repository=request.app.state.public_user_repository,
+                registration_policy_provider=request.app.state.registration_policy_service,
+                password_hasher=request.app.state.password_hasher,
+            ),
+            session_store=request.app.state.public_session_store,
+            domain=AuthDomain.PUBLIC,
+        )
+    )
 
 
 def get_public_user_directory(request: Request) -> PublicUserDirectory:
@@ -89,3 +150,27 @@ def get_current_admin_user(request: Request) -> AuthenticatedPrincipal:
         cookie_name=ADMIN_SESSION_COOKIE_NAME,
         auth_service=get_admin_auth_service(request),
     )
+
+
+def get_current_platform_admin(
+    admin: AuthenticatedPrincipal = Depends(get_current_admin_user),
+) -> AuthenticatedPrincipal:
+    """获取当前平台管理员；组织管理员访问平台接口时返回 403。"""
+    if admin.role != "platform":
+        raise HTTPException(status_code=HTTP_403_FORBIDDEN, detail="platform_admin_required")
+    return admin
+
+
+def get_organization_directory(request: Request) -> OrganizationDirectory:
+    """从应用状态读取组织目录用例。"""
+    return request.app.state.organization_directory
+
+
+def get_admin_directory(request: Request) -> AdminDirectory:
+    """从应用状态读取管理员目录用例。"""
+    return request.app.state.admin_directory
+
+
+def get_registration_policy_service(request: Request) -> RegistrationPolicyService:
+    """从应用状态读取注册策略服务。"""
+    return request.app.state.registration_policy_service

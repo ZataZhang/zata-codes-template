@@ -11,6 +11,9 @@ const sampleUser = {
   user_id: 'usr-1',
   display_name: 'Alice',
   username: 'alice',
+  role: 'platform' as const,
+  organization_id: null,
+  organization_name: null,
 }
 
 describe('useAuthStore', () => {

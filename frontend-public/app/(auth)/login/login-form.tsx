@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useTranslations } from "next-intl"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { PasswordInput } from "@/components/ui/password-input"
-import { login } from "@/lib/api/auth"
+import { getUserOidcStatus, login, USER_OIDC_START_URL } from "@/lib/api/auth"
 
 /** 登录表单字段类型，与 `buildFormSchema` 产出的 schema 保持一致。 */
 type LoginFormValues = {
@@ -52,6 +52,21 @@ export function LoginForm() {
   const tErrors = useTranslations("errors")
   const tToast = useTranslations("toast")
   const [isLoading, setIsLoading] = useState(false)
+  const [oidcEnabled, setOidcEnabled] = useState(false)
+
+  useEffect(() => {
+    let isMounted = true
+    void getUserOidcStatus()
+      .then(({ enabled }) => {
+        if (isMounted) setOidcEnabled(enabled)
+      })
+      .catch(() => {
+        if (isMounted) setOidcEnabled(false)
+      })
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   const formSchema = useMemo(() => buildFormSchema(tErrors), [tErrors])
 
@@ -85,8 +100,17 @@ export function LoginForm() {
     void form.handleSubmit(onSubmit)(event)
   }
 
+  const ssoError = searchParams.get("sso_error")
+
   return (
     <Form {...form}>
+      {ssoError && (
+        <p role="alert" className="mb-4 text-center text-sm text-destructive">
+          {ssoError === "account_exists"
+            ? t("oidcAccountExists")
+            : t("oidcFailure")}
+        </p>
+      )}
       <form onSubmit={handleFormSubmit} className="grid gap-4">
         <FormField
           control={form.control}
@@ -144,6 +168,18 @@ export function LoginForm() {
           {t("loginSubmit")}
         </Button>
       </form>
+      {oidcEnabled && (
+        <div className="mt-4 grid gap-3">
+          <p className="text-center text-sm text-muted-foreground">
+            {t("orContinueWith")}
+          </p>
+          <Button asChild variant="outline">
+            <a href={USER_OIDC_START_URL} data-testid="public-oidc-sign-in">
+              {t("enterpriseSignIn")}
+            </a>
+          </Button>
+        </div>
+      )}
       <p className="mt-6 text-center text-sm text-muted-foreground">
         {t("noAccount")}{" "}
         <Link

@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
+from backend.core.shared.models.organization import DEFAULT_ORGANIZATION_ID
+
 
 @dataclass(frozen=True)
 class UserAccount:
@@ -29,3 +31,10 @@ class UserAccount:
     password_hash: str
     is_active: bool
     created_at: datetime | None = None
+    email: str | None = None
+    oidc_issuer: str | None = None
+    oidc_subject: str | None = None
+    role: str = "user"
+    organization_id: str | None = DEFAULT_ORGANIZATION_ID
+    organization_name: str | None = None
+    organization_is_active: bool | None = True

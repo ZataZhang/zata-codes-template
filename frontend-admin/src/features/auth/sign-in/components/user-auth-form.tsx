@@ -1,12 +1,12 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { z } from 'zod'
 import { useForm } from 'react-hook-form'
-import { useTranslation } from 'react-i18next'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate } from '@tanstack/react-router'
 import { Loader2, LogIn } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { login } from '@/api/auth'
+import { ADMIN_OIDC_START_URL, getAdminOidcStatus, login } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth-store'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -47,18 +47,35 @@ type UserAuthFormValues = {
 
 interface UserAuthFormProps extends React.HTMLAttributes<HTMLFormElement> {
   redirectTo?: string
+  ssoError?: boolean
 }
 
 /** Render the UserAuthForm component. */
 export function UserAuthForm({
   className,
   redirectTo,
+  ssoError = false,
   ...props
 }: UserAuthFormProps) {
   const [isLoading, setIsLoading] = useState(false)
   const navigate = useNavigate()
   const { auth } = useAuthStore()
   const { t } = useTranslation()
+  const [oidcEnabled, setOidcEnabled] = useState(false)
+
+  useEffect(() => {
+    let isMounted = true
+    void getAdminOidcStatus()
+      .then((status) => {
+        if (isMounted) setOidcEnabled(status.enabled)
+      })
+      .catch(() => {
+        if (isMounted) setOidcEnabled(false)
+      })
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   const formSchema = useMemo(() => buildFormSchema(t), [t])
 
@@ -95,85 +112,104 @@ export function UserAuthForm({
   }
 
   return (
-    <Form {...form}>
-      <form
-        onSubmit={form.handleSubmit(onSubmit)}
-        className={cn('grid gap-5', className)}
-        {...props}
-      >
-        <FormField
-          control={form.control}
-          name='identifier'
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t('auth.identifierLabel')}</FormLabel>
-              <FormControl>
-                <Input
-                  data-testid='admin-login-identifier-input'
-                  placeholder='admin@example.com'
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name='password'
-          render={({ field }) => (
-            <FormItem className='relative'>
-              <div className='flex items-center justify-between'>
-                <FormLabel>{t('auth.passwordLabel')}</FormLabel>
-                <button
-                  type='button'
-                  className='text-xs text-muted-foreground underline-offset-4 hover:text-primary hover:underline'
-                  onClick={() => toast.info(t('auth.forgotPasswordHint'))}
-                >
-                  {t('auth.forgotPassword')}
-                </button>
-              </div>
-              <FormControl>
-                <PasswordInput
-                  data-testid='admin-login-password-input'
-                  placeholder='********'
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name='rememberMe'
-          render={({ field }) => (
-            <FormItem className='flex flex-row items-center space-y-0 gap-2'>
-              <FormControl>
-                <Checkbox
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                />
-              </FormControl>
-              <FormLabel className='text-xs font-normal text-muted-foreground'>
-                {t('auth.rememberMe')}
-              </FormLabel>
-            </FormItem>
-          )}
-        />
-        <Button
-          data-testid='admin-login-submit-button'
-          size='lg'
-          disabled={isLoading}
+    <>
+      {ssoError && (
+        <p role='alert' className='mb-4 text-center text-sm text-destructive'>
+          {t('auth.oidcFailure')}
+        </p>
+      )}
+      <Form {...form}>
+        <form
+          onSubmit={form.handleSubmit(onSubmit)}
+          className={cn('grid gap-5', className)}
+          {...props}
         >
-          {isLoading ? (
-            <Loader2 className='mr-2 size-4 animate-spin' />
-          ) : (
-            <LogIn className='mr-2 size-4' />
-          )}
-          {t('auth.submit')}
-        </Button>
-      </form>
-    </Form>
+          <FormField
+            control={form.control}
+            name='identifier'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('auth.identifierLabel')}</FormLabel>
+                <FormControl>
+                  <Input
+                    data-testid='admin-login-identifier-input'
+                    placeholder='admin@example.com'
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name='password'
+            render={({ field }) => (
+              <FormItem className='relative'>
+                <div className='flex items-center justify-between'>
+                  <FormLabel>{t('auth.passwordLabel')}</FormLabel>
+                  <button
+                    type='button'
+                    className='text-xs text-muted-foreground underline-offset-4 hover:text-primary hover:underline'
+                    onClick={() => toast.info(t('auth.forgotPasswordHint'))}
+                  >
+                    {t('auth.forgotPassword')}
+                  </button>
+                </div>
+                <FormControl>
+                  <PasswordInput
+                    data-testid='admin-login-password-input'
+                    placeholder='********'
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name='rememberMe'
+            render={({ field }) => (
+              <FormItem className='flex flex-row items-center gap-2 space-y-0'>
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <FormLabel className='text-xs font-normal text-muted-foreground'>
+                  {t('auth.rememberMe')}
+                </FormLabel>
+              </FormItem>
+            )}
+          />
+          <Button
+            data-testid='admin-login-submit-button'
+            size='lg'
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <Loader2 className='mr-2 size-4 animate-spin' />
+            ) : (
+              <LogIn className='mr-2 size-4' />
+            )}
+            {t('auth.submit')}
+          </Button>
+        </form>
+      </Form>
+      {oidcEnabled && (
+        <div className='mt-4 grid gap-3'>
+          <p className='text-center text-sm text-muted-foreground'>
+            {t('auth.orContinueWith')}
+          </p>
+          <Button asChild size='lg' variant='outline'>
+            <a href={ADMIN_OIDC_START_URL} data-testid='admin-oidc-sign-in'>
+              {t('auth.enterpriseSignIn')}
+            </a>
+          </Button>
+        </div>
+      )}
+    </>
   )
 }

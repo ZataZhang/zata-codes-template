@@ -1,7 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import i18n from '@/i18n/init'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, type RenderResult } from 'vitest-browser-react'
 import { userEvent } from 'vitest/browser'
-import i18n from '@/i18n/init'
+import { useAuthStore } from '@/stores/auth-store'
 import { SearchProvider } from '@/context/search-provider'
 
 const COMMAND_MENU_PLACEHOLDER = 'Type a command or search...'
@@ -64,7 +65,19 @@ async function openCommandPalette(
 describe('SearchProvider and CommandMenu', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
+    useAuthStore.getState().auth.setUser({
+      user_id: 'platform-admin',
+      display_name: 'Platform Admin',
+      username: 'admin',
+      role: 'platform',
+      organization_id: null,
+      organization_name: null,
+    })
     await i18n.changeLanguage(TEST_LOCALE)
+  })
+
+  afterEach(() => {
+    useAuthStore.getState().auth.reset()
   })
 
   it('renders the command palette when the palette is open', async () => {
@@ -135,6 +148,26 @@ describe('SearchProvider and CommandMenu', () => {
     expect(mocks.navigate).toHaveBeenCalledWith({ to: '/settings/account' })
     await expect
       .element(getByPlaceholder(COMMAND_MENU_PLACEHOLDER))
+      .not.toBeInTheDocument()
+  })
+
+  it('limits organization administrators to the user route', async () => {
+    useAuthStore.getState().auth.setUser({
+      user_id: 'organization-admin',
+      display_name: 'Organization Admin',
+      username: 'org-admin',
+      role: 'org',
+      organization_id: 'org-1',
+      organization_name: 'Example',
+    })
+    const screen = await renderWithSearchProvider()
+
+    await openCommandPalette(screen)
+
+    await expect.element(screen.getByText('Users')).toBeInTheDocument()
+    await expect.element(screen.getByText('Dashboard')).not.toBeInTheDocument()
+    await expect
+      .element(screen.getByText('Run Tracing'))
       .not.toBeInTheDocument()
   })
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BaseModel, Field
 
@@ -55,6 +55,82 @@ class AdminSessionResponse(BaseModel):
     user_id: str
     display_name: str
     username: str
+    role: Literal["platform", "org"] = "platform"
+    organization_id: str | None = None
+    organization_name: str | None = None
+
+
+class OrganizationCreateRequest(BaseModel):
+    """创建组织请求。"""
+
+    name: str = Field(min_length=1, max_length=128)
+
+
+class OrganizationResponse(BaseModel):
+    """组织管理响应。"""
+
+    id: str
+    name: str
+    is_active: bool
+    created_at: str | None = None
+
+
+class OrganizationListResponse(BaseModel):
+    """组织管理列表响应。"""
+
+    items: list[OrganizationResponse]
+
+
+class AdminCreateRequest(BaseModel):
+    """创建管理员请求。"""
+
+    username: str = Field(min_length=1, max_length=64)
+    email: str = Field(min_length=3, max_length=320)
+    display_name: str | None = Field(default=None, min_length=1, max_length=128)
+    role: Literal["platform", "org"]
+    organization_id: str | None = None
+    password: PasswordText | None = None
+
+
+class AdminDirectoryResponse(BaseModel):
+    """管理员管理响应。"""
+
+    id: str
+    username: str
+    display_name: str
+    email: str | None = None
+    role: Literal["platform", "org"]
+    organization_id: str | None = None
+    organization_name: str | None = None
+    status: Literal["active", "disabled"]
+    oidc_bound: bool
+    created_at: str | None = None
+
+
+class AdminDirectoryListResponse(BaseModel):
+    """管理员管理列表响应。"""
+
+    items: list[AdminDirectoryResponse]
+
+
+class RegistrationPolicyRequest(BaseModel):
+    """管理端注册策略更新请求。"""
+
+    registration_mode: Literal["both", "oidc_only", "closed"]
+    allowed_email_domains: list[str]
+
+
+class RegistrationPolicyResponse(BaseModel):
+    """管理端注册策略响应。"""
+
+    registration_mode: Literal["both", "oidc_only", "closed"]
+    allowed_email_domains: list[str]
+
+
+class PublicRegistrationStatusResponse(BaseModel):
+    """仅含前台注册模式的公开状态响应。"""
+
+    registration_mode: Literal["both", "oidc_only", "closed"]
 
 
 class PublicUserResponse(BaseModel):
@@ -65,6 +141,14 @@ class PublicUserResponse(BaseModel):
     display_name: str
     status: str
     created_at: str | None = None
+    organization_id: str
+    organization_name: str
+
+
+class PublicUserOrganizationRequest(BaseModel):
+    """普通用户归属调整请求。"""
+
+    organization_id: str = Field(min_length=1, max_length=64)
 
 
 class PublicUserListResponse(BaseModel):

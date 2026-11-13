@@ -182,7 +182,18 @@
     "noAccount": "Don't have an account?",
     "signUpNow": "Sign up now",
     "haveAccount": "Already have an account?",
-    "signInNow": "Sign in now"
+    "signInNow": "Sign in now",
+    "enterpriseSignIn": "Continue with your organization account",
+    "orContinueWith": "or continue with",
+    "oidcFailure": "Organization sign-in failed. Please contact your administrator.",
+    "oidcAccountExists": "An account already exists for this email. Please sign in with your password.",
+    "loadingRegistrationPolicy": "Checking registration availability…",
+    "registrationPolicyUnavailable": "Registration is temporarily unavailable. Please try again later.",
+    "registrationClosed": "Registration is currently closed.",
+    "oidcOnlyRegistration": "Registration is available through your organization account only.",
+    "enterpriseSignInUnavailable": "Organization sign-in is currently unavailable. Please contact your administrator.",
+    "emailDomainNotAllowed": "Registration is not available for this email domain.",
+    "registrationNotAllowed": "Registration is currently unavailable. Please contact your administrator."
   },
   "dashboard": {
     "title": "Workspace",

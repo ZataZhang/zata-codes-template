@@ -33,10 +33,10 @@ RUN apt-get update \
 # (provider registry) so it must land in the image too.
 COPY pyproject.toml uv.lock config.toml ./
 
-# Copy the src/ tree before `uv sync` so setuptools' src-layout
-# ([tool.setuptools.packages.find] where = ["src"]) can resolve the package
-# while building the editable install.
+# Copy the host and local OIDC package before `uv sync`; the root dependency
+# resolves `zata-oidc` from this workspace path while building the image.
 COPY src ./src
+COPY packages ./packages
 
 # Create a virtual environment and install production dependencies, including
 # the Nacos client used when NACOS_SERVER_ADDR is configured.

@@ -24,7 +24,7 @@
 - **应用层配置**：应用名、日志级别、日志目录。
 - **数据库配置**：后端类型、主机、端口、库名、驱动。
 - **可观测性配置**：指标/请求 ID 开关、服务名、日志格式。
-- **认证配置**：初始管理员种子、会话窗口。
+- **认证配置**：初始管理员种子、会话窗口，以及可选的 admin/public OIDC 客户端。
 - **HTTP 安全配置**：请求体上限、API 限流、生产 Cookie 安全属性。
 - **主模型配置**：调用大模型所需的端点三件套（见下节，按需启用）。
 - **基础设施配置**：Redis 等（派生项目按需扩展）。
@@ -35,6 +35,30 @@
 - 推荐在 `config.toml` 中维护非敏感默认项。
 - 所有业务代码统一从 `config` 实例读取，不直接散落调用 `os.getenv`。
 - 生产安全项的阈值与代理边界见[API 与部署安全基线](security.md)。
+
+## OIDC 企业账号登录
+
+admin 与 public 的 OIDC 客户端分别配置；协议包不自动读取环境变量，宿主配置加载器将值显式传给客户端。配置完整后显示对应登录入口；`*_OIDC_ENABLED` 默认为 `true`，但 issuer、client ID、client secret、callback URI 任一为空时，该入口不可用。显式设为 `false` 也会关闭入口。配置不完整不会阻断服务启动，也不会影响原有密码登录。
+
+| 环境变量 | 用途 | 配置要求 |
+|---|---|---|
+| `ADMIN_OIDC_ENABLED` | 管理端 OIDC 开关，默认 `true` | 设为 `false` 可显式关闭 |
+| `ADMIN_OIDC_ISSUER` | 管理端身份中心 issuer | 使用该 OIDC issuer 的准确 URL |
+| `ADMIN_OIDC_CLIENT_ID` | 管理端 confidential client ID | 与身份中心客户端配置一致 |
+| `ADMIN_OIDC_CLIENT_SECRET` | 管理端 client secret | 只从环境或密钥管理系统注入，不写入代码或文档 |
+| `ADMIN_OIDC_CALLBACK_URI` | 管理端 callback | `https://<admin-origin>/api/admin/auth/oidc/callback` |
+| `USER_OIDC_ENABLED` | 前台 OIDC 开关，默认 `true` | 设为 `false` 可显式关闭 |
+| `USER_OIDC_ISSUER` | 前台身份中心 issuer | 可与 admin 相同或不同；必须与该客户端实际 issuer 一致 |
+| `USER_OIDC_CLIENT_ID` | 前台 confidential client ID | 与身份中心客户端配置一致 |
+| `USER_OIDC_CLIENT_SECRET` | 前台 client secret | 只从环境或密钥管理系统注入 |
+| `USER_OIDC_CALLBACK_URI` | 前台 callback | `https://<public-origin>/api/auth/oidc/callback` |
+| `AUTH_ADMIN_BOOTSTRAP_EMAIL` | 种子平台管理员邮箱 | 配置为身份中心已验证、且唯一对应的管理员邮箱，供首次绑定使用 |
+
+本地 TOML 也可在 `[admin_oidc]` 与 `[user_oidc]` 设置 `enabled`、`issuer`、`client_id`、`client_secret` 和 `callback_uri`。常规部署建议把 issuer、client ID、callback 放入 TOML 或环境变量，把 secret 仅放在 `.env.local`、容器环境或密钥管理系统中；配置来源仍遵循本页前述优先级。`.env.example` 提供空密钥示例，不包含可用凭据。
+
+身份中心客户端须逐字注册相应 callback URI，且前端开发代理、生产反向代理必须保留 `/api/.../oidc/callback` 路径。首次上线时先确认管理端和前台各自的 origin、HTTPS 与 Cookie `Secure` 设置；admin 与 public 可以使用不同客户端，也可指向同一 issuer。
+
+`AUTH_ADMIN_BOOTSTRAP_EMAIL` 不会从用户名推断；没有可匹配邮箱的种子管理员无法通过邮箱首绑。管理员被首次绑定后，后续 OIDC 登录按稳定 `(issuer, subject)` 匹配，邮箱变化不自动解绑或改绑。管理员禁用和解绑是本地账户操作，不等同于身份中心停用或全局登出。详见[认证与会话逻辑](../architecture/authentication.md)和[OIDC 企业账号登录指南](oidc.md)。
 
 ## Nacos 启动配置与本地开发
 

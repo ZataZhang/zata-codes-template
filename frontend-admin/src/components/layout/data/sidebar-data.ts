@@ -14,7 +14,10 @@ import {
   GalleryVerticalEnd,
   Briefcase,
   Activity,
+  Building2,
+  UserRoundCog,
 } from 'lucide-react'
+import type { AdminRole } from '@/api/auth'
 import { type NavGroup, type Team, type User } from '../types'
 
 /** 侧边栏占位用户：会话尚未建立或接口未返回时使用。 */
@@ -47,7 +50,19 @@ export const sidebarTeams: Team[] = [
  * @param t - i18next 翻译函数（默认命名空间为 `translation`）。
  * @returns 已按当前语言翻译的导航分组。
  */
-export function createNavGroups(t: TFunction): NavGroup[] {
+export function createNavGroups(
+  t: TFunction,
+  role: AdminRole | null = null
+): NavGroup[] {
+  if (role === 'org' || role === null) {
+    return [
+      {
+        title: t('nav.general'),
+        items: [{ title: t('nav.users'), url: '/users', icon: Users }],
+      },
+    ]
+  }
+
   return [
     {
       title: t('nav.general'),
@@ -71,6 +86,21 @@ export function createNavGroups(t: TFunction): NavGroup[] {
           title: t('nav.users'),
           url: '/users',
           icon: Users,
+        },
+        {
+          title: t('nav.registration'),
+          url: '/registration',
+          icon: UserRoundCog,
+        },
+        {
+          title: t('nav.organizations'),
+          url: '/organizations',
+          icon: Building2,
+        },
+        {
+          title: t('nav.admins'),
+          url: '/admins',
+          icon: UserCog,
         },
         {
           title: t('nav.runTracing'),

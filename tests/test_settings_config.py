@@ -20,17 +20,28 @@ _PRIMARY_MODEL_ENV_NAMES: tuple[str, str, str] = (
     PRIMARY_MODEL_API_KEY_ENV,
     PRIMARY_MODEL_NAME_ENV,
 )
+_DATABASE_CONFIG_ENV_NAMES: tuple[str, ...] = (
+    "DB_BACKEND",
+    "DB_HOST",
+    "DB_PORT",
+    "DB_NAME",
+    "DB_DRIVER",
+)
 
 
-def test_settings_reads_repository_root_config_toml() -> None:
+def test_settings_reads_repository_root_config_toml(monkeypatch: pytest.MonkeyPatch) -> None:
     """Settings should locate the config.toml in the repository root."""
     repository_root_path = Path(__file__).resolve().parents[1]
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    for database_config_env_name in _DATABASE_CONFIG_ENV_NAMES:
+        monkeypatch.delenv(database_config_env_name, raising=False)
+    isolated_settings = settings_module.AppSettings(_env_file=None)
 
     assert settings_module._PROJECT_ROOT_PATH == repository_root_path
     assert settings_module._TOML_CONFIG_FILE_PATH == repository_root_path / "config.toml"
     assert settings_module._load_toml_section_data("app")["app_name"] == "my-app"
-    assert settings_module.config.database.name == "app_database"
-    assert settings_module.config.config_provider.provider == "local"
+    assert isolated_settings.database.name == "app_database"
+    assert isolated_settings.config_provider.provider == "local"
 
 
 class TestPrimaryModelSettings:
