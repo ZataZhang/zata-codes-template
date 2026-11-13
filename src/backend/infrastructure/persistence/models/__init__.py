@@ -21,6 +21,7 @@
 """
 
 from .admin_user import AdminUserModel
+from .agent import A2ACredentialModel, A2APeerModel, AgentModel, SkillModel, SkillVersionModel
 from .base import CreatedAtMixin, TimestampMixin
 from .organization import OrganizationModel
 from .public_user import PublicUserModel
@@ -29,6 +30,9 @@ from .system_setting import SystemSettingModel
 
 __all__ = [
     "AdminUserModel",
+    "A2ACredentialModel",
+    "A2APeerModel",
+    "AgentModel",
     "CreatedAtMixin",
     "PublicUserModel",
     "OrganizationModel",
@@ -36,5 +40,7 @@ __all__ = [
     "RunExportAuditModel",
     "RunModel",
     "SystemSettingModel",
+    "SkillModel",
+    "SkillVersionModel",
     "TimestampMixin",
 ]

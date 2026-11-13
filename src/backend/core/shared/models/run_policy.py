@@ -50,6 +50,7 @@ OPTIONAL_PAYLOAD_KEYS: dict[str, frozenset[str]] = {
     # 只有来源能给出可靠 parent model call ID 时才带上，用于挂到对应模型 span；
     # 缺席即代表"父级来源不可确认"，由投影降级到 Run 根节点。
     "tool.call.started": frozenset({"parent_model_call_id"}),
+    "tool.call.completed": frozenset({"remote_task_id"}),
 }
 PROVENANCE_KEYS = frozenset({"source_type", "source_event_id"})
 SENSITIVE_KEY_PARTS = (

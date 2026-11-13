@@ -15,6 +15,7 @@
     "pricing": "Pricing",
     "about": "About",
     "dashboard": "Dashboard",
+    "agents": "Agents",
     "settings": "Settings",
     "signIn": "Sign in",
     "getStarted": "Start free"
@@ -198,14 +199,41 @@
   "dashboard": {
     "title": "Workspace",
     "signedIn": "Signed in",
-    "gettingStartedTitle": "Start building your business",
-    "gettingStartedBody": "This template keeps only auth and infrastructure, with no business domain included. Add your own modules on the four-layer architecture: define use cases and domain contracts under src/backend/core/, implement platform capabilities under src/backend/engines/, and expose HTTP entrypoints under src/backend/api/.",
+    "gettingStartedTitle": "Your Agent workspace",
+    "gettingStartedBody": "Choose an Agent from your organization, start a conversation, and reopen saved runs from the history list.",
     "accountSettings": "Account settings"
+  },
+  "agents": {
+    "eyebrow": "Organization workspace",
+    "title": "Agents",
+    "subtitle": "Use the Agents published for your organization and continue from saved history.",
+    "chooseAgent": "Choose an Agent",
+    "emptyAgents": "No Agents have been published for your organization yet.",
+    "available": "Ready",
+    "unavailable": "Unavailable",
+    "unavailableReason": "Reason: {reason}",
+    "noDescription": "No description provided.",
+    "conversation": "Conversation",
+    "you": "You",
+    "agentReply": "Agent reply",
+    "runStatus": "Status: {status}",
+    "thinking": "The Agent is working…",
+    "noReply": "No reply was recorded.",
+    "runId": "Run ID: {id}",
+    "emptyConversation": "Choose an Agent and send a message to begin.",
+    "messagePlaceholder": "Write a message…",
+    "send": "Send message",
+    "history": "Recent history",
+    "emptyHistory": "Your runs will appear here.",
+    "loadFailed": "Could not load the Agent directory.",
+    "refreshFailed": "Could not refresh this run.",
+    "historyFailed": "Could not reopen this run.",
+    "submitFailed": "Could not start the Agent run."
   },
   "settings": {
     "title": "Settings",
     "aboutTitle": "About this template",
-    "aboutBody": "This template keeps only auth and infrastructure, with no business domain included. Build your own business on top of it.",
+    "aboutBody": "A shared multi-organization Agent foundation with isolated Agent, Skill, and run history.",
     "signOut": "Sign out"
   },
   "footer": {

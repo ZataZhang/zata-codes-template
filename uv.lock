@@ -3556,6 +3556,7 @@ source = { editable = "." }
 dependencies = [
     { name = "alembic" },
     { name = "bcrypt" },
+    { name = "cryptography" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "mcp" },
@@ -3603,6 +3604,7 @@ dev = [
 requires-dist = [
     { name = "alembic", specifier = ">=1.18.4" },
     { name = "bcrypt", specifier = ">=4.1.0" },
+    { name = "cryptography", specifier = ">=44.0.0" },
     { name = "docker", marker = "extra == 'sandbox-docker'", specifier = ">=7.1,<8" },
     { name = "fastapi", specifier = ">=0.115.0" },
     { name = "httpx", specifier = ">=0.27.0" },

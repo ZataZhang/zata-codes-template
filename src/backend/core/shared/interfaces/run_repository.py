@@ -68,3 +68,7 @@ class RunRepository(Protocol):
     def list_expired(self, now: datetime) -> Sequence[Run]:
         """列出已过期的非终态 Run。"""
         ...
+
+    def interrupt_expired(self, run_id: str, now: datetime) -> bool:
+        """在同一事务确认租约过期并终止失去执行者的 Run。"""
+        ...

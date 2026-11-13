@@ -16,6 +16,8 @@ import {
   Activity,
   Building2,
   UserRoundCog,
+  Bot,
+  ShieldCheck,
 } from 'lucide-react'
 import type { AdminRole } from '@/api/auth'
 import { type NavGroup, type Team, type User } from '../types'
@@ -58,7 +60,10 @@ export function createNavGroups(
     return [
       {
         title: t('nav.general'),
-        items: [{ title: t('nav.users'), url: '/users', icon: Users }],
+        items: [
+          { title: t('nav.agents'), url: '/agents', icon: Bot },
+          { title: t('nav.users'), url: '/users', icon: Users },
+        ],
       },
     ]
   }
@@ -106,6 +111,11 @@ export function createNavGroups(
           title: t('nav.runTracing'),
           url: '/run-tracing',
           icon: Activity,
+        },
+        {
+          title: t('nav.a2aApprovals'),
+          url: '/a2a-approvals',
+          icon: ShieldCheck,
         },
       ],
     },

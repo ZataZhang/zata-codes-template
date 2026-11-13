@@ -14,6 +14,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, Sequence
 
 from sqlalchemy import and_, func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from backend.core.shared.models.run import (
@@ -58,6 +59,9 @@ def _to_run(run_model: RunModel, database_session: Session) -> Run:
     return Run(
         id=run_model.id,
         owner_id=run_model.owner_id,
+        organization_id=run_model.organization_id,
+        conversation_id=run_model.conversation_id,
+        execution_snapshot=run_model.execution_snapshot,
         subject_id=run_model.subject_id,
         subject_type=run_model.subject_type,
         subject_snapshot=RunSubjectSnapshot(**run_model.subject_snapshot),
@@ -104,6 +108,26 @@ class SqlAlchemyRunRepository:
     def create_run(
         self, run: Run, *, idempotency_key_hash: str, request_checksum: str, input_text: str
     ) -> Run:
+        """处理并发幂等键冲突，避免客户端重试创建第二个 Canonical Run。"""
+        try:
+            return self._create_run_transaction(
+                run,
+                idempotency_key_hash=idempotency_key_hash,
+                request_checksum=request_checksum,
+                input_text=input_text,
+            )
+        except IntegrityError as integrity_error:
+            existing_record = self.get_by_idempotency(run.owner_id, idempotency_key_hash)
+            if existing_record is None:
+                raise integrity_error
+            existing_run, existing_checksum = existing_record
+            if existing_checksum != request_checksum:
+                raise ValueError("idempotency_key_reused_with_different_request") from None
+            return existing_run
+
+    def _create_run_transaction(
+        self, run: Run, *, idempotency_key_hash: str, request_checksum: str, input_text: str
+    ) -> Run:
         """在一个事务创建 Run 与前两条事件。"""
         with self._session_factory.begin() as database_session:
             run_model = RunModel(
@@ -114,6 +138,9 @@ class SqlAlchemyRunRepository:
                 subject_snapshot=asdict(run.subject_snapshot),
                 subject_snapshot_checksum=run.subject_snapshot_checksum,
                 owner_id=run.owner_id,
+                organization_id=run.organization_id or "default",
+                conversation_id=run.conversation_id,
+                execution_snapshot=run.execution_snapshot,
                 status=run.status.value,
                 last_event_seq=0,
                 idempotency_key_hash=idempotency_key_hash,
@@ -235,6 +262,8 @@ class SqlAlchemyRunRepository:
             run_model.final_message_id = candidate.payload["message_id"]
         if candidate.event_type == "run.failed":
             run_model.error = candidate.payload["error"]
+        if candidate.event_type == "run.interrupted":
+            run_model.error = {"code": candidate.payload["reason_code"]}
         database_session.flush()
         return event_model
 
@@ -247,6 +276,12 @@ class SqlAlchemyRunRepository:
         filter_conditions = []
         if query.run_id:
             filter_conditions.append(RunModel.id == query.run_id)
+        if query.organization_id:
+            filter_conditions.append(RunModel.organization_id == query.organization_id)
+        if query.owner_id:
+            filter_conditions.append(RunModel.owner_id == query.owner_id)
+        if query.conversation_id:
+            filter_conditions.append(RunModel.conversation_id == query.conversation_id)
         if query.subject_id:
             filter_conditions.append(RunModel.subject_id == query.subject_id)
         if query.status is not None:
@@ -332,10 +367,44 @@ class SqlAlchemyRunRepository:
             run_model = database_session.scalar(
                 select(RunModel).where(RunModel.id == run_id).with_for_update()
             )
-            if run_model is None or run_model.status != RunStatus.QUEUED.value:
+            now = datetime.now(UTC)
+            if (
+                run_model is None
+                or run_model.status != RunStatus.QUEUED.value
+                or (
+                    run_model.lease_expires_at is not None
+                    and run_model.lease_expires_at > now
+                )
+            ):
                 return False
             run_model.executor_instance_id = instance_id
             run_model.lease_expires_at = lease_expires_at
+            return True
+
+    def interrupt_expired(self, run_id: str, now: datetime) -> bool:
+        """事务确认租约仍过期后追加终态中断事件。"""
+        with self._session_factory.begin() as database_session:
+            run_model = database_session.scalar(
+                select(RunModel).where(RunModel.id == run_id).with_for_update()
+            )
+            if (
+                run_model is None
+                or RunStatus(run_model.status) in TERMINAL_RUN_STATUSES
+                or run_model.lease_expires_at is None
+                or run_model.lease_expires_at >= now
+            ):
+                return False
+            self._append_locked(
+                database_session,
+                run_model,
+                RunEventCandidate(
+                    "run.interrupted",
+                    {
+                        "reason_code": "execution_lease_expired",
+                        "lease_expired_at": run_model.lease_expires_at.isoformat(),
+                    },
+                ),
+            )
             return True
 
     def heartbeat(self, run_id: str, instance_id: str, lease_expires_at: datetime) -> bool:

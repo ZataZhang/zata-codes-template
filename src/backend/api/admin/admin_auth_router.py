@@ -14,6 +14,7 @@ from backend.api.dependencies import (
     get_admin_auth_service,
     get_admin_oidc_login_service,
     get_api_rate_limiter,
+    get_current_admin_user,
 )
 from backend.api.schemas import AdminSessionResponse, LoginRequest
 from backend.api.security.authentication import authenticate_and_set_cookie
@@ -79,8 +80,10 @@ async def admin_logout_endpoint(
     request: Request,
     response: Response,
     auth_service: AuthService = Depends(get_admin_auth_service),
+    current_principal: AuthenticatedPrincipal = Depends(get_current_admin_user),
 ) -> None:
     """管理员登出：销毁 admin 域会话并清除 Cookie。"""
+    _ = current_principal
     session_token: str | None = request.cookies.get(ADMIN_SESSION_COOKIE_NAME)
     if session_token:
         auth_service.logout(session_token)
@@ -89,17 +92,10 @@ async def admin_logout_endpoint(
 
 @router.get("/me", response_model=AdminSessionResponse)
 async def admin_me_endpoint(
-    request: Request,
-    auth_service: AuthService = Depends(get_admin_auth_service),
+    current_principal: AuthenticatedPrincipal = Depends(get_current_admin_user),
 ) -> AdminSessionResponse:
     """获取当前 admin 会话：触发滑动窗口续期。"""
-    session_token: str | None = request.cookies.get(ADMIN_SESSION_COOKIE_NAME)
-    if session_token is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="未登录")
-    principal: AuthenticatedPrincipal | None = auth_service.resolve_session(session_token)
-    if principal is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="会话无效或已过期")
-    return _to_session_response(principal)
+    return _to_session_response(current_principal)
 
 
 @router.get("/oidc/status")

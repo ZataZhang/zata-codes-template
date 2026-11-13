@@ -4,12 +4,13 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useTranslations } from "next-intl"
 import { cn } from "@/lib/utils"
-import { LayoutDashboard, Settings } from "lucide-react"
+import { Bot, LayoutDashboard, Settings } from "lucide-react"
 import { LanguageSwitcher } from "@/components/language-switcher"
 
 /** 侧边栏导航项：href 与 `nav` 命名空间下的文案 key 一一对应。 */
 const navItems = [
   { href: "/app/dashboard", labelKey: "dashboard", icon: LayoutDashboard },
+  { href: "/app/agents", labelKey: "agents", icon: Bot },
   { href: "/app/settings", labelKey: "settings", icon: Settings },
 ] as const
 
@@ -35,7 +36,8 @@ export function AppSidebar() {
                 href={item.href}
                 className={cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                  pathname === item.href || pathname?.startsWith(`${item.href}/`)
+                  pathname === item.href ||
+                    pathname?.startsWith(`${item.href}/`)
                     ? "bg-sidebar-primary text-sidebar-primary-foreground"
                     : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                 )}

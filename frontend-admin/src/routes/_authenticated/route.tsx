@@ -18,10 +18,13 @@ export const Route = createFileRoute('/_authenticated')({
     }
     if (
       session.role === 'org' &&
-      location.pathname !== '/users' &&
-      !location.pathname.startsWith('/users/')
+      !['/users', '/agents', '/run-tracing'].some(
+        (allowedPath) =>
+          location.pathname === allowedPath ||
+          location.pathname.startsWith(`${allowedPath}/`)
+      )
     ) {
-      throw redirect({ to: '/users' })
+      throw redirect({ to: '/agents' })
     }
   },
   component: AuthenticatedLayout,
