@@ -37,7 +37,9 @@ just ai pr /path/to/context.json auto 300   # 等待检查最多 300 秒，默�
 `confirm` 在没有交互终端时保留 PR，不挂起等待输入。对话中确认后，Agent 可针对同一上下文再次用
 `auto` 调用；命令会重新检查当前提交、审查与检查状态。`only` 不会要求已经 passed 的 PR 保持 Draft。
 
-上下文示例（`files` 必须逐个列出本次改动的文件，重命名列旧路径和新路径）：
+上下文示例（`files` 必须逐个列出本次交付范围内的文件；首次交付包含分支相对目标分支的已提交差异，
+后续轮次只需列出上次已发布 head 之后的新提交与当前工作区改动。重命名列旧路径和新路径。仅更新已发布
+代码的验证状态时可以传空数组）：
 
 ```json
 {
@@ -91,10 +93,12 @@ just ai pr /path/to/context.json auto 300   # 等待检查最多 300 秒，默�
 
 - 使用 `gh` 为当前仓库选择的 GitHub repository，要求本地唯一一个同仓库 remote。支持 remote 名称
   为 `origin`、`zata` 等，不硬编码。当前版本要求可向该仓库工作分支推送；不会自动创建 fork。
+  推送地址按 Git 解析后的有效地址校验；`pushurl`、`pushInsteadOf` 或多推送地址不能把代码发往所选仓库之外。
   已有跨仓库 PR 或非默认目标分支的 PR 保留原状并报错，不擅自改换目标。
 - 在默认分支上创建 `ai/pr-<随机标识>` 承接现有改动和未推送提交；在工作分支上沿用当前分支。
   detached HEAD、冲突、未选中的暂存/未暂存/未跟踪文件会阻止交付。不会自动 stash、reset、amend
   或强推。先隔离无关改动再调用。
+- 提交时保留已暂存变更，只补充暂存未暂存改动与未跟踪文件；重试时已暂存的删除路径不会重复传给 `git add`。
 - `just test` 必须实际返回成功才允许提交和推送；失败只保留现场，不自动扩大修复范围。
   用户提供的 `commit_message` 应遵守英文 Conventional Commits。
 - `validation.status` 为 `pending` 或 `failed` 时创建/保留 Draft；已有 ready PR 会转回 Draft。
@@ -135,6 +139,7 @@ just ai pr /path/to/context.json auto 300   # 等待检查最多 300 秒，默�
 入口测试通过真实 `just ai pr`、真实临时 Git 工作区和裸远端运行；GitHub 网络使用传输替身，
 临时项目的 `just test` 使用受控成功/失败命令，避免递归运行本仓库测试。本仓库代码另以 `just test` 验证。
 CI 数据库矩阵显式安装 just 1.53.0，再运行相同入口测试；直接调用 pytest 的环境也必须提供该命令，不能静默跳过。
+CI 的 `Validate Template` job 也会安装固定版本的 just，因为 AI PR 守卫用例会启动 `just` 子进程。
 回归用例覆盖本地通过但 CI 失败、人工验收不被自动推导、同 head 状态更新、CI 结束后的追加观察和旧记录兼容。
 覆盖多轮 Draft→失败→通过、审批/检查/权限阻塞、可选策略、head 变化、合并排队/失败、脏工作区等。
 开发时对真实 GitHub 只进行了读取核对，没有在生产仓库创建测试 Issue/PR 或执行试验合并。
