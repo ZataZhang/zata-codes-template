@@ -1,0 +1,11 @@
+# 复制并合并到目标项目 config.toml 后，才会启用 OSS adapter。
+# 不启用能力时不要添加此段，模板启动不读取 OSS 配置。
+[object_storage]
+enabled = false
+provider = "aliyun-oss"
+endpoint = "https://oss-cn-hangzhou.aliyuncs.com"
+region = "cn-hangzhou"
+bucket = ""
+cdn_base_url = ""
+access_key_id_env = "OSS_ACCESS_KEY_ID"
+access_key_secret_env = "OSS_ACCESS_KEY_SECRET"

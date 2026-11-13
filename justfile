@@ -895,7 +895,9 @@ copy name force='':
         --exclude='__pycache__' \
         --exclude='/prompt' \
         --exclude='/skills' \
+        --exclude='/project-capabilities' \
         --exclude='/tests/guards/test_prd_skill_checker.py' \
+        --exclude='/tests/test_project_capabilities_distribution.py' \
         --exclude='tasks/archive/*.md' \
         --exclude='tasks/pending/*.md' \
         --exclude='tasks/inbox/*.md' \
@@ -1100,3 +1102,8 @@ test-budget junit="":
 #   just test-debt 25
 test-debt top="12":
     cd "{{justfile_directory()}}" && uv run python scripts/shared/testing/test_debt_report.py --top {{top}}
+
+# 对象存储直传直取真实 OSS/CDN 验证；需要隔离测试 Bucket、CDN、服务端凭据及 OBJECT_STORAGE_E2E_ALLOW_WRITES=1。
+# RV 脚本仅保存在 PRD evidence 目录，不进入模板代码 diff。
+test-object-storage-e2e oracle='all':
+    UV_CACHE_DIR="{{justfile_directory()}}/tasks/evidence/P1-FEAT-20261107-093048-reusable-file-storage-delivery/scripts/.uv-cache" uv run python tasks/evidence/P1-FEAT-20261107-093048-reusable-file-storage-delivery/scripts/run_real_oss_e2e.py {{oracle}}
