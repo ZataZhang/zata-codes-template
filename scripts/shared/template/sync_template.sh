@@ -393,6 +393,12 @@ _is_upstream_owned() {
         # 自己的后端一致，无法为派生项目做权威版本（同 pytest.ini 判例）。
         # 健康默认值相关文件归项目所有，避免 sync 把默认值回滚成 /health。
         scripts/shared/e2e/run-with-just-stack.sh) return 1 ;;
+        # 本机查看器（`scripts/shared/view/`）只服务模板仓库自身：日常用全局
+        # `zview` 一份即可，派生项目不需要跟它锁步，随附的守卫测试同理。
+        # 留在清单里会让每次 sync 都把查看器更新推给所有派生项目，
+        # 白白制造一份必须各自维护的副本。
+        scripts/shared/view/*) return 1 ;;
+        tests/guards/shared/test_view_*) return 1 ;;
         tests/playwright-e2e/scripts/stack-control.mjs) return 1 ;;
         tests/playwright-e2e/.env.e2e.example) return 1 ;;
         tests/playwright-e2e/README.md) return 1 ;;

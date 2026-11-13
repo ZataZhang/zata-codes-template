@@ -18,12 +18,16 @@ export JUST_LOCAL_TEST_FLAGS := "--no-header -p no:cacheprovider --core-tier -n4
 
 import 'justfile.shared'
 
-# 仅供模板仓库本机使用；根目录 justfile 不会被 `just sync-template` 同步。
-# 共享查看器脚本仍由全局 `zview` 使用，派生项目也可以通过 `just view-install` 安装它。
+# 仅供模板仓库本机使用；根目录 justfile 不会被 `just sync-template` 同步，
+# `scripts/shared/view/` 也已从同步面摘出（派生项目用全局 `zview`，不再各带一份）。
 _view_python := if os_family() == "windows" { justfile_directory() / ".venv/Scripts/python.exe" } else { justfile_directory() / ".venv/bin/python" }
 
 view *args:
     exec {{ if path_exists(_view_python) == "true" { quote(_view_python) } else { "uv run --no-sync python" } }} -S "{{justfile_directory()}}/scripts/shared/view/launch.py" {{args}}
+
+# Install the global `zview` command in ~/.local/bin.
+view-install:
+    uv run --no-sync python "{{justfile_directory()}}/scripts/shared/view/install_global.py"
 
 # 打开查看器的改动视图；与默认的 `just view` 等价。
 diff *args:
