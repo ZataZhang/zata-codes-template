@@ -39,9 +39,13 @@ archive 那份不入该段、留在 ARCHIVE（月视图把它没勾完的空框�
 
 用法::
 
-    python3 scripts/shared/just/prd_status.py [all|pending|archive] [--detail]
+    python3 scripts/shared/just/prd_status.py [all|pending|archive] [--detail] [--table]
 
-``--detail`` 在每个 PRD 行下追加标题与摘要块（解析见 ``prd_detail.py``）。
+默认逐条输出**字段块**（英文标签：``PRIORITY`` / ``TYPE`` / ``CREATED``、``FILE``、
+``TITLE``、``ACCEPTANCE`` / ``CHECKLIST``、``EVIDENCE`` / ``IMPACT``，有内容时再加
+``DEPS`` 与 ``ACTIVITY``），一行一个字段，窄终端不会折行错位。``--table`` 切回
+一行一条的对齐宽表格（宽终端更紧凑，但总宽超过终端时必须自己拉宽窗口）。
+``--detail`` 在标题下方追加描述摘要行（解析见 ``prd_detail.py``）。
 
 清单进度、影响树触达进度、依赖满足与 verifier 结论均为从文件内容推断的启发式
 结果，看板只用于快速定位，最终判断以 PRD 正文与证据文件原文为准。
@@ -436,6 +440,193 @@ def pad_to_width(raw_text: str, target_width: int) -> str:
     return raw_text + " " * max(0, target_width - visible_width(raw_text))
 
 
+ACCEPTANCE_BADGE_TEXTS = {
+    prd_acceptance.ACCEPTANCE_STATUS_NOT_STARTED: "⬜ 未开工",
+    prd_acceptance.ACCEPTANCE_STATUS_VALIDATION_BLOCKED: "⏸️ 验证阻塞",
+    prd_acceptance.ACCEPTANCE_STATUS_AWAITING_HUMAN: "🧍 待人工验收",
+    prd_acceptance.ACCEPTANCE_STATUS_ACCEPTED: "✅ 已验收",
+}
+BLOCK_SEPARATOR_WIDTH = 60
+PLACEHOLDER_CELL_TEXT = "-"
+
+
+def format_acceptance_badge(prd_record: PrdRecord, palette: Palette) -> str:
+    """把验收状态横幅的四态转成带颜色的一句话标签。
+
+    横幅是 PRD 头部写给人和 agent 看的那一行，看板只做直译；没有横幅时不断言任何状态，
+    显式标注"未标注"，免得读者把空白当成"未开工"。
+
+    Args:
+        prd_record (PrdRecord): 单条 PRD 记录。
+        palette (Palette): 颜色包装器。
+
+    Returns:
+        str: ``⬜ 未开工`` / ``⏸️ 验证阻塞`` / ``🧍 待人工验收`` / ``✅ 已验收`` 四个标签
+        之一；无横幅或状态词无法识别时返回暗色的 ``未标注``。
+    """
+    if prd_record.acceptance_status == prd_acceptance.ACCEPTANCE_STATUS_ACCEPTED:
+        return palette.green(ACCEPTANCE_BADGE_TEXTS[prd_acceptance.ACCEPTANCE_STATUS_ACCEPTED])
+    if prd_record.acceptance_status == prd_acceptance.ACCEPTANCE_STATUS_VALIDATION_BLOCKED:
+        return palette.red(
+            ACCEPTANCE_BADGE_TEXTS[prd_acceptance.ACCEPTANCE_STATUS_VALIDATION_BLOCKED]
+        )
+    if prd_record.acceptance_status == prd_acceptance.ACCEPTANCE_STATUS_AWAITING_HUMAN:
+        return palette.yellow(
+            ACCEPTANCE_BADGE_TEXTS[prd_acceptance.ACCEPTANCE_STATUS_AWAITING_HUMAN]
+        )
+    if prd_record.acceptance_status == prd_acceptance.ACCEPTANCE_STATUS_NOT_STARTED:
+        return palette.dim(ACCEPTANCE_BADGE_TEXTS[prd_acceptance.ACCEPTANCE_STATUS_NOT_STARTED])
+    return palette.dim("未标注")
+
+
+def is_placeholder_cell(raw_cell_text: str) -> bool:
+    """判断单元格是否只是占位符 ``-``（忽略颜色码）。
+
+    字段块只在**有内容**时才多打一行（依赖、执行活动），占位符行是噪音；但单元格带
+    颜色码，直接与 ``-`` 比较永远不相等，必须先剥掉 ANSI 序列。
+
+    Args:
+        raw_cell_text (str): 可能含颜色码的单元格文本。
+
+    Returns:
+        bool: 去色后是否为空或仅剩占位符。
+    """
+    return ANSI_ESCAPE_PATTERN.sub("", raw_cell_text).strip() in ("", PLACEHOLDER_CELL_TEXT)
+
+
+FIELD_LABEL_WIDTH = 11
+
+
+def format_field_line(raw_label_text: str, raw_value_text: str, palette: Palette) -> str:
+    """拼一行「英文标签 + 值」，标签按固定宽度右补空格使各行的值竖直对齐。
+
+    字段块的标签统一用英文（PRIORITY / FILE / TITLE 等），与看板表格的列名同一套词，
+    也便于在终端里 grep；值保持 PRD 原文语言。标签本身是暗色，扫读时先看值。
+
+    Args:
+        raw_label_text (str): 不带冒号的标签文本，例如 ``PRIORITY``。
+        raw_value_text (str): 已格式化（可能含颜色码）的值。
+        palette (Palette): 颜色包装器。
+
+    Returns:
+        str: 形如 ``PRIORITY:   P1`` 的整行文本。
+    """
+    raw_padded_label_text = f"{raw_label_text + ':':<{FIELD_LABEL_WIDTH + 1}}"
+    return palette.dim(raw_padded_label_text) + raw_value_text
+
+
+def render_prd_block(
+    prd_record: PrdRecord,
+    palette: Palette,
+    main_repo_root: Path,
+    evidence_root: Path,
+    pending_dir: Path,
+    archive_dir: Path,
+    *,
+    show_detail: bool = False,
+) -> None:
+    """以「每行一个字段」的字段块输出单条 PRD。
+
+    宽表格在窄终端（默认终端宽度下几乎必然如此）会折成谁也读不懂的多行：一列换行后，
+    右侧各列全部错位，执行活动甚至会落到下一条 PRD 的 slug 下面。字段块对终端宽度不
+    敏感，长内容（完整文件名、依赖名、执行活动）在自己的行里自然换行，不牵连别的字段。
+
+    固定五行为主字段，标签统一用英文并与表格列名同词：``PRIORITY`` / ``TYPE`` /
+    ``CREATED``、``FILE``、``TITLE``、``ACCEPTANCE`` / ``CHECKLIST``、``EVIDENCE`` /
+    ``IMPACT``。``DEPS`` 与 ``ACTIVITY`` 只在有内容时追加，避免每条 PRD 都拖着两行
+    ``-``。
+
+    Args:
+        prd_record (PrdRecord): 单条 PRD 记录。
+        palette (Palette): 颜色包装器。
+        main_repo_root (Path): 主仓库根目录，用于查询执行锁。
+        evidence_root (Path): ``tasks/evidence`` 目录，用于弱信号探测。
+        pending_dir (Path): ``tasks/pending`` 目录，用于依赖交付状态判定。
+        archive_dir (Path): ``tasks/archive`` 目录，用于依赖交付状态判定。
+        show_detail (bool): 为真时在标题下方追加描述摘要行。
+    """
+    raw_title_text = (
+        palette.bold(prd_record.title) if prd_record.title else palette.dim("(no title)")
+    )
+    print(
+        format_field_line("PRIORITY", palette.bold(prd_record.priority or "-"), palette)
+        + "  "
+        + palette.dim("TYPE: ")
+        + (prd_record.kind or "-")
+        + "  "
+        + palette.dim("CREATED: ")
+        + (prd_record.created or "-")
+    )
+    print(format_field_line("FILE", prd_record.prd_path.stem, palette))
+    print(format_field_line("TITLE", raw_title_text, palette))
+    print(
+        format_field_line("ACCEPTANCE", format_acceptance_badge(prd_record, palette), palette)
+        + "  "
+        + palette.dim("CHECKLIST: ")
+        + format_checklist_cell(prd_record, palette)
+    )
+    print(
+        format_field_line("EVIDENCE", format_evidence_cell(prd_record, palette), palette)
+        + "  "
+        + palette.dim("IMPACT: ")
+        + format_impact_cell(prd_record, palette)
+    )
+
+    raw_deps_cell_text = prd_deps.format_deps_cell(prd_record, pending_dir, archive_dir, palette)
+    if not is_placeholder_cell(raw_deps_cell_text):
+        print(format_field_line("DEPS", raw_deps_cell_text, palette))
+
+    raw_activity_cell_text = prd_activity.format_activity_cell(
+        prd_record, main_repo_root, evidence_root, palette
+    )
+    if not is_placeholder_cell(raw_activity_cell_text):
+        print(format_field_line("ACTIVITY", raw_activity_cell_text, palette))
+
+    if show_detail:
+        for raw_summary_line_text in prd_record.summary_lines:
+            print("      " + palette.dim("▏ ") + raw_summary_line_text)
+
+
+def render_prd_block_list(
+    prd_records_list: list[PrdRecord],
+    palette: Palette,
+    main_repo_root: Path,
+    evidence_root: Path,
+    pending_dir: Path,
+    archive_dir: Path,
+    *,
+    show_detail: bool = False,
+) -> None:
+    """逐条输出 PRD 字段块，条目之间用暗色横线分隔。
+
+    Args:
+        prd_records_list (list[PrdRecord]): 待输出的 PRD 记录。
+        palette (Palette): 颜色包装器。
+        main_repo_root (Path): 主仓库根目录，用于查询执行锁。
+        evidence_root (Path): ``tasks/evidence`` 目录，用于弱信号探测。
+        pending_dir (Path): ``tasks/pending`` 目录，用于依赖交付状态判定。
+        archive_dir (Path): ``tasks/archive`` 目录，用于依赖交付状态判定。
+        show_detail (bool): 为真时在标题下方追加描述摘要行。
+    """
+    if not prd_records_list:
+        print(palette.dim("  (无)"))
+        return
+
+    raw_separator_text = palette.dim("─" * BLOCK_SEPARATOR_WIDTH)
+    for record_index, prd_record in enumerate(prd_records_list):
+        if record_index:
+            print(raw_separator_text)
+        render_prd_block(
+            prd_record,
+            palette,
+            main_repo_root,
+            evidence_root,
+            pending_dir,
+            archive_dir,
+            show_detail=show_detail,
+        )
+
+
 def render_prd_table(
     prd_records_list: list[PrdRecord],
     palette: Palette,
@@ -605,6 +796,7 @@ def print_bucket_section(
     archive_dir: Path,
     *,
     show_detail: bool = False,
+    use_table: bool = False,
 ) -> None:
     """输出单个分组的小标题与内容。
 
@@ -618,7 +810,8 @@ def print_bucket_section(
         evidence_root (Path): ``tasks/evidence`` 目录，用于弱信号探测。
         pending_dir (Path): ``tasks/pending`` 目录，用于依赖交付状态判定。
         archive_dir (Path): ``tasks/archive`` 目录，用于依赖交付状态判定。
-        show_detail (bool): 为真时在每个 PRD 行下方追加标题与描述摘要块。
+        show_detail (bool): 为真时在每个 PRD 行下方追加描述摘要行。
+        use_table (bool): 为真时用宽表格布局（``--table``），否则逐条输出字段块。
     """
     print(
         palette.bold(f"{raw_title_text} ({len(bucket_records_list)})")
@@ -627,8 +820,18 @@ def print_bucket_section(
     print()
     if collapsed_months:
         render_archive_months(bucket_records_list, palette)
-    else:
+    elif use_table:
         render_prd_table(
+            bucket_records_list,
+            palette,
+            main_repo_root,
+            evidence_root,
+            pending_dir,
+            archive_dir,
+            show_detail=show_detail,
+        )
+    else:
+        render_prd_block_list(
             bucket_records_list,
             palette,
             main_repo_root,
@@ -719,7 +922,12 @@ def main() -> int:
         ),
     )
     raw_argument_parser.add_argument(
-        "--detail", action="store_true", help="在每个 PRD 行下方打印标题与描述摘要块"
+        "--detail", action="store_true", help="在每条 PRD 下追加描述摘要行"
+    )
+    raw_argument_parser.add_argument(
+        "--table",
+        action="store_true",
+        help="用宽表格布局（一行一条 PRD）；默认逐条输出字段块，窄终端也不会折行错位",
     )
     raw_parsed_arguments = raw_argument_parser.parse_args()
 
@@ -797,6 +1005,7 @@ def main() -> int:
             pending_dir=pending_dir_path,
             archive_dir=archive_dir_path,
             show_detail=raw_parsed_arguments.detail,
+            use_table=raw_parsed_arguments.table,
         )
     return 0
 

@@ -59,7 +59,7 @@
 | `just ai commit [claude\|kimi]` | 先跑 `just test`，再由 AI 暂存相关文件并直接提交；只修复本次改动引起的测试失败 |
 | `just ai implement <prd-file> [claude\|kimi]` | 按 PRD 实现功能 |
 | `just ai pr <context.json> [auto\|only\|confirm] [wait-seconds]` | 当前对话提供原话/任务/验收上下文，创建或复用 Issue/PR；检测规则后合并并返回默认分支，待真实验证时保留 Draft |
-| `just prd status [all\|pending\|archive] [--detail]` | PRD 状态看板：已归档且横幅为 `🧍 待人工验收` 的记录（含分支里已归档、尚待合并的）汇总成 `AWAITING HUMAN` 段并附等待时长，`tasks/pending` 里的记录列为 `PENDING` 逐条列出、其余归档记录按月折叠，展示验收清单勾选进度、影响树触达进度（FILES 列）、证据包状态与运行态（ACTIVITY 列）；`--detail` 在每个 PRD 行下方追加标题与描述摘要块 |
+| `just prd status [all\|pending\|archive] [--detail] [--table]` | PRD 状态看板：已归档且横幅为 `🧍 待人工验收` 的记录（含分支里已归档、尚待合并的）汇总成 `AWAITING HUMAN` 段并附等待时长，`tasks/pending` 里的记录列为 `PENDING` 逐条列出、其余归档记录按月折叠，展示验收清单勾选进度、影响树触达进度（FILES 列）、证据包状态与运行态（ACTIVITY 列）；默认逐条输出英文字段块（`PRIORITY` / `FILE` / `TITLE` / `ACCEPTANCE` 等），`--table` 切横行一条的宽表格，`--detail` 追加描述摘要行 |
 | `just prd start <prd-file> [--tool <名称>] [--branch <名称>]` | 领取 PRD 执行锁：他人新鲜锁拒绝开工（退出 1）并输出持锁者信息；过期锁自动接管并留档；同归属重复领锁幂等刷新 |
 | `just prd heartbeat <prd-file>` | 续期当前会话持有的执行锁；锁丢失或归属不符时警告并非零退出 |
 | `just prd release <prd-file> [--force]` | 释放执行锁；归属不符需显式 `--force` |
@@ -262,7 +262,7 @@ python scripts/check_prd_acceptance_checklist.py --repo-root "$PWD" --all
 
 `just prd status` 输出 `PENDING`、`VALIDATION BLOCKED`、`AWAITING HUMAN` 与 `ARCHIVE` 分区；后两个待办分区在任何 scope 下非空时都显示，空分区不打印：
 
-- 明细列保留优先级、类型、创建日期、清单进度、FILES、证据包、依赖与 ACTIVITY。
+- 明细默认逐条输出**字段块**，标签统一用英文并与表格列名同词：`PRIORITY` / `TYPE` / `CREATED`（取自文件名前缀）、`FILE`、`TITLE`、`ACCEPTANCE` + `CHECKLIST`（`已勾/总数`）、`EVIDENCE` + `IMPACT`（影响树触达），有内容时再追加 `DEPS` 与 `ACTIVITY`。一行一个字段，窄终端不会因为某列过长把右侧各列挤到下一行；`--table` 切回一行一条的对齐宽表格。
 - **构建轴**是目录（pending → archive，归档 = 代码落地）；**验收轴**是四态横幅（`⬜ 未开工` / `⏸️ 验证阻塞` / `🧍 待人工验收` / `✅ 已验收`）。只有已归档副本才进入两个待办分区；pending 中残留的 `⏸️` 或 `🧍` 仍留在 PENDING。
 - `⏸️ 验证阻塞` 记录进入 `VALIDATION BLOCKED`，提示原因与后续任务见 Final Reconciliation，ACTIVITY 显示 `⏸️ blocked <时长>`；`🧍 待人工验收` 记录进入 `AWAITING HUMAN`，显示 `🧍 waiting <时长>`。分支里已归档待合并的记录同样分区展示。
 - 两类待办记录都从 ARCHIVE 月视图摘出，因此其中的空框不会被 `⚠ 有未勾完的清单` 误报为异常。剩余 `⚠` 只表示已验收但有空框、历史缺横幅或同名副本冲突等异常。
