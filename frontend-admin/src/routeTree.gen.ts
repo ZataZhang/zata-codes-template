@@ -22,10 +22,13 @@ import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authentic
 import { Route as AuthenticatedTasksIndexRouteImport } from './routes/_authenticated/tasks/index'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
 import { Route as AuthenticatedRunTracingIndexRouteImport } from './routes/_authenticated/run-tracing/index'
+import { Route as AuthenticatedRegistrationIndexRouteImport } from './routes/_authenticated/registration/index'
 import { Route as AuthenticatedProjectsIndexRouteImport } from './routes/_authenticated/projects/index'
+import { Route as AuthenticatedOrganizationsIndexRouteImport } from './routes/_authenticated/organizations/index'
 import { Route as AuthenticatedHelpCenterIndexRouteImport } from './routes/_authenticated/help-center/index'
 import { Route as AuthenticatedChatsIndexRouteImport } from './routes/_authenticated/chats/index'
 import { Route as AuthenticatedAppsIndexRouteImport } from './routes/_authenticated/apps/index'
+import { Route as AuthenticatedAdminsIndexRouteImport } from './routes/_authenticated/admins/index'
 import { Route as AuthenticatedSettingsNotificationsRouteImport } from './routes/_authenticated/settings/notifications'
 import { Route as AuthenticatedSettingsDisplayRouteImport } from './routes/_authenticated/settings/display'
 import { Route as AuthenticatedSettingsAppearanceRouteImport } from './routes/_authenticated/settings/appearance'
@@ -99,10 +102,22 @@ const AuthenticatedRunTracingIndexRoute =
     path: '/run-tracing/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedRegistrationIndexRoute =
+  AuthenticatedRegistrationIndexRouteImport.update({
+    id: '/registration/',
+    path: '/registration/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedProjectsIndexRoute =
   AuthenticatedProjectsIndexRouteImport.update({
     id: '/projects/',
     path: '/projects/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedOrganizationsIndexRoute =
+  AuthenticatedOrganizationsIndexRouteImport.update({
+    id: '/organizations/',
+    path: '/organizations/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedHelpCenterIndexRoute =
@@ -121,6 +136,12 @@ const AuthenticatedAppsIndexRoute = AuthenticatedAppsIndexRouteImport.update({
   path: '/apps/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedAdminsIndexRoute =
+  AuthenticatedAdminsIndexRouteImport.update({
+    id: '/admins/',
+    path: '/admins/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedSettingsNotificationsRoute =
   AuthenticatedSettingsNotificationsRouteImport.update({
     id: '/notifications',
@@ -166,10 +187,13 @@ export interface FileRoutesByFullPath {
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/settings/display': typeof AuthenticatedSettingsDisplayRoute
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
+  '/admins/': typeof AuthenticatedAdminsIndexRoute
   '/apps/': typeof AuthenticatedAppsIndexRoute
   '/chats/': typeof AuthenticatedChatsIndexRoute
   '/help-center/': typeof AuthenticatedHelpCenterIndexRoute
+  '/organizations/': typeof AuthenticatedOrganizationsIndexRoute
   '/projects/': typeof AuthenticatedProjectsIndexRoute
+  '/registration/': typeof AuthenticatedRegistrationIndexRoute
   '/run-tracing/': typeof AuthenticatedRunTracingIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/tasks/': typeof AuthenticatedTasksIndexRoute
@@ -188,10 +212,13 @@ export interface FileRoutesByTo {
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/settings/display': typeof AuthenticatedSettingsDisplayRoute
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
+  '/admins': typeof AuthenticatedAdminsIndexRoute
   '/apps': typeof AuthenticatedAppsIndexRoute
   '/chats': typeof AuthenticatedChatsIndexRoute
   '/help-center': typeof AuthenticatedHelpCenterIndexRoute
+  '/organizations': typeof AuthenticatedOrganizationsIndexRoute
   '/projects': typeof AuthenticatedProjectsIndexRoute
+  '/registration': typeof AuthenticatedRegistrationIndexRoute
   '/run-tracing': typeof AuthenticatedRunTracingIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/tasks': typeof AuthenticatedTasksIndexRoute
@@ -213,10 +240,13 @@ export interface FileRoutesById {
   '/_authenticated/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/_authenticated/settings/display': typeof AuthenticatedSettingsDisplayRoute
   '/_authenticated/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
+  '/_authenticated/admins/': typeof AuthenticatedAdminsIndexRoute
   '/_authenticated/apps/': typeof AuthenticatedAppsIndexRoute
   '/_authenticated/chats/': typeof AuthenticatedChatsIndexRoute
   '/_authenticated/help-center/': typeof AuthenticatedHelpCenterIndexRoute
+  '/_authenticated/organizations/': typeof AuthenticatedOrganizationsIndexRoute
   '/_authenticated/projects/': typeof AuthenticatedProjectsIndexRoute
+  '/_authenticated/registration/': typeof AuthenticatedRegistrationIndexRoute
   '/_authenticated/run-tracing/': typeof AuthenticatedRunTracingIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/tasks/': typeof AuthenticatedTasksIndexRoute
@@ -238,10 +268,13 @@ export interface FileRouteTypes {
     | '/settings/appearance'
     | '/settings/display'
     | '/settings/notifications'
+    | '/admins/'
     | '/apps/'
     | '/chats/'
     | '/help-center/'
+    | '/organizations/'
     | '/projects/'
+    | '/registration/'
     | '/run-tracing/'
     | '/settings/'
     | '/tasks/'
@@ -260,10 +293,13 @@ export interface FileRouteTypes {
     | '/settings/appearance'
     | '/settings/display'
     | '/settings/notifications'
+    | '/admins'
     | '/apps'
     | '/chats'
     | '/help-center'
+    | '/organizations'
     | '/projects'
+    | '/registration'
     | '/run-tracing'
     | '/settings'
     | '/tasks'
@@ -284,10 +320,13 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/appearance'
     | '/_authenticated/settings/display'
     | '/_authenticated/settings/notifications'
+    | '/_authenticated/admins/'
     | '/_authenticated/apps/'
     | '/_authenticated/chats/'
     | '/_authenticated/help-center/'
+    | '/_authenticated/organizations/'
     | '/_authenticated/projects/'
+    | '/_authenticated/registration/'
     | '/_authenticated/run-tracing/'
     | '/_authenticated/settings/'
     | '/_authenticated/tasks/'
@@ -397,11 +436,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRunTracingIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/registration/': {
+      id: '/_authenticated/registration/'
+      path: '/registration'
+      fullPath: '/registration/'
+      preLoaderRoute: typeof AuthenticatedRegistrationIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/projects/': {
       id: '/_authenticated/projects/'
       path: '/projects'
       fullPath: '/projects/'
       preLoaderRoute: typeof AuthenticatedProjectsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/organizations/': {
+      id: '/_authenticated/organizations/'
+      path: '/organizations'
+      fullPath: '/organizations/'
+      preLoaderRoute: typeof AuthenticatedOrganizationsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/help-center/': {
@@ -423,6 +476,13 @@ declare module '@tanstack/react-router' {
       path: '/apps'
       fullPath: '/apps/'
       preLoaderRoute: typeof AuthenticatedAppsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admins/': {
+      id: '/_authenticated/admins/'
+      path: '/admins'
+      fullPath: '/admins/'
+      preLoaderRoute: typeof AuthenticatedAdminsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/settings/notifications': {
@@ -490,10 +550,13 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedSettingsRouteRoute: typeof AuthenticatedSettingsRouteRouteWithChildren
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
+  AuthenticatedAdminsIndexRoute: typeof AuthenticatedAdminsIndexRoute
   AuthenticatedAppsIndexRoute: typeof AuthenticatedAppsIndexRoute
   AuthenticatedChatsIndexRoute: typeof AuthenticatedChatsIndexRoute
   AuthenticatedHelpCenterIndexRoute: typeof AuthenticatedHelpCenterIndexRoute
+  AuthenticatedOrganizationsIndexRoute: typeof AuthenticatedOrganizationsIndexRoute
   AuthenticatedProjectsIndexRoute: typeof AuthenticatedProjectsIndexRoute
+  AuthenticatedRegistrationIndexRoute: typeof AuthenticatedRegistrationIndexRoute
   AuthenticatedRunTracingIndexRoute: typeof AuthenticatedRunTracingIndexRoute
   AuthenticatedTasksIndexRoute: typeof AuthenticatedTasksIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
@@ -503,10 +566,13 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSettingsRouteRoute: AuthenticatedSettingsRouteRouteWithChildren,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
+  AuthenticatedAdminsIndexRoute: AuthenticatedAdminsIndexRoute,
   AuthenticatedAppsIndexRoute: AuthenticatedAppsIndexRoute,
   AuthenticatedChatsIndexRoute: AuthenticatedChatsIndexRoute,
   AuthenticatedHelpCenterIndexRoute: AuthenticatedHelpCenterIndexRoute,
+  AuthenticatedOrganizationsIndexRoute: AuthenticatedOrganizationsIndexRoute,
   AuthenticatedProjectsIndexRoute: AuthenticatedProjectsIndexRoute,
+  AuthenticatedRegistrationIndexRoute: AuthenticatedRegistrationIndexRoute,
   AuthenticatedRunTracingIndexRoute: AuthenticatedRunTracingIndexRoute,
   AuthenticatedTasksIndexRoute: AuthenticatedTasksIndexRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,

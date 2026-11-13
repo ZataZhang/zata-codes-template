@@ -1,9 +1,9 @@
 # PRD: 组织与平台/组织两级管理员
 
-> ⛔ **交付前置**：排在 `P1-SECURITY-20261112-134527-admin-oidc-sign-in` 之后开工。本 PRD 的管理员邮箱、企业账号绑定列与解绑后的重新首绑都建立在那份 PRD 交付的结构和规则上；先做本 PRD 就得重复实现这些安全关键部件。
+> ✅ **交付前置**：本次分支已先行交付 `P1-SECURITY-20261112-134527-admin-oidc-sign-in` 并完成当前任务；外部分支的合并依赖仍以 §8 为准。
 > 结构化声明见 §8 Delivery Dependencies，**那里是唯一事实源**。
 
-> ⬜ **验收状态**：未开工。
+> 🧍 **验收状态**：待人工验收。
 > 本行是 §9 Acceptance Checklist 的投影，**那里是唯一事实源**。
 
 > 本 PRD 分为 Part A 人审层和 Part B 执行器层。Part A 用于确认目标行为和关键取舍；Part B 记录实现路径与验证证据。
@@ -41,8 +41,9 @@
 | 👀 人审 + 自动验证 | 平台管理员在“管理员”页新建组织管理员（邮箱 `org@example.com`、所属“示例组织”、不设密码）；该邮箱在身份中心已验证的用户第一次点“企业账号登录” | 进入管理后台；侧边栏没有“组织”“管理员”；“用户”页只显示“示例组织”的用户 |
 | 🤖 自动验证 | 组织管理员调用创建组织、创建管理员、解绑接口，或读取 / 禁用其他组织的用户 | 前三者返回 403；跨组织用户按 404 处理，不泄露其存在性 |
 | 🤖 自动验证 | 平台管理员禁用自己，或禁用系统中最后一个启用中的平台管理员 | 均返回 400，账号状态不变 |
+| 🤖 自动验证 | 平台管理员禁用另一名已登录的管理员 | 该管理员的密码登录与 OIDC 登录均被拒；此前通过密码或 OIDC 建立的 admin 会话在下一次真实 API 请求返回 401。重新启用后按正常账户规则恢复 |
 | 🤖 自动验证 | 平台管理员停用“示例组织” | 该组织普通用户密码登录被拒并提示组织已停用，其已有会话下次请求返回 401；该组织组织管理员同样；平台管理员不受影响；重新启用后恢复 |
-| 🤖 自动验证 | 平台管理员解绑某管理员的企业账号后，原身份中心账号再次登录；再用同邮箱的另一个身份中心账号登录 | 原账号被拒（日志 `reason=identity_not_mapped`）；新账号按上游 PRD 的首绑规则重新绑定并登录 |
+| 🤖 自动验证 | 平台管理员解绑某管理员的企业账号后，原账号 A 与另一个同邮箱账号 B 分别尝试首绑 | 解绑不撤销身份中心账号：A 仍满足已验证邮箱唯一匹配规则时可以重新首绑；B 也可在 A 尚未绑定时首绑。第一个成功绑定后，另一个账号因该管理员已绑定而失败（`reason=identity_conflict`）。若需阻止 A，应在身份中心停用 A；本地禁用管理员会阻断该管理员的全部登录路径 |
 | 🤖 自动验证 | 迁移完成后检查存量数据；随后新注册一个普通用户 | 存量普通用户全部归“默认组织”，存量管理员全部为平台管理员；新用户归“默认组织” |
 | 🤖 自动验证 | 企业账号登录不可用（未配置或显式关闭）时，创建不设密码的管理员 | 返回 400，提示必须设置初始密码 |
 
@@ -59,6 +60,7 @@
 - 组织管理员访问用户接口时强制本组织范围，查询参数里的组织 ID 不生效；跨组织用户按 404 处理。
 - 注册策略接口（注册策略 PRD）若已合并，读写收紧为仅平台管理员；“运行轨迹”页保持仅平台管理员可见，Run 的组织归属与授权由多组织 Agent PRD 落地。
 - 种子同步时确保该账号为平台管理员、启用中，并同步密码与邮箱；种子用户名指向已有账号时会将其提升为平台管理员——这是应急语义，需要服务器权限才能触发。
+- 管理员解绑只清除本地身份映射，不撤销身份中心账号。该管理员邮箱保持不变时，原身份与其他满足已验证邮箱唯一匹配条件的身份都可能重新首绑；身份中心停用可阻止某个身份，本地禁用管理员可阻止所有身份。
 - 审计采用结构化日志（操作者、动作、目标、结果），不建审计表；日志不含密码、令牌、Client Secret。
 - 停用组织不删除任何数据；前端演示页（projects / tasks / chats / apps）不做权限改动。
 - 本 PRD 不新增环境变量；默认组织由迁移内置。
@@ -145,7 +147,7 @@ erDiagram
 
 ### 企业账号解绑与组织管理员的数据范围
 
-**已确认（2026-11-12 对话）：** 管理员绑错企业账号时，由平台管理员解除绑定。建议解绑只清空该管理员的两个外部身份列，不动邮箱和密码，记审计日志；对方下次用企业账号登录时按上游 PRD 的规则凭已验证邮箱重新首绑。组织管理员不能解绑（包括自己的），普通用户的解绑不在本 PRD。
+**已确认（2026-11-12 对话）：** 管理员绑错企业账号时，由平台管理员解除绑定。解绑只清空该管理员的两个外部身份列，不动邮箱和密码，记审计日志。用户明确选择允许按上游规则重新首绑：解绑后原身份 A 若仍具有已验证且唯一匹配的管理员邮箱，可以重新绑定；同邮箱的其他身份 B 也可在该管理员尚未绑定时竞争首绑，先成功者占用绑定，之后其他身份因 `identity_conflict` 被拒。解绑本身不撤销身份中心账号；要阻止 A 需在身份中心停用 A，要阻止该管理员所有登录则在本地禁用管理员。组织管理员不能解绑（包括自己的），普通用户的解绑不在本 PRD。
 
 组织管理员的数据范围建议白名单制：只有“用户”页对本组织开放（列表、详情、启用、禁用），其余管理功能（组织、管理员、注册设置、运行轨迹）仅平台管理员；跨组织用户按 404 处理，不泄露存在性。平台管理员默认不读组织业务数据（沿用已确认决策），Agent / Run / Skill 的组织授权由多组织 Agent PRD 在此基础上落地。主要风险是范围漏配：任何一个现有或新增管理接口忘了按角色限制，组织管理员就能看到平台数据，所以权限基线是“默认仅平台管理员，组织管理员逐项白名单”。
 
@@ -153,7 +155,7 @@ erDiagram
 
 - [ ] 同意（推荐）
 
-**验收：** 解绑后原身份中心账号被拒登、同邮箱新账号重新首绑成功，审计日志含操作者与目标；组织管理员访问平台-only 接口全部 403，跨组织用户全部 404。
+**验收：** 解绑后，原身份 A 和同邮箱新身份 B 在未绑定时都符合首绑条件；先成功者绑定，后续竞争身份被拒并记录 `identity_conflict`。验证身份中心停用 A 后 A 被拒；本地禁用管理员后密码与 OIDC 新登录均被拒、两类既有 admin 会话的下一次 API 请求均返回 401。审计日志含操作者与目标；组织管理员访问平台-only 接口全部 403，跨组织用户全部 404。
 
 **自动门禁，不需要逐项人工审阅**：组织与管理员 CRUD 的输入校验、迁移升降级与回填对账、前端导航显隐与路由守卫、表单校验与中英文文案、架构分层检查，均由后端测试、迁移测试、前端单测与 Playwright 用例把关。
 
@@ -161,7 +163,7 @@ erDiagram
 
 ## 3. Usage And Impact After Implementation
 
-**平台管理员**：用种子账号（或企业账号）登录后台，侧边栏新增“组织”“管理员”。在“组织”页新建组织（填名称）、停用或重新启用组织；默认组织没有停用按钮。在“管理员”页新建管理员：选类型（平台管理员 / 组织管理员，后者再选组织）、填用户名和邮箱、密码可留空（页面注明“留空则只能用企业账号登录”；企业账号登录不可用时留空会被拒绝）。列表显示每个管理员的类型、所属组织、企业账号绑定状态和启用状态；可以启用、禁用（自己与最后一个启用平台管理员除外）、解除企业账号绑定（有确认对话框）。在“用户”页看到全部用户及其所属组织，可按组织过滤，并把用户调整到其他组织。
+**平台管理员**：用种子账号（或企业账号）登录后台，侧边栏新增“组织”“管理员”。在“组织”页新建组织（填名称）、停用或重新启用组织；默认组织没有停用按钮。在“管理员”页新建管理员：选类型（平台管理员 / 组织管理员，后者再选组织）、填用户名和邮箱、密码可留空（页面注明“留空则只能用企业账号登录”；企业账号登录不可用时留空会被拒绝）。列表显示每个管理员的类型、所属组织、企业账号绑定状态和启用状态；只有平台管理员可启用或禁用其他管理员（不能禁用自己，不能禁用最后一个启用平台管理员）。禁用会立即阻断密码与 OIDC 新登录，并使该账号已有的两种 admin 会话在下一次 API 请求返回 401；重新启用按正常账户规则恢复。解除企业账号绑定是另一项操作：它只清除本地身份映射，不会停用身份中心账号，仍满足首绑条件的原身份可以再次绑定。解绑与禁用有不同的确认说明。在“用户”页看到全部用户及其所属组织，可按组织过滤，并把用户调整到其他组织。
 
 **组织管理员**：打开同一个管理端登录页，用企业账号登录（或平台管理员设置的初始密码）。登录后侧边栏只有“用户”等白名单入口；用户页只显示本组织用户，可搜索、启用、禁用。直接输入平台-only 页面地址会被弹回首页；直接调平台-only 接口返回 403。
 
@@ -189,10 +191,12 @@ erDiagram
 - **架构约束**：四层依赖方向由 `hooks/check_architecture.py` 校验；新端口放 `core/shared/interfaces/`，实现放 `infrastructure/`，装配只在 `composition/`；core 不导入 infrastructure（现有 core 无任何日志调用，审计日志在 API 路由层用标准 `logging` 记录，与 `infrastructure/logger` 同一 logging 配置，不新增审计表）。组织状态检查不新增 `AuthService` 构造参数：由仓库在账户读取时 outerjoin 组织表，把组织状态投影到 `UserAccount`，`AuthService` 只读投影字段（避免参数继续膨胀，遵循 `docs/ai-standards/code-reuse.md`）。
 - **前端影响**：`frontend-admin/`（Vite + React + TanStack Router）。最近位置：`src/features/users/index.tsx`（表格 + 搜索 + 启停对话框，新页面仿照它）、`src/routes/_authenticated/route.tsx`（beforeLoad 会话守卫）、`src/stores/auth-store.ts`（会话用户状态）、`src/components/layout/data/sidebar-data.ts` 与 `src/components/layout/app-sidebar.tsx`、`src/components/command-menu.tsx`（导航分组）、`src/api/auth.ts`（`UserSession` 类型）、`src/api/users.ts`。`frontend-public/` 无代码改动：普通用户归属由管理端管理，组织停用提示走现有登录错误展示路径。
 - **相关 PRD**：
-  - `tasks/pending/P1-SECURITY-20261112-134527-admin-oidc-sign-in.md`：硬依赖（见 §8）。
-  - `tasks/pending/P1-FEAT-20261112-134527-registration-policy-and-user-oidc.md`：无顺序依赖。若它先合并，本 PRD 把注册策略读写收紧为仅平台管理员；其企业账号建号路径因 `UserAccount.organization_id` 默认值自动归默认组织，无需改动。
+  - `tasks/archive/P1-SECURITY-20261112-134527-admin-oidc-sign-in.md`：硬依赖（见 §8）。
+  - `tasks/archive/P1-FEAT-20261112-134527-registration-policy-and-user-oidc.md`：无顺序依赖。若它先合并，本 PRD 把注册策略读写收紧为仅平台管理员；其企业账号建号路径因 `UserAccount.organization_id` 默认值自动归默认组织，无需改动。
   - `tasks/pending/P1-FEAT-20260928-115856-multi-organization-online-agent-base.md`：其组织与管理员范围已移交本 PRD，改为依赖本 PRD；它保留 Agent / Run / Skill / A2A 与 Run 的组织回填。
   - `tasks/archive/P1-FEAT-20260625-182322-dual-auth-domain-separation.md`：双域设计来源，本 PRD 沿用“同一编排、注入区分域”。
+
+> **独立包边界（本次对话确认）**：上游管理员 OIDC PRD 同时交付 backend 外的 `packages/oidc-client/` 独立协议包（分发名 `zata-oidc`，公开导入 `zata_oidc`）。本 PRD 复用该包公开接口及应用内 `OidcLoginService`，不另建协议客户端或同名协议契约；账户匹配/绑定/建号、注册策略、组织权限、Redis 事务、会话、路由、UI 和迁移属于宿主 backend，均不迁入独立包。该包由上游 PRD 一并交付，无新增跨仓库交付前置；本 PRD 无须发布远程包。
 
 ## 6. Recommendation
 
@@ -476,7 +480,7 @@ ER 图见 §2 决策一。
   tier: R3
   test_layer: e2e
   required_for_acceptance: true
-  presentation: "tasks/evidence/<prd-stem>/rv-1-admin-create.png、rv-1-org-admin-users.png 与 rv-1-org-admin-sign-in.webm；自查：创建对话框类型为组织管理员且密码留空，组织管理员用户页只有示例组织用户"
+  presentation: "tasks/evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/rv-1-admin-create.png、rv-1-org-admin-users.png 与 rv-1-org-admin-sign-in.webm；自查：创建对话框类型为组织管理员且密码留空，组织管理员用户页只有示例组织用户"
   critical_value_source: "管理员页实际创建返回的管理员 ID 与组织 ID；组织管理员登录后的会话来自真实 OIDC 回调"
   must_cross: "管理员页表单 -> /api 代理 -> POST /admin/admins -> admin_user 写入 -> 新上下文 /admin/auth/oidc/start -> 替身 -> callback 首绑 -> 用户页 GET /admin/users 组织过滤"
   forbidden_bypasses: "直接写库建管理员、手工设置会话 Cookie、直接调用目录用例、跳过 /api 代理"
@@ -488,7 +492,7 @@ ER 图见 §2 决策一。
   behavior: "组织管理员越权全部失败；管理员启停保护与解绑规则生效；管理操作留审计日志"
   reviewer: verifier
   real_entry: "uv run pytest tests/backend/test_admin_permissions.py tests/backend/test_admin_directory.py"
-  expected: "组织管理员访问组织/管理员/注册设置/运行轨迹接口 403；跨组织用户读取与启停 404 且响应无目标信息；禁用自己与禁用最后一个启用平台管理员 400；未开 OIDC 创建无密码管理员 400；解绑后原身份登录被拒（identity_not_mapped）、同邮箱新身份重新首绑；审计日志含操作者/动作/目标且无密码、令牌原文"
+  expected: "组织管理员访问组织/管理员/注册设置/运行轨迹接口 403；跨组织用户读取与启停 404 且响应无目标信息；禁用自己与禁用最后一个启用平台管理员 400；禁用另一管理员后其密码和 OIDC 新登录均拒绝，密码/OIDC 两种既有 admin 会话的下一次 API 请求均 401；重新启用后按正常规则恢复；未开 OIDC 创建无密码管理员 400；解绑后原身份 A 在仍满足邮箱首绑条件时可重新绑定；A 未绑定时同邮箱身份 B 也可首绑，先成功者占用绑定，之后的身份为 identity_conflict；停用 IdP 中的 A 后拒绝 A；审计日志含操作者/动作/目标且无密码、令牌原文"
   mock_boundary: "身份中心由 ControlledOidcIssuer 提供；FastAPI 应用、路由、权限依赖、目录用例、仓库与测试数据库为真实；Redis 按 tests/backend/conftest.py 约定"
   tier: R3
   test_layer: integration
@@ -504,7 +508,7 @@ ER 图见 §2 决策一。
   behavior: "组织停用即时阻断登录与会话，启用恢复；新注册用户归默认组织"
   reviewer: verifier
   real_entry: "uv run pytest tests/backend/test_org_active_sessions.py"
-  expected: "停用后：该组织普通用户密码登录 400 提示组织已停用、已有会话下次请求 401；组织管理员密码与 OIDC 登录均拒（organization_inactive）；平台管理员不受影响；重新启用后全部恢复；新注册 public 用户 organization_id=default"
+  expected: "停用后：该组织普通用户密码登录 401 提示组织已停用、已有会话下次请求 401；组织管理员密码与 OIDC 登录均拒（organization_inactive）；平台管理员不受影响；重新启用后全部恢复；新注册 public 用户 organization_id=default"
   mock_boundary: "身份中心为替身；其余真实"
   tier: R2
   test_layer: integration
@@ -585,7 +589,7 @@ No external validation required; repository evidence was sufficient. 组织与�
   - P1-SECURITY-20261112-134527-admin-oidc-sign-in
 - Gate type: hard
 - Sequence: via-main
-- Notes: 复用其 admin_user 邮箱与 OIDC 绑定列、OidcLoginService 与身份中心替身。与 P1-FEAT-20261112-134527-registration-policy-and-user-oidc 无顺序依赖；若它先合并，本 PRD 负责把注册策略接口收紧为仅平台管理员。本 PRD 阻塞 P1-FEAT-20260928-115856-multi-organization-online-agent-base（其组织与管理员范围已移交本 PRD）。
+- Notes: 本次系列在同一分支按依赖顺序完成并归档，尚未合并主线；其他分支仍按 via-main 检查。 复用其 admin_user 邮箱与 OIDC 绑定列、OidcLoginService 与身份中心替身。与 P1-FEAT-20261112-134527-registration-policy-and-user-oidc 无顺序依赖；若它先合并，本 PRD 负责把注册策略接口收紧为仅平台管理员。本 PRD 阻塞 P1-FEAT-20260928-115856-multi-organization-online-agent-base（其组织与管理员范围已移交本 PRD）。
 
 ## 9. Acceptance Checklist
 
@@ -594,16 +598,39 @@ No external validation required; repository evidence was sufficient. 组织与�
 **主演示脚本**
 
 1. 平台管理员登录后台：侧边栏出现“组织”“管理员”（本地身份中心替身，mock 身份中心）。
-2. “组织”页新建“示例组织”；“管理员”页新建组织管理员 `org@example.com`，密码留空，创建成功。
+2. “组织”页新建“示例组织”；“管理员”页新建两个组织管理员：`org@example.com` 的密码留空，`org-password@example.com` 设置初始密码，均归属“示例组织”。
 3. 平台管理员在用户页把一个普通用户移入“示例组织”。
-4. 新浏览器上下文用企业账号登录 `org@example.com`：进入后台，侧边栏无“组织”“管理员”，用户页只显示“示例组织”的那一个用户。
-5. 平台管理员解绑该组织管理员的企业账号：列表绑定状态变为“未绑定”，审计日志可见该操作。
+4. 分别在两个无既有登录状态的浏览器上下文登录：第一个账号使用企业账号，第二个账号使用初始密码；均进入后台且用户页只显示本组织用户。组织管理员侧边栏无“组织”“管理员”。
+5. 平台管理员解绑第一个账号的企业身份：确认框说明这只清除本地映射，不能撤销身份中心账号；列表变为“未绑定”，审计日志可见。原身份仍满足已验证邮箱唯一匹配时可再次首绑；身份中心停用的身份不能完成新登录。
+6. 平台管理员分别禁用两个账号：确认框说明密码和 OIDC 登录均会停止；第一个账号已有 OIDC 会话、第二个账号已有密码会话的下一次 `/admin/auth/me` 请求均为 401。重新启用第一个账号后，在新的空上下文通过企业账号登录恢复正常访问。
 
 | 结果 | 呈递物 | 10 秒自查 |
 |---|---|---|
-| 组织管理员创建与企业账号登录、本组织数据范围（rv-1） | `tasks/evidence/<prd-stem>/rv-1-admin-create.png`、`rv-1-org-admin-users.png`、`rv-1-org-admin-sign-in.webm`（交付时内嵌） | 创建对话框类型为组织管理员且密码留空；组织管理员用户页只有示例组织用户；录屏末帧为该用户页 |
+| 组织管理员创建与企业账号登录、本组织数据范围（rv-1） | `tasks/evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/rv-1-admin-create.png`、`rv-1-org-admin-users.png`、`rv-1-org-admin-sign-in.webm`（交付时内嵌） | 创建对话框类型为组织管理员且密码留空；组织管理员用户页只有示例组织用户；录屏末帧为该用户页 |
 
 未在此展示（verifier 负责）：rv-2 越权与保护规则、rv-3 组织停用生效、rv-4 迁移对账、rv-5 种子应急、rv-6 前端单测。
+
+### 交付呈递入口
+
+[统一实现与证据审阅页](../evidence/oidc-series-review/index.html)提供本节同源设计图、真实截图、录屏和逐项人工审阅内容。
+本地图像与录屏未进入版本库；在仓库根目录运行 `open tasks/evidence/oidc-series-review/index.html` 即可审阅，无需启动应用。
+完整执行结果见[证据报告](../evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/P1-FEAT-20261112-142923-organizations-and-two-tier-admins.evidence-report.md)，独立结论见[验证报告](../evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/P1-FEAT-20261112-142923-organizations-and-two-tier-admins.verifier-report.md)。
+
+![低保真设计目标：rv-1-design-intent.png](../evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/rv-1-design-intent.png)
+
+本地图片；`open tasks/evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/rv-1-design-intent.png`。
+
+![真实用户流程：rv-1-admin-create.png](../evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/rv-1-admin-create.png)
+
+本地图片；`open tasks/evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/rv-1-admin-create.png`。
+
+![真实用户流程：rv-1-org-admin-users.png](../evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/rv-1-org-admin-users.png)
+
+本地图片；`open tasks/evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/rv-1-org-admin-users.png`。
+
+![真实用户流程：rv-1-org-admin-reenabled-users.png](../evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/rv-1-org-admin-reenabled-users.png)
+
+本地图片；`open tasks/evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/rv-1-org-admin-reenabled-users.png`。
 
 ### 9.2 Acceptance Evidence Package
 
@@ -613,47 +640,48 @@ No external validation required; repository evidence was sufficient. 组织与�
 
 - [ ] 组织模型与用户归属（一人一个组织、默认组织兜底、停用即生效）符合预期 —— 证据：rv-3、rv-4 输出
 - [ ] 两级管理员创建与保护规则（仅平台管理员可创建、密码可选、禁用保护）符合预期 —— 证据：rv-2 输出
-- [ ] 解绑规则与组织管理员白名单范围符合预期 —— 证据：rv-2 解绑与越权用例输出
+- [ ] 解绑只清除本地映射、允许符合条件的原身份重新首绑，且组织管理员权限受白名单约束 —— 证据：rv-2 解绑与越权用例输出
 - [ ] 已查看 9.1 截图与录屏，页面与流程符合预期
 
 ### Architecture Acceptance
 
-- [ ] `uv run python hooks/check_architecture.py` 通过；core 无 infrastructure 导入（审计日志在 API 层标准 logging）
-- [ ] `AuthService` 构造参数未变；`rg -n "organization_attr" src/backend/composition` 两个仓库实例均已配置
+- [x] `uv run python hooks/check_architecture.py` 通过；core 无 infrastructure 导入（审计日志在 API 层标准 logging）（证据：[执行报告](../evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/P1-FEAT-20261112-142923-organizations-and-two-tier-admins.evidence-report.md)、[独立 PASS](../evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/P1-FEAT-20261112-142923-organizations-and-two-tier-admins.verifier-report.md)）
+- [x] `AuthService` 构造参数未变；`rg -n "organization_attr" src/backend/composition` 两个仓库实例均已配置（证据：[执行报告](../evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/P1-FEAT-20261112-142923-organizations-and-two-tier-admins.evidence-report.md)、[独立 PASS](../evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/P1-FEAT-20261112-142923-organizations-and-two-tier-admins.verifier-report.md)）
 
 ### Behavior Acceptance
 
-- [ ] §1 行为样例 7 行均有对应测试且通过（rv-1、rv-2、rv-3、rv-4 输出）
-- [ ] 现有 `tests/backend/test_auth_domains.py` 断言未改动即通过（`just test` 输出）
+- [x] §1 行为样例 7 行均有对应测试且通过（rv-1、rv-2、rv-3、rv-4 输出）（证据：[执行报告](../evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/P1-FEAT-20261112-142923-organizations-and-two-tier-admins.evidence-report.md)、[独立 PASS](../evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/P1-FEAT-20261112-142923-organizations-and-two-tier-admins.verifier-report.md)）
+- [x] 现有 `tests/backend/test_auth_domains.py` 断言未改动即通过（`just test` 输出）（证据：[执行报告](../evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/P1-FEAT-20261112-142923-organizations-and-two-tier-admins.evidence-report.md)、[独立 PASS](../evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/P1-FEAT-20261112-142923-organizations-and-two-tier-admins.verifier-report.md)）
 
 ### Frontend Acceptance
 
-- [ ] 两角色导航显隐、平台-only 路由守卫、新建表单校验符合 7.7 各态（rv-6 输出、rv-1 截图）
-- [ ] `cd frontend-admin && pnpm build` 通过
+- [x] 两角色导航显隐、平台-only 路由守卫、新建表单校验符合 7.7 各态（rv-6 输出、rv-1 截图）（证据：[执行报告](../evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/P1-FEAT-20261112-142923-organizations-and-two-tier-admins.evidence-report.md)、[独立 PASS](../evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/P1-FEAT-20261112-142923-organizations-and-two-tier-admins.verifier-report.md)）
+- [x] `cd frontend-admin && pnpm build` 通过（证据：[执行报告](../evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/P1-FEAT-20261112-142923-organizations-and-two-tier-admins.evidence-report.md)、[独立 PASS](../evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/P1-FEAT-20261112-142923-organizations-and-two-tier-admins.verifier-report.md)）
 
 ### Documentation Acceptance
 
-- [ ] `docs/architecture/authentication.md` 有“组织与两级管理员”一节；`docs/architecture/system-design.md` 认证域节同步
-- [ ] `uv run mkdocs build --strict` 通过
+- [x] `docs/architecture/authentication.md` 有“组织与两级管理员”一节；`docs/architecture/system-design.md` 认证域节同步（证据：[执行报告](../evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/P1-FEAT-20261112-142923-organizations-and-two-tier-admins.evidence-report.md)、[独立 PASS](../evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/P1-FEAT-20261112-142923-organizations-and-two-tier-admins.verifier-report.md)）
+- [x] `uv run mkdocs build --strict` 通过（证据：[执行报告](../evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/P1-FEAT-20261112-142923-organizations-and-two-tier-admins.evidence-report.md)、[独立 PASS](../evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/P1-FEAT-20261112-142923-organizations-and-two-tier-admins.verifier-report.md)）
 
 ### Validation Acceptance
 
-- [ ] rv-1 真实浏览器 e2e 在配置替身后实际运行通过（非 skip），截图与录屏存证
-- [ ] 审计日志含操作者 / 动作 / 目标且无敏感值（rv-2 日志断言）
-- [ ] `just test` 通过
+- [x] rv-1 真实浏览器 e2e 在配置替身后实际运行通过（非 skip），截图与录屏存证（证据：[执行报告](../evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/P1-FEAT-20261112-142923-organizations-and-two-tier-admins.evidence-report.md)、[独立 PASS](../evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/P1-FEAT-20261112-142923-organizations-and-two-tier-admins.verifier-report.md)）
+- [x] 审计日志含操作者 / 动作 / 目标且无敏感值（rv-2 日志断言）（证据：[执行报告](../evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/P1-FEAT-20261112-142923-organizations-and-two-tier-admins.evidence-report.md)、[独立 PASS](../evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/P1-FEAT-20261112-142923-organizations-and-two-tier-admins.verifier-report.md)）
+- [x] `just test` 通过（证据：[执行报告](../evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/P1-FEAT-20261112-142923-organizations-and-two-tier-admins.evidence-report.md)、[独立 PASS](../evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/P1-FEAT-20261112-142923-organizations-and-two-tier-admins.verifier-report.md)）
 
 ### Delivery Readiness
 
-- [ ] `just lint --repo` 通过
-- [ ] PR 证据评论或完成消息携带 9.1 内容（内嵌截图 + 录屏路径）
+- [x] `just lint --repo` 通过（证据：[执行报告](../evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/P1-FEAT-20261112-142923-organizations-and-two-tier-admins.evidence-report.md)、[独立 PASS](../evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/P1-FEAT-20261112-142923-organizations-and-two-tier-admins.verifier-report.md)）
+- [x] PR 证据评论或完成消息携带 9.1 内容（内嵌截图 + 录屏路径）（证据：[执行报告](../evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/P1-FEAT-20261112-142923-organizations-and-two-tier-admins.evidence-report.md)、[独立 PASS](../evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/P1-FEAT-20261112-142923-organizations-and-two-tier-admins.verifier-report.md)）
+
 
 ## 10. Functional Requirements
 
 - **FR-1**：新增 `organization` 表（id、唯一名称、启用状态、时间戳）与平台管理员专属的组织管理接口和页面（列表 / 创建 / 启用 / 停用）；迁移创建 id 为 `default` 的默认组织，默认组织不可停用。
 - **FR-2**：`public_user.organization_id` 必填并关联组织；迁移把存量用户全部回填默认组织；密码注册、企业账号建号与种子 public 用户归默认组织；一个普通用户恰好归属一个组织。
 - **FR-3**：`admin_user.role` 取 `platform` / `org`，`role=org` 必须关联组织、`platform` 必须不关联（数据库 CHECK）；存量管理员迁移为 platform；`AuthenticatedPrincipal` 携带角色与组织，权限由服务端会话解析，请求方不能指定。
-- **FR-4**：平台管理员专属的管理员管理接口和页面：列表、创建（用户名与邮箱必填且唯一、组织管理员必选组织、密码可选；企业账号登录不可用时密码必填）、启用 / 禁用；不能禁用自己；同一事务内保证至少一个启用中的平台管理员；组织管理员不能创建管理员。
-- **FR-5**：平台管理员可解除管理员的企业账号绑定：清空 `oidc_issuer / oidc_subject`，不动邮箱与密码，记审计日志；解绑后原身份拒登，同邮箱新身份按上游 PRD 首绑规则重新绑定。
+- **FR-4**：仅平台管理员可使用管理员管理接口和页面：列表、创建（用户名与邮箱必填且唯一、组织管理员必选组织、密码可选；企业账号登录不可用时密码必填）、启用 / 禁用其他管理员；不能禁用自己；同一事务内保证至少一个启用中的平台管理员。禁用后密码登录与 OIDC 登录均拒绝；既有 admin 会话在下一个 API 请求由服务端实时检查 `is_active` 并返回 401，不能只隐藏 UI 或只拒绝新登录；重新启用后按正常账户规则恢复。组织管理员不能创建或禁用管理员。
+- **FR-5**：平台管理员可解除管理员的企业账号绑定：清空 `oidc_issuer / oidc_subject`，不动邮箱与密码，记审计日志。解绑不撤销身份中心账号；解绑后，原身份及其他身份只要仍满足上游 PRD 的已验证邮箱唯一匹配规则，即可竞争首绑，先成功者占用绑定，后续身份以 `identity_conflict` 被拒。要阻止特定身份须在身份中心停用它；本地禁用管理员会阻断该管理员所有登录路径。UI 确认框须说明此行为。
 - **FR-6**：组织停用后，该组织普通用户与组织管理员登录被拒（明确提示）、既有会话下次请求即失效（密码与 OIDC 路径一致）；重新启用即恢复；平台管理员不受影响。
 - **FR-7**：用户页组织范围：组织管理员强制本组织（列表 / 详情 / 启停，跨组织 404 不泄露存在性，请求中的组织参数不生效）；平台管理员可见全部、按组织过滤、调整用户归属（目标组织必须存在）。
 - **FR-8**：种子创建首位平台管理员（显式 platform 角色）；账号已存在时同步密码与邮箱并确保 platform 角色与启用状态，作为应急入口。
@@ -688,17 +716,34 @@ No external validation required; repository evidence was sufficient. 组织与�
 | D-06 | 新用户归属 | 默认组织兜底（UserAccount 默认值） | 注册时选组织；邀请制 | 一人一个组织已确认；默认兜底让所有建号路径零改动生效 |
 | D-07 | 审计形态 | API 层结构化日志 | 独立审计表 | 管理操作低频，日志即审计；core 无日志先例，不新增端口与表 |
 | D-08 | 解绑权限 | 仅平台管理员 | 管理员自助解绑 | 用户 2026-11-12 确认；自助解绑扩大攻击面且需额外验证 |
+| D-09 | 解绑后原身份处理 | 允许按原首绑规则重新绑定；需撤销时由身份中心停用该身份 | 仅因解绑就永久拒绝原身份 | 用户 2026-11-13 明确选择按原规则重新绑定；避免增加黑名单或新表 |
+| D-10 | 管理员禁用语义 | 本地禁用同时阻断密码 / OIDC 新登录与已有会话；重新启用恢复正常规则 | 只隐藏页面或只拒绝新登录；由身份中心管理禁用 | 用户 2026-11-13 明确要求本地停用，并确认权限保护规则；账号状态由模板控制，`AuthService` 每请求回查活动状态 |
 
 ### Final Reconciliation
 
-- Interpretation: pending — 实施完成后与最终行为核对。
-- Public behavior and contracts: pending — 实施完成后与 API/UI 证据核对。
-- Related PRD status: pending — 归档前重新检查。
-- Requirements and risks: pending — 按最终证据更新。
+- Interpretation: 本次对话已批准独立包方案与实施范围；完成三份 PRD 的执行工作，人工验收保持开放。
+- Public behavior and contracts: 本地组织与两级管理员权限生效；跨组织写入原子校验范围，禁用拒绝新登录并使旧会话下一请求失效，保留最后启用平台管理员。
+- Related PRD status: 管理员 OIDC、注册策略/普通用户 OIDC、组织/两级管理员在本分支按依赖顺序一起交付并归档；多组织 Agent PRD 未实施。归档不代表已合并主线，其他分支仍按 via-main 检查依赖。
+- Requirements and risks: 各 rv 均获本 PRD 独立 verifier PASS，无未解决 BLOCKER。身份中心仅由本地真实 RS256 HTTP 替身替代，未宣称完成生产 Keycloak live 验证；人工视觉和业务接受仍由 Human-Confirmed 项记录。
 - Reconciled differences:
-  - pending
+  - 通用协议客户端/契约/PKCE 位于 backend 外的 packages/oidc-client，独立 wheel/sdist 可安装；账户、权限、事务、会话与前端属于宿主。
+  - 解绑仅清除本地映射，符合邮箱首绑规则的原身份可重新绑定；主演示采用无密码 OIDC 管理员及有密码管理员分别验证两类会话。组织密码拒登沿用原认证入口 HTTP 401，原示例中的 400 已校正，拒绝原因和安全结果不变。
+  - MySQL 身份字段按 UTF-8 字节精确比较；组织范围写入同一 UPDATE WHERE；平台管理员锁仅锁定管理员表，双数据库真实验证通过。
+  - 仅对导入、框架展示样板与 Vitest 装配作局部 jscpd 标注，独立审查确认无业务逻辑被排除；repo 和实际全文件 lint 均通过。
+  - 最终 test_tree 为 8e792c937139e42d97ba9ad5f38e2e364982b8b6。全回归 928 passed / 6 skipped 早于最后一个并发用例替换；新用例两库各 1 passed，独立验证已审计该测试增补及纯注释差异，不把旧全量日志伪称为修改后运行。
+- Evidence package: tasks/evidence/P1-FEAT-20261112-142923-organizations-and-two-tier-admins/P1-FEAT-20261112-142923-organizations-and-two-tier-admins.evidence-report.md；本地统一入口 tasks/evidence/oidc-series-review/index.html。
+- Validation blocker: none；独立验证结论 PASS。
+- Validation follow-up: 人工审阅本节 9.1 及 Human-Confirmed 项；真实身份中心部署和 Client 注册由部署者按指南配置。
 
 ## Change Log
+
+### 对齐上游独立 OIDC 包
+- Type: architecture
+- Before: 协议实现为 backend 内部模块。
+- After: 复用上游 zata_oidc 包公开接口；应用业务规则仍留在 backend。
+- Reason: 用户在本次对话确认跨仓库复用采用 backend 外独立包。
+- Impact: 更新上游部件定位和应用边界；本 PRD 的安全行为、顺序依赖与验收状态不变。
+- Review: 本次独立执行验证 PASS；人工验收仍待完成。
 
 ### 对齐上游企业账号登录默认开启
 - Type: doc
@@ -707,3 +752,36 @@ No external validation required; repository evidence was sufficient. 组织与�
 - Reason: 用户 2026-11-12 确认企业账号登录默认开启，上游两份 PRD 已改为 ENABLED 默认 true。
 - Impact: 仅措辞与判定口径对齐，创建规则、权限与验收行为不变。
 - Review: 无需重新确认（未改已批准的行为与决策）。
+
+### 澄清管理员解绑与 OIDC 首绑的关系
+- Type: security behavior
+- Before: 行为样例与 FR-5 声称解绑后原身份必然拒登，同时又保留邮箱首绑；二者不能同时成立。
+- After: 解绑仅清空绑定列；仍匹配该管理员已验证邮箱的原身份可重新首绑。其他身份也能在首次绑定前竞争；先绑定者胜出。停用 IdP 身份以阻止特定账号，本地停用管理员以阻止全部登录。
+- Reason: 用户 2026-11-13 明确选择允许按原规则重新绑定。
+- Impact: 更新行为样例、使用说明、解绑确认、rv-2、FR-5、验收项与决策记录；不增加生产黑名单或身份历史表。
+- Review: 已由用户在对话中确认解绑行为。
+
+### 明确本地禁用管理员的会话失效边界
+- Type: security behavior
+- Before: 管理员启停已有管理入口，但未把 OIDC 建立的既有会话失效边界明确写进验收流程。
+- After: 仅平台管理员能禁用其他管理员；不能禁用自己或最后一个启用的平台管理员；禁用同时拒绝密码/OIDC 新登录，并令两种已建立的 admin 会话在下一次 API 请求返回 401。重新启用后按正常账户规则恢复。
+- Reason: 用户 2026-11-13 明确要求管理员由应用本地停用，并保护已有会话。
+- Impact: 扩充 rv-2 与真实 API 验收；实现需复用服务端每次解析 session 时对 `is_active` 的检查，不新增身份中心管理或其他应用停用。
+- Review: 已由用户在对话中确认。
+
+### 澄清禁用演示的两个账号前提
+- Type: validation
+- Before: 主演示以无密码账号创建，却要求同一账号已存在密码会话。
+- After: 使用一个无密码 OIDC 账号与一个有初始密码的组织管理员，分别证明既有 OIDC / 密码会话在禁用后失效；解绑再首绑先于禁用，重新启用后以空上下文恢复登录。
+- Reason: 消除不可执行的演示前提，保留两种登录方式均受本地禁用约束的既有需求。
+- Impact: 仅澄清 §9.1 演示数据与顺序，FR、安全行为和后台真实 API 验收要求不变。
+- Review: 本次独立执行验证 PASS；人工验收仍待完成。
+
+
+### 完成执行侧验证并归档
+- Type: delivery
+- Before: PRD 位于 pending，执行验收项未完成。
+- After: 实现、真实入口与分发验证完成，独立 verifier PASS，执行项按证据勾选并归档为待人工验收。
+- Reason: 用户已授权 Luna 执行，独立验证确认本 PRD 所有 rv 满足要求。
+- Impact: 仅更新交付状态、证据索引和最终对账；不代替人工接受，不代表已提交或已合并主线。
+- Review: 独立 PASS；Human-Confirmed 项保持开放。

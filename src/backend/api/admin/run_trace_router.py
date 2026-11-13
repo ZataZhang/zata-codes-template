@@ -18,7 +18,7 @@ from backend.api.admin.run_trace_schemas import (
     RunTraceSummaryResponse,
     RunTraceTreeNodeResponse,
 )
-from backend.api.dependencies import get_current_admin_user, get_run_trace_use_case
+from backend.api.dependencies import get_current_platform_admin, get_run_trace_use_case
 from backend.core.auth.models import AuthenticatedPrincipal
 from backend.core.run_tracing import RunExportError, RunTraceUseCase
 from backend.core.shared.models.run import (
@@ -131,7 +131,7 @@ async def list_run_traces(
     created_before: datetime | None = Query(None, description="创建时间上界（ISO 8601）。"),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
-    _admin: AuthenticatedPrincipal = Depends(get_current_admin_user),
+    _admin: AuthenticatedPrincipal = Depends(get_current_platform_admin),
     trace_use_case: RunTraceUseCase = Depends(get_run_trace_use_case),
 ) -> RunTraceListResponse:
     """分页列出最近 Run 的执行轨迹摘要。"""
@@ -157,7 +157,7 @@ async def list_run_traces(
 @router.get("/{run_id}", response_model=RunTraceDetailResponse)
 async def get_run_trace(
     run_id: str,
-    _admin: AuthenticatedPrincipal = Depends(get_current_admin_user),
+    _admin: AuthenticatedPrincipal = Depends(get_current_platform_admin),
     trace_use_case: RunTraceUseCase = Depends(get_run_trace_use_case),
 ) -> RunTraceDetailResponse:
     """读取单个 Run 的执行轨迹详情。"""
@@ -171,7 +171,7 @@ async def get_run_trace(
 @router.get("/{run_id}/export")
 async def export_run_trace(
     run_id: str,
-    admin: AuthenticatedPrincipal = Depends(get_current_admin_user),
+    admin: AuthenticatedPrincipal = Depends(get_current_platform_admin),
     trace_use_case: RunTraceUseCase = Depends(get_run_trace_use_case),
 ) -> Response:
     """下载单个已终结 Run 的原始事件 JSON；管理员下载会留存低敏审计。"""

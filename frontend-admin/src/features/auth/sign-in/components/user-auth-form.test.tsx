@@ -1,10 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, type RenderResult } from 'vitest-browser-react'
-import { type Locator, userEvent } from 'vitest/browser'
-import { login, type UserSession } from '@/api/auth'
 // 表单文案与校验消息都来自 i18next，因此测试必须先初始化 i18n 并固定语言，
 // 否则断言会随运行环境（navigator / localStorage）漂移。
 import i18n from '@/i18n/init'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { render, type RenderResult } from 'vitest-browser-react'
+import { type Locator, userEvent } from 'vitest/browser'
+import { getAdminOidcStatus, login, type UserSession } from '@/api/auth'
 import { UserAuthForm } from './user-auth-form'
 
 const FORM_MESSAGES = {
@@ -19,11 +19,15 @@ const MOCK_SESSION: UserSession = {
   user_id: 'user-1',
   display_name: 'Admin User',
   username: 'admin',
+  role: 'platform',
+  organization_id: null,
+  organization_name: null,
 }
 
 const navigate = vi.fn()
 const setUserMock = vi.fn()
 
+/* jscpd:ignore-start -- 组件测试共用 Vitest 模块 mock 装配语法，不包含断言或业务流程。 */
 vi.mock('@/stores/auth-store', () => ({
   useAuthStore: () => ({
     auth: {
@@ -33,7 +37,9 @@ vi.mock('@/stores/auth-store', () => ({
 }))
 
 vi.mock('@/api/auth', () => ({
+  ADMIN_OIDC_START_URL: '/api/admin/auth/oidc/start',
   login: vi.fn(),
+  getAdminOidcStatus: vi.fn(),
 }))
 
 vi.mock('@tanstack/react-router', async (importOriginal) => {
@@ -43,6 +49,7 @@ vi.mock('@tanstack/react-router', async (importOriginal) => {
     useNavigate: () => navigate,
   }
 })
+/* jscpd:ignore-end */
 
 describe('UserAuthForm', () => {
   describe('Rendering without redirectTo', () => {
@@ -54,6 +61,7 @@ describe('UserAuthForm', () => {
 
     beforeEach(async () => {
       vi.clearAllMocks()
+      vi.mocked(getAdminOidcStatus).mockResolvedValue({ enabled: false })
       await i18n.changeLanguage(TEST_LOCALE)
       screen = await render(<UserAuthForm />)
       identifierInput = screen.getByRole('textbox', { name: /用户名/ })
@@ -67,6 +75,26 @@ describe('UserAuthForm', () => {
       await expect.element(passwordInput).toBeInTheDocument()
       await expect.element(signInButton).toBeInTheDocument()
       await expect.element(forgotPasswordButton).toBeInTheDocument()
+      await expect
+        .element(screen.getByTestId('admin-oidc-sign-in'))
+        .not.toBeInTheDocument()
+    })
+
+    it('shows the organization sign-in link only when OIDC is enabled', async () => {
+      vi.mocked(getAdminOidcStatus).mockResolvedValue({ enabled: true })
+      const enabledScreen = await render(<UserAuthForm />)
+
+      await expect
+        .element(enabledScreen.getByTestId('admin-oidc-sign-in'))
+        .toHaveAttribute('href', '/api/admin/auth/oidc/start')
+    })
+
+    it('shows a generic error when the OIDC callback failed', async () => {
+      const errorScreen = await render(<UserAuthForm ssoError />)
+
+      await expect
+        .element(errorScreen.getByRole('alert'))
+        .toHaveTextContent('企业账号登录失败，请联系管理员。')
     })
 
     it('shows validation messages when submitting empty form', async () => {

@@ -14,12 +14,13 @@ const adminAuthStorageStatePath = resolve(
 )
 const testResultOutputDirectory = process.env.PLAYWRIGHT_TEST_RESULTS_DIR ?? './test-results'
 const htmlReportOutputDirectory = process.env.PLAYWRIGHT_HTML_OUTPUT_DIR ?? 'playwright-report'
+const oidcTestsEnabled = process.env.PLAYWRIGHT_OIDC_TESTS === '1'
 const junitOutputFilePath =
   process.env.PLAYWRIGHT_JUNIT_OUTPUT_FILE ?? `${testResultOutputDirectory}/junit.xml`
 // 本地录全程视频用于 demo 与验收证据；CI 只保留失败用例的视频，否则每次失败都会
 // 把全部用例的 video.webm 打进 playwright-report-* 制品，很快吃满 Actions 存储配额。
 // 与上面的 retries/workers 一样按 CI 分支，调用方无需额外传参。
-const videoMode = (process.env.CI ? 'retain-on-failure' : 'on') as 'on' | 'retain-on-failure'
+const videoMode = process.env.CI ? 'retain-on-failure' : 'on'
 
 export default defineConfig({
   testDir: './tests',
@@ -85,6 +86,7 @@ export default defineConfig({
     {
       name: 'no-auth',
       testMatch: /.*\.no-auth\.spec\.ts/,
+      testIgnore: /.*\.oidc\.no-auth\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 1440, height: 1200 },
@@ -110,6 +112,7 @@ export default defineConfig({
       name: 'admin',
       dependencies: ['admin-setup'],
       testMatch: /.*\.admin\.spec\.ts/,
+      testIgnore: /.*\.oidc\.admin\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 1440, height: 1200 },
@@ -117,5 +120,31 @@ export default defineConfig({
         storageState: adminAuthStorageStatePath,
       },
     },
+    ...(oidcTestsEnabled
+      ? [
+          {
+            name: 'oidc-no-auth',
+            testMatch: /.*\.oidc\.no-auth\.spec\.ts/,
+            use: {
+              ...devices['Desktop Chrome'],
+              viewport: { width: 1440, height: 1200 },
+              baseURL: adminBaseURL,
+              storageState: { cookies: [], origins: [] },
+              launchOptions: { slowMo: process.env.CI ? 0 : 200 },
+            },
+          },
+          {
+            name: 'oidc-admin',
+            dependencies: ['admin-setup'],
+            testMatch: /.*\.oidc\.admin\.spec\.ts/,
+            use: {
+              ...devices['Desktop Chrome'],
+              viewport: { width: 1440, height: 1200 },
+              baseURL: adminBaseURL,
+              storageState: adminAuthStorageStatePath,
+            },
+          },
+        ]
+      : []),
   ],
 })

@@ -12,7 +12,7 @@
 #   5. Runs Playwright E2E with PLAYWRIGHT_SKIP_STACK_BOOT=1.
 #   6. Tears down the stack with `just down` only if this script started it.
 #
-# The filter argument is passed through to `pnpm test`, so you can run a single
+# The filter argument is passed through to `npm run test`, so you can run a single
 # spec file, a directory, or a grep tag. Examples:
 #   ./scripts/shared/e2e/run-with-just-stack.sh tests/smoke/pages.spec.ts
 #   ./scripts/shared/e2e/run-with-just-stack.sh @visual
@@ -110,6 +110,8 @@ _load_env_file "$e2e_root/.env.e2e.local" true
 filter="${1:-}"
 run_state_file="$repo_root/.env.run-state"
 started_by_us="false"
+oidc_issuer_pid=""
+just_run_pid=""
 
 load_run_ports() {
   BACKEND_PORT=8000
@@ -177,18 +179,83 @@ wait_for_ports() {
 }
 
 cleanup() {
+  local original_exit_code="$?"
+  local just_run_exit_code=0
+
+  trap - EXIT INT TERM
+
+  if [ -n "$oidc_issuer_pid" ]; then
+    echo "Stopping local OIDC test issuer..."
+    node "$e2e_root/scripts/oidc-test-issuer.mjs" --stop "$oidc_issuer_pid" || true
+    oidc_issuer_pid=""
+  fi
   if [ "$started_by_us" = "true" ]; then
     echo "Shutting down just-run services..."
     just down || true
+    if [ -n "$just_run_pid" ]; then
+      # `just down` 已向本脚本启动的服务进程发 SIGTERM，外层 `just run all`
+      # 因此可能以 143 退出。等待并只忽略这次主动清理产生的退出码；保留
+      # Playwright 的原始结果，并继续报告其他意外的 runner 退出码。
+      set +e
+      wait "$just_run_pid"
+      just_run_exit_code="$?"
+      set -e
+      if [ "$just_run_exit_code" -ne 0 ] && [ "$just_run_exit_code" -ne 143 ] \
+        && [ "$original_exit_code" -eq 0 ]; then
+        original_exit_code="$just_run_exit_code"
+      fi
+    fi
   fi
+
+  exit "$original_exit_code"
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+if [ "${PLAYWRIGHT_OIDC_TESTS:-0}" = "1" ]; then
+  load_run_ports
+  if is_port_listening "$BACKEND_PORT" \
+    || is_port_listening "$FRONTEND_ADMIN_PORT" \
+    || is_port_listening "$FRONTEND_PUBLIC_PORT"; then
+    echo "ERROR: OIDC E2E requires a fresh just-run stack; stop the existing services first." >&2
+    exit 1
+  fi
+
+  export PLAYWRIGHT_BASE_URL="${PLAYWRIGHT_BASE_URL:-http://127.0.0.1:$FRONTEND_PUBLIC_PORT}"
+  export PLAYWRIGHT_ADMIN_BASE_URL="${PLAYWRIGHT_ADMIN_BASE_URL:-http://localhost:$FRONTEND_ADMIN_PORT}"
+  helper_script="$e2e_root/scripts/oidc-test-issuer.mjs"
+  if [ ! -f "$helper_script" ]; then
+    echo "ERROR: PLAYWRIGHT_OIDC_TESTS=1 requires $helper_script." >&2
+    exit 1
+  fi
+  issuer_result="$(node "$helper_script" --start)"
+  oidc_issuer_pid="$(node -e 'const value = JSON.parse(process.argv[1]); if (!Number.isInteger(value.pid)) process.exit(2); process.stdout.write(String(value.pid))' "$issuer_result")"
+  issuer_url="$(node -e 'const value = JSON.parse(process.argv[1]); if (typeof value.issuerUrl !== "string") process.exit(2); process.stdout.write(value.issuerUrl)' "$issuer_result")"
+  export PLAYWRIGHT_OIDC_ISSUER_URL="$issuer_url"
+  export ADMIN_OIDC_ENABLED=true
+  export ADMIN_OIDC_ISSUER="$issuer_url"
+  export ADMIN_OIDC_CLIENT_ID=playwright-admin-client
+  export ADMIN_OIDC_CLIENT_SECRET=playwright-oidc-test-secret
+  export ADMIN_OIDC_CALLBACK_URI="$PLAYWRIGHT_ADMIN_BASE_URL/api/admin/auth/oidc/callback"
+  export USER_OIDC_ENABLED=true
+  export USER_OIDC_ISSUER="$issuer_url"
+  export USER_OIDC_CLIENT_ID=playwright-public-client
+  export USER_OIDC_CLIENT_SECRET=playwright-oidc-test-secret
+  export USER_OIDC_CALLBACK_URI="$PLAYWRIGHT_BASE_URL/api/auth/oidc/callback"
+fi
 
 if are_services_running; then
   echo "Services already running (ports $BACKEND_PORT/$FRONTEND_ADMIN_PORT/$FRONTEND_PUBLIC_PORT), reusing them."
 else
   echo "Starting services with 'just run all'..."
-  just run all &
+  if [ "${PLAYWRIGHT_OIDC_TESTS:-0}" = "1" ]; then
+    # OIDC 真入口流程期间保持后端进程稳定；测试文件保存不能触发 WatchFiles 重载。
+    # shellcheck disable=SC2016
+    just run all 'backend_cmd=uv run uvicorn backend.main:app --host 0.0.0.0 --port "$PORT" --no-access-log' &
+  else
+    just run all &
+  fi
   just_run_pid=$!
   started_by_us="true"
 
@@ -207,6 +274,9 @@ export PLAYWRIGHT_BASE_URL="${PLAYWRIGHT_BASE_URL:-http://127.0.0.1:$FRONTEND_PU
 export PLAYWRIGHT_ADMIN_BASE_URL="${PLAYWRIGHT_ADMIN_BASE_URL:-http://localhost:$FRONTEND_ADMIN_PORT}"
 export PLAYWRIGHT_HEALTH_URL="${PLAYWRIGHT_HEALTH_URL:-http://127.0.0.1:$BACKEND_PORT/health}"
 export PLAYWRIGHT_API_BASE_URL="${PLAYWRIGHT_API_BASE_URL:-http://127.0.0.1:$BACKEND_PORT}"
+if [ "${PLAYWRIGHT_OIDC_TESTS:-0}" = "1" ] && [ -z "$filter" ]; then
+  filter="tests/auth/admin-oidc-sign-in.oidc.no-auth.spec.ts tests/auth/registration-policy-and-user-oidc.oidc.admin.spec.ts tests/admin/organizations-and-admins.oidc.admin.spec.ts"
+fi
 
 # Put this run's artifacts under a single timestamped directory so multiple
 # runs do not overwrite each other. Each Playwright worker inherits this env
@@ -220,29 +290,29 @@ cd "$e2e_root"
 
 case "$filter" in
   "")
-    pnpm test
+    npm run test
     ;;
   headed|headed\ *)
     # Support both `just e2e headed` and `just e2e "headed <file-or-filter>"`.
     headed_filter="${filter#headed}"
     headed_filter="${headed_filter# }"
     if [ -z "$headed_filter" ]; then
-      pnpm test:headed
+      npm run test:headed
     else
       # shellcheck disable=SC2086
-      pnpm test:headed $headed_filter
+      npm run test:headed -- $headed_filter
     fi
     ;;
   smoke)
-    pnpm test:smoke
+    npm run test:smoke
     ;;
   no-auth)
-    pnpm test:no-auth
+    npm run test:no-auth
     ;;
   *)
     # Allow flags like `--headed` to be passed through as separate arguments,
     # e.g. `just e2e tests/smoke/public-home.no-auth.spec.ts --headed`.
     # shellcheck disable=SC2086
-    pnpm test $filter
+    npm run test -- $filter
     ;;
 esac

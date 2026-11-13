@@ -10,6 +10,9 @@ from backend.core.auth.password_policy import (
     is_password_within_byte_limit,
 )
 from backend.core.shared.interfaces.password_hasher import PasswordHasher
+from backend.core.shared.interfaces.registration_policy_provider import (
+    RegistrationPolicyProvider,
+)
 from backend.core.shared.interfaces.session_store import ISessionStore
 from backend.core.shared.interfaces.user_account_repository import (
     UserAccountRepository,
@@ -22,9 +25,8 @@ _MIN_PASSWORD_LENGTH: int = 6
 class AuthService:
     """跨域复用的认证用例编排。
 
-    通过注入不同的用户仓库、会话存储与是否允许注册标志，同一份编排逻辑
-    即可服务 public 与 admin 两个相互隔离的认证域，避免重复实现两套近似
-    的登录 / 登出 / 会话解析流程。
+    通过注入不同的用户仓库、会话存储与注册策略，同一份编排逻辑即可服务
+    public 与 admin 两个相互隔离的认证域。
     """
 
     def __init__(
@@ -34,7 +36,7 @@ class AuthService:
         repository: UserAccountRepository,
         session_store: ISessionStore,
         password_hasher: PasswordHasher,
-        allow_registration: bool,
+        registration_policy_provider: RegistrationPolicyProvider | None,
     ) -> None:
         """初始化认证服务。
 
@@ -43,13 +45,14 @@ class AuthService:
             repository (UserAccountRepository): 本域用户仓库。
             session_store (ISessionStore): 本域会话存储（独立命名空间）。
             password_hasher (PasswordHasher): 密码哈希实现。
-            allow_registration (bool): 是否允许自助注册（admin 域为 False）。
+            registration_policy_provider (RegistrationPolicyProvider | None):
+                注册策略端口；admin 域传 None。
         """
         self._domain = domain
         self._repository = repository
         self._session_store = session_store
         self._password_hasher = password_hasher
-        self._allow_registration = allow_registration
+        self._registration_policy_provider = registration_policy_provider
 
     def authenticate(self, identifier: str, password: str) -> tuple[str, AuthenticatedPrincipal]:
         """校验凭据并创建会话。
@@ -77,6 +80,8 @@ class AuthService:
             raise ValueError("用户名或密码错误")
         if not matched_account.is_active:
             raise ValueError("账号已被禁用")
+        if matched_account.organization_is_active is False:
+            raise ValueError("组织已停用，请联系管理员")
 
         session_token: str = self._session_store.create(matched_account.id)
         return session_token, self._to_principal(matched_account)
@@ -97,7 +102,7 @@ class AuthService:
         Raises:
             ValueError: 当前域不支持注册、入参非法或标识已被占用。
         """
-        if not self._allow_registration:
+        if self._registration_policy_provider is None:
             raise ValueError("当前域不支持注册")
 
         normalized_identifier: str = identifier.strip().lower()
@@ -111,6 +116,11 @@ class AuthService:
             raise ValueError("显示名称不能为空")
         if len(cleaned_password) < _MIN_PASSWORD_LENGTH:
             raise ValueError("密码长度至少 6 位")
+        registration_policy = self._registration_policy_provider.get_registration_policy()
+        if not registration_policy.allows("password", normalized_identifier):
+            if registration_policy.registration_mode in {"closed", "oidc_only"}:
+                raise ValueError("registration_not_allowed")
+            raise ValueError("email_domain_not_allowed")
         if self._repository.find_by_identifier(normalized_identifier) is not None:
             raise ValueError("邮箱已被注册")
 
@@ -120,8 +130,14 @@ class AuthService:
             display_name=cleaned_display_name,
             password_hash=self._password_hasher.hash(cleaned_password),
             is_active=True,
+            email=normalized_identifier,
         )
-        created_account: UserAccount = self._repository.create(new_account)
+        try:
+            created_account: UserAccount = self._repository.create_unique(new_account)
+        except ValueError as conflict_error:
+            if str(conflict_error) == "email_conflict":
+                raise ValueError("邮箱已被注册") from conflict_error
+            raise
         session_token: str = self._session_store.create(created_account.id)
         return session_token, self._to_principal(created_account)
 
@@ -149,7 +165,7 @@ class AuthService:
         if session_record is None:
             return None
         account: UserAccount | None = self._repository.get_by_id(session_record.user_id)
-        if account is None or not account.is_active:
+        if account is None or not account.is_active or account.organization_is_active is False:
             return None
         return self._to_principal(account)
 
@@ -167,4 +183,7 @@ class AuthService:
             display_name=account.display_name,
             identifier=account.identifier,
             domain=self._domain,
+            role=account.role,
+            organization_id=account.organization_id,
+            organization_name=account.organization_name,
         )

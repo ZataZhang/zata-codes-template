@@ -46,6 +46,21 @@ register_window_seconds = 3600
 [auth]
 # 本地 HTTP 开发设为 false；生产 Compose 默认覆盖为 true。
 cookie_secure = false
+admin_bootstrap_email = ""
+
+[admin_oidc]
+enabled = true
+issuer = ""
+client_id = ""
+client_secret = ""
+callback_uri = ""
+
+[user_oidc]
+enabled = true
+issuer = ""
+client_id = ""
+client_secret = ""
+callback_uri = ""
 
 # =============================================================================
 # Template Sync Settings

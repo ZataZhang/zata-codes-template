@@ -182,7 +182,18 @@
     "noAccount": "还没有账号？",
     "signUpNow": "立即注册",
     "haveAccount": "已有账号？",
-    "signInNow": "立即登录"
+    "signInNow": "立即登录",
+    "enterpriseSignIn": "使用企业账号继续",
+    "orContinueWith": "或使用以下方式继续",
+    "oidcFailure": "企业账号登录失败，请联系管理员。",
+    "oidcAccountExists": "该邮箱已注册，请使用密码登录。",
+    "loadingRegistrationPolicy": "正在检查注册状态…",
+    "registrationPolicyUnavailable": "注册服务暂时不可用，请稍后重试。",
+    "registrationClosed": "当前未开放注册。",
+    "oidcOnlyRegistration": "当前仅支持使用企业账号注册。",
+    "enterpriseSignInUnavailable": "企业账号登录暂不可用，请联系管理员。",
+    "emailDomainNotAllowed": "该邮箱域名暂不允许注册。",
+    "registrationNotAllowed": "当前不允许密码注册，请联系管理员。"
   },
   "dashboard": {
     "title": "工作区",

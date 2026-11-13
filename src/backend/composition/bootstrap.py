@@ -39,6 +39,7 @@ def seed_admin_user(
 
     bootstrap_username = config.auth.admin_bootstrap_username.strip()
     bootstrap_password = config.auth.admin_bootstrap_password.get_secret_value()
+    bootstrap_email = config.auth.admin_bootstrap_email.strip().lower()
     if not bootstrap_username or not bootstrap_password:
         logger.info("未配置 AUTH_ADMIN_BOOTSTRAP_*，跳过初始管理员种子。")
         return
@@ -47,6 +48,14 @@ def seed_admin_user(
     password_hash = password_hasher.hash(bootstrap_password)
     if existing_admin is not None:
         admin_repository.set_password(existing_admin.id, password_hash)
+        if bootstrap_email:
+            admin_repository.set_email(existing_admin.id, bootstrap_email)
+        admin_repository.set_active(existing_admin.id, True)
+        admin_repository.set_role_and_organization(
+            existing_admin.id,
+            "platform",
+            None,
+        )
         logger.info("已同步初始管理员密码：%s", normalized_username)
         return
     admin_repository.create(
@@ -56,6 +65,9 @@ def seed_admin_user(
             display_name=bootstrap_username,
             password_hash=password_hash,
             is_active=True,
+            email=bootstrap_email or None,
+            role="platform",
+            organization_id=None,
         )
     )
     logger.info("已创建初始管理员：%s", normalized_username)

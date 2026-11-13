@@ -2,22 +2,53 @@
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, Request, Response, status
 from fastapi.exceptions import HTTPException
+from fastapi.responses import RedirectResponse
+from zata_oidc import OidcAuthenticationError
 
 from backend.api.dependencies import (
     PUBLIC_SESSION_COOKIE_NAME,
     get_api_rate_limiter,
     get_public_auth_service,
+    get_public_oidc_login_service,
+    get_registration_policy_service,
 )
-from backend.api.schemas import LoginRequest, RegisterRequest, UserSessionResponse
+from backend.api.schemas import (
+    LoginRequest,
+    PublicRegistrationStatusResponse,
+    RegisterRequest,
+    UserSessionResponse,
+)
 from backend.api.security.authentication import authenticate_and_set_cookie
+from backend.api.security.oidc_callback_response import (
+    OidcCallbackResponseConfig,
+    build_oidc_callback_response,
+)
 from backend.api.security.rate_limiter import ApiRateLimiter
 from backend.api.security.session_cookies import clear_session_cookie, set_session_cookie
 from backend.core.auth.models import AuthenticatedPrincipal
+from backend.core.auth.oidc_login import OidcLoginError, OidcLoginService
+from backend.core.auth.registration_policy_service import (
+    RegistrationPolicyService,
+    RegistrationPolicyUnavailable,
+)
 from backend.core.auth.service import AuthService
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
+_OIDC_TRANSACTION_COOKIE_NAME: str = "public_oidc_txn"
+_OIDC_TRANSACTION_COOKIE_MAX_AGE_SECONDS: int = 600
+_OIDC_CALLBACK_RESPONSE_CONFIG = OidcCallbackResponseConfig(
+    portal="public",
+    transaction_cookie_name=_OIDC_TRANSACTION_COOKIE_NAME,
+    session_cookie_name=PUBLIC_SESSION_COOKIE_NAME,
+    failure_redirect_path="/login",
+    success_redirect_path="/app/dashboard",
+    account_conflict_error="account_exists",
+)
 
 
 def _to_session_response(principal: AuthenticatedPrincipal) -> UserSessionResponse:
@@ -70,6 +101,11 @@ async def register_endpoint(
             display_name=request_payload.display_name,
             password=request_payload.password,
         )
+    except RegistrationPolicyUnavailable:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="registration_policy_unavailable",
+        ) from None
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     set_session_cookie(
@@ -79,6 +115,87 @@ async def register_endpoint(
         secure=request.app.state.auth_cookie_secure,
     )
     return _to_session_response(principal)
+
+
+@router.get("/registration-status", response_model=PublicRegistrationStatusResponse)
+def public_registration_status_endpoint(
+    policy_service: RegistrationPolicyService = Depends(get_registration_policy_service),
+) -> PublicRegistrationStatusResponse:
+    """公开返回注册渠道状态，不泄露邮箱域名白名单。"""
+    try:
+        policy = policy_service.get_registration_policy()
+    except RegistrationPolicyUnavailable as unavailable_error:
+        logger.warning(
+            "registration_policy outcome=unavailable reason=%s",
+            unavailable_error.reason,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="registration_policy_unavailable",
+        ) from None
+    return PublicRegistrationStatusResponse(registration_mode=policy.registration_mode)
+
+
+@router.get("/oidc/status")
+def public_oidc_status_endpoint(request: Request) -> dict[str, bool]:
+    """返回 public OIDC 登录入口是否已完成配置。"""
+    return {"enabled": bool(request.app.state.public_oidc_enabled)}
+
+
+@router.get("/oidc/start")
+def public_oidc_start_endpoint(
+    request: Request,
+    oidc_login_service: OidcLoginService | None = Depends(get_public_oidc_login_service),
+) -> Response:
+    """创建一次性 public OIDC 登录事务并跳转身份中心。"""
+    if oidc_login_service is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="oidc_unavailable",
+        )
+    try:
+        transaction_id, authorization_url = oidc_login_service.begin_login()
+    except (OidcAuthenticationError, OidcLoginError) as oidc_error:
+        reason = (
+            oidc_error.reason.value
+            if isinstance(oidc_error, OidcAuthenticationError)
+            else oidc_error.reason.value
+        )
+        logger.warning("auth.oidc outcome=failed portal=public reason=%s", reason)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="oidc_unavailable",
+        ) from None
+    except Exception:
+        logger.warning("auth.oidc outcome=failed portal=public reason=provider_unavailable")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="oidc_unavailable",
+        ) from None
+    redirect_response = RedirectResponse(authorization_url, status_code=status.HTTP_302_FOUND)
+    redirect_response.set_cookie(
+        key=_OIDC_TRANSACTION_COOKIE_NAME,
+        value=transaction_id,
+        httponly=True,
+        secure=request.app.state.auth_cookie_secure,
+        samesite="lax",
+        path="/",
+        max_age=_OIDC_TRANSACTION_COOKIE_MAX_AGE_SECONDS,
+    )
+    return redirect_response
+
+
+@router.get("/oidc/callback")
+def public_oidc_callback_endpoint(
+    request: Request,
+    oidc_login_service: OidcLoginService | None = Depends(get_public_oidc_login_service),
+) -> Response:
+    """消费 public OIDC 回调并安全创建或恢复 public 会话。"""
+    return build_oidc_callback_response(
+        request,
+        oidc_login_service,
+        _OIDC_CALLBACK_RESPONSE_CONFIG,
+    )
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

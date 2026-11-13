@@ -48,6 +48,7 @@
 - `src/backend/infrastructure/logging/`：承接日志实现。
 - `src/backend/infrastructure/persistence/`：承接数据库与持久化实现。
 - `src/backend/infrastructure/helpers.py`：承接通用无状态辅助函数。
+- `packages/oidc-client/`：与四层 backend 边界分离的可安装 `zata-oidc` Python 包，只提供 OIDC 协议客户端与协议契约，不依赖 `src/backend/`。
 - `src/backend/engines/`：承接项目特定的平台能力（如爬虫、OCR 等）和 MCP server（由派生项目扩展）。
 - `tests/`：用于验证边界、用例和适配器行为。
 
@@ -195,35 +196,45 @@ Nacos 顶层 JSON 使用大写环境变量名，可选的 `runtime_config` 对�
 
 ## 认证与会话域
 
-系统采用**两套物理隔离的认证域**，互不穿透：
+系统采用**两套物理隔离的认证域**，互不穿透；两域均可配置 OIDC 登录，成功后仍使用既有 Redis Session 与 Cookie。完整账户规则、回调配置及组织权限见[认证与会话逻辑](authentication.md)和[OIDC 企业账号登录指南](../guides/oidc.md)：
 
 | 维度 | public 域（C 端用户） | admin 域（内部管理员） |
 |---|---|---|
-| 用户表 | `public_user`（开放自助注册，UUID 主键） | `admin_user`（仅种子创建，不开放注册） |
-| 登录端点 | `/auth/*`（login/register/logout/me） | `/admin/auth/*`（login/logout/me，无 register） |
+| 用户表 | `public_user`（按注册策略自助注册，UUID 主键） | `admin_user`（由种子或平台管理员创建，不开放自助注册） |
+| 登录端点 | `/auth/*`（login/register/logout/me）及可选 OIDC start/callback | `/admin/auth/*`（login/logout/me）及可选 OIDC start/callback |
 | 会话 Cookie | `session_id` | `admin_session_id` |
 | 会话存储 | Redis，key 前缀 `public:session:` | Redis，key 前缀 `admin:session:` |
 | 鉴权依赖 | `get_current_public_user` | `get_current_admin_user` |
-| 主要 API | `/auth/*`（无业务资源） | `/admin/users` 管理 public 用户 |
+| 权限 | 用户由所属组织归类 | `platform` 管理全局；`org` 只能访问白名单中的本组织用户接口 |
+| 主要 API | `/auth/*`（无内置业务资源） | 平台管理员管理组织、管理员和 public 用户 |
 | 前端 | `frontend-public` | `frontend-admin` |
 
 ### 隔离保证
 
 - 两域各自独立的用户表、Cookie 与 Redis 命名空间；一个域的会话 token 在另一域命名空间中查不到，因此 public 会话无法通过 admin 守卫（反之亦然），均返回 401。
-- admin 专属路由集中在 `src/backend/api/admin/`，统一经 `get_current_admin_user` 守卫。
+- admin 专属路由集中在 `src/backend/api/admin/`；仅平台管理员可用的入口经 `get_current_platform_admin` 守卫，组织管理员仅由明确白名单放行。
 - 模板不内置业务资源，业务模块由派生项目添加；admin 域仅用于管理，不拥有业务资源。
-- 被禁用（`is_active=false`）的用户既有会话在下次请求解析时立即失效。
+- 被本地禁用（`is_active=false`）的 public/admin 账户，其既有会话在下次请求解析时立即失效；管理员密码与 OIDC 新登录同时拒绝。组织停用会阻止其普通用户和组织管理员登录，并令已有会话下次请求失效，平台管理员不受影响。
 
 ### 共享编排（避免重复）
 
-登录 / 登出 / 会话解析 / 注册的编排集中在单一的 `core/auth/AuthService`；两域通过注入不同的用户仓库、会话存储（不同前缀）与 `allow_registration` 标志复用同一实现，从而在保持物理隔离的同时不复制近似认证代码。`UserAccount` 领域模型位于 `core/shared/models/`，作为跨层契约被基础设施层仓库实现引用。
+密码登录 / 登出 / 会话解析 / 注册的编排集中在 `core/auth/AuthService`；OIDC 登录由 `core/auth/OidcLoginService` 复用协议网关和一次性事务流程，并注入不同认证域的账户匹配规则。注册策略由宿主应用保存到系统设置，缺少策略记录时使用 `both` 与空域名白名单；记录损坏或存储故障时拒绝创建账户。`UserAccount` 领域模型位于 `core/shared/models/`，作为跨层契约被基础设施层仓库实现引用。
+
+### OIDC 协议包边界
+
+`packages/oidc-client/` 的分发名为 `zata-oidc`，公开导入为 `zata_oidc`。它负责 OIDC discovery、授权 URL、PKCE、token endpoint 请求、JWKS 与 ID Token 验证；宿主 backend 负责登录事务、账号匹配/首绑/注册策略、角色与组织授权、会话 Cookie、持久化和路由。`core/auth/` 依赖包的公开协议契约，基础设施装配并注入 `HttpOidcClient`。应用仍是模块化单体，不新增身份中心服务或部署进程。
+
+登录事务由宿主以 `state`、`nonce` 和 PKCE verifier 组成，按认证域保存到 Redis 一次性记录，十分钟过期；callback 消费后完成匹配并签发原有 admin/public Session。管理员首次绑定要求身份中心邮箱已验证且与一条启用、未绑定的本地管理员邮箱唯一匹配。绑定后按 `(issuer, subject)` 识别。解绑仅清除本地绑定，不会停用身份中心身份、清除其邮件或密码、也不会执行全局登出；仍符合规则的原身份可以再次绑定。需要阻止全部本地登录时，应由平台管理员禁用该管理员，这会拒绝密码与 OIDC 新登录，并令已有会话在下一次 API 请求失效。完整说明见[OIDC 企业账号登录指南](../guides/oidc.md)。
 
 ### 关键实现位置
 
 - 领域编排：`core/auth/`（`service.py` / `directory.py` / `models.py`）、`core/shared/models/user_account.py`
+- OIDC 协议包：`packages/oidc-client/src/zata_oidc/`；宿主登录编排：`core/auth/oidc_login.py`
 - 抽象端口：`core/shared/interfaces/`（`user_account_repository.py` / `password_hasher.py` / `session_store.py`）
 - 基础设施实现：`infrastructure/auth/`（`redis_session_store.py` / `bcrypt_password_hasher.py` / `redis_client.py`）、`infrastructure/persistence/repos/user_account_repo.py`、`infrastructure/persistence/models/{public_user,admin_user}.py`
 - 接入层：`api/auth_router.py`、`api/admin/`、`api/dependencies.py`
 - 初始管理员：`composition/bootstrap.py` 启动时按
-  `AUTH_ADMIN_BOOTSTRAP_*` 幂等种子创建
-- 运行依赖：Redis（`REDIS_URL`）；密码以 bcrypt 哈希持久化
+  `AUTH_ADMIN_BOOTSTRAP_*` 幂等种子创建或同步；首次企业账号绑定可配置
+  `AUTH_ADMIN_BOOTSTRAP_EMAIL`
+- OIDC：`packages/oidc-client/` 提供独立可安装协议客户端；宿主应用持有账户匹配、Redis 一次性事务、注册策略、角色、组织、会话与 Cookie。默认开关为 true，缺少连接参数时只关闭对应 OIDC 入口，不阻断启动或密码登录。
+- 运行依赖：Redis（`REDIS_URL`）；密码以 bcrypt 哈希持久化；OIDC 只在配置完整且启用时请求外部 OIDC issuer

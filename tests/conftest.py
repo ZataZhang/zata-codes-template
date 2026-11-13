@@ -50,6 +50,11 @@ _REALDB_SCOPE: str = "realdb"
 _REALDB_TEST_FILES: frozenset[str] = frozenset(
     {
         "tests/backend/test_admin_user_management.py",
+        "tests/backend/test_admin_oidc_login.py",
+        "tests/backend/test_user_oidc_login.py",
+        "tests/backend/test_registration_policy_api.py",
+        "tests/backend/test_admin_user_organization_scope.py",
+        "tests/backend/test_organization_security.py",
         "tests/backend/test_auth_domains.py",
         "tests/backend/test_admin_run_trace_api.py",
     }

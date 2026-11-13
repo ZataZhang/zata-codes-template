@@ -75,6 +75,20 @@ export async function apiPost<T>(
   }
 }
 
+/** 发送 PUT 请求并返回响应数据。 */
+export async function apiPut<T>(
+  path: string,
+  body?: unknown,
+  config?: AxiosRequestConfig
+): Promise<T> {
+  try {
+    const response = await apiClient.put<T>(path, body, config)
+    return response.data
+  } catch (error) {
+    handleApiError(error)
+  }
+}
+
 /** Send a PATCH request with an optional body and return the typed response data. */
 export async function apiPatch<T>(
   path: string,

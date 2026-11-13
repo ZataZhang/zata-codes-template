@@ -2,22 +2,43 @@
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, Request, Response, status
 from fastapi.exceptions import HTTPException
+from fastapi.responses import RedirectResponse
+from zata_oidc import OidcAuthenticationError
 
 from backend.api.dependencies import (
     ADMIN_SESSION_COOKIE_NAME,
     get_admin_auth_service,
+    get_admin_oidc_login_service,
     get_api_rate_limiter,
 )
 from backend.api.schemas import AdminSessionResponse, LoginRequest
 from backend.api.security.authentication import authenticate_and_set_cookie
+from backend.api.security.oidc_callback_response import (
+    OidcCallbackResponseConfig,
+    build_oidc_callback_response,
+)
 from backend.api.security.rate_limiter import ApiRateLimiter
 from backend.api.security.session_cookies import clear_session_cookie
 from backend.core.auth.models import AuthenticatedPrincipal
+from backend.core.auth.oidc_login import OidcLoginService
 from backend.core.auth.service import AuthService
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/admin/auth", tags=["admin-auth"])
+_OIDC_TRANSACTION_COOKIE_NAME: str = "admin_oidc_txn"
+_OIDC_TRANSACTION_COOKIE_MAX_AGE_SECONDS: int = 600
+_OIDC_CALLBACK_RESPONSE_CONFIG = OidcCallbackResponseConfig(
+    portal="admin",
+    transaction_cookie_name=_OIDC_TRANSACTION_COOKIE_NAME,
+    session_cookie_name=ADMIN_SESSION_COOKIE_NAME,
+    failure_redirect_path="/sign-in",
+    success_redirect_path="/",
+)
 
 
 def _to_session_response(principal: AuthenticatedPrincipal) -> AdminSessionResponse:
@@ -26,6 +47,9 @@ def _to_session_response(principal: AuthenticatedPrincipal) -> AdminSessionRespo
         user_id=principal.user_id,
         display_name=principal.display_name,
         username=principal.identifier,
+        role=principal.role,
+        organization_id=principal.organization_id,
+        organization_name=principal.organization_name,
     )
 
 
@@ -76,3 +100,53 @@ async def admin_me_endpoint(
     if principal is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="会话无效或已过期")
     return _to_session_response(principal)
+
+
+@router.get("/oidc/status")
+async def admin_oidc_status_endpoint(request: Request) -> dict[str, bool]:
+    """返回管理员 OIDC 登录入口是否已完成配置。"""
+    return {"enabled": bool(request.app.state.admin_oidc_enabled)}
+
+
+@router.get("/oidc/start")
+def admin_oidc_start_endpoint(
+    request: Request,
+    oidc_login_service: OidcLoginService | None = Depends(get_admin_oidc_login_service),
+) -> Response:
+    """创建短时登录事务并跳转到企业身份中心。"""
+    if oidc_login_service is None:
+        raise HTTPException(status_code=503, detail="oidc_unavailable")
+    try:
+        transaction_id, authorization_url = oidc_login_service.begin_login()
+    except OidcAuthenticationError as oidc_error:
+        reason = oidc_error.reason.value
+        logger.warning("auth.oidc outcome=failed portal=admin reason=%s", reason)
+        raise HTTPException(status_code=503, detail="oidc_unavailable") from None
+    except Exception:
+        logger.warning("auth.oidc outcome=failed portal=admin reason=provider_unavailable")
+        raise HTTPException(status_code=503, detail="oidc_unavailable") from None
+
+    response = RedirectResponse(authorization_url, status_code=status.HTTP_302_FOUND)
+    response.set_cookie(
+        key=_OIDC_TRANSACTION_COOKIE_NAME,
+        value=transaction_id,
+        httponly=True,
+        secure=request.app.state.auth_cookie_secure,
+        samesite="lax",
+        path="/",
+        max_age=_OIDC_TRANSACTION_COOKIE_MAX_AGE_SECONDS,
+    )
+    return response
+
+
+@router.get("/oidc/callback")
+def admin_oidc_callback_endpoint(
+    request: Request,
+    oidc_login_service: OidcLoginService | None = Depends(get_admin_oidc_login_service),
+) -> Response:
+    """消费回调事务，按已验证身份签发现有管理员会话。"""
+    return build_oidc_callback_response(
+        request,
+        oidc_login_service,
+        _OIDC_CALLBACK_RESPONSE_CONFIG,
+    )

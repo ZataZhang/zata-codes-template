@@ -1402,6 +1402,18 @@ wheels = [
 ]
 
 [[package]]
+name = "joserfc"
+version = "1.8.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cryptography" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/74/31/5c3f27e82c92a7bbe1f028033ff19e0251540395c9be244c01a50de42bdb/joserfc-1.8.0.tar.gz", hash = "sha256:cbf03cb2c6db8cc5289f1ef8718842e53dba244b4c0de5fefa0c0eaee4bde8db", size = 241023, upload-time = "2026-11-03T10:45:57.948Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5e/7e/7ffaae13415e8f51c8e8d5d1845f2de7a27ebf2717e97a38d7e7446d6030/joserfc-1.8.0-py3-none-any.whl", hash = "sha256:176b836ac7ed9a46a88629e24076314b475f33a75d0bad7f26146e572eed7c79", size = 73147, upload-time = "2026-11-03T10:45:56.531Z" },
+]
+
+[[package]]
 name = "jsonschema"
 version = "4.26.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3557,6 +3569,7 @@ dependencies = [
     { name = "python-json-logger" },
     { name = "redis" },
     { name = "uvicorn", extra = ["standard"] },
+    { name = "zata-oidc" },
 ]
 
 [package.optional-dependencies]
@@ -3606,6 +3619,7 @@ requires-dist = [
     { name = "python-json-logger", specifier = ">=2.0.7" },
     { name = "redis", specifier = ">=5.0.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30.0" },
+    { name = "zata-oidc", directory = "packages/oidc-client" },
 ]
 provides-extras = ["sandbox-docker", "tracing"]
 
@@ -3626,3 +3640,20 @@ dev = [
     { name = "pytest-xdist", specifier = ">=3.6.0" },
     { name = "ruff", specifier = "==0.7.4" },
 ]
+
+[[package]]
+name = "zata-oidc"
+version = "0.1.0"
+source = { directory = "packages/oidc-client" }
+dependencies = [
+    { name = "httpx" },
+    { name = "joserfc" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "httpx", specifier = ">=0.27.0" },
+    { name = "joserfc", specifier = ">=1.8.0" },
+    { name = "pytest", marker = "extra == 'test'", specifier = ">=8.3.0" },
+]
+provides-extras = ["test"]

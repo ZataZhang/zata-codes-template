@@ -10,8 +10,16 @@ from typing import Any, AsyncIterator
 
 from fastapi import FastAPI
 from mcp.server.transport_security import TransportSecuritySettings
+from zata_oidc import HttpOidcClient, OidcAuthenticationError, OidcClientSettings
 
-from backend.api.admin import admin_auth_router, admin_user_router, run_trace_router
+from backend.api.admin import (
+    admin_auth_router,
+    admin_directory_router,
+    admin_user_router,
+    organization_router,
+    registration_policy_router,
+    run_trace_router,
+)
 from backend.api.auth_router import router as auth_router
 from backend.api.health_router import health_router
 from backend.api.metrics_router import metrics_router
@@ -23,8 +31,13 @@ from backend.api.security.rate_limiter import ApiRateLimitConfig, ApiRateLimiter
 from backend.composition.auth_wiring import build_auth_components
 from backend.composition.bootstrap import run_migrations, seed_admin_user, seed_public_user
 from backend.composition.run_tracing_wiring import build_run_tracing_components
+from backend.core.auth.admin_directory import AdminDirectory
+from backend.core.auth.organization_directory import OrganizationDirectory
 from backend.engines.mcp.server import create_mcp_server
 from backend.infrastructure.auth.redis_client import create_redis_client
+from backend.infrastructure.auth.redis_oidc_transaction_store import (
+    RedisOidcTransactionStore,
+)
 from backend.infrastructure.config.providers import (
     build_config_provider,
 )
@@ -32,6 +45,15 @@ from backend.infrastructure.config.settings import config, startup_runtime_confi
 from backend.infrastructure.logger import logger
 from backend.infrastructure.persistence.database import SessionLocal
 from backend.infrastructure.security.redis_rate_limit_store import RedisRateLimitStore
+
+
+def _close_oidc_gateways(fastapi_app: FastAPI) -> None:
+    """关闭应用装配的 OIDC HTTP 客户端。"""
+    for state_attribute in ("admin_oidc_gateway", "public_oidc_gateway"):
+        oidc_gateway = getattr(fastapi_app.state, state_attribute, None)
+        close_gateway = getattr(oidc_gateway, "close", None)
+        if callable(close_gateway):
+            close_gateway()
 
 
 def _load_project_version() -> str:
@@ -84,10 +106,16 @@ def create_app(
             finally:
                 await config_provider.close()
         if mcp_server is not None:
-            async with mcp_server.session_manager.run():
-                yield
+            try:
+                async with mcp_server.session_manager.run():
+                    yield
+            finally:
+                _close_oidc_gateways(_app)
         else:
-            yield
+            try:
+                yield
+            finally:
+                _close_oidc_gateways(_app)
 
     fastapi_app = FastAPI(
         title=config.app_name,
@@ -127,6 +155,72 @@ def create_app(
     fastapi_app.state.public_auth_service = auth_components.public_auth_service
     fastapi_app.state.admin_auth_service = auth_components.admin_auth_service
     fastapi_app.state.public_user_directory = auth_components.public_user_directory
+    fastapi_app.state.registration_policy_service = auth_components.registration_policy_service
+    fastapi_app.state.admin_user_repository = auth_components.admin_user_repository
+    fastapi_app.state.public_user_repository = auth_components.public_user_repository
+    fastapi_app.state.admin_session_store = auth_components.admin_session_store
+    fastapi_app.state.public_session_store = auth_components.public_session_store
+    fastapi_app.state.password_hasher = auth_components.password_hasher
+    fastapi_app.state.admin_oidc_transaction_store = RedisOidcTransactionStore(
+        redis_client=redis_client,
+        key_prefix="oidc:txn:admin:",
+    )
+    fastapi_app.state.public_oidc_transaction_store = RedisOidcTransactionStore(
+        redis_client=redis_client,
+        key_prefix="oidc:txn:public:",
+    )
+    admin_oidc_gateway = None
+    if config.admin_oidc.is_configured:
+        try:
+            admin_oidc_gateway = HttpOidcClient(
+                OidcClientSettings(
+                    issuer=config.admin_oidc.issuer,
+                    client_id=config.admin_oidc.client_id,
+                    client_secret=config.admin_oidc.client_secret.get_secret_value(),
+                    callback_uri=config.admin_oidc.callback_uri,
+                )
+            )
+        except OidcAuthenticationError as oidc_error:
+            logger.warning(
+                "auth.oidc outcome=unavailable portal=admin reason=%s",
+                oidc_error.reason.value,
+            )
+    else:
+        logger.info("auth.oidc outcome=unavailable portal=admin reason=configuration_incomplete")
+    fastapi_app.state.admin_oidc_gateway = admin_oidc_gateway
+    fastapi_app.state.admin_oidc_enabled = admin_oidc_gateway is not None
+
+    public_oidc_gateway = None
+    if config.user_oidc.is_configured:
+        try:
+            public_oidc_gateway = HttpOidcClient(
+                OidcClientSettings(
+                    issuer=config.user_oidc.issuer,
+                    client_id=config.user_oidc.client_id,
+                    client_secret=config.user_oidc.client_secret.get_secret_value(),
+                    callback_uri=config.user_oidc.callback_uri,
+                )
+            )
+        except OidcAuthenticationError as oidc_error:
+            logger.warning(
+                "auth.oidc outcome=unavailable portal=public reason=%s",
+                oidc_error.reason.value,
+            )
+    else:
+        logger.info("auth.oidc outcome=unavailable portal=public reason=configuration_incomplete")
+    fastapi_app.state.public_oidc_gateway = public_oidc_gateway
+    fastapi_app.state.public_oidc_enabled = public_oidc_gateway is not None
+    fastapi_app.state.registration_policy_service = auth_components.registration_policy_service
+    fastapi_app.state.system_setting_repository = auth_components.system_setting_repository
+
+    organization_repository = auth_components.organization_repository
+    fastapi_app.state.organization_directory = OrganizationDirectory(organization_repository)
+    fastapi_app.state.admin_directory = AdminDirectory(
+        admin_repository=auth_components.admin_user_repository,
+        organization_repository=organization_repository,
+        password_hasher=auth_components.password_hasher,
+        oidc_enabled=admin_oidc_gateway is not None,
+    )
 
     run_tracing_components = build_run_tracing_components(session_factory)
     fastapi_app.state.run_trace_use_case = run_tracing_components.run_trace_use_case
@@ -143,7 +237,10 @@ def create_app(
     for api_router in (
         auth_router,
         admin_auth_router,
+        admin_directory_router,
         admin_user_router,
+        organization_router,
+        registration_policy_router,
         run_trace_router,
         health_router,
     ):

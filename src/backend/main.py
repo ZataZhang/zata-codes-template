@@ -33,6 +33,7 @@ def main() -> None:
         host="0.0.0.0",
         port=backend_port,
         reload=True,
+        access_log=False,
     )
 
 

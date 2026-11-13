@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zata-oidc"
+version = "0.1.0"
+description = "Provider-neutral OIDC client and protocol contracts for Python hosts"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.27.0",
+    "joserfc>=1.8.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8.3.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

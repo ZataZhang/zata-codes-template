@@ -1480,8 +1480,12 @@ test type="local": _check-completion
     # 故上面两个数组统一用 ${arr[@]+"${arr[@]}"} 形式展开，允许它们为空。
     pytest_exit_code=0
     if [ "{{type}}" = "all" ]; then
+        all_test_targets=(tests/)
+        if [ -d packages/oidc-client/tests ]; then
+            all_test_targets+=(packages/oidc-client/tests/)
+        fi
         "${with_timeout[@]}" "$pytest_timeout_seconds" \
-            uv run pytest tests/ -v -m '' \
+            uv run pytest ${all_test_targets[@]+"${all_test_targets[@]}"} -v -m '' \
             ${full_test_flags[@]+"${full_test_flags[@]}"} || pytest_exit_code=$?
     elif [ "{{type}}" = "real" ]; then
         "${with_timeout[@]}" "$pytest_timeout_seconds" \
@@ -1505,6 +1509,13 @@ test type="local": _check-completion
         "${with_timeout[@]}" "$pytest_timeout_seconds" \
             uv run pytest "$local_test_target" "$pytest_verbosity_flag" \
             ${local_test_flags[@]+"${local_test_flags[@]}"} || pytest_exit_code=$?
+        if [ -d packages/oidc-client/tests ]; then
+            echo "🔍 Running local OIDC package tests..."
+            "${with_timeout[@]}" "$pytest_timeout_seconds" \
+                uv run pytest packages/oidc-client/tests "$pytest_verbosity_flag" \
+                -n0 -p no:cacheprovider \
+                -m 'not slow and not real_api and not redis' || pytest_exit_code=$?
+        fi
     fi
 
     if [ "$pytest_exit_code" -ne 0 ]; then

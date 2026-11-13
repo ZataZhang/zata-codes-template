@@ -6,7 +6,9 @@ import { UserAuthForm } from './components/user-auth-form'
 
 /** Render the SignIn component. */
 export function SignIn() {
-  const { redirect } = useSearch({ from: '/(auth)/sign-in' })
+  const { redirect, sso_error: ssoError } = useSearch({
+    from: '/(auth)/sign-in',
+  })
   const { t } = useTranslation()
 
   return (
@@ -26,7 +28,10 @@ export function SignIn() {
 
         <Card className='border shadow-lg'>
           <CardContent className='pt-6'>
-            <UserAuthForm redirectTo={redirect} />
+            <UserAuthForm
+              redirectTo={redirect}
+              ssoError={ssoError === '1' || ssoError === 1}
+            />
           </CardContent>
         </Card>
 

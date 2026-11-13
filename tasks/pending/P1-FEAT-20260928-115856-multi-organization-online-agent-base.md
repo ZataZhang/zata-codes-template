@@ -52,6 +52,8 @@
 - 组织管理员管理本组织 Agent 和 Skill；普通成员只能使用被授权能力；平台管理员管理组织与管理员（经上游 PRD 的页面）。
 - 迁移采用当前模板的目录、认证和 Run 契约作为目标形态；来源仓库是可挑选的实现参考，不整体覆盖目标仓库。
 - 现有 Run 数据归入上游 PRD 创建的显式默认组织，迁移不删除历史运行或事件。
+- 业务数据的组织归属**在创建时写入、之后不改**：root Run、会话、资源、Skill、Agent 取创建者此刻所在组织；委派子 Run 与远端 A2A Task 继承 root Run；产物继承所属 Run。读取不按「当前成员名下的数据」反推。
+- 归属为空表示无法归属（迁移找不到依据），对任何人不可见、不删除，迁移日志按表输出数量供复核。
 - `just copy` 与 `sync-template` 继续是正式能力，派生项目收到可运行的中性底座。
 - 默认模型仍由现有三项环境配置提供；不把来源仓库的供应商目录当成平台事实。
 - 首版的本地执行只开放模型与平台审核的受控工具，Agent 间调用只走受权 A2A；租户不能上传代码运行或请求执行命令。现有沙箱端口保留为工程能力，但不对在线租户开放。
@@ -91,11 +93,13 @@
 
 本 PRD 在该地基上落地业务数据的组织范围：Agent、Run/event、Skill、资产按组织隔离；组织管理员管理本组织 Agent 与 Skill；平台管理员不因平台身份自动浏览成员内容。组织身份由服务端会话解析，不能由请求方任意指定；存量 Run 归入上游创建的默认组织，事件与历史不得丢失。错误的归属会造成跨组织数据暴露，属于本 PRD 最重要的安全决定。
 
+**已确认（2026-11-13 对话）：数据属于产生它的组织，不随人走。** 上游 PRD 允许平台管理员调整普通用户的所属组织。若组织范围按「这个组织**当前**有哪些成员、取这些人名下的全部数据」计算，用户从 A 调到 B 后，A 期间的运行、资源和产物会整体出现在 B 的视图里，A 反而看不到——这是派生项目里实际复现过的跨组织泄露。因此：每条业务数据创建时记录组织；成员本人读取要求「本人所有**且**产生于本人当前所在组织」，调组织后在新组织里看不到旧数据，也不能往旧组织的会话或运行里追加任务；组织管理员读取按「产生于本组织」过滤，可查看已调走成员在本组织期间的数据（沿用审计要求），看不到成员在别的组织产生的数据。
+
 **请确认：** 业务数据（Agent / Run / Skill / 资产）按上述组织范围隔离，是否同意？
 
 - [ ] 同意（推荐）
 
-**验收：** 用两个真实组织的账号互相读取 Agent、运行、Skill 和资产都失败；迁移后原账号仍能读取自己的历史。
+**验收：** 用两个真实组织的账号互相读取 Agent、运行、Skill 和资产都失败；迁移后原账号仍能读取自己的历史；平台管理员把成员从 A 调到 B 后，成员本人和 B 的管理员都看不到 A 期间的数据，A 的管理员仍能看到。
 
 ```mermaid
 erDiagram
@@ -149,7 +153,7 @@ erDiagram
 
 ### 自动门禁，不需要逐项人工审阅
 
-前后端契约、迁移双数据库验证、品牌与敏感内容扫描、模板复制和同步行为，由执行器和独立 verifier 用可复现证据核验。
+前后端契约、迁移双数据库验证、品牌与敏感内容扫描、模板复制和同步行为，由执行器和独立 verifier 用可复现证据核验。两条守卫测试防回归：带 `owner_id` 的业务表必须记录组织归属（或写明豁免原因）；每个 HTTP 接口必须挂鉴权依赖（或在写明原因的公开名单里）。
 
 ### 本次明确不涉及
 
@@ -190,13 +194,13 @@ erDiagram
 
 现有近路：`src/backend/core/shared/models/run.py`、`interfaces/run_repository.py`、`infrastructure/persistence/models/run.py` 已提供 Run/event/trace；`core/auth/`、`composition/auth_wiring.py` 已提供双域登录；`core/shared/interfaces/sandbox_provider.py` 与 `infrastructure/sandbox/` 已提供沙箱端口；`composition/app_factory.py` 是唯一应用装配入口。`frontend-public/` 是 Next.js 公开站点与应用壳，`frontend-admin/` 是 Vite/TanStack 管理后台。
 
-复用来源：`../ai-assistant/src/backend/core/agent/`、`core/organization/`、`core/skill/`、`engines/agent_adapters/` 与相关 API/仓库实现供语义对照；`../freshai/src/backend/core/use_cases/user_skills/version_history.py`、`import_export.py` 与相应持久化路径供 Skill 版本规则对照。迁入前逐项确认依赖闭包、版权/分发权和目标仓库现有实现；不复制两个来源的迁移文件或 package lock。
+复用来源：`../ai-assistant/src/backend/core/agent/`、`core/organization/`、`core/skill/`、`engines/agent_adapters/` 与相关 API/仓库实现供语义对照（「数据不随人走」的写入盖章与员工可见条件见 `infrastructure/persistence/repos/organization_data_scope.py`，两条守卫见 `tests/guards/test_tenant_owned_tables_have_organization.py` 与 `tests/guards/test_routes_require_authentication.py`；注意其组织模型是独立成员关系表，与本模板的 `public_user.organization_id` 不同，只对照规则不搬实现）；`../freshai/src/backend/core/use_cases/user_skills/version_history.py`、`import_export.py` 与相应持久化路径供 Skill 版本规则对照。迁入前逐项确认依赖闭包、版权/分发权和目标仓库现有实现；不复制两个来源的迁移文件或 package lock。
 
 架构约束：保持 `api → core`，跨层通过 `core/shared/interfaces/`，由 `composition/` 装配；`infrastructure/` 不反向导入 core；已有 Run/event 是唯一事实源。独立 Agent 之间采用 A2A 作为外部互通协议，入站 A2A Task 映射到既有 Run，出站远端 Task ID 关联父 Run，不能另建第二套运行事实源；MCP/受控工具仍是 Agent 使用工具的边界，不替代 A2A。A2A 协议适配放在 API 与 engine/infrastructure 边界，由 core 用例执行授权与运行；只选官方 1.0 HTTP+JSON/REST 绑定，避免同时维护 JSON-RPC/gRPC 适配。新 Alembic 文件只用 `just new-migration <slug>` 生成，验证唯一 head。`just copy` 保留，`sync-template` 默认仍跳过项目特定目录。来源仓库的 `/api/agent-runs` 前缀不能原样搬入：目标前端客户端已有 `/api` baseURL，浏览器请求应为 `/api/agent-runs`，后端实际路由应为 `/agent-runs`，避免 `/api/api/agent-runs`。
 
 前端影响：`frontend-public/app/(app)/` 增加 Agent 目录、会话/运行页面和状态组件，经 `frontend-public/lib/api/` 调用新 API；`frontend-admin/src/routes/_authenticated/`、`features/` 与 `api/` 增加组织、Agent、Skill 管理，复用现有运行轨迹入口。前台使用 `just run frontend-public` / `pnpm build`，后台使用 `just run frontend` / `pnpm build`，真实 UI 使用 `just e2e` 和独立 Playwright 包；先按该包 `README.md` 适配用例。部署沿用 `docker-compose.yml`、`deploy/vps-traefik/docker-compose.yml` 和 `docs/guides/deployment.md` 的三服务形态，检查生产 Next rewrite 与后台 Nginx `/api` 转发。
 
-现有 PRD 关系：硬依赖 `tasks/pending/P1-FEAT-20261112-142923-organizations-and-two-tier-admins.md`（组织表、用户归属、两级管理员与权限基线，见 §8）；与 `P1-SECURITY-20261112-134527-admin-oidc-sign-in.md`、`P1-FEAT-20261112-134527-registration-policy-and-user-oidc.md` 无顺序依赖，但都改 `core/auth/`，后合者解决冲突。归档的 `20260518-164340-prd-decouple-template-from-business.md` 曾明确将模板定位为无业务骨架，本 PRD 经用户新目标批准后取代这项**产品定位**，但保留其避免厂商硬编码和分发污染的原则。归档的双域认证 PRD 继续作为认证兼容依据。
+现有 PRD 关系：硬依赖 `tasks/archive/P1-FEAT-20261112-142923-organizations-and-two-tier-admins.md`（组织表、用户归属、两级管理员与权限基线，见 §8）；与 `P1-SECURITY-20261112-134527-admin-oidc-sign-in.md`、`P1-FEAT-20261112-134527-registration-policy-and-user-oidc.md` 无顺序依赖，但都改 `core/auth/`，后合者解决冲突。归档的 `20260518-164340-prd-decouple-template-from-business.md` 曾明确将模板定位为无业务骨架，本 PRD 经用户新目标批准后取代这项**产品定位**，但保留其避免厂商硬编码和分发污染的原则。归档的双域认证 PRD 继续作为认证兼容依据。
 
 主要重复风险：三套 Run/会话状态、两个 Skill 版本写入口、把 Next 前台整体换成 Vite、源仓库迁移链并入模板、复制品牌包。各项均须禁止。
 
@@ -315,7 +319,7 @@ ER 目标结构见 §2 决策一。具体新表、索引、外键和存量 Run �
   behavior: "组织 B 的成员或管理员尝试读取组织 A 的 Agent、运行、事件、Skill 或资产"
   reviewer: verifier
   real_entry: "just run 后，通过 /api/auth/login、/api/admin/auth/login 取得两个组织的会话并请求正式 /api/* 与 /api/admin/* 入口"
-  expected: "所有请求均被拒绝或返回不可见；响应和轨迹不泄露组织 A 的名称、内容、凭据或存在性；迁移后原账号仍能读取自己的历史"
+  expected: "所有请求均被拒绝或返回不可见；响应和轨迹不泄露组织 A 的名称、内容、凭据或存在性；迁移后原账号仍能读取自己的历史；平台管理员经正式接口把成员从 A 调到 B 后，该成员新登录读不到 A 期间的 Run/资源/产物（按 ID 直取也是不存在），不能向 A 期间的会话追加 Run，B 管理员视图不含这些数据，A 管理员视图仍含且留审计"
   mock_boundary: "模型响应可替换；认证路由、服务端 scope、数据库事务、Run/Skill/资产仓库与 HTTP 序列化必须真实"
   tier: R3
   test_layer: e2e
@@ -476,6 +480,8 @@ ER 目标结构见 §2 决策一。具体新表、索引、外键和存量 Run �
 ### Data And Security Acceptance
 
 - [ ] `rv-1` 从真实会话跨组织负控变红/修复后变绿，PostgreSQL/MySQL 升降级、历史 Run/event 数量和归属对账均留证。
+- [ ] 成员调组织场景（`rv-1` 扩展部分）通过：调走后本人与新组织管理员看不到旧数据，原组织管理员可见；证据为经正式接口调组织后的新请求读取结果。
+- [ ] 两条守卫测试存在并通过，且各自的内置违规样例被点名：`tests/guards/` 下「带 `owner_id` 的表必须有 `organization_id` 或带原因豁免」与「每个路由挂鉴权依赖或在带原因的公开名单中」。
 - [ ] 组织停用、被禁用 Agent、无模型配置及未审核工具均拒绝新的 Run，且不泄露内容、不产生伪成功；在线 API 无租户代码或命令执行路径。证据来自正式 API 与新请求查询。
 - [ ] `rv-7` 证明入站凭据与任务读取按组织隔离，出站仅访问已批准对端；DNS/IP、重定向和凭据传播负控没有外呼或泄漏，任务流与取消在新请求中一致。
 
@@ -502,7 +508,7 @@ ER 目标结构见 §2 决策一。具体新表、索引、外键和存量 Run �
 
 ## 10. Functional Requirements
 
-- **FR-1**：组织范围生效。复用上游 PRD 的组织、用户归属与两级管理员；Agent、Run、Skill 与资产写入时记录组织归属，会话由服务端解析组织，请求方不能指定。
+- **FR-1**：组织范围生效。复用上游 PRD 的组织、用户归属与两级管理员；Agent、Run、Skill 与资产写入时记录组织归属且之后不改（子 Run、远端 Task 继承 root Run，产物继承所属 Run），会话由服务端解析组织，请求方不能指定。成员调组织后旧数据留在原组织：本人读取要求「本人所有且产生于当前组织」，组织管理员读取按「产生于本组织」过滤，不按当前成员列表反推。
 - **FR-2**：权限隔离。Agent、Run/event、Skill、资源/产物与管理员诊断按组织和 owner 授权；平台管理员无默认业务数据读取权；越权响应无存在性泄漏。
 - **FR-3**：Agent 治理。组织管理员创建、配置、发布和停用稳定 Agent 身份；成员只见授权且可运行的 Agent，不可运行时显示原因。
 - **FR-4**：运行闭环。成员从真实前台创建、观察、取消并重开 Run；Agent、模型、Skill 在创建时冻结快照；既有 Run/event 是唯一持久事实源，管理轨迹从其投影。
@@ -513,6 +519,7 @@ ER 目标结构见 §2 决策一。具体新表、索引、外键和存量 Run �
 - **FR-9**：验收证据。双数据库迁移、真实 API 与浏览器入口、跨组织负控、独立读取、原型对照和最终树身份形成可审查证据包。
 - **FR-10**：在线部署入口。现有后端、公开前台和管理后台的生产容器形态可用；两个前端通过同源 `/api` 代理访问后端，认证 Cookie 生效，模型密钥只留服务端。
 - **FR-11**：A2A 双向互通。首版使用 A2A 1.0 HTTP+JSON/REST：对每个获准对外发布的 Agent 提供独立受权 Agent Card 与消息、Task 查询/列表、流/订阅及取消入口；入站身份和目标按服务凭据授权并映射现有 Run。出站只调用管理员登记且经平台策略批准的外部 Agent，限制目标网络地址和凭据传播，远端 Task 归入父 Run 轨迹。未授权或跨组织请求不泄漏任务存在性；重试、断流、取消与失败状态一致。不声称支持未实现的协议绑定、推送通知或公网目录发现。
+- **FR-12**：防回归守卫。新增两条守卫测试：带 `owner_id` 的 ORM 表必须有 `organization_id`，否则在文件内豁免表写明原因；每个 `APIRoute` 的依赖树必须含鉴权依赖，否则在带原因的公开名单中。两者各带一个必失败的内置违规样例作负控。
 
 ## 11. Non-Goals
 
@@ -569,3 +576,11 @@ ER 目标结构见 §2 决策一。具体新表、索引、外键和存量 Run �
 - Reason: 用户 2026-11-12 要求把本 PRD 升级到现行 PRD skill（Machine Contract v6）格式，与同系列 OIDC / 组织 PRD 一致。
 - Impact: 仅格式与人审呈递契约升级；行为样例、oracle、FR、已确认决策实质与依赖关系均不变。
 - Review: 待人工确认（§1 解读与 §2 各决策勾选框）。
+
+### 补入「数据不随人走」与两条防回归守卫
+- Type: scope
+- Before: FR-1 只要求写入时记录组织归属；未规定成员调组织后旧数据的归属与可见性；无守卫测试要求。
+- After: §1「我默默定了这些」、§2 决策一、rv-1、FR-1 写明数据属于产生它的组织、创建后不改、子 Run/产物继承 root；新增 FR-12 两条守卫测试；§9 增加对应验收项。
+- Reason: 上游 PRD 允许平台管理员调整成员所属组织；派生项目实践中，「按当前成员反推组织范围」在成员换组织后造成了跨组织读取，用户 2026-11-13 要求把该结论与守卫补入模板。
+- Impact: 实施时需在 Run、会话、资源、Skill、产物等表加组织列并按上述规则读写；迁移回填依据见 §1；不改变上游 PRD 已交付的组织与管理员模型。
+- Review: 用户已在对话中确认方向；§1 解读与 §2 决策一勾选框仍待勾选。
