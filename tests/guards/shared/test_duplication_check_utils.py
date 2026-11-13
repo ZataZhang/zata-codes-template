@@ -126,34 +126,26 @@ def merging_repo(committed_repo: Path) -> Path:
     return committed_repo
 
 
-def test_merge_excludes_lines_brought_in_from_merge_head(merging_repo: Path) -> None:
-    """合并进行中，原样来自 MERGE_HEAD 的文件不进候选集，行区间也不含 main 带来的第 15 行。"""
-    candidate_paths = duplication_utils.select_incremental_paths(
-        raw_path_texts=[],
-        repo_root=merging_repo,
-        allowed_suffixes={".py"},
-        allowed_root_paths=[Path("src")],
-    )
-    ranges = duplication_utils.changed_line_ranges(merging_repo, Path("src/sample.py"))
+def test_merge_counts_only_lines_not_brought_in_from_merge_head(merging_repo: Path) -> None:
+    """合并进行中，原样来自 MERGE_HEAD 的文件与行不算改动；合并时额外写下的行仍算。"""
 
-    assert candidate_paths == [Path("src/sample.py")]
-    assert ranges == [(3, 3)]
+    def _select_candidates() -> list[Path]:
+        return duplication_utils.select_incremental_paths(
+            raw_path_texts=[],
+            repo_root=merging_repo,
+            allowed_suffixes={".py"},
+            allowed_root_paths=[Path("src")],
+        )
 
+    sample_path = Path("src/sample.py")
+    # from_main.py 与 main 第 15 行都是 main 原样带进来的，只剩 feature 自己的第 3 行
+    assert _select_candidates() == [sample_path]
+    assert duplication_utils.changed_line_ranges(merging_repo, sample_path) == [(3, 3)]
 
-def test_merge_keeps_lines_written_while_resolving(merging_repo: Path) -> None:
-    """合并期间额外写下的行（与 HEAD、MERGE_HEAD 都不同）仍算改动，被合并进来的行不算。"""
-    sample_file = merging_repo / "src" / "sample.py"
+    sample_file = merging_repo / sample_path
     lines = sample_file.read_text(encoding="utf-8").splitlines()
     lines[9] = "line_10_resolution"
     sample_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-    candidate_paths = duplication_utils.select_incremental_paths(
-        raw_path_texts=[],
-        repo_root=merging_repo,
-        allowed_suffixes={".py"},
-        allowed_root_paths=[Path("src")],
-    )
-    ranges = duplication_utils.changed_line_ranges(merging_repo, Path("src/sample.py"))
-
-    assert candidate_paths == [Path("src/sample.py")]
-    assert ranges == [(10, 10)]
+    assert _select_candidates() == [sample_path]
+    assert duplication_utils.changed_line_ranges(merging_repo, sample_path) == [(10, 10)]
