@@ -52,6 +52,7 @@ from __future__ import annotations
 import os
 import re
 import sys
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -62,6 +63,7 @@ for _import_path in (_JUST_SCRIPTS_PATH, _SHARED_GUARDS_PATH):
     if str(_import_path) not in sys.path:
         sys.path.insert(0, str(_import_path))
 
+import prd_acceptance  # noqa: E402
 import prd_detail  # noqa: E402
 import prd_status  # noqa: E402
 from prd_status_fixtures import (  # noqa: E402
@@ -635,3 +637,72 @@ def test_render_prd_table_with_detail_prints_summary_under_row(tmp_path: Path, c
     plain_output_text = capsys.readouterr().out
 
     assert "为头像上传引入分片上传。" not in plain_output_text
+
+
+def test_render_prd_block_prints_labeled_field_lines(tmp_path: Path, capsys) -> None:
+    """默认字段块：五个主字段各占一行，占位符行（DEPS）不打印。"""
+    main_repo_path = init_main_repo(tmp_path / "repo")
+    prd_record = collect_fixture_record(main_repo_path)
+
+    prd_status.render_prd_block(
+        prd_record,
+        PLAIN_PALETTE,
+        main_repo_path,
+        main_repo_path / "tasks" / "evidence",
+        main_repo_path / "tasks" / "pending",
+        main_repo_path / "tasks" / "archive",
+    )
+    raw_output_text = capsys.readouterr().out
+
+    for raw_label_text in ("PRIORITY:", "FILE:", "TITLE:", "ACCEPTANCE:", "EVIDENCE:"):
+        assert raw_label_text in raw_output_text
+    assert "CHECKLIST:" in raw_output_text
+    assert "IMPACT:" in raw_output_text
+    # fixture 没有 §8 依赖章节，DEPS 是占位符，不该拖着一行短横线
+    assert "DEPS:" not in raw_output_text
+
+
+def test_render_prd_block_list_separates_records(tmp_path: Path, capsys) -> None:
+    """多条记录逐块输出，条目之间只插一条分隔线。"""
+    main_repo_path = init_main_repo(tmp_path / "repo")
+    prd_record = collect_fixture_record(main_repo_path)
+
+    prd_status.render_prd_block_list(
+        [prd_record, prd_record],
+        PLAIN_PALETTE,
+        main_repo_path,
+        main_repo_path / "tasks" / "evidence",
+        main_repo_path / "tasks" / "pending",
+        main_repo_path / "tasks" / "archive",
+    )
+    raw_output_text = capsys.readouterr().out
+
+    assert raw_output_text.count("PRIORITY:") == 2
+    assert raw_output_text.count("─" * 60) == 1
+
+
+def test_acceptance_badge_covers_all_banner_states(tmp_path: Path) -> None:
+    """横幅三态各自渲染成对应的一个标签；无横幅时显式标「未标注」而非猜一个状态。"""
+    main_repo_path = init_main_repo(tmp_path / "repo")
+    prd_record = collect_fixture_record(main_repo_path)
+
+    raw_expected_pairs = [
+        (prd_acceptance.ACCEPTANCE_STATUS_ACCEPTED, "✅ 已验收"),
+        (prd_acceptance.ACCEPTANCE_STATUS_VALIDATION_BLOCKED, "⏸️ 验证阻塞"),
+        (prd_acceptance.ACCEPTANCE_STATUS_AWAITING_HUMAN, "🧍 待人工验收"),
+        (prd_acceptance.ACCEPTANCE_STATUS_NOT_STARTED, "⬜ 未开工"),
+        ("", "未标注"),
+    ]
+    for raw_status_text, raw_expected_text in raw_expected_pairs:
+        status_record = replace(prd_record, acceptance_status=raw_status_text)
+
+        assert prd_status.format_acceptance_badge(status_record, PLAIN_PALETTE) == raw_expected_text
+
+
+def test_placeholder_detection_ignores_ansi_codes() -> None:
+    """带颜色码的占位符仍算占位符，否则字段块会多打一行无信息的占位行。"""
+    colored_palette = prd_status.Palette(enabled=True)
+
+    assert prd_status.is_placeholder_cell(colored_palette.dim("-")) is True
+    assert prd_status.is_placeholder_cell(colored_palette.dim("")) is True
+    assert prd_status.is_placeholder_cell(colored_palette.dim("⛔ blocked by x")) is False
