@@ -110,30 +110,36 @@ Keep evidence reachable for the repository's audit horizon. Do not delete an evi
 
 ## Human Review Page
 
-A delivery otherwise scatters the story across four places: the PR body, the stable
-evidence comment, the evidence branch and the raw logs. A reviewer should need one.
-Produce **one human review page** per delivery and link it as the first line of the
-stable evidence comment.
+The consolidated review page is the **same artifact** the PRD flow already requires
+when the banner flips to `🧍 待人工验收`: `tasks/evidence/<prd-stem>/human-review-checklist.md`,
+plus its optional interactive companion `human-review-checklist.html`. This section
+extends it, it does not define a second page.
 
-- Path: a stable location a reviewer can open in one click. On a Keda-style orphan
-  branch that is `human-review.md` at the branch root, next to the raw artifacts, so
-  relative image links render. When evidence lives in the code branch, put the page
-  in the evidence directory.
-- Sections, in this order:
+What changes here:
+
+- **Every delivery gets one page, PRD or not.** An Issue with no PRD file writes
+  `tasks/evidence/issue-<N>/human-review-checklist.md` instead. A reviewer should
+  never have to reconstruct the story from the PR body, the evidence comment, the
+  evidence branch and the raw logs.
+- **It is the first thing the stable evidence comment links.** Link the Markdown page
+  (renders inline on GitHub), and the HTML companion when one exists.
+- **The page answers "what do I have to verify", not "what did you run".** Order:
   1. verdict in one sentence — what changed and what it means for the user;
-  2. **what the human must verify** — one row per user-visible behaviour, each with
-     the exact expected observation and one command or click path to re-check it;
-     derive the rows from PRD Section 9.1 and the RV items and write them in plain
-     language, never as test names or file paths only;
-  3. before/after or primary-demo visuals, **embedded inline**; a bare link is not a
+  2. one row per user-visible behaviour, each with the exact expected observation and
+     one command or click path to re-check it; derive the rows from Section 9.1 and
+     the RV items and write them in plain language, never as test names or paths only;
+  3. before/after or primary-demo visuals **embedded inline**; a bare link is not a
      presentation. GitHub renders images and animated GIFs inline but not MP4, so a
-     recorded flow ships as MP4 for local viewing plus either an inline GIF or
-     enough inline frames that the page alone shows the result;
+     recorded flow ships as MP4 for local viewing plus either an inline GIF or enough
+     inline frames that the page alone shows the result;
   4. the decisions the merger is accepting, in plain language;
   5. a validation table: command, level, result, log link;
   6. risk, and the cleanup command for the evidence branch.
-- The page must be regenerated whenever the verified head changes; a page that
-  describes an older head is stale evidence and blocks the acceptance event.
+- **Raw artifacts stay reachable from the page.** Inline images must resolve, either
+  from the code branch or from the evidence branch the page is published on; a page
+  whose images 404 is worse than no page.
+- The page must be regenerated whenever the verified head changes; a page describing
+  an older head is stale evidence and blocks the acceptance event.
 
 ## Local Review Bundle
 
