@@ -70,6 +70,9 @@ class Run:
     status: RunStatus
     last_event_seq: int
     created_at: datetime
+    organization_id: str | None = None
+    conversation_id: str | None = None
+    execution_snapshot: dict[str, object] | None = None
     input_content: tuple[dict[str, object], ...] = ()
     started_at: datetime | None = None
     finished_at: datetime | None = None
@@ -355,6 +358,9 @@ class RunQuery:
     status: RunStatus | None = None
     created_after: datetime | None = None
     created_before: datetime | None = None
+    organization_id: str | None = None
+    owner_id: str | None = None
+    conversation_id: str | None = None
     offset: int = 0
     limit: int = 50
 

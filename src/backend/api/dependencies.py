@@ -12,6 +12,7 @@ from fastapi import Depends, HTTPException, Request
 from starlette.status import HTTP_401_UNAUTHORIZED, HTTP_403_FORBIDDEN
 
 from backend.api.security.rate_limiter import ApiRateLimiter
+from backend.core.agent import AgentCatalogUseCase, AgentRunUseCase, SkillUseCase
 from backend.core.auth.admin_directory import AdminDirectory
 from backend.core.auth.directory import PublicUserDirectory
 from backend.core.auth.models import AuthDomain, AuthenticatedPrincipal
@@ -101,6 +102,21 @@ def get_run_trace_use_case(request: Request) -> RunTraceUseCase:
     return request.app.state.run_trace_use_case
 
 
+def get_agent_catalog_use_case(request: Request) -> AgentCatalogUseCase:
+    """从应用状态读取 Agent 治理用例。"""
+    return request.app.state.agent_catalog_use_case
+
+
+def get_agent_run_use_case(request: Request) -> AgentRunUseCase:
+    """从应用状态读取 Canonical Agent Run 用例。"""
+    return request.app.state.agent_run_use_case
+
+
+def get_skill_use_case(request: Request) -> SkillUseCase:
+    """从应用状态读取 Skill 版本用例。"""
+    return request.app.state.skill_use_case
+
+
 def get_api_rate_limiter(request: Request) -> ApiRateLimiter:
     """从应用状态获取共享 API 限流策略。"""
     return request.app.state.api_rate_limiter
@@ -158,6 +174,15 @@ def get_current_platform_admin(
     """获取当前平台管理员；组织管理员访问平台接口时返回 403。"""
     if admin.role != "platform":
         raise HTTPException(status_code=HTTP_403_FORBIDDEN, detail="platform_admin_required")
+    return admin
+
+
+def get_current_organization_admin(
+    admin: AuthenticatedPrincipal = Depends(get_current_admin_user),
+) -> AuthenticatedPrincipal:
+    """获取有固定组织归属的管理员；平台管理员不自动取得业务数据权限。"""
+    if admin.role != "org" or not admin.organization_id:
+        raise HTTPException(status_code=HTTP_403_FORBIDDEN, detail="organization_admin_required")
     return admin
 
 

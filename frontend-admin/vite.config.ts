@@ -32,6 +32,10 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
       },
+      '/a2a': {
+        target: `http://localhost:${backendPort}`,
+        changeOrigin: true,
+      },
     },
   },
   test: {

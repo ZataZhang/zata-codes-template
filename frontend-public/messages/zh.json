@@ -15,6 +15,7 @@
     "pricing": "授权",
     "about": "关于",
     "dashboard": "仪表盘",
+    "agents": "智能体",
     "settings": "设置",
     "signIn": "登录",
     "getStarted": "免费试用"
@@ -198,14 +199,41 @@
   "dashboard": {
     "title": "工作区",
     "signedIn": "已登录",
-    "gettingStartedTitle": "开始搭建你的业务",
-    "gettingStartedBody": "本模板仅保留认证与基础设施骨架，不内置任何业务域。请根据你的项目在四层架构上添加业务模块，例如在 src/backend/core/ 定义用例与领域契约、在 src/backend/engines/ 实现平台能力、在 src/backend/api/ 暴露 HTTP 入口。",
+    "gettingStartedTitle": "你的 Agent 工作区",
+    "gettingStartedBody": "选择组织发布的 Agent，开始对话，并从历史列表重新打开已保存的运行。",
     "accountSettings": "账户设置"
+  },
+  "agents": {
+    "eyebrow": "组织工作区",
+    "title": "智能体",
+    "subtitle": "使用组织发布的智能体，并从历史记录继续对话。",
+    "chooseAgent": "选择智能体",
+    "emptyAgents": "组织还没有发布智能体。",
+    "available": "可运行",
+    "unavailable": "不可运行",
+    "unavailableReason": "原因：{reason}",
+    "noDescription": "暂无说明。",
+    "conversation": "对话",
+    "you": "你",
+    "agentReply": "智能体回复",
+    "runStatus": "状态：{status}",
+    "thinking": "智能体正在运行…",
+    "noReply": "没有记录回复。",
+    "runId": "运行 ID：{id}",
+    "emptyConversation": "选择一个智能体并发送消息即可开始。",
+    "messagePlaceholder": "输入消息…",
+    "send": "发送消息",
+    "history": "最近历史",
+    "emptyHistory": "运行记录会显示在这里。",
+    "loadFailed": "无法加载智能体目录。",
+    "refreshFailed": "无法刷新本次运行。",
+    "historyFailed": "无法重新打开本次运行。",
+    "submitFailed": "无法启动 Agent 运行。"
   },
   "settings": {
     "title": "设置",
     "aboutTitle": "关于本模板",
-    "aboutBody": "本模板仅保留认证与基础设施骨架，不内置任何业务域。请在此基础上搭建你自己的业务。",
+    "aboutBody": "面向多组织的 Agent 基础底座，隔离 Agent、Skill 与运行历史。",
     "signOut": "退出登录"
   },
   "footer": {

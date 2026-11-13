@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import tomllib
 from collections.abc import Callable
 from contextlib import asynccontextmanager
@@ -12,14 +13,17 @@ from fastapi import FastAPI
 from mcp.server.transport_security import TransportSecuritySettings
 from zata_oidc import HttpOidcClient, OidcAuthenticationError, OidcClientSettings
 
+from backend.api.a2a_router import router as a2a_router
 from backend.api.admin import (
     admin_auth_router,
     admin_directory_router,
     admin_user_router,
+    agent_admin_router,
     organization_router,
     registration_policy_router,
     run_trace_router,
 )
+from backend.api.agent_router import router as agent_router
 from backend.api.auth_router import router as auth_router
 from backend.api.health_router import health_router
 from backend.api.metrics_router import metrics_router
@@ -28,6 +32,7 @@ from backend.api.middleware.prometheus_metrics import PrometheusMetricsMiddlewar
 from backend.api.middleware.request_body_limit import RequestBodyLimitMiddleware
 from backend.api.middleware.request_context import RequestContextMiddleware
 from backend.api.security.rate_limiter import ApiRateLimitConfig, ApiRateLimiter
+from backend.composition.agent_wiring import build_agent_components
 from backend.composition.auth_wiring import build_auth_components
 from backend.composition.bootstrap import run_migrations, seed_admin_user, seed_public_user
 from backend.composition.run_tracing_wiring import build_run_tracing_components
@@ -105,16 +110,33 @@ def create_app(
                 _app.state.runtime_config = dict(await config_provider.load())
             finally:
                 await config_provider.close()
+        async def monitor_agent_runs() -> None:
+            """恢复过期 Run 队列并收敛已失去执行租约的 Run。"""
+            while True:
+                agent_components.runs.recover_expired_runs()
+                await asyncio.sleep(5)
+
+        run_monitor_task = asyncio.create_task(monitor_agent_runs())
         if mcp_server is not None:
             try:
                 async with mcp_server.session_manager.run():
                     yield
             finally:
+                run_monitor_task.cancel()
+                try:
+                    await run_monitor_task
+                except asyncio.CancelledError:
+                    pass
                 _close_oidc_gateways(_app)
         else:
             try:
                 yield
             finally:
+                run_monitor_task.cancel()
+                try:
+                    await run_monitor_task
+                except asyncio.CancelledError:
+                    pass
                 _close_oidc_gateways(_app)
 
     fastapi_app = FastAPI(
@@ -224,6 +246,13 @@ def create_app(
 
     run_tracing_components = build_run_tracing_components(session_factory)
     fastapi_app.state.run_trace_use_case = run_tracing_components.run_trace_use_case
+    agent_components = build_agent_components(
+        session_factory,
+        run_tracing_components.run_repository,
+    )
+    fastapi_app.state.agent_catalog_use_case = agent_components.catalog
+    fastapi_app.state.skill_use_case = agent_components.skills
+    fastapi_app.state.agent_run_use_case = agent_components.runs
 
     seed_admin_user(
         auth_components.admin_user_repository,
@@ -242,6 +271,9 @@ def create_app(
         organization_router,
         registration_policy_router,
         run_trace_router,
+        agent_admin_router,
+        agent_router,
+        a2a_router,
         health_router,
     ):
         fastapi_app.include_router(api_router)
