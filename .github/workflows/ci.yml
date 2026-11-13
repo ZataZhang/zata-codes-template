@@ -128,6 +128,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # PR 检出的是合并提交，HEAD^1 即目标分支；深度 2 才能对它做 diff 选测试。
+          fetch-depth: 2
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -172,7 +175,34 @@ jobs:
           DATABASE_URL: ${{ matrix.database_url }}
         run: uv run alembic upgrade head
 
+      # PR 跑轻量档、main 跑全量档：PR 只验与改动相关的测试，让反馈回到一两分钟内；
+      # 全量由合入 main 后的这一步兜底，红了由 report-main-failure 开 Issue 提醒。
+      # 改动无法可靠映射到测试（justfile、依赖锁、shared 等）时 PR 也直接跑全量档。
+      - name: Choose test tier
+        id: test_tier
+        env:
+          TEST_TIERS_BASE_REF: HEAD^1
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "非 PR 事件，跑全量档"
+            echo "tier=full" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          uv run python scripts/shared/testing/test_tiers.py ci-tier >> "$GITHUB_OUTPUT"
+
+      - name: Run PR light test suite
+        if: steps.test_tier.outputs.tier == 'light'
+        env:
+          DATABASE_URL: ${{ matrix.database_url }}
+          TEST_TIERS_BASE_REF: HEAD^1
+          # 补跑预算是本地 30 秒契约的产物；CI 不受它约束，映射到的测试全部跑。
+          JUST_MAPPED_BUDGET_SECONDS: "100000"
+        run: >-
+          uv run pytest tests/ -v -m "not slow and not real_api and not redis"
+          --core-tier
+
       - name: Run local test suite
+        if: steps.test_tier.outputs.tier == 'full'
         # Matches the default addopts filters in pyproject.toml.
         env:
           # 显式指向当前 matrix job 的真实数据库服务。
@@ -273,6 +303,8 @@ jobs:
           PY
 
       - name: Check full-tier test budget
+        # 棘轮只对全量档的 junit 有意义，轻量档跳过。
+        if: steps.test_tier.outputs.tier == 'full'
         # 全量档成本棘轮：test-budget.json 里的 seconds / tests 上限在此比对 junit 结果。
         # 超上限不是"慢了一点"，而是套件膨胀必须被显式承认的时刻——要么交瘦身 PR
         # （`just test-debt` 给证据），要么在同一个 PR 里抬高上限并写明对应的新增能力。
@@ -398,3 +430,33 @@ jobs:
           if-no-files-found: ignore
           # 失败诊断产物，排查窗口一周足够。
           retention-days: 7
+
+  report-main-failure:
+    name: Report main CI failure
+    # PR 只跑轻量档，main 才跑全量；main 红了必须有人看见，否则后续分支都会建在
+    # 坏掉的基线上。已有未关闭的同名 Issue 时只追加评论，不重复开。
+    needs: [frontend-build, validate-template, e2e]
+    if: failure() && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update the main failure Issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          issue_title="main CI 失败：请修复或回滚"
+          issue_body="main 上提交 ${COMMIT_SHA} 的 CI 失败：${RUN_URL}
+
+          PR 只跑轻量档，全量档在 main 上兜底。请修复，或 revert 引入问题的 PR；修好后关闭本 Issue。"
+          existing_issue_number="$(gh issue list --state open --search "\"${issue_title}\" in:title" \
+            --json number --jq '.[0].number // empty')"
+          if [ -n "$existing_issue_number" ]; then
+            gh issue comment "$existing_issue_number" --body "$issue_body"
+          else
+            gh issue create --title "$issue_title" --body "$issue_body"
+          fi

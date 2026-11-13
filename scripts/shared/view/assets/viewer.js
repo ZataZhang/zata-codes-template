@@ -95,6 +95,7 @@
     tabDiff: document.getElementById("tab-diff"),
     tabHistory: document.getElementById("tab-history"),
     commitDiffExitButton: document.getElementById("commit-diff-exit"),
+    commitHistoryBackButton: document.getElementById("commit-history-back"),
     diffCount: document.getElementById("diff-count"),
     filterInput: document.getElementById("filter-input"),
     refreshButton: document.getElementById("refresh-view"),
@@ -177,6 +178,8 @@
     isTogglingMarkdownTask: false,
     /** 非空时，改动视图展示只读的历史提交，而不是当前工作区。 */
     historicalCommitContext: null,
+    /** 离开 Git Log 前的列表滚动位置；切回来时用它抵消重绘带来的回顶。 */
+    historyGraphScrollTop: 0,
     /** 上次刷新的时刻（`performance.now()`，单调、不受改系统时间影响）。 */
     lastRefreshedAtMonotonic: 0,
     // --- 两个视图各自记住「上一次看的那一个」，切视图时还原（见 switchView） ---
@@ -233,6 +236,7 @@
       viewState.historicalCommitContext = null;
     }
     elements.repoName.textContent = workspaceInfo.repo_name;
+    applyRepositoryTint(workspaceInfo.repo_name);
     elements.branchChip.textContent = workspaceInfo.branch;
     elements.branchChip.hidden = !viewState.gitAvailable;
     document.querySelectorAll("[data-git-shortcut]").forEach((shortcutHint) => {
@@ -240,6 +244,20 @@
     });
     window.document.title = `${workspaceInfo.repo_name} · 本机文件查看器`;
     renderViewTabs();
+  }
+
+  /**
+   * 按仓库名派生一个稳定色相，作为整页淡底色，便于区分同时打开的多个仓库。
+   *
+   * 同一仓库刷新或切换分支都不会变色；不同仓库名会落到不同色相。
+   * @param {string} repositoryName 仓库目录名。
+   */
+  function applyRepositoryTint(repositoryName) {
+    let tintHue = 0;
+    for (const nameCharacter of repositoryName) {
+      tintHue = (tintHue * 31 + nameCharacter.codePointAt(0)) % 360;
+    }
+    document.documentElement.style.setProperty("--repo-tint-hue", String(tintHue));
   }
 
   /**
@@ -880,6 +898,21 @@
   }
 
   /**
+   * 结束历史提交的只读浏览，把改动视图的选中项还给工作区。
+   * @returns {boolean} 当前是否确实处在历史提交的改动视图里。
+   */
+  function leaveHistoricalCommitContext() {
+    const commitContext = viewState.historicalCommitContext;
+    if (!commitContext) {
+      return false;
+    }
+    viewState.historicalCommitContext = null;
+    viewState.selectedPath = commitContext.returnSelection.path;
+    viewState.selectedSection = commitContext.returnSelection.section;
+    return true;
+  }
+
+  /**
    * 渲染视图切换按钮。
    */
   function renderViewTabs() {
@@ -899,6 +932,7 @@
       isHistoryView ? "过滤所选提交的文件" : "过滤文件"
     );
     elements.commitDiffExitButton.hidden = !isHistoricalCommitDiffView;
+    elements.commitHistoryBackButton.hidden = !isHistoricalCommitDiffView;
     elements.refreshButton.title = isHistoryView
       ? "重新读取 Git 历史（页面不会自动刷新）"
       : isHistoricalCommitDiffView
@@ -2600,6 +2634,17 @@
     if (!confirmDiscardFileEdits({ restoreContent: false })) {
       return;
     }
+    if (viewState.view === HISTORY_VIEW) {
+      viewState.historyGraphScrollTop =
+        elements.viewerBody.querySelector(".history-graph-list")?.scrollTop || 0;
+    }
+    if (nextView === HISTORY_VIEW && viewState.historicalCommitContext) {
+      // 从历史提交的改动跳去 Git Log，等于结束这次只读浏览：改动视图回到工作区，
+      // 否则之后再点「改动」会莫名其妙又打开那条提交。
+      viewState.selectedPath = viewState.historicalCommitContext.returnSelection.path;
+      viewState.selectedSection = viewState.historicalCommitContext.returnSelection.section;
+      viewState.historicalCommitContext = null;
+    }
     viewState.view = nextView;
     resetFilePreview();
     renderViewTabs();
@@ -2625,6 +2670,11 @@
       }
       if (historyView.hasLoaded()) {
         historyView.render();
+        // 历史视图重绘会按当前 DOM 还原滚动位置，而这里 DOM 是新建的；用离开前记下的位置补回。
+        const historyGraphList = elements.viewerBody.querySelector(".history-graph-list");
+        if (historyGraphList && viewState.historyGraphScrollTop) {
+          historyGraphList.scrollTop = viewState.historyGraphScrollTop;
+        }
       } else {
         await historyView.load();
       }
@@ -2746,15 +2796,15 @@
     void switchView(DIFF_VIEW);
   });
   elements.commitDiffExitButton.addEventListener("click", () => {
-    const commitContext = viewState.historicalCommitContext;
-    if (!commitContext) {
+    if (!leaveHistoricalCommitContext()) {
       return;
     }
-    viewState.historicalCommitContext = null;
-    viewState.selectedPath = commitContext.returnSelection.path;
-    viewState.selectedSection = commitContext.returnSelection.section;
     renderViewTabs();
     void loadChangedFiles();
+  });
+  // 返回 Git Log：提交选择与列表位置都还留在历史视图里，切回去接着看。
+  elements.commitHistoryBackButton.addEventListener("click", () => {
+    void switchView(HISTORY_VIEW);
   });
   elements.tabHistory.addEventListener("click", () => {
     void switchView(HISTORY_VIEW);

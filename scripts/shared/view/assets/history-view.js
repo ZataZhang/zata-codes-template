@@ -10,6 +10,13 @@
   const HISTORY_GRAPH_CELL_WIDTH = 8;
   const HISTORY_GRAPH_LANE_COUNT = 6;
   const HISTORY_GRAPH_SVG_NAMESPACE = "http://www.w3.org/2000/svg";
+  /** 分栏宽度占比的本地存储键：拖拽调整后记住用户偏好。默认两侧都按 1:2 分配。 */
+  const HISTORY_GRAPH_WIDTH_STORAGE_KEY = "viewer.historyGraphWidthPercent";
+  const HISTORY_CODE_WIDTH_STORAGE_KEY = "viewer.historyCodeWidthPercent";
+  const HISTORY_GRAPH_WIDTH_DEFAULT_PERCENT = 100 / 3;
+  const HISTORY_CODE_WIDTH_DEFAULT_PERCENT = 100 / 3;
+  /** 方向键调整分栏宽度时的步长（百分比）。 */
+  const HISTORY_SPLIT_STEP_PERCENT = 2;
 
   /**
    * @typedef {object} HistoryViewContext
@@ -40,6 +47,7 @@
     const historyState = {
       historyPages: [],
       historyBranchRefs: [],
+      historyBaseBranch: "",
       historyOffset: 0,
       historyIsLoaded: false,
       isLoadingHistory: false,
@@ -55,6 +63,22 @@
       isLoadingHistoryDiff: false,
       historyDiffErrorMessage: "",
     };
+    const graphSplitter = createHistorySplitter({
+      storageKey: HISTORY_GRAPH_WIDTH_STORAGE_KEY,
+      cssVariable: "--history-graph-width",
+      defaultPercent: HISTORY_GRAPH_WIDTH_DEFAULT_PERCENT,
+      ariaLabel: "调整提交图与提交详情的宽度",
+      leftMinWidthPx: 320,
+      rightMinWidthPx: 300,
+    });
+    const codeSplitter = createHistorySplitter({
+      storageKey: HISTORY_CODE_WIDTH_STORAGE_KEY,
+      cssVariable: "--history-info-width",
+      defaultPercent: HISTORY_CODE_WIDTH_DEFAULT_PERCENT,
+      ariaLabel: "调整提交信息与代码的宽度",
+      leftMinWidthPx: 260,
+      rightMinWidthPx: 320,
+    });
 
     /**
      * 按需读取下一页 Git 提交图；每页单独绘制，因此只请求并追加尚未显示的提交。
@@ -67,6 +91,7 @@
       if (requestOptions.reset) {
         historyState.historyPages = [];
         historyState.historyBranchRefs = [];
+        historyState.historyBaseBranch = "";
         historyState.historyOffset = 0;
         historyState.historyIsLoaded = false;
         historyState.hasMoreHistory = true;
@@ -107,6 +132,7 @@
         }
         if (historyPage.offset === 0) {
           historyState.historyBranchRefs = historyPage.branch_refs || [];
+          historyState.historyBaseBranch = historyPage.base_branch || "";
         }
         historyState.historyIsLoaded = true;
         historyState.hasMoreHistory = historyPage.has_more;
@@ -208,8 +234,10 @@
     function renderHistoryView() {
       const previousGraphScrollTop =
         elements.viewerBody.querySelector(".history-graph-list")?.scrollTop || 0;
-      const previousDetailScrollTop =
-        elements.viewerBody.querySelector(".history-detail-pane")?.scrollTop || 0;
+      const previousInfoScrollTop =
+        elements.viewerBody.querySelector(".history-info-pane")?.scrollTop || 0;
+      const previousCodeScrollTop =
+        elements.viewerBody.querySelector(".history-code-pane")?.scrollTop || 0;
       elements.viewerPath.textContent = "Git Log Graph";
       elements.copyPathButton.hidden = true;
       elements.openInSystemButton.hidden = true;
@@ -222,8 +250,9 @@
       const remoteBranchCount = historyState.historyBranchRefs.filter(
         (branchRef) => branchRef.kind === "remote"
       ).length;
+      const branchMergeSummary = buildBranchMergeSummary();
       elements.viewerMeta.textContent = historyState.historyOffset
-        ? `已加载 ${historyState.historyOffset} 条 · 本地 ${localBranchCount} · 远程 ${remoteBranchCount}`
+        ? `已加载 ${historyState.historyOffset} 条 · 本地 ${localBranchCount} · 远程 ${remoteBranchCount}${branchMergeSummary}`
         : "按需读取 · 每页 50 条";
 
       const historyLayout = document.createElement("div");
@@ -254,6 +283,10 @@
         branchGroupItems.className = "history-branch-items";
         for (const branchRef of branchRefs) {
           branchGroupItems.append(buildHistoryBranchButton(branchRef));
+          const mergeTargetButton = buildBranchMergeTargetButton(branchRef);
+          if (mergeTargetButton) {
+            branchGroupItems.append(mergeTargetButton);
+          }
         }
         branchGroup.append(branchGroupTitle, branchGroupItems);
         branchList.append(branchGroup);
@@ -267,6 +300,7 @@
 
       const graphList = document.createElement("div");
       graphList.className = "history-graph-list";
+      const mergedLaneBranchByCommit = buildMergedLaneBranchByCommit();
       for (const historyPage of historyState.historyPages) {
         const pageSection = document.createElement("div");
         pageSection.className = "history-page";
@@ -278,7 +312,9 @@
         let isFirstHistoryCommit = historyPage.offset === 0;
         for (const historyRow of historyPage.rows) {
           if (historyRow.kind === "commit") {
-            pageSection.append(buildHistoryCommitRow(historyRow, isFirstHistoryCommit));
+            pageSection.append(
+              buildHistoryCommitRow(historyRow, isFirstHistoryCommit, mergedLaneBranchByCommit)
+            );
             isFirstHistoryCommit = false;
           } else {
             const graphEdgeNode = document.createElement("div");
@@ -330,25 +366,196 @@
         graphList.append(endMessage);
       }
 
+      // 详情区再分两栏：左侧提交信息，右侧代码 diff，各自独立滚动。
       const detailPane = document.createElement("aside");
       detailPane.className = "history-detail-pane";
-      renderHistoryCommitDetails(detailPane);
+      const detailSplit = document.createElement("div");
+      detailSplit.className = "history-detail-split";
+      const infoPane = document.createElement("section");
+      infoPane.className = "history-info-pane";
+      infoPane.setAttribute("aria-label", "提交信息");
+      const codePane = document.createElement("section");
+      codePane.className = "history-code-pane";
+      codePane.setAttribute("aria-label", "文件改动");
+      renderHistoryCommitDetails(infoPane, codePane);
+      detailSplit.append(infoPane, codeSplitter.element, codePane);
+      detailPane.append(detailSplit);
       graphPane.append(branchList, graphList);
-      historyLayout.append(graphPane, detailPane);
+      historyLayout.append(graphPane, graphSplitter.element, detailPane);
       elements.viewerBody.replaceChildren(historyLayout);
+      // 挂载后才有真实宽度，此时按最小栏宽约束一次，避免窄窗口沿用过大占比。
+      graphSplitter.apply(historyLayout);
+      codeSplitter.apply(detailSplit);
       elements.viewerBody.querySelector(".history-graph-list").scrollTop = previousGraphScrollTop;
-      elements.viewerBody.querySelector(".history-detail-pane").scrollTop = previousDetailScrollTop;
+      elements.viewerBody.querySelector(".history-info-pane").scrollTop = previousInfoScrollTop;
+      elements.viewerBody.querySelector(".history-code-pane").scrollTop = previousCodeScrollTop;
       elements.statusHint.textContent = historyState.historyOffset
         ? `Git Log · ${historyState.historyOffset} 条提交`
         : "Git Log";
     }
 
     /**
+     * 汇总本地分支相对基准分支的合并情况，供顶栏显示「有几个分支的内容已经在基准分支」。
+     * @returns {string} 以 ` · ` 开头的片段；没有基准分支或没有已合入分支时返回空串。
+     */
+    function buildBranchMergeSummary() {
+      const baseBranchName = historyState.historyBaseBranch;
+      if (!baseBranchName) {
+        return "";
+      }
+      const mergedBranchRefs = historyState.historyBranchRefs.filter(
+        (branchRef) => branchRef.kind === "local" && isBranchAlreadyMerged(branchRef)
+      );
+      if (!mergedBranchRefs.length) {
+        return "";
+      }
+      const replayedBranchCount = mergedBranchRefs.filter(
+        (branchRef) => branchRef.merge_state === "replayed"
+      ).length;
+      const replayedNote = replayedBranchCount ? `（其中 ${replayedBranchCount} 个为 squash）` : "";
+      return ` · ${mergedBranchRefs.length} 个分支的内容已在 ${baseBranchName}${replayedNote}`;
+    }
+
+    /**
+     * 创建提交行最前面的实心胶囊：一行里最该先看到的结论就是「这条分支已经合过了」。
+     * @returns {HTMLSpanElement} 实心胶囊。
+     */
+    function buildMergedBranchPill() {
+      const mergedPill = document.createElement("span");
+      mergedPill.className = "history-merged-pill";
+      mergedPill.textContent = `✓ 已合并到 ${historyState.historyBaseBranch}`;
+      mergedPill.title = `该分支的内容已经进入 ${historyState.historyBaseBranch}`;
+      return mergedPill;
+    }
+
+    /**
+     * 创建「跳到基准分支上对应提交」的按钮；没有可指认的提交时返回 null。
+     *
+     * squash 合并时分支与那个提交没有祖先关系，提交图上互不相连，直接给一个可点的落点
+     * 比让读者自己比对补丁更实用。
+     * @param {{name: string, merged_into?: {hash: string, short_hash: string, subject: string} | null}} branchRef 分支引用。
+     * @returns {HTMLButtonElement | null} 跳转按钮。
+     */
+    function buildBranchMergeTargetButton(branchRef) {
+      const mergedIntoCommit = branchRef.merged_into;
+      if (!mergedIntoCommit || hasLocalTwin(branchRef)) {
+        return null;
+      }
+      const targetButton = document.createElement("button");
+      targetButton.type = "button";
+      targetButton.className = "history-merge-target";
+      targetButton.textContent = `→ ${mergedIntoCommit.short_hash}`;
+      targetButton.title = `${branchRef.name} 的内容已进入 ${historyState.historyBaseBranch} 的 ${mergedIntoCommit.short_hash}：${mergedIntoCommit.subject}；点击查看该提交`;
+      targetButton.addEventListener("click", () => {
+        void selectHistoryCommit(mergedIntoCommit.hash);
+      });
+      return targetButton;
+    }
+
+    /**
+     * 建立「提交哈希 → 已合入分支」映射，用来在提交图上标出这些分支自己的提交。
+     * @returns {Map<string, object>} 提交哈希到分支引用的映射。
+     */
+    function buildMergedLaneBranchByCommit() {
+      const mergedLaneBranchByCommit = new Map();
+      for (const branchRef of historyState.historyBranchRefs) {
+        if (branchRef.kind !== "local") {
+          continue;
+        }
+        for (const commitHash of branchRef.lane_commits || []) {
+          if (!mergedLaneBranchByCommit.has(commitHash)) {
+            mergedLaneBranchByCommit.set(commitHash, branchRef);
+          }
+        }
+      }
+      return mergedLaneBranchByCommit;
+    }
+
+    /**
+     * 判断远程引用是否有同名本地分支：两者状态相同，再显示一遍只会把分支行撑宽。
+     * @param {{name: string, kind: string}} branchRef 分支引用。
+     * @returns {boolean} 存在同名本地分支时为 true。
+     */
+    function hasLocalTwin(branchRef) {
+      if (branchRef.kind !== "remote") {
+        return false;
+      }
+      const branchName = branchRef.name.replace(/^[^/]+\//, "");
+      return historyState.historyBranchRefs.some(
+        (otherBranchRef) => otherBranchRef.kind === "local" && otherBranchRef.name === branchName
+      );
+    }
+
+    /**
+     * 判断分支是否已进入基准分支：祖先合并，或提交已以其他 SHA 进入。
+     * @param {{merge_state?: string}} branchRef 分支引用。
+     * @returns {boolean} 已合入时为 true。
+     */
+    function isBranchAlreadyMerged(branchRef) {
+      return branchRef.merge_state === "merged" || branchRef.merge_state === "replayed";
+    }
+
+    /**
+     * 创建分支合并状态徽标；服务端没有给出状态时不显示。
+     * @param {{merge_state?: string, ahead?: number | null, behind?: number | null}} branchRef 分支引用。
+     * @returns {HTMLSpanElement | null} 状态徽标。
+     */
+    function buildBranchMergeBadge(branchRef) {
+      const mergeState = branchRef.merge_state;
+      if (!mergeState || mergeState === "unknown" || hasLocalTwin(branchRef)) {
+        return null;
+      }
+      const baseBranchName = historyState.historyBaseBranch || "基准分支";
+      // 结论写在徽标里：只说「内容已合入」时，读者还得自己推断合进了哪个分支。
+      const badgeTextByState = {
+        base: "基准",
+        merged: `✓ 已合并到 ${baseBranchName}`,
+        replayed: `✓ 已合并到 ${baseBranchName}`,
+        ahead: `未合入 ↑${branchRef.ahead}`,
+        diverged: `未合入 ↑${branchRef.ahead} ↓${branchRef.behind}`,
+      };
+      const badgeText = badgeTextByState[mergeState];
+      if (!badgeText) {
+        return null;
+      }
+      const mergeBadge = document.createElement("span");
+      mergeBadge.className = `history-merge-badge is-${mergeState}`;
+      mergeBadge.textContent = badgeText;
+      mergeBadge.title = buildBranchMergeTitle(branchRef);
+      return mergeBadge;
+    }
+
+    /**
+     * 生成合并状态徽标的悬停说明。
+     * @param {{merge_state?: string, ahead?: number | null, behind?: number | null}} branchRef 分支引用。
+     * @returns {string} 悬停说明。
+     */
+    function buildBranchMergeTitle(branchRef) {
+      const baseBranchName = historyState.historyBaseBranch || "基准分支";
+      if (branchRef.merge_state === "base") {
+        return `这是用于比较的基准分支：${baseBranchName}`;
+      }
+      if (branchRef.merge_state === "merged") {
+        return `该分支已并入 ${baseBranchName}（快进或合并提交）`;
+      }
+      if (branchRef.merge_state === "replayed") {
+        return `该分支的提交已以其他 SHA 进入 ${baseBranchName}（squash / rebase），提交图上仍画成独立泳道`;
+      }
+      return `相对 ${baseBranchName} 领先 ${branchRef.ahead} 个提交、落后 ${branchRef.behind} 个提交`;
+    }
+
+    /**
      * 渲染一个提交图节点，可显示分支引用并选择该提交。
      * @param {object} historyRow 服务端返回的提交图行。
+     * @param {boolean} isHistoryTopCommit 是否为历史列表中的第一条提交。
+     * @param {Map<string, object>} mergedLaneBranchByCommit 提交哈希到已合入分支的映射。
      * @returns {HTMLButtonElement} 可交互的提交行。
      */
-    function buildHistoryCommitRow(historyRow, isHistoryTopCommit = false) {
+    function buildHistoryCommitRow(
+      historyRow,
+      isHistoryTopCommit = false,
+      mergedLaneBranchByCommit = new Map()
+    ) {
       const commitButton = document.createElement("button");
       commitButton.type = "button";
       commitButton.className = "history-commit-row";
@@ -373,6 +580,14 @@
       if (historyRow.is_head) {
         graphPrefixNode.classList.add("is-head");
       }
+      const mergedLaneBranchRef = mergedLaneBranchByCommit.get(historyRow.hash);
+      if (mergedLaneBranchRef) {
+        // 这条泳道里的提交属于一个内容已经在基准分支里的分支：图上要看得出来，否则读者
+        // 只会看到一条与主线不相连的独立分支，误以为还需要合并。
+        commitButton.classList.add("is-merged-branch-commit");
+        graphPrefixNode.classList.add("is-merged-branch");
+        commitButton.title = `该提交属于 ${mergedLaneBranchRef.name}，其内容已进入 ${historyState.historyBaseBranch}`;
+      }
       const commitSummary = document.createElement("span");
       commitSummary.className = "history-commit-summary";
       const commitSubjectNode = document.createElement("span");
@@ -380,6 +595,12 @@
       commitSubjectNode.textContent = historyRow.subject;
       const commitRefs = document.createElement("span");
       commitRefs.className = "history-commit-refs";
+      const hasMergedLocalRef = historyRow.refs.some(
+        (refLabel) => refLabel.kind === "local" && isBranchAlreadyMerged(refLabel)
+      );
+      if (hasMergedLocalRef) {
+        commitRefs.append(buildMergedBranchPill());
+      }
       if (historyRow.is_head) {
         commitRefs.append(buildHistoryRefBadge({ name: "HEAD", kind: "head" }));
       }
@@ -492,6 +713,14 @@
             : refLabel.kind === "head"
               ? "当前 HEAD"
               : `Git 标签：${refLabel.name}`;
+      if (isBranchAlreadyMerged(refLabel)) {
+        // 已进基准分支的引用降低存在感：它们在图上仍是独立泳道，容易让人误以为待合并。
+        refBadge.classList.add("is-already-merged");
+        refBadge.title +=
+          refLabel.merge_state === "replayed"
+            ? "（提交已以其他 SHA 合入基准分支）"
+            : "（已合并到基准分支）";
+      }
       return refBadge;
     }
 
@@ -510,26 +739,34 @@
         String(historyState.selectedHistoryCommitHash === branchRef.hash)
       );
       branchButton.title = `查看 ${branchRef.name} 的最新提交`;
+      if (isBranchAlreadyMerged(branchRef)) {
+        branchButton.classList.add("is-already-merged");
+      }
       branchButton.append(buildHistoryRefBadge(branchRef));
+      const mergeBadge = buildBranchMergeBadge(branchRef);
+      if (mergeBadge) {
+        branchButton.append(mergeBadge);
+      }
       return branchButton;
     }
 
     /**
      * 渲染所选提交的信息、文件列表与逐行 diff。
-     * @param {HTMLElement} detailPane 提交详情侧栏。
+     * @param {HTMLElement} infoPane 提交信息栏。
+     * @param {HTMLElement} codePane 代码 diff 栏。
      */
-    function renderHistoryCommitDetails(detailPane) {
+    function renderHistoryCommitDetails(infoPane, codePane) {
       if (historyState.isLoadingHistoryCommit) {
-        detailPane.append(buildHistoryMessage("正在读取提交详情…"));
+        infoPane.append(buildHistoryMessage("正在读取提交详情…"));
         return;
       }
       if (historyState.historyCommitErrorMessage) {
-        detailPane.append(buildHistoryMessage(historyState.historyCommitErrorMessage, true));
+        infoPane.append(buildHistoryMessage(historyState.historyCommitErrorMessage, true));
         return;
       }
       const selectedCommit = historyState.selectedHistoryCommit;
       if (!selectedCommit) {
-        detailPane.append(buildHistoryMessage("点击左侧任一提交查看提交说明和文件改动。"));
+        infoPane.append(buildHistoryMessage("点击左侧任一提交查看提交说明和文件改动。"));
         return;
       }
 
@@ -544,7 +781,7 @@
       commitHash.className = "history-detail-hash mono";
       commitHash.textContent = selectedCommit.hash;
       commitHeader.append(commitTitle, commitSubject, commitHash);
-      detailPane.append(commitHeader);
+      infoPane.append(commitHeader);
 
       const commitMetadata = document.createElement("dl");
       commitMetadata.className = "history-commit-metadata";
@@ -555,12 +792,12 @@
         "比较基线",
         selectedCommit.parents.length ? `首个父提交 ${selectedCommit.parents[0].slice(0, 12)}` : "空树（根提交）"
       );
-      detailPane.append(commitMetadata);
+      infoPane.append(commitMetadata);
 
       const fullMessage = document.createElement("pre");
       fullMessage.className = "history-commit-message";
       fullMessage.textContent = selectedCommit.message;
-      detailPane.append(fullMessage);
+      infoPane.append(fullMessage);
 
       const changeHeading = document.createElement("h3");
       changeHeading.className = "history-change-heading";
@@ -576,13 +813,13 @@
       changeHeading.textContent = fileFilterText
         ? `改动文件（${matchingChangedFiles.length}/${selectedCommit.files.length}）`
         : `改动文件（${selectedCommit.files.length}）`;
-      detailPane.append(changeHeading);
+      infoPane.append(changeHeading);
       if (!selectedCommit.files.length) {
-        detailPane.append(buildHistoryMessage("该提交相对首个父提交没有文件差异。"));
+        infoPane.append(buildHistoryMessage("该提交相对首个父提交没有文件差异。"));
         return;
       }
       if (!matchingChangedFiles.length) {
-        detailPane.append(buildHistoryMessage("没有匹配的改动文件。"));
+        infoPane.append(buildHistoryMessage("没有匹配的改动文件。"));
         return;
       }
 
@@ -608,14 +845,14 @@
         changedFileButton.append(statusBadge, filePathNode);
         changedFilesList.append(changedFileButton);
       }
-      detailPane.append(changedFilesList);
+      infoPane.append(changedFilesList);
 
       const showCommitChangesButton = buildHistoryActionButton(
         "在改动视图查看全部改动",
         "show-in-diff-view"
       );
       showCommitChangesButton.classList.add("history-diff-view-button");
-      detailPane.append(showCommitChangesButton);
+      infoPane.append(showCommitChangesButton);
 
       const selectedFileMatchesFilter =
         !fileFilterText ||
@@ -623,11 +860,11 @@
           (changedFile) => changedFile.path === historyState.selectedHistoryPath
         );
       if (fileFilterText && !selectedFileMatchesFilter) {
-        detailPane.append(buildHistoryMessage("从筛选结果中选择一个文件查看改动。"));
+        codePane.append(buildHistoryMessage("从筛选结果中选择一个文件查看改动。"));
       } else if (historyState.isLoadingHistoryDiff) {
-        detailPane.append(buildHistoryMessage("正在读取文件改动…"));
+        codePane.append(buildHistoryMessage("正在读取文件改动…"));
       } else if (historyState.historyDiffErrorMessage) {
-        detailPane.append(buildHistoryMessage(historyState.historyDiffErrorMessage, true));
+        codePane.append(buildHistoryMessage(historyState.historyDiffErrorMessage, true));
       } else if (historyState.selectedHistoryDiff) {
         const selectedDiff = historyState.selectedHistoryDiff;
         const diffHeading = document.createElement("h3");
@@ -635,16 +872,16 @@
         diffHeading.textContent = selectedDiff.old_path
           ? `${selectedDiff.old_path} → ${selectedDiff.path}`
           : selectedDiff.path;
-        detailPane.append(diffHeading);
+        codePane.append(diffHeading);
         if (selectedDiff.binary) {
-          detailPane.append(buildHistoryMessage("二进制文件不提供逐行 diff。"));
+          codePane.append(buildHistoryMessage("二进制文件不提供逐行 diff。"));
         } else if (selectedDiff.empty) {
-          detailPane.append(buildHistoryMessage("该文件没有可显示的逐行改动。"));
+          codePane.append(buildHistoryMessage("该文件没有可显示的逐行改动。"));
         } else {
           if (selectedDiff.truncated) {
-            detailPane.append(buildHistoryMessage("改动较大，已截断到 4,000 行。"));
+            codePane.append(buildHistoryMessage("改动较大，已截断到 4,000 行。"));
           }
-          detailPane.append(buildDiffRowsNode(selectedDiff.rows));
+          codePane.append(buildDiffRowsNode(selectedDiff.rows));
         }
       }
     }
@@ -661,6 +898,169 @@
       const metadataValue = document.createElement("dd");
       metadataValue.textContent = value;
       metadataList.append(metadataLabel, metadataValue);
+    }
+
+    /**
+     * 读取上次拖拽后保存的分栏宽度占比。
+     * @param {string} storageKey 本地存储键。
+     * @param {number} defaultPercent 没有可用记录时的默认占比。
+     * @returns {number} 合法的左栏宽度百分比。
+     */
+    function readStoredHistoryWidthPercent(storageKey, defaultPercent) {
+      try {
+        const storedPercent = Number(global.localStorage.getItem(storageKey));
+        if (storedPercent > 0 && storedPercent < 100) {
+          return storedPercent;
+        }
+      } catch {
+        // 隐私模式等场景下 localStorage 不可用，直接用默认宽度。
+      }
+      return defaultPercent;
+    }
+
+    /**
+     * 按两侧最小像素宽度约束左栏占比，避免把某一栏拖到不可用。
+     * @param {number} requestedPercent 目标占比。
+     * @param {{containerWidth: number, leftMinWidthPx: number, rightMinWidthPx: number}} paneBounds 容器与两侧最小宽度。
+     * @returns {number} 约束后的占比。
+     */
+    function clampHistoryPanePercent(requestedPercent, paneBounds) {
+      const { containerWidth, leftMinWidthPx, rightMinWidthPx } = paneBounds;
+      if (containerWidth <= 0) {
+        return requestedPercent;
+      }
+      const halfWidth = containerWidth * 0.5;
+      const minPercent = (Math.min(leftMinWidthPx, halfWidth) / containerWidth) * 100;
+      const maxPercent = 100 - (Math.min(rightMinWidthPx, halfWidth) / containerWidth) * 100;
+      return Math.min(Math.max(requestedPercent, minPercent), Math.max(maxPercent, minPercent));
+    }
+
+    /**
+     * 创建可拖拽的竖向分隔条：支持指针拖动、方向键微调和双击复位。
+     * @param {object} splitterOptions 分隔条配置。
+     * @param {string} splitterOptions.storageKey 宽度占比的本地存储键。
+     * @param {string} splitterOptions.cssVariable 写入左栏宽度的 CSS 变量名。
+     * @param {number} splitterOptions.defaultPercent 默认左栏占比。
+     * @param {string} splitterOptions.ariaLabel 无障碍名称。
+     * @param {number} splitterOptions.leftMinWidthPx 左栏最小像素宽度。
+     * @param {number} splitterOptions.rightMinWidthPx 右栏最小像素宽度。
+     * @returns {{element: HTMLDivElement, apply: (container: HTMLElement) => void}} 分隔条节点，以及挂载后应用的宽度。
+     */
+    function createHistorySplitter(splitterOptions) {
+      const splitterWidthState = {
+        percent: readStoredHistoryWidthPercent(
+          splitterOptions.storageKey,
+          splitterOptions.defaultPercent
+        ),
+      };
+      const splitter = document.createElement("div");
+      splitter.className = "history-splitter";
+      splitter.tabIndex = 0;
+      splitter.setAttribute("role", "separator");
+      splitter.setAttribute("aria-orientation", "vertical");
+      splitter.setAttribute("aria-label", splitterOptions.ariaLabel);
+      splitter.setAttribute("aria-valuemin", "0");
+      splitter.setAttribute("aria-valuemax", "100");
+      splitter.title = "拖动调整宽度，双击恢复默认";
+      let isDragging = false;
+
+      const clampPercent = (requestedPercent, container) =>
+        clampHistoryPanePercent(requestedPercent, {
+          containerWidth: container.getBoundingClientRect().width,
+          leftMinWidthPx: splitterOptions.leftMinWidthPx,
+          rightMinWidthPx: splitterOptions.rightMinWidthPx,
+        });
+
+      const applyWidth = (container) => {
+        splitterWidthState.percent = clampPercent(splitterWidthState.percent, container);
+        container.style.setProperty(splitterOptions.cssVariable, `${splitterWidthState.percent}%`);
+        splitter.setAttribute("aria-valuenow", String(Math.round(splitterWidthState.percent)));
+      };
+
+      const storeWidth = () => {
+        try {
+          global.localStorage.setItem(
+            splitterOptions.storageKey,
+            String(splitterWidthState.percent)
+          );
+        } catch {
+          // 存储失败不影响本次拖拽结果。
+        }
+      };
+
+      const applyPointerPosition = (pointerEvent) => {
+        const container = splitter.parentElement;
+        if (!container) {
+          return;
+        }
+        const containerBounds = container.getBoundingClientRect();
+        if (!containerBounds.width) {
+          return;
+        }
+        const requestedPercent =
+          ((pointerEvent.clientX - containerBounds.left) / containerBounds.width) * 100;
+        splitterWidthState.percent = clampPercent(requestedPercent, container);
+        applyWidth(container);
+      };
+
+      const finishDrag = () => {
+        if (!isDragging) {
+          return;
+        }
+        isDragging = false;
+        delete splitter.dataset.dragging;
+        document.body.classList.remove("is-resizing-history");
+        storeWidth();
+      };
+
+      splitter.addEventListener("pointerdown", (pointerEvent) => {
+        if (pointerEvent.button !== 0) {
+          return;
+        }
+        isDragging = true;
+        splitter.dataset.dragging = "true";
+        splitter.setPointerCapture(pointerEvent.pointerId);
+        document.body.classList.add("is-resizing-history");
+        pointerEvent.preventDefault();
+      });
+      splitter.addEventListener("pointermove", (pointerEvent) => {
+        if (isDragging) {
+          applyPointerPosition(pointerEvent);
+        }
+      });
+      splitter.addEventListener("pointerup", finishDrag);
+      splitter.addEventListener("pointercancel", finishDrag);
+      splitter.addEventListener("dblclick", () => {
+        splitterWidthState.percent = splitterOptions.defaultPercent;
+        const container = splitter.parentElement;
+        if (container) {
+          applyWidth(container);
+        }
+        storeWidth();
+      });
+      splitter.addEventListener("keydown", (keyboardEvent) => {
+        const widthDelta =
+          keyboardEvent.key === "ArrowLeft"
+            ? -HISTORY_SPLIT_STEP_PERCENT
+            : keyboardEvent.key === "ArrowRight"
+              ? HISTORY_SPLIT_STEP_PERCENT
+              : 0;
+        if (!widthDelta) {
+          return;
+        }
+        const container = splitter.parentElement;
+        if (!container) {
+          return;
+        }
+        splitterWidthState.percent = clampPercent(
+          splitterWidthState.percent + widthDelta,
+          container
+        );
+        applyWidth(container);
+        storeWidth();
+        keyboardEvent.preventDefault();
+      });
+      return { element: splitter, apply: applyWidth };
     }
 
     /**

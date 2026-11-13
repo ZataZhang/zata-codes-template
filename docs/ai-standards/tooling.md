@@ -50,7 +50,7 @@
 | `just test-debt [top]` | 测试瘦身证据：重复用例块、最贵重复文件、最慢文件榜；只出证据不改代码 |
 | `just bench-test` | 验证 warm / after-edit 场景的 `just test` 是否满足 30 秒预算 |
 | `just view [路径]` | **仅模板仓库私有，不随 `just sync-template` 同步。** 打开本机改动查看器（默认改动视图，按 `Staged Changes` / `Changes` 两段列出，后者由未暂存与未跟踪合并而来；重命名合并为一条 `R` 项并标出旧路径——包括普通 `mv` 造成的「删除 + 未跟踪新文件」，服务端在仓库外的一次性索引上按内容相似度配对，真实索引不受影响；`--files` 切文件视图；`Git Log` 首次打开时才加载代码与本地/远程分支提交图，每页 50 条；选中提交后可跳转到既有改动界面浏览该提交的文件列表与逐文件 diff；`Changes` 旁的加号可 `git add`；内容区头部可把当前文件交给系统默认应用打开）；第二条命令起复用常驻实例（秒开） |
-| `just view-install` / `zview [目录]` | 安装并调用全局查看器；相对目录从当前 shell 目录解析，Git 仓库子目录只显示该子树的文件、改动和历史，普通目录只浏览文件；全局登记与日志保存在用户缓存目录 |
+| `just view-install` / `zview [目录]` | **`view-install` 为模板仓库私有；`zview` 用全局那一份即可。** 安装并调用全局查看器；相对目录从当前 shell 目录解析，Git 仓库子目录只显示该子树的文件、改动和历史，普通目录只浏览文件；全局登记与日志保存在用户缓存目录 |
 | `just diff` | 模板仓库私有的 `just view --diff` 薄别名 |
 | `uv run mkdocs build` | 验证文档站点 |
 | `just docs-serve` | 本地预览文档 |
@@ -59,7 +59,7 @@
 | `just ai commit [claude\|kimi]` | 先跑 `just test`，再由 AI 暂存相关文件并直接提交；只修复本次改动引起的测试失败 |
 | `just ai implement <prd-file> [claude\|kimi]` | 按 PRD 实现功能 |
 | `just ai pr <context.json> [auto\|only\|confirm] [wait-seconds]` | 当前对话提供原话/任务/验收上下文，创建或复用 Issue/PR；检测规则后合并并返回默认分支，待真实验证时保留 Draft |
-| `just prd status [all\|pending\|archive] [--detail]` | PRD 状态看板：已归档且横幅为 `🧍 待人工验收` 的记录（含分支里已归档、尚待合并的）汇总成 `AWAITING HUMAN` 段并附等待时长，`tasks/pending` 里的记录列为 `PENDING` 逐条列出、其余归档记录按月折叠，展示验收清单勾选进度、影响树触达进度（FILES 列）、证据包状态与运行态（ACTIVITY 列）；`--detail` 在每个 PRD 行下方追加标题与描述摘要块 |
+| `just prd status [all\|pending\|archive] [--detail] [--table]` | PRD 状态看板：已归档且横幅为 `🧍 待人工验收` 的记录（含分支里已归档、尚待合并的）汇总成 `AWAITING HUMAN` 段并附等待时长，`tasks/pending` 里的记录列为 `PENDING` 逐条列出、其余归档记录按月折叠，展示验收清单勾选进度、影响树触达进度（FILES 列）、证据包状态与运行态（ACTIVITY 列）；默认逐条输出英文字段块（`PRIORITY` / `FILE` / `TITLE` / `ACCEPTANCE` 等），`--table` 切横行一条的宽表格，`--detail` 追加描述摘要行 |
 | `just prd start <prd-file> [--tool <名称>] [--branch <名称>]` | 领取 PRD 执行锁：他人新鲜锁拒绝开工（退出 1）并输出持锁者信息；过期锁自动接管并留档；同归属重复领锁幂等刷新 |
 | `just prd heartbeat <prd-file>` | 续期当前会话持有的执行锁；锁丢失或归属不符时警告并非零退出 |
 | `just prd release <prd-file> [--force]` | 释放执行锁；归属不符需显式 `--force` |
@@ -76,6 +76,17 @@
 [Agent 数据集构建](../guides/agent-dataset.md)。
 本地检查、GitHub CI、Agent 报告的真实入口验证和人工验收分别记录，不写笼统的总体 passed。
 评论只概述本轮变化，完整上下文折叠保存；未明确提供人工验收时，不自动声称用户已验收。
+
+### PR 与 CI 的节奏
+
+CI 只是异步门禁，不要守着它等。三条约定：
+
+- **推完就去做下一件事。** 本地只跑 `just test`（核心档），全量交给 CI（见 testing.md 的
+  「CI：PR 轻量档、main 全量档」）。不要为了「推之前更放心」在本地跑全量，那样同样的等待
+  会花两次。CI 结果回来再处理。
+- **已经绿了的 PR 先合，新的改动另开 PR。** 不要在已绿的 PR 上继续叠改动：每次 push 都会
+  让它重跑 CI，前面的绿也作废了。小 PR 各跑各的 CI，互不阻塞。
+- **main 红了先处理它。** 看到「main CI 失败」Issue 时先修复或 revert，再继续合别的 PR。
 
 ## Commit Messages
 
@@ -154,7 +165,8 @@ view *args:
 ## Local File Viewer
 
 `just view`（仅本模板仓库提供）与安装后的全局 `zview` 起一个只绑 `127.0.0.1` 的查看器（文件树 + 文件内容与文本编辑 + Markdown 任务清单直点切换 + 改动视图 + 按需加载的本地/远程 Git Log 图与提交 diff + 暂存 + 在系统中打开），
-逻辑在 `scripts/shared/view/`。这里只记与工具链
+逻辑在 `scripts/shared/view/`，该目录**不随 `just sync-template` 下发**：派生项目（如 freshai）
+用全局 `zview` 一份即可，不必各带一份必须分别维护的副本。这里只记与工具链
 约定相关的部分。
 
 `just view-install` 会把 `scripts/shared/view/zview` 链接到 `~/.local/bin/zview`。全局入口以
@@ -251,7 +263,7 @@ python scripts/check_prd_acceptance_checklist.py --repo-root "$PWD" --all
 
 `just prd status` 输出 `PENDING`、`VALIDATION BLOCKED`、`AWAITING HUMAN` 与 `ARCHIVE` 分区；后两个待办分区在任何 scope 下非空时都显示，空分区不打印：
 
-- 明细列保留优先级、类型、创建日期、清单进度、FILES、证据包、依赖与 ACTIVITY。
+- 明细默认逐条输出**字段块**，标签统一用英文并与表格列名同词：`PRIORITY` / `TYPE` / `CREATED`（取自文件名前缀）、`FILE`、`TITLE`、`ACCEPTANCE` + `CHECKLIST`（`已勾/总数`）、`EVIDENCE` + `IMPACT`（影响树触达），有内容时再追加 `DEPS` 与 `ACTIVITY`。一行一个字段，窄终端不会因为某列过长把右侧各列挤到下一行；`--table` 切回一行一条的对齐宽表格。
 - **构建轴**是目录（pending → archive，归档 = 代码落地）；**验收轴**是四态横幅（`⬜ 未开工` / `⏸️ 验证阻塞` / `🧍 待人工验收` / `✅ 已验收`）。只有已归档副本才进入两个待办分区；pending 中残留的 `⏸️` 或 `🧍` 仍留在 PENDING。
 - `⏸️ 验证阻塞` 记录进入 `VALIDATION BLOCKED`，提示原因与后续任务见 Final Reconciliation，ACTIVITY 显示 `⏸️ blocked <时长>`；`🧍 待人工验收` 记录进入 `AWAITING HUMAN`，显示 `🧍 waiting <时长>`。分支里已归档待合并的记录同样分区展示。
 - 两类待办记录都从 ARCHIVE 月视图摘出，因此其中的空框不会被 `⚠ 有未勾完的清单` 误报为异常。剩余 `⚠` 只表示已验收但有空框、历史缺横幅或同名副本冲突等异常。

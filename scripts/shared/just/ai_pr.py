@@ -137,7 +137,7 @@ class PullRequestDelivery:
             body_path.write_text(body, encoding="utf-8")
             return self._gh(*arguments, "--body-file", str(body_path))
 
-    def _changed_paths(self) -> set[str]:
+    def _changed_paths(self, base_ref: str | None = None) -> set[str]:
         changed_paths: set[str] = set()
         for arguments in (
             ("diff", "--name-only", "--no-renames", "-z"),
@@ -145,10 +145,23 @@ class PullRequestDelivery:
             ("ls-files", "--others", "--exclude-standard", "-z"),
         ):
             changed_paths.update(filter(None, self._git(*arguments).split("\0")))
+        if base_ref is not None:
+            changed_paths.update(
+                filter(
+                    None,
+                    self._git(
+                        "diff",
+                        "--name-only",
+                        "--no-renames",
+                        "-z",
+                        f"{base_ref}...HEAD",
+                    ).split("\0"),
+                )
+            )
         return changed_paths
 
-    def _validate_file_scope(self) -> set[str]:
-        changed_paths = self._changed_paths()
+    def _validate_file_scope(self, base_ref: str | None = None) -> set[str]:
+        changed_paths = self._changed_paths(base_ref)
         unrelated_paths = changed_paths - set(self.context.payload["files"])
         if unrelated_paths:
             raise DeliveryError(f"Unselected changes remain; isolate them first: {unrelated_paths}")
@@ -168,25 +181,25 @@ class PullRequestDelivery:
         push_urls = self._git(
             "remote", "get-url", "--push", "--all", matching_remotes[0]
         ).splitlines()
-        # 原始 pushurl 配置与有效推送地址数量分别核对，避免写入其他仓库。
-        explicit_push_url = subprocess.run(
-            ["git", "config", "--get-all", f"remote.{matching_remotes[0]}.pushurl"],
-            cwd=self.root,
-            text=True,
-            encoding="utf-8",
-            capture_output=True,
-        )
-        if len(push_urls) != 1 or (
-            explicit_push_url.returncode == 0
-            and any(
-                _remote_identity(push_url) != _remote_identity(self.repository["url"])
-                for push_url in explicit_push_url.stdout.splitlines()
-            )
+        if len(push_urls) != 1 or _remote_identity(push_urls[0]) != _remote_identity(
+            self.repository["url"]
         ):
             raise DeliveryError(
                 "Push remote differs from the selected repository or has multiple URLs."
             )
         return matching_remotes[0]
+
+    def _scope_base_ref(self, default_base_ref: str) -> str:
+        if self.journal is None:
+            return default_base_ref
+        previous_head_sha = self.journal.state.get("head_sha")
+        if not previous_head_sha:
+            return default_base_ref
+        try:
+            self._git("merge-base", "--is-ancestor", previous_head_sha, "HEAD")
+        except DeliveryError:
+            return default_base_ref
+        return previous_head_sha
 
     def _prepare_branch(self, remote_name: str) -> str:
         current_branch = self._git("branch", "--show-current")
@@ -194,18 +207,24 @@ class PullRequestDelivery:
             raise DeliveryError("Detached HEAD is unsupported; select a work branch first.")
         self._git("fetch", remote_name, self.default_branch)
         base_ref = f"refs/remotes/{remote_name}/{self.default_branch}"
-        if (
-            not self._validate_file_scope()
-            and self._git("rev-list", "--count", f"{base_ref}..HEAD") == "0"
-        ):
-            raise DeliveryError("No changes or branch commits to deliver.")
-        if current_branch == self.default_branch:
+        is_new_delivery_branch = current_branch == self.default_branch
+        if is_new_delivery_branch:
+            if (
+                not self._validate_file_scope(base_ref)
+                and self._git("rev-list", "--count", f"{base_ref}..HEAD") == "0"
+            ):
+                raise DeliveryError("No changes or branch commits to deliver.")
             current_branch = f"ai/pr-{uuid.uuid4().hex[:12]}"
             self._git("switch", "-c", current_branch)
         common_dir = Path(self._git("rev-parse", "--path-format=absolute", "--git-common-dir"))
         self.journal = DeliveryJournal(common_dir, current_branch)
         if self.journal.state.get("repository", self.repo_name) != self.repo_name:
             raise DeliveryError("This branch already belongs to another delivery repository.")
+        if not is_new_delivery_branch and (
+            not self._validate_file_scope(self._scope_base_ref(base_ref))
+            and self._git("rev-list", "--count", f"{base_ref}..HEAD") == "0"
+        ):
+            raise DeliveryError("No changes or branch commits to deliver.")
         self.journal.save(
             repository=self.repo_name,
             branch=current_branch,
@@ -270,11 +289,23 @@ class PullRequestDelivery:
         self.journal.save(issue=issue_number)
         return issue_number
 
-    def _commit(self) -> str:
+    def _commit(self, remote_name: str) -> str:
         self._run(["just", "test"], stream=True)
-        changed_paths = self._validate_file_scope()
-        if changed_paths:
-            self._git("--literal-pathspecs", "add", "--", *sorted(changed_paths))
+        default_base_ref = f"refs/remotes/{remote_name}/{self.default_branch}"
+        self._validate_file_scope(self._scope_base_ref(default_base_ref))
+        unstaged_paths: set[str] = set(
+            filter(None, self._git("diff", "--name-only", "--no-renames", "-z").split("\0"))
+        )
+        untracked_paths: set[str] = set(
+            filter(
+                None,
+                self._git("ls-files", "--others", "--exclude-standard", "-z").split("\0"),
+            )
+        )
+        paths_to_stage: list[str] = sorted(unstaged_paths | untracked_paths)
+        if paths_to_stage:
+            self._git("--literal-pathspecs", "add", "--", *paths_to_stage)
+        if self._changed_paths():
             self._git("commit", "-m", self.context.payload["commit_message"])
         if self._changed_paths():
             raise DeliveryError(
@@ -321,7 +352,7 @@ class PullRequestDelivery:
         if pull_request and not self.context.validation_passed and not pull_request["isDraft"]:
             self._gh("pr", "ready", str(pull_request["number"]), "--undo")
         issue_number = self._ensure_issue(pull_request)
-        head_sha = self._commit()
+        head_sha = self._commit(remote_name)
         facts = {
             "repository": self.repo_name,
             "branch": branch_name,

@@ -9,6 +9,7 @@ The PRD is archived **inside the delivering PR**. Normally it sits at `🧍 待�
 - [Acceptance Event](#acceptance-event)
 - [PR Body](#pr-body)
 - [Evidence Publication](#evidence-publication)
+- [Human Review Page](#human-review-page)
 - [Local Review Bundle](#local-review-bundle)
 - [Frontend Prototype Comparison](#frontend-prototype-comparison)
 - [Evidence Identity](#evidence-identity)
@@ -106,6 +107,61 @@ Use a stable marker so later pushes update the same comment instead of creating 
 ```
 
 Keep evidence reachable for the repository's audit horizon. Do not delete an evidence branch immediately after merge if doing so would break the archived PRD's PR links; apply an explicit retention or snapshot policy instead. The `tree=` in the marker is the record-excluded `verified_tree_sha` (see Evidence Identity), so archiving the PRD inside the PR after the verifier's `PASS` does not stale this comment.
+
+## Human Review Page
+
+A delivery otherwise scatters its story across four places: the PR body, the stable
+evidence comment, the evidence branch and the raw logs. A reviewer should need one page.
+This section defines what that page must contain and how a consumer finds it. It does
+**not** mandate a filename, a section order, or a tool-specific layout.
+
+### Non-negotiable
+
+1. **One entry point.** Everything a human needs to judge the delivery lives behind a
+   single page. If reviewing it requires opening the PR body, the evidence comment, the
+   branch listing and the logs in turn, the page failed.
+2. **Every row is a check, not a log.** One row per user-visible behaviour, each with
+   the exact expected observation and one command or click path to re-check it. Test
+   names and file paths alone do not count as a row; derive rows from Section 9.1 and
+   the RV items and write them in plain language.
+3. **Media renders in place.** Screenshots and animated GIFs are embedded inline; a bare
+   link is not a presentation. GitHub renders images and animated GIFs but not MP4, so a
+   recorded flow ships as MP4 for local viewing plus either an inline GIF or enough
+   inline frames that the page alone shows the result.
+
+### What the page should also contain
+
+- a one-sentence verdict on what changed and what it means for the user;
+- the decisions the merger is accepting, in plain language;
+- a validation table: command, level, result, link to the log;
+- the risk, and the cleanup command for any evidence branch.
+
+Order and headings are the implementation's choice, as long as the three
+non-negotiables above hold.
+
+### Where it lives, and how consumers find it
+
+Put the page at the root of the evidence directory (or the root of the evidence branch)
+so relative media links resolve.
+
+Discovery order, which consumer tools must implement in this order:
+
+1. **Explicit declaration.** An evidence manifest in the same directory declares the
+   page, e.g. `review_page: human-review-checklist.md` in `evidence.json`. A declared
+   path wins over any convention.
+2. **Conventional name.** Otherwise the first match of `human-review-checklist.md`,
+   `human-review.md`, `README.md` in the evidence root.
+
+`human-review-checklist.md` stays the recommended name, and it is what the PRD flow
+already produces when the banner flips to `🧍 待人工验收`; keeping it avoids migrating
+existing evidence packages. An interactive `human-review-checklist.html` companion
+remains optional.
+
+### Every delivery, PRD or not
+
+An Issue with no PRD file writes the page into `tasks/evidence/issue-<N>/` instead of
+`tasks/evidence/<prd-stem>/`. Regenerate the page whenever the verified head changes:
+a page describing an older head is stale evidence and blocks the acceptance event.
 
 ## Local Review Bundle
 

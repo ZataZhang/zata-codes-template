@@ -239,10 +239,6 @@ lint mode="": _check-completion
 docs-serve port="8000": _check-completion
     WATCHDOG_USE_POLLING=1 uv run mkdocs serve -a 127.0.0.1:{{port}}
 
-# Install the global `zview` command in ~/.local/bin.
-view-install:
-    uv run --no-sync python "{{justfile_directory()}}/scripts/shared/view/install_global.py"
-
 # Remove cache files and build artifacts
 clean:
     @echo "Cleaning cache files..."
@@ -959,11 +955,12 @@ ai subcommand arg1="" arg2="" arg3="" :
 # 执行锁：开工前必须先领锁（just prd start），他人新鲜锁会被拒绝；锁的唯一事实
 # 源在主仓库 tasks/evidence/<prd-stem>/active.lock，各 worktree 共享同一视图。
 # Usage:
-#   just prd status            # pending 逐条列出，archive 按月折叠，AWAITING HUMAN 单列
+#   just prd status            # pending 逐条列出（字段块），archive 按月折叠，AWAITING HUMAN 单列
 #   just prd status all        # 展开 archive 每条
 #   just prd status pending    # 只看 pending（有待人工验收项时仍附上 AWAITING HUMAN）
 #   just prd status archive    # 只看 archive（按月折叠，同样附上 AWAITING HUMAN）
-#   just prd status <scope> --detail   # 在每个 PRD 行下追加标题与描述摘要
+#   just prd status <scope> --table    # 切回一行一条的对齐宽表格（默认逐条字段块）
+#   just prd status <scope> --detail   # 在每条 PRD 标题下追加描述摘要行
 #   just prd start <prd-file> [--tool <名称>] [--branch <名称>]   # 领取执行锁
 #   just prd heartbeat <prd-file>                                 # 续期自己的锁
 #   just prd release <prd-file> [--force]                         # 释放执行锁
@@ -1023,7 +1020,8 @@ prd subcommand scope="" *extra_args:
             echo "  just prd status all      # expand every archived PRD"
             echo "  just prd status pending  # only tasks/pending (plus AWAITING HUMAN when non-empty)"
             echo "  just prd status archive  # only tasks/archive (plus AWAITING HUMAN when non-empty)"
-            echo "  just prd status <scope> --detail   # append title + summary under each PRD row"
+            echo "  just prd status <scope> --detail   # append description lines under each PRD title"
+            echo "  just prd status <scope> --table    # wide one-row-per-PRD table (default is field blocks)"
             echo "  just prd start <prd-file> [--tool <名称>] [--branch <名称>]  # claim execution lock"
             echo "  just prd heartbeat <prd-file>                              # renew own lock"
             echo "  just prd release <prd-file> [--force]                      # release lock"

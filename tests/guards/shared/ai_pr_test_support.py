@@ -26,6 +26,7 @@ state = json.loads(state_path.read_text(encoding="utf-8"))
 arguments = sys.argv[1:]
 state.setdefault("calls", []).append(arguments)
 remote = os.environ["AI_PR_TEST_REMOTE"]
+repository_url = os.environ["AI_PR_TEST_REPOSITORY_URL"]
 
 def option(name):
     return arguments[arguments.index(name) + 1]
@@ -41,7 +42,7 @@ def save():
 
 if arguments[:2] == ["repo", "view"]:
     response = {
-        "nameWithOwner": "example/project", "url": "https://github.com/example/project",
+        "nameWithOwner": "example/project", "url": repository_url,
         "defaultBranchRef": {"name": state.get("default_branch", "main")},
         "viewerPermission": state.get("permission", "WRITE"),
         "mergeCommitAllowed": True, "squashMergeAllowed": True, "rebaseMergeAllowed": True,
@@ -50,7 +51,7 @@ elif arguments[:2] == ["issue", "create"]:
     issues = state.setdefault("issues", {})
     number = max(map(int, issues), default=0) + 1
     issues[str(number)] = {"number": number, "state": "OPEN", "body": body()}
-    response = f"https://github.com/example/project/issues/{number}"
+    response = f"{repository_url}/issues/{number}"
 elif arguments[:2] == ["issue", "view"]:
     response = state["issues"][arguments[2]]
 elif arguments[:2] == ["issue", "reopen"]:
@@ -65,15 +66,15 @@ elif arguments[:2] == ["pr", "create"]:
     pull_requests = state.setdefault("prs", {})
     number = max(map(int, pull_requests), default=1) + 1
     pull_requests[str(number)] = {
-        "number": number, "url": f"https://github.com/example/project/pull/{number}",
+        "number": number, "url": f"{repository_url}/pull/{number}",
         "body": body(),
         "state": "OPEN", "headRefName": option("--head"), "baseRefName": option("--base"),
         "isCrossRepository": False, "isDraft": "--draft" in arguments,
         "closingIssuesReferences": [{
-            "number": 1, "url": "https://github.com/example/project/issues/1"
+            "number": 1, "url": f"{repository_url}/issues/1"
         }],
     }
-    response = f"https://github.com/example/project/pull/{number}"
+    response = f"{repository_url}/pull/{number}"
 elif arguments[:2] == ["pr", "view"]:
     response = dict(state["prs"][arguments[2]])
     state["pr_views"] = state.get("pr_views", 0) + 1
@@ -215,6 +216,7 @@ def make_harness(parent: Path) -> DeliveryHarness:
         "GIT_COMMITTER_EMAIL": "test@example.com",
         "PATH": str(binary) + os.pathsep + os.environ["PATH"],
         "AI_PR_TEST_REMOTE": str(remote),
+        "AI_PR_TEST_REPOSITORY_URL": remote.as_uri(),
         "AI_PR_TEST_STATE": str(state_path),
     }
     transport = binary / "gh"
@@ -238,10 +240,7 @@ def make_harness(parent: Path) -> DeliveryHarness:
     harness.git("config", "core.hooksPath", str(home / "no-hooks"))
     harness.git("add", ".")
     harness.git("commit", "-qm", "initial")
-    harness.git("remote", "add", "origin", "https://github.com/example/project.git")
-    harness.git(
-        "config", f"url.{remote.as_uri()}.insteadOf", "https://github.com/example/project.git"
-    )
+    harness.git("remote", "add", "origin", remote.as_uri())
     harness.git("push", "-qu", "origin", "main")
     (root / "feature.txt").write_text("after\n", encoding="utf-8")
     return harness
