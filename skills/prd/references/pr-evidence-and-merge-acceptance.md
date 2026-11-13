@@ -106,7 +106,7 @@ Use a stable marker so later pushes update the same comment instead of creating 
 <!-- prd:validation-evidence version=1 prd=<prd-stem> tree=<git-tree-oid> -->
 ```
 
-Keep evidence reachable for the repository's audit horizon. Do not delete an evidence branch immediately after merge if doing so would break the archived PRD's PR links; apply an explicit retention or snapshot policy instead. The `tree=` in the marker is the record-excluded `verified_tree_sha` (see Evidence Identity), so archiving the PRD inside the PR after the verifier's `PASS` does not stale this comment.
+Keep evidence reachable for the repository's audit horizon. Do not delete an evidence branch immediately after merge if doing so would break the archived PRD's PR links **or the human review page**, which consumer tools may read straight from that branch; apply an explicit retention or snapshot policy instead. The `tree=` in the marker is the record-excluded `verified_tree_sha` (see Evidence Identity), so archiving the PRD inside the PR after the verifier's `PASS` does not stale this comment.
 
 ## Human Review Page
 
@@ -134,7 +134,9 @@ This section defines what that page must contain and how a consumer finds it. It
 - a one-sentence verdict on what changed and what it means for the user;
 - the decisions the merger is accepting, in plain language;
 - a validation table: command, level, result, link to the log;
-- the risk, and the cleanup command for any evidence branch.
+- the risk, and how the page stays reachable **after** merge: evidence branches are
+  retained rather than deleted on merge, or the page and its media are snapshotted to a
+  durable location before any cleanup runs.
 
 Order and headings are the implementation's choice, as long as the three
 non-negotiables above hold.
