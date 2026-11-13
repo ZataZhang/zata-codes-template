@@ -459,7 +459,7 @@ reviewer: verifier 的后端授权、OSS 上传、私有签名/过期拒绝、co
   - 增加 HTTPS endpoint 校验并避免 grant 自动表示泄露 bearer 值；已记录在 D-07 与 Change Log。
   - 真实消费者 fixture 和 Playwright 脚本位于验证夹具/evidence scripts，脚本不进入模板变更集；模板产品前端仍无变化。
 - Validation blocker: rv-1、rv-2、rv-3 的真实入口均在安全预检处以 exit 3 停止。缺少隔离 OSS endpoint、region、Bucket、测试凭据和 `OBJECT_STORAGE_E2E_ALLOW_WRITES=1`；rv-2 还缺少 CDN base URL。没有发出 OSS/CDN 请求，也没有执行负向对照；`evidence.json` 与各自 `rv-<n>-*.txt` 仅记录了这个阻塞，不能证明真实传输行为。
-- Validation follow-up: GitHub Issue #59 继续作为跟踪项。隔离环境负责人提供专用 Bucket、CDN 和测试身份后，按顺序运行 `just test-object-storage-e2e rv-1`、`rv-2`、`rv-3`；每项先执行其真实负向对照，再记录修复后的通过证据。另将 `just test all` 中既有的 admin 并发测试失败独立调查，不将其误报为本功能已通过。
+- Validation follow-up: GitHub Issue #59 继续作为跟踪项。隔离环境负责人需设置 `OBJECT_STORAGE_E2E_ENDPOINT`、`OBJECT_STORAGE_E2E_REGION`、`OBJECT_STORAGE_E2E_BUCKET`、`OBJECT_STORAGE_E2E_ACCESS_KEY_ID`、`OBJECT_STORAGE_E2E_ACCESS_KEY_SECRET`、`OBJECT_STORAGE_E2E_CDN_BASE_URL`（rv-2）与 `OBJECT_STORAGE_E2E_ALLOW_WRITES=1`，Bucket 保持私有并为浏览器 Origin 配置最小 CORS、CDN 只回源公开路径；随后按顺序运行 `just test-object-storage-e2e rv-1`、`rv-2`、`rv-3`，每项先执行其真实负向对照，再记录修复后的通过证据。本机仅有 S3 协议的 MinIO（`localhost:9000`），其 POST policy 字段与 Aliyun OSS 不兼容，不能替代这些 oracle。另将 `just test all` 中既有的 admin 并发测试失败独立调查，不将其误报为本功能已通过。
 
 ## Change Log
 
@@ -526,3 +526,11 @@ reviewer: verifier 的后端授权、OSS 上传、私有签名/过期拒绝、co
 - Reason: A derived project has neither `project-capabilities/` nor the copy recipe, so the copied guard failed there; a real `just copy` run exposed the failure.
 - Impact: Template distribution only. The guard still runs in the template repository, and no runtime behavior or acceptance oracle changes.
 - Review: Pending runner review; verified by a real `just copy` run whose generated project passes the guard suite except for one pre-existing, unrelated `test_local_core_tier_budget` failure.
+
+### Record the recovery re-run result
+- Type: validation
+- Before: The validation blocker recorded the first blocked run but not the runner's re-execution of the three commands on the delivered commit.
+- After: The record now states that `just test-object-storage-e2e rv-1`/`rv-2`/`rv-3` were re-run on commit `6a3a315` and still exit 3 before any OSS/CDN request, and lists the exact environment variables and Bucket/CDN prerequisites a human must provide. The local MinIO instance is explicitly rejected as a substitute because its S3 POST policy is incompatible with Aliyun OSS signing.
+- Reason: The runner's evidence gate re-executes commands; recording the exact environment gap and the resources needed keeps the blocked state auditable and avoids treating a provider-incompatible local store as proof.
+- Impact: No code, contract, or validation scope change. rv-1 through rv-3 remain unproven and unchecked.
+- Review: Pending runner review; no acceptance item was checked by this entry.

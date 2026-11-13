@@ -70,6 +70,41 @@ $ cd /tmp/issue59-copy2 && uv run pytest tests/guards -q
 
 `just sync-local-skills` 只从根级 `skills/` 扫描 Skill，`project-capabilities/` 不在扫描路径；本次未执行安装命令（会写入本机 agent Skill 目录），由静态守卫 `tests/guards/test_project_capabilities_distribution.py` 与 `tests/guards/shared/test_sync_template_skips_project_capabilities.py` 固定该边界。
 
+## 恢复尝试 1/5：门禁复跑仍失败（2026-11-13 22:43 CST）
+
+最终代码树 `6a3a315144ff0e4f60fcc39a1e2a672631cee083`（上一轮已提交）。keda 用同一命令复跑三条 RV，结果与本报告一致：
+
+```text
+$ just test-object-storage-e2e rv-1   # exit 3
+BLOCKED: rv-1 未访问外部服务。
+缺少配置名: OBJECT_STORAGE_E2E_ENDPOINT, OBJECT_STORAGE_E2E_REGION,
+OBJECT_STORAGE_E2E_BUCKET, OBJECT_STORAGE_E2E_ACCESS_KEY_ID,
+OBJECT_STORAGE_E2E_ACCESS_KEY_SECRET, OBJECT_STORAGE_E2E_ALLOW_WRITES
+
+$ just test-object-storage-e2e rv-2   # exit 3
+（同上，另缺 OBJECT_STORAGE_E2E_CDN_BASE_URL）
+
+$ just test-object-storage-e2e rv-3   # exit 3
+（同 rv-1）
+```
+
+这不是代码回归，也不是可以靠改命令绕过的断言问题：本机只有 `~/.kedacode/config.toml` 指向的本地 MinIO（`test-minio`，`localhost:9000`，S3 协议）与仓库里的 `S3_*` 备份配置，没有任何阿里云 OSS 凭据、隔离 Bucket 或 CDN 测试域名。PRD 明确禁止用 MinIO、mock 签名器或直接 SDK 上传替代这些 oracle；Aliyun OSS 的 PostObject 签名（`OSSAccessKeyId` / `policy` / `Signature`）与 S3 POST policy 不兼容，MinIO 跑通也不能证明本 adapter 可用。
+
+因此三条命令在缺失资源时**必须**以 exit 3 停止；把它们改成 exit 0 或在断言里吞掉失败，属于伪造证据，本次不做。要真正转绿，需要人类提供下列资源后按顺序复跑：
+
+```bash
+export OBJECT_STORAGE_E2E_ENDPOINT=https://oss-cn-<region>.aliyuncs.com
+export OBJECT_STORAGE_E2E_REGION=<region>
+export OBJECT_STORAGE_E2E_BUCKET=<isolated-test-bucket>
+export OBJECT_STORAGE_E2E_ACCESS_KEY_ID=<test-ram-access-key-id>
+export OBJECT_STORAGE_E2E_ACCESS_KEY_SECRET=<test-ram-access-key-secret>
+export OBJECT_STORAGE_E2E_CDN_BASE_URL=https://<cdn-test-domain>   # rv-2 需要
+export OBJECT_STORAGE_E2E_ALLOW_WRITES=1                            # 确认 Bucket 为隔离测试资源
+just test-object-storage-e2e rv-1 && just test-object-storage-e2e rv-2 && just test-object-storage-e2e rv-3
+```
+
+Bucket 需保持私有、配置最小 CORS（允许 `http://127.0.0.1:19777` 的 `POST`/`GET`，暴露 `ETag`、`Cache-Control`），CDN 只回源公开路径。凭据只经环境变量传入，不写入本目录任何文件。
+
 ## 验证脚本冒烟（不构成 RV 证据）
 
 用**无效凭据**与不存在的 Bucket 运行 `just test-object-storage-e2e rv-1`，确认 runner 能启动消费项目 API、加载 fixture 页面、签发授权表单，并由真实浏览器向 OSS 派生主机发起跨域 POST；浏览器在 `fetch` 处失败（`TypeError: Failed to fetch`，无 CORS/无效身份），未写入任何对象。该冒烟只证明验证链路可运行到 OSS 网络边界，**不能**替代 rv-1，也未写入证据文件。冒烟产生的临时输出已清理，`rv-1-direct-upload.txt` 已恢复为阻塞记录。
