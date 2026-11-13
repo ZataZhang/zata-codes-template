@@ -1,5 +1,7 @@
 # PRD: 可复用的对象存储与文件直传直取能力
 
+- GitHub Issue: https://github.com/ZataZhang/zata-codes-template/issues/59
+
 > ✅ **交付前置**：无，可立即开工。
 > 结构化声明见 §8 Delivery Dependencies，**那里是唯一事实源**。
 
