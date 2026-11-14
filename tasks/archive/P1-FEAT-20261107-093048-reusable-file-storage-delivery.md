@@ -392,6 +392,14 @@ reviewer: verifier 的后端授权、OSS 上传、私有签名/过期拒绝、co
 - [x] just test、uv run python hooks/shared/check_architecture.py 与 just lint --full 通过；新增 guard 确认能力目录不参与 just Skill 安装和模板分发。
 - [ ] 最终证据记录关联最终代码树；任一签名、路由 fixture、对象键、缓存或分发规则变更后，重跑受影响 oracle。
 
+#### 阻塞交接与解除条件（Issue #59）
+
+当前 pre-PR 结论保持 `changes_requested`。这不是可通过文档修复关闭的 finding：环境负责人需要通过执行环境注入 Final Reconciliation 所列的隔离资源配置和凭据，并显式开启测试写入；不要把密钥提交到仓库或贴入评审记录。现有阻塞证据不证明上传授权、CDN 缓存或私有签名过期行为。
+
+资源就绪后，执行者恢复 evidence scripts，依次运行三个 `just test-object-storage-e2e rv-<n>` 入口，保存实际退出码、脱敏网络记录、摘要、负向对照和 rv-2 截图，并将证据绑定到最终被测代码树。随后由独立 verifier 审核真实证据；只有获得 PASS 且所需仓库门禁适用于最终树，才能关闭此 validation finding。任何一次安全预检退出 3 都仍属于阻塞。
+
+交接期间保持本文件在 archive、现有验证阻塞横幅及未证明的空框；不请求 runner 重复提交相同的阻塞说明来替代外部补验，也不填写 Human-Confirmed。本次补丁只明确恢复工作的交接条件，不解除真实验证门禁。
+
 #### Delivery Readiness
 
 - [ ] 完整 PR 证据呈递了 §9.1 摘要和真实网络观察；若没有 PR，完成消息内联呈递同样内容，不只列证据文件路径。
