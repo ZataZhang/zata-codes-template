@@ -24,7 +24,7 @@ OSS endpoint 只接受无 URL 凭据、无 query/path 的 HTTPS authority；不�
 
 ## CORS 与缓存
 
-Bucket CORS 应按消费项目实际页面 Origin 配置最小范围：直传允许 POST，必要时允许 GET / HEAD；允许 Content-Type 和 Cache-Control；按浏览器验证需要暴露 ETag、Content-Length 和 Cache-Control。CDN 跨域响应由 CDN 配置负责，仍须在浏览器真实请求中检查。
+Bucket CORS 应按消费项目实际页面 Origin 配置最小范围：直传允许 POST，必要时允许 GET / HEAD；允许 Content-Type 和 Cache-Control；按浏览器验证需要暴露 ETag、Content-Length 和 Cache-Control。CDN 跨域响应由 CDN 配置负责，仍须在浏览器真实请求中检查；若验证脚本从页面读取 Age / X-Cache 判断缓存命中，CDN 还需通过 Access-Control-Expose-Headers 暴露它们。
 
 Bucket 保持私有，只授予服务器处理身份所需的前缀与操作权限，并配置 CDN 对公开路径的私有回源访问。缓存 key 不得丢弃私有签名参数；私有对象不应经共享 CDN。
 

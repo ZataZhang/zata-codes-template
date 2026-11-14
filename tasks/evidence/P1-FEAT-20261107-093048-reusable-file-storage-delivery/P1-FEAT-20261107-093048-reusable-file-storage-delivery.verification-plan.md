@@ -4,7 +4,7 @@
 
 行为 oracle 必须通过真实消费项目 API、浏览器、OSS 和 CDN 运行。未配置隔离 OSS Bucket、CDN 或服务端测试凭据时，入口应在外部写入前失败；MinIO、mock signer、TestClient 或直接 SDK 上传均不能替代这些 oracle。
 
-所有脚本位于本目录的 `scripts/`，不进入模板代码变更集。evidence manifest 位于 `evidence.json`；只记录环境变量名，不记录任何密钥值。
+RV runner、临时设置与捕获脚本位于本目录的 `scripts/`，不得进入代码变更集；被测消费项目 fixture 与 Playwright 产品测试源码留在对应 `tests/` 路径。evidence manifest 位于 `evidence.json`；只记录环境变量名，不记录任何密钥值。
 
 ## Realistic Validation
 
@@ -20,7 +20,7 @@
 
 | 命令 | 当前观察 |
 |---|---|
-| `just test` | PASS：核心测试 546 passed、1 skipped；本地 OIDC 17 passed |
+| `just test` | PASS：核心测试 542 passed、1 skipped；本地 OIDC 17 passed |
 | `uv run python hooks/shared/check_architecture.py` | PASS |
 | `just lint --reuse` | PASS |
 | `just lint --full` | PASS：在测试 flag 更新后复跑 |

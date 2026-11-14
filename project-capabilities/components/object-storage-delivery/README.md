@@ -40,7 +40,7 @@
 ## OSS / CDN 部署检查
 
 - 创建隔离或生产 Bucket 并保持私有；为服务端 RAM 身份只授予必需的 `oss:PutObject`、`oss:GetObject`、`oss:HeadObject` 权限及对应对象前缀。不要授予公开读写。
-- Bucket CORS 只允许实际前端 Origin。浏览器直传需要 `POST`；后台或浏览器直接读取如有需要可允许 `GET` / `HEAD`。允许 `Content-Type` 与 `Cache-Control` 请求头，并按项目验证需要暴露 `ETag`、`Content-Length` 和 `Cache-Control`。CDN 域名也需配置适合页面的 CORS 响应头。
+- Bucket CORS 只允许实际前端 Origin。浏览器直传需要 `POST`；后台或浏览器直接读取如有需要可允许 `GET` / `HEAD`。允许 `Content-Type` 与 `Cache-Control` 请求头，并按项目验证需要暴露 `ETag`、`Content-Length` 和 `Cache-Control`。CDN 域名也需配置适合页面的 CORS 响应头；本仓库 rv-2 还会读取 `Age` / `X-Cache` 判断缓存命中，测试 CDN 需将这两个响应头加入 `Access-Control-Expose-Headers`。
 - CDN 只回源公开对象路径，源站 Bucket 保持私有并限制回源权限。私有对象使用 OSS 短时签名 URL，不走共享 CDN。
 - 检查 CDN 回源 Host、HTTPS、缓存键与忽略参数规则；不得让缓存层忽略私有 OSS 签名参数。
 - 公开对象使用不可变键与长期缓存头；私有对象使用 `private, no-store`。不要原地覆盖长期缓存 URL。
@@ -51,7 +51,7 @@
 
 组件源码复制到目标项目后，至少验证未配置时应用可正常启动、启用后缺少密钥会明确失败，并运行目标项目的授权与配置测试。真实浏览器、OSS 与 CDN 行为必须在隔离 Bucket、测试身份和实际 CDN 上验证；本仓库的真实入口为 `just test-object-storage-e2e`。无真实隔离资源时记录验证阻塞，不使用 mock 声称直传或 CDN 已通过。
 
-本仓库 e2e 需由调用者在命令环境提供 `OBJECT_STORAGE_E2E_ENDPOINT`、`OBJECT_STORAGE_E2E_REGION`、`OBJECT_STORAGE_E2E_BUCKET`、`OBJECT_STORAGE_E2E_ACCESS_KEY_ID` 与 `OBJECT_STORAGE_E2E_ACCESS_KEY_SECRET`；rv-2 另需 `OBJECT_STORAGE_E2E_CDN_BASE_URL`。确认 Bucket 是隔离测试资源后，才设置 `OBJECT_STORAGE_E2E_ALLOW_WRITES=1`。脚本只检查配置是否存在，不打印密钥值；不要把生产 Bucket 用作测试资源。
+本仓库 e2e 需由调用者在命令环境提供 `OBJECT_STORAGE_E2E_ENDPOINT`、`OBJECT_STORAGE_E2E_REGION`、`OBJECT_STORAGE_E2E_BUCKET`、`OBJECT_STORAGE_E2E_ACCESS_KEY_ID` 与 `OBJECT_STORAGE_E2E_ACCESS_KEY_SECRET`；rv-2 另需 `OBJECT_STORAGE_E2E_CDN_BASE_URL`。确认 Bucket 是隔离测试资源后，才设置 `OBJECT_STORAGE_E2E_ALLOW_WRITES=1`。脚本只检查配置是否存在，不打印密钥值；不要把生产 Bucket 用作测试资源。每轮使用独立随机对象前缀，并在成功或失败后清理该前缀下已创建的对象，因此隔离测试身份还需要该前缀的 `oss:ListObjects` 与 `oss:DeleteObject` 权限；消费项目的常驻服务端身份不需要这两项清理权限。
 
 ### 官方协议参考
 

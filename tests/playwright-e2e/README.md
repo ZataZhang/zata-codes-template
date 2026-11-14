@@ -51,6 +51,8 @@ playwright-e2e/
 
 新增业务测试时，只在 `tests/` 下新增/修改文件，不要改动上层共享基础设施，除非要向上游模板反馈改进。
 
+`tests/object-storage/` 是需要真实阿里云 OSS/CDN 凭据的独立集成夹具，只由根目录 `just test-object-storage-e2e` 启动；主 `playwright.config.ts` 的常规 `chromium` project 会排除该目录，避免默认 E2E 误连外部存储。运行后只保留 `tasks/evidence/` 下的文本/截图证据，测试对象按本次随机前缀清理。
+
 ## 前置条件
 
 本地开发推荐使用 `just e2e` 单命令运行：它会先调用 `just run all` 启动 backend + admin 前端 + public 前端，跑完测试后再 `just down` 清理。如果服务已经由外部 `just run` 启动，则会复用现有服务，不会重复启动或关闭。

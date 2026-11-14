@@ -1104,6 +1104,6 @@ test-debt top="12":
     cd "{{justfile_directory()}}" && uv run python scripts/shared/testing/test_debt_report.py --top {{top}}
 
 # 对象存储直传直取真实 OSS/CDN 验证；需要隔离测试 Bucket、CDN、服务端凭据及 OBJECT_STORAGE_E2E_ALLOW_WRITES=1。
-# RV 脚本仅保存在 PRD evidence 目录，不进入模板代码 diff。
+# RV runner、生成的日志、截图和 uv 缓存只写入 PRD evidence 目录。
 test-object-storage-e2e oracle='all':
-    UV_CACHE_DIR="{{justfile_directory()}}/tasks/evidence/P1-FEAT-20261107-093048-reusable-file-storage-delivery/scripts/.uv-cache" uv run python tasks/evidence/P1-FEAT-20261107-093048-reusable-file-storage-delivery/scripts/run_real_oss_e2e.py {{oracle}}
+    UV_CACHE_DIR="{{justfile_directory()}}/tasks/evidence/P1-FEAT-20261107-093048-reusable-file-storage-delivery/.uv-cache" uv run python tasks/evidence/P1-FEAT-20261107-093048-reusable-file-storage-delivery/scripts/run_real_oss_e2e.py {{oracle}}

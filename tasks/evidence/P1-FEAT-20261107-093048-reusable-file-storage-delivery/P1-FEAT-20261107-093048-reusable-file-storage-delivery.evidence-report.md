@@ -36,9 +36,10 @@ Issue：[#59](https://github.com/ZataZhang/zata-codes-template/issues/59)。当�
 
 2026-11-13 在最终代码树上复跑：
 
-- PASS：`uv run pytest tests/guards -q` → `598 passed in 44.74s`（含新增两条分发守卫）。
+- PASS：`just test` → 核心测试 `542 passed, 1 skipped`，本地 OIDC `17 passed`。
+- PASS：`just lint --reuse` → 重复代码、架构、规范一致性与文件行数检查全部通过。
 - PASS：`uv run python hooks/shared/check_architecture.py` → `架构依赖方向全部合法，无违规。`
-- PASS：`uv run mkdocs build` → `Documentation built in 4.81 seconds`；`--strict` 仍被仓库既有的未导航页面/锚点警告阻断，非本次新增。
+- PASS：`uv run mkdocs build` → `Documentation built in 5.58 seconds`；`--strict` 仍被仓库既有的未导航页面/锚点警告阻断，非本次新增。
 - PASS：`GUARD_UPDATE_ACK=1 just lint --full` → 全部 hook `Passed`，退出码 0。不设置该变量时仅 `check-guard-test-modification` 拦截，因为本次按任务要求新增了守卫测试文件；这不是代码质量问题。
 - FAIL（既有）：`just test all` 中 `test_admin_api_rejects_disabling_the_last_enabled_platform_admin` 并发测试复跑仍得到 `[200, 200]` 而不是 `[200, 400]`。该路径未由本次变更触及。
 - PASS（本次真实执行）：`just copy /tmp/issue59-copy2` 退出码 0，完成 rsync、pre-commit 安装、迁移与初始提交。
@@ -103,7 +104,7 @@ export OBJECT_STORAGE_E2E_ALLOW_WRITES=1                            # 确认 Buc
 just test-object-storage-e2e rv-1 && just test-object-storage-e2e rv-2 && just test-object-storage-e2e rv-3
 ```
 
-Bucket 需保持私有、配置最小 CORS（允许 `http://127.0.0.1:19777` 的 `POST`/`GET`，暴露 `ETag`、`Cache-Control`），CDN 只回源公开路径。凭据只经环境变量传入，不写入本目录任何文件。
+Bucket 需保持私有、配置最小 CORS（允许 `http://127.0.0.1:19777` 的 `POST`/`GET`，暴露 `ETag`、`Cache-Control`），CDN 只回源公开路径，并通过 `Access-Control-Expose-Headers` 暴露 rv-2 读取的 `Age` / `X-Cache`。测试身份还需隔离前缀的 `oss:ListObjects` / `oss:DeleteObject` 权限供收尾清理；常驻应用身份不需要这些权限。凭据只经环境变量传入，不写入本目录任何文件。
 
 ## 验证脚本冒烟（不构成 RV 证据）
 
@@ -114,6 +115,24 @@ Bucket 需保持私有、配置最小 CORS（允许 `http://127.0.0.1:19777` 的
 ## 验证脚本静态检查
 
 - Playwright `--list` 成功发现 3 条 oracle；未连接 OSS/CDN。
-- TypeScript `tsc --noEmit --strict` 检查两个 evidence 脚本通过。
-- 对 overlay、消费 fixture 和新增 guards 执行 `ruff check` 与 `ruff format --check` 均通过。
+- TypeScript `tsc --noEmit --strict` 检查 oracle 与配置通过。
+- 对 overlay、消费 fixture 和分发契约测试执行 `ruff check` 与 `ruff format --check` 均通过。
 - 自审发现 rv-1/rv-2 的结果 JSON 未包含 fresh OSS SHA-256 对照值；已修复脚本并重新逐项运行三个入口。每次仍因真实隔离配置缺失在网络前阻塞。
+
+## Pre-PR 修复记录
+
+- RV runner 与生成日志、截图保存在本目录的 `scripts/` 与根目录；只有消费项目 fixture 和 Playwright 测试源码进入模板代码。Fresh checkout 的真实入口仍是 `just test-object-storage-e2e`，运行器使用工作区中的消费 fixture。
+- 项目能力分发回归检查保留在项目测试目录；它断言 `just copy` 排除项、根级 Skill 扫描与 `sync_template.sh --list-all` 结果。未修改 `tests/guards/`，避免将本次 feature 回归测试误作为既有仓库守卫规则改动。
+- 每轮真实运行使用随机前缀并在 finally 中清理该前缀对象。rv-3 额外断言签名 URL 的 HTTPS OSS bucket host 与过期后 HTTP 403。
+- rv-1/rv-3 成功证据将包含浏览器网络记录（不含 URL query），rv-3 还记录授权响应给出的过期时间；本轮无真实配置，未生成这些成功记录。
+- 以上改动不改变 adapter 契约，也不构成 rv-1 至 rv-3 的真实行为证据；三项仍为 BLOCKED，验收框保持未勾选。
+
+## 恢复尝试 1/5：门禁修复复核（2026-11-14）
+
+- 原失败命令 `SKIP=check-test-flag uv run pre-commit run --all-files` 只因 `tests/guards/` 有变更且未设置 `GUARD_UPDATE_ACK=1` 而失败。恢复后保留相同分发断言于项目级 `tests/test_project_capabilities_distribution.py`，不改动 `tests/guards/`；这不是跳过或修改门禁规则。
+- `uv run pytest tests/test_project_capabilities_distribution.py -q` → `2 passed`；第二项真实运行 `scripts/sync_template.sh --list-all` 并确认候选输出不含 `project-capabilities`。
+- `just test` → 核心档 `542 passed, 1 skipped`，OIDC `17 passed`。
+- `uv run python hooks/shared/check_architecture.py`、`uv run mkdocs build`、Playwright oracle `--list`（发现 3 项）及 `pnpm typecheck` 均通过。
+- `uv run pre-commit run --all-files` 与 `just lint --full` 均通过；`check-test-flag` 和 `check-guard-test-modification` 均通过，且本次没有 `SKIP` 或 `GUARD_UPDATE_ACK`。
+- 按最终 RV runner 路径逐条重跑 `just test-object-storage-e2e rv-1`、`rv-2`、`rv-3`，三条都在网络请求前以 exit 3 阻塞；各自输出只写入对应的 `rv-<n>-*.txt`。rv-2 没有真实 CDN 截图或网络记录，三个负向对照也因隔离环境缺失未执行。
+- `just copy` 未在本次恢复中重跑；已有的前次复制产物记录保留为历史观察。RV 行为、截图和负向对照仍未验证，Acceptance Checklist 保持未勾选。
