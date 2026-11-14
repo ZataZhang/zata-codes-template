@@ -16,8 +16,11 @@
 
 将 `overlay/src/backend/core/shared/interfaces/object_storage.py`、
 `overlay/src/backend/infrastructure/config/object_storage_settings.py`、
-`overlay/src/backend/infrastructure/storage/aliyun_oss.py` 与
-`overlay/src/backend/composition/object_storage_wiring.py` 合并到目标项目对应层。
+`overlay/src/backend/infrastructure/storage/aliyun_oss.py`、
+`overlay/src/backend/infrastructure/storage/__init__.py` 与
+`overlay/src/backend/composition/object_storage_wiring.py` 合并到目标项目对应层；
+`storage/__init__.py` 导出 adapter，缺失时目标项目的常规包导入会失败。
+`overlay/docs/guides/file-storage-delivery.md` 可一并复制到目标项目的 `docs/guides/`。
 这些文件遵循 `api -> core -> engines -> infrastructure` 依赖方向；仅 composition
 连接 core 契约、配置与 OSS adapter。
 
