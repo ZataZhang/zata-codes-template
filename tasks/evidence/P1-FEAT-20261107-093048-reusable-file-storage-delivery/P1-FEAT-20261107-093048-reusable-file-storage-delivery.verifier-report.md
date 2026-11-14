@@ -10,7 +10,7 @@
 
 ## 发现与修复
 
-[HIGH][requirement] 专用 RV 源码仍在代码提交中。已将消费 API/页面、Playwright oracle/config 全部移入 evidence scripts/，并调整 runner、文档和 PRD Change Log。修复待 runner 提交；验收行为未削减。
+[HIGH][requirement] 专用 RV 源码仍在代码提交中。已将消费 API/页面、Playwright oracle/config 全部移入 evidence scripts/，并调整 runner、文档和 PRD Change Log。修复已由 runner 提交为 7a62d7c1；跟进审查确认最终分支差异中已无这些 RV 源码，验收行为未削减。
 
 [HIGH][validation] PRD §9 Validation Acceptance 要求 rv-1 至 rv-3 通过真实 OSS/CDN 入口。逐项重跑仍因缺少隔离 endpoint、region、Bucket、服务端测试凭据、写入授权及 CDN 域名而 exit 3。没有观察 POST policy 大小约束、fresh OSS GET 摘要、CDN 缓存、私有签名过期拒绝，也没有对应负向对照与截图，无法批准安全与交付边界。此项需要环境负责人提供隔离资源，不能通过改 exit code、mock 或放宽 oracle 修复。
 
@@ -25,3 +25,7 @@
 文档和导航覆盖按需集成、权限、CORS、CDN、缓存与异步字节处理。最终修复树已通过 just test（核心档与 OIDC 包）、架构检查、mkdocs build、迁移后 oracle 枚举与 TypeScript/Python 静态检查。真实 RV 继续保持 BLOCKED，Acceptance Checklist 与 Human-Confirmed 未勾选。
 
 结论：必需真实验证门禁未满足，禁止将阻塞记录解释为行为通过。
+
+## 跟进审查结论
+
+已在 7a62d7c1 上重新执行三个真实入口，结果均为缺配置 exit 3。本轮只修正证据来源提交和环境交接说明；这份补丁没有补齐真实资源，HIGH validation finding 继续开放，不能批准。

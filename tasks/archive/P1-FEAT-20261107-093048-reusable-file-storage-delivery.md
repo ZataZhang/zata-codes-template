@@ -558,3 +558,11 @@ reviewer: verifier 的后端授权、OSS 上传、私有签名/过期拒绝、co
 - Reason: Pre-PR verification reproduced an RPC/early-EOF failure and confirmed the earlier check was not reliable evidence for the current source filter.
 - Impact: Distribution unit coverage is deterministic and fails if capability exclusion is removed or all shared paths are accidentally excluded. This does not replace the separate real copy/list acceptance requirements or the mandatory OSS/CDN RV gates.
 - Review: Pre-PR repair; prior remote-list successes are historical observations, not proof of this working tree's filter. No acceptance checkbox was changed.
+
+### Bind blocked replay evidence to the committed repair
+- Type: evidence
+- Before: The evidence package still referenced the pre-commit repair baseline and the verifier report described the RV source relocation as awaiting commit, although runner commit 7a62d7c1 already contained the repair.
+- After: Each RV entry records a separate replay on 7a62d7c1, all exiting 3 before external access. Reports acknowledge the committed source fixes and the validation plan provides the required runner environment handoff and resume commands.
+- Reason: The follow-up review must distinguish committed local repairs from the unresolved external resource dependency, using evidence tied to the actual reviewed code.
+- Impact: Evidence provenance and handoff only. No product behavior, required oracle, success condition or Acceptance Checklist state changed; the HIGH live-validation finding remains open.
+- Review: Follow-up review remains changes_requested until isolated OSS/CDN resources enable the required positive and negative runs. This document patch is not a claim that the validation finding is fixed.

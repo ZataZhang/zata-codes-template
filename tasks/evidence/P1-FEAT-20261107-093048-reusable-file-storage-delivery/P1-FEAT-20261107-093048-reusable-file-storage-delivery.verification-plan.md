@@ -20,7 +20,7 @@
 
 | 命令 | 当前观察 |
 |---|---|
-| `just test` | PASS：核心测试 542 passed、1 skipped；本地 OIDC 17 passed |
+| `just test` | PASS：提交 7a62d7c1 的修复树完成核心档与本地 OIDC 测试；分发过滤器另有五项定向测试通过 |
 | `uv run python hooks/shared/check_architecture.py` | PASS |
 | `just lint --reuse` | PASS |
 | `just lint --full` | PASS：在测试 flag 更新后复跑 |
@@ -28,3 +28,22 @@
 | `just test all` | FAIL：既有 admin 并发测试期望 `[200, 400]`，实际为 `[200, 200]`；定向复跑仍失败，本次未改其生产路径或测试 |
 
 以上本地门禁不能替代 rv-1 至 rv-3。
+
+## 环境负责人交接与恢复条件
+
+当前阻塞需要在实际执行上述命令的 runner 进程环境中注入配置；仅在另一个终端 export 不会自动传给已运行的 runner。真实密钥由现有 secret 注入机制提供，不写入本计划、脚本、命令日志或聊天。
+
+- OSS 连接：`OBJECT_STORAGE_E2E_ENDPOINT`、`OBJECT_STORAGE_E2E_REGION`、`OBJECT_STORAGE_E2E_BUCKET`。
+- 服务端测试身份：`OBJECT_STORAGE_E2E_ACCESS_KEY_ID`、`OBJECT_STORAGE_E2E_ACCESS_KEY_SECRET`；限制到隔离测试前缀，允许实际上传、读取、HEAD 和清理所需操作。
+- 写入确认：确认仅使用隔离测试 Bucket 后设置 `OBJECT_STORAGE_E2E_ALLOW_WRITES=1`。
+- 公开交付：`OBJECT_STORAGE_E2E_CDN_BASE_URL`；CDN 只回源公开对象路径，按组件指南配置 CORS 和缓存观察头。
+
+资源就绪后，由拥有该环境的执行者在工作区运行：
+
+```bash
+just test-object-storage-e2e rv-1
+just test-object-storage-e2e rv-2
+just test-object-storage-e2e rv-3
+```
+
+每条命令必须真实通过后才能更新该项为通过。接受条件仍包括真实负向对照、fresh 对象/HTTP 探测、rv-2 截图及网络/缓存证据；配置预检输出不满足这些条件。缺少资源时保留验证阻塞，由环境负责人接管，不再尝试源码补丁来改变命令退出结果。

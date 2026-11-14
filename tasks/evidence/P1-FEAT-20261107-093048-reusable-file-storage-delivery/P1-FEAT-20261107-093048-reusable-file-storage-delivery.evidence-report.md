@@ -166,3 +166,10 @@ PRD 明确要求这些资源缺失时停止，并禁止用 MinIO 或 mock 冒充
 - `UV_CACHE_DIR=<worktree evidence cache> just test`：核心档 `545 passed, 1 skipped`，OIDC `17 passed`；同时刷新了 `just test` 与 full-lint 本地验证标记。
 - `UV_CACHE_DIR=<worktree evidence cache> just lint --full`：检查钩子运行时只有 `check-test-flag` 因测试标记过期失败；其余钩子通过。完成 `just test` 后重跑，full-lint 标记有效。
 - 以上本地结果不改变 rv-1 至 rv-3 的真实 OSS/CDN 阻塞状态。
+
+## 跟进审查：最终提交证据来源与环境交接
+
+- 当前产品与 RV 脚本修复提交为 `7a62d7c1ee607e73d43b5985b3dcb6abd26bf76c`；此前脚本范围、过滤器测试修复已落地。
+- 本轮在该提交上逐条重跑 rv-1、rv-2、rv-3，各自立即写入独立文本文件，均在网络前 exit 3。manifest 已关联实际提交，不再沿用旧工作区基线。
+- 缺少的隔离 OSS/CDN 连接、测试身份和写入确认由验证计划的环境交接节列出；没有创建云资源、取得新凭据或改变验证门槛。
+- 此证据文档补丁不能关闭真实行为 finding。rv-2 截图、网络缓存证据和三项正反向观察仍缺失，验收项保持开放。
