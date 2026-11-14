@@ -68,12 +68,7 @@ export default defineConfig({
     {
       name: 'chromium',
       dependencies: ['setup'],
-      testIgnore: [
-        /.*\.setup\.ts/,
-        /.*\.no-auth\.spec\.ts/,
-        /.*\.admin\.spec\.ts/,
-        /.*object-storage.*/,
-      ],
+      testIgnore: [/.*\.setup\.ts/, /.*\.no-auth\.spec\.ts/, /.*\.admin\.spec\.ts/],
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 1440, height: 1200 },

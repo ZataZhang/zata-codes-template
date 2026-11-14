@@ -6,8 +6,11 @@
 
 from __future__ import annotations
 
+import re
 import subprocess
 from pathlib import Path
+
+import pytest
 
 _PROJECT_ROOT_PATH = Path(__file__).resolve().parents[1]
 
@@ -25,17 +28,34 @@ def test_project_capabilities_are_excluded_from_copy_and_skill_installation() ->
     assert "sync-local-skills:\n    ./scripts/sync_template.sh --local-skills" in justfile_text
 
 
-def test_template_sync_list_excludes_project_capabilities() -> None:
-    """template-sync 普通候选与 ``--all`` 均不得列出模板专用能力目录。"""
-    sync_script_path = _PROJECT_ROOT_PATH / "scripts/sync_template.sh"
+@pytest.mark.parametrize(
+    ("relative_path", "expected_exit_code"),
+    [
+        ("project-capabilities", 0),
+        ("project-capabilities/components/object-storage-delivery/README.md", 0),
+        ("tests/test_project_capabilities_distribution.py", 0),
+        ("scripts/shared/template/sync_template.sh", 1),
+    ],
+)
+def test_template_sync_filter_excludes_only_template_private_paths(
+    relative_path: str, expected_exit_code: int
+) -> None:
+    """执行当前脚本的共享过滤器，同时验证排除项与正常共享路径。"""
+    sync_script_path = _PROJECT_ROOT_PATH / "scripts/shared/template/sync_template.sh"
+    sync_script_text = sync_script_path.read_text(encoding="utf-8")
+    filter_function_match = re.search(
+        r"^_is_always_skipped\(\) \{\n.*?^\}", sync_script_text, re.MULTILINE | re.DOTALL
+    )
+    assert filter_function_match is not None
+    filter_command = filter_function_match.group(0) + '\n_is_always_skipped "$1"'
     completed_process = subprocess.run(
-        [str(sync_script_path), "--list-all"],
+        ["bash", "-c", filter_command, "sync-filter-test", relative_path],
         cwd=_PROJECT_ROOT_PATH,
         capture_output=True,
-        check=True,
+        check=False,
         text=True,
         encoding="utf-8",
+        timeout=5,
     )
 
-    assert "project-capabilities" not in completed_process.stdout
-    assert "tests/test_project_capabilities_distribution.py" not in completed_process.stdout
+    assert completed_process.returncode == expected_exit_code, completed_process.stderr

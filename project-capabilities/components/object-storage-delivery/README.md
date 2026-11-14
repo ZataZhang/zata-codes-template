@@ -51,6 +51,8 @@
 
 组件源码复制到目标项目后，至少验证未配置时应用可正常启动、启用后缺少密钥会明确失败，并运行目标项目的授权与配置测试。真实浏览器、OSS 与 CDN 行为必须在隔离 Bucket、测试身份和实际 CDN 上验证；本仓库的真实入口为 `just test-object-storage-e2e`。无真实隔离资源时记录验证阻塞，不使用 mock 声称直传或 CDN 已通过。
 
+真实验证的 runner、消费 API/页面和 Playwright oracle 由 `tasks/evidence/P1-FEAT-20261107-093048-reusable-file-storage-delivery/scripts/` 下的 evidence 包提供，不随代码提交分发；先取得该包并安装 `tests/playwright-e2e` 的依赖，再运行上述入口。
+
 本仓库 e2e 需由调用者在命令环境提供 `OBJECT_STORAGE_E2E_ENDPOINT`、`OBJECT_STORAGE_E2E_REGION`、`OBJECT_STORAGE_E2E_BUCKET`、`OBJECT_STORAGE_E2E_ACCESS_KEY_ID` 与 `OBJECT_STORAGE_E2E_ACCESS_KEY_SECRET`；rv-2 另需 `OBJECT_STORAGE_E2E_CDN_BASE_URL`。确认 Bucket 是隔离测试资源后，才设置 `OBJECT_STORAGE_E2E_ALLOW_WRITES=1`。脚本只检查配置是否存在，不打印密钥值；不要把生产 Bucket 用作测试资源。每轮使用独立随机对象前缀，并在成功或失败后清理该前缀下已创建的对象，因此隔离测试身份还需要该前缀的 `oss:ListObjects` 与 `oss:DeleteObject` 权限；消费项目的常驻服务端身份不需要这两项清理权限。
 
 ### 官方协议参考

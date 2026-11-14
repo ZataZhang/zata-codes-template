@@ -214,10 +214,8 @@ This section is a living implementation guide based on current repository analys
 │
 ├── tests/test_project_capabilities_distribution.py [修改]
 │   【总结】守住项目能力包不进入 Skill 安装候选或派生项目副本。
-├── tests/fixtures/object_storage_consumer/ [新增]
-│   【总结】提供仅供验证的消费项目 API/页面装配，不作为模板产品路由。
 ├── tasks/evidence/P1-FEAT-20261107-093048-reusable-file-storage-delivery/scripts/ [本地证据脚本，不进入代码变更集]
-│   【总结】驱动独立消费项目和 Playwright 真实浏览器完成 OSS/CDN 行为验证。
+│   【总结】保存独立消费项目 API/页面、Playwright oracle 与 runner，完成 OSS/CDN 行为验证。
 │
 ├── docs/guides/project-capabilities.md [新增]
 │   【总结】说明模板能力目录的维护和显式调用方式。
@@ -544,3 +542,19 @@ reviewer: verifier 的后端授权、OSS 上传、私有签名/过期拒绝、co
 - Reason: Follow the PRD skill's Machine Contract that all RV scripts stay out of the code diff, and preserve the repository's explicit acknowledgment gate for changes to `tests/guards/` without dropping distribution coverage.
 - Impact: The tracked e2e entry remains `just test-object-storage-e2e`; test behavior and distribution requirements are unchanged. The runner writes only per-item evidence, and the actual OSS/CDN oracles remain blocked until isolated credentials and domains are supplied.
 - Review: Recovery repair; runner review pending. No Acceptance Checklist item was changed or newly checked.
+
+### Keep every RV oracle and setup file in evidence scripts
+- Type: validation
+- Before: The standalone runner was excluded from the code diff, but its dedicated consumer API/page and Playwright oracle/config were still committed under tests/.
+- After: All dedicated RV source files live under tasks/evidence/<prd-stem>/scripts/, including consumer/ and browser/ subdirectories. The runner resolves these local paths and reuses the existing Playwright dependency installation.
+- Reason: The execution contract explicitly excludes every RV script, temporary setup, and reproducible oracle from the code diff, even when the original impact tree named a tests/ path.
+- Impact: Source location only; real OSS/CDN requirements, negative controls, per-item evidence and the just entry remain unchanged. Reviewers need the evidence package to reproduce the live validation. Mandatory live validation remains blocked by absent isolated resources.
+- Review: Pre-PR self-repair; scope requirement restored. Realistic Validation remains unproven, and no Acceptance Checklist or Human-Confirmed item was checked.
+
+### Validate the current sync filter without a remote clone
+- Type: test
+- Before: The distribution regression invoked sync_template.sh --list-all with its default GitHub source; it inspected the remote default branch and could hang or fail during a network clone, without exercising the current working tree's exclusion rule against differing content.
+- After: The test extracts and executes the current shared _is_always_skipped function with capability root/nested paths, the template-only test path, and an ordinary shared-script control. Each shell subprocess has a five-second timeout and does not clone a remote repository.
+- Reason: Pre-PR verification reproduced an RPC/early-EOF failure and confirmed the earlier check was not reliable evidence for the current source filter.
+- Impact: Distribution unit coverage is deterministic and fails if capability exclusion is removed or all shared paths are accidentally excluded. This does not replace the separate real copy/list acceptance requirements or the mandatory OSS/CDN RV gates.
+- Review: Pre-PR repair; prior remote-list successes are historical observations, not proof of this working tree's filter. No acceptance checkbox was changed.

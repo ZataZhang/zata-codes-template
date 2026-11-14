@@ -121,7 +121,7 @@ Bucket 需保持私有、配置最小 CORS（允许 `http://127.0.0.1:19777` 的
 
 ## Pre-PR 修复记录
 
-- RV runner 与生成日志、截图保存在本目录的 `scripts/` 与根目录；只有消费项目 fixture 和 Playwright 测试源码进入模板代码。Fresh checkout 的真实入口仍是 `just test-object-storage-e2e`，运行器使用工作区中的消费 fixture。
+- 全部 RV 源码（runner、消费项目 API/页面、Playwright oracle 与配置）统一保存在本目录的 `scripts/`，不进入模板代码提交。复现时先取得 evidence 包与本仓库 Playwright 依赖，再运行 `just test-object-storage-e2e`。
 - 项目能力分发回归检查保留在项目测试目录；它断言 `just copy` 排除项、根级 Skill 扫描与 `sync_template.sh --list-all` 结果。未修改 `tests/guards/`，避免将本次 feature 回归测试误作为既有仓库守卫规则改动。
 - 每轮真实运行使用随机前缀并在 finally 中清理该前缀对象。rv-3 额外断言签名 URL 的 HTTPS OSS bucket host 与过期后 HTTP 403。
 - rv-1/rv-3 成功证据将包含浏览器网络记录（不含 URL query），rv-3 还记录授权响应给出的过期时间；本轮无真实配置，未生成这些成功记录。
@@ -136,3 +136,33 @@ Bucket 需保持私有、配置最小 CORS（允许 `http://127.0.0.1:19777` 的
 - `uv run pre-commit run --all-files` 与 `just lint --full` 均通过；`check-test-flag` 和 `check-guard-test-modification` 均通过，且本次没有 `SKIP` 或 `GUARD_UPDATE_ACK`。
 - 按最终 RV runner 路径逐条重跑 `just test-object-storage-e2e rv-1`、`rv-2`、`rv-3`，三条都在网络请求前以 exit 3 阻塞；各自输出只写入对应的 `rv-<n>-*.txt`。rv-2 没有真实 CDN 截图或网络记录，三个负向对照也因隔离环境缺失未执行。
 - `just copy` 未在本次恢复中重跑；已有的前次复制产物记录保留为历史观察。RV 行为、截图和负向对照仍未验证，Acceptance Checklist 保持未勾选。
+
+## Pre-PR review：RV 源码范围修复
+
+- 完成 core 契约、OSS adapter、配置装配、消费 fixture、浏览器 oracle 和分发路径的代码审查。
+- 消费 API/页面与 Playwright oracle/config 都是专门的 RV 源码，现已从 `tests/` 移至本 evidence 包的 `scripts/consumer/` 与 `scripts/browser/`；runner 从这些位置加载，并在 scripts 目录链接已有 Playwright 依赖。
+- 本次调整不改变上传授权、缓存或私有读取的验收要求。rv-1 至 rv-3 的真实证据仍为 BLOCKED：缺少隔离 OSS/CDN 资源和测试凭据，未执行负向对照、未产生 CDN 图片截图。此项仍阻止验收批准。
+
+## 恢复尝试 2/5：真实入口复跑仍被隔离资源阻塞（2026-11-14）
+
+在当前工作树（基于 `fa4cdf46`，RV 源码已移至 evidence `scripts/`）按门禁命令重新执行三条 RV。Playwright 命令 `tests/playwright-e2e/node_modules/.bin/playwright test --config tasks/evidence/P1-FEAT-20261107-093048-reusable-file-storage-delivery/scripts/browser/playwright.config.ts --list` 退出码 0，发现 3 条 oracle，未连接 OSS/CDN。三条命令均以 exit 3 在安全预检处停止；runner 分别刷新 `rv-1-direct-upload.txt`、`rv-2-cdn-delivery.txt`、`rv-3-private-expiry.txt`，每个文件仅记录对应 item 的输出。`OBJECT_STORAGE_E2E_*` 所需配置名在当前进程与 `.env.local` 中均缺失；没有发送 OSS/CDN 请求、生成 CDN 截图或运行真实负向对照。`VIRTUAL_ENV` 警告只说明调用方 venv 与仓库 `.venv` 不一致，不是本次停止原因。
+
+| 命令 | 结果 | 关键缺项 |
+|---|---|---|
+| `just test-object-storage-e2e rv-1` | BLOCKED，exit 3 | endpoint、region、bucket、两项测试凭据、写入确认 |
+| `just test-object-storage-e2e rv-2` | BLOCKED，exit 3 | rv-1 全部配置及 CDN base URL |
+| `just test-object-storage-e2e rv-3` | BLOCKED，exit 3 | endpoint、region、bucket、两项测试凭据、写入确认 |
+
+PRD 明确要求这些资源缺失时停止，并禁止用 MinIO 或 mock 冒充真实 OSS/CDN 结果。不能把安全预检改成 exit 0，否则会把未运行的行为检查伪装成通过。验收仍阻塞，需由隔离环境负责人提供专用私有 Bucket、测试凭据、CDN 域名及 `OBJECT_STORAGE_E2E_ALLOW_WRITES=1`，再按上述三条命令顺序复跑；不应把长期应用密钥放入证据目录或提交。
+
+## Pre-PR review：分发回归测试来源修复
+
+- 本轮定向测试复现远端 clone RPC/early-EOF 失败（exit 128）。先前的 --list-all 调用默认克隆 GitHub 默认分支，不能作为当前工作树排除规则的证明。
+- 已改为执行当前脚本的 _is_always_skipped 函数，覆盖能力根路径、嵌套路径、模板内部测试与允许同步的共享脚本对照；子进程限制五秒。它是过滤器单元覆盖，不冒充完整 copy/list 真实入口验收。
+
+### 恢复尝试 2/5 本地门禁
+
+- `UV_CACHE_DIR=<worktree evidence cache> just lint --reuse`：通过。初次未指定缓存目录的调用因宿主 `~/.cache/uv` 权限限制未能启动，改用 worktree 内缓存后通过。
+- `UV_CACHE_DIR=<worktree evidence cache> just test`：核心档 `545 passed, 1 skipped`，OIDC `17 passed`；同时刷新了 `just test` 与 full-lint 本地验证标记。
+- `UV_CACHE_DIR=<worktree evidence cache> just lint --full`：检查钩子运行时只有 `check-test-flag` 因测试标记过期失败；其余钩子通过。完成 `just test` 后重跑，full-lint 标记有效。
+- 以上本地结果不改变 rv-1 至 rv-3 的真实 OSS/CDN 阻塞状态。
