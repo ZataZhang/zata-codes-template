@@ -51,6 +51,8 @@ playwright-e2e/
 
 新增业务测试时，只在 `tests/` 下新增/修改文件，不要改动上层共享基础设施，除非要向上游模板反馈改进。
 
+对象存储真实验证使用本包的 Playwright 依赖；其专用 API、页面、oracle 和配置统一位于 `tasks/evidence/P1-FEAT-20261107-093048-reusable-file-storage-delivery/scripts/`，由 evidence 包提供，不进入代码提交或常规 E2E 集合。取得 evidence 包并配置隔离 OSS/CDN 后，通过根目录 `just test-object-storage-e2e` 逐项运行；测试对象按本轮随机前缀清理。
+
 ## 前置条件
 
 本地开发推荐使用 `just e2e` 单命令运行：它会先调用 `just run all` 启动 backend + admin 前端 + public 前端，跑完测试后再 `just down` 清理。如果服务已经由外部 `just run` 启动，则会复用现有服务，不会重复启动或关闭。

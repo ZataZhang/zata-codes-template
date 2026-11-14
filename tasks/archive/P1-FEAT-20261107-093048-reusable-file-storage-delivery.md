@@ -5,7 +5,7 @@
 > ✅ **交付前置**：无，可立即开工。
 > 结构化声明见 §8 Delivery Dependencies，**那里是唯一事实源**。
 
-> ⬜ **验收状态**：未开工。
+> ⏸️ **验收状态**：验证阻塞 — 真实 OSS/CDN 验证受隔离环境配置阻塞，未验证条目保持未勾选；原因与后续任务见 Final Reconciliation。
 > 本行是 §9 Acceptance Checklist 的投影，**那里是唯一事实源**。
 
 本文先供人确认行为解读与范围，再供执行者按仓库架构落地。Part A 不要求读者理解实现细节。
@@ -155,9 +155,9 @@
 
 ### Proposed Solution Summary (实现机制)
 
-- **核心机制：** 可复制的 ObjectStorage 核心契约 + 阿里云 OSS 基础设施实现，能签发受限、短期上传/读取授权并检查对象元数据；对象正文流量始终由浏览器与 OSS/CDN 直连。
+- **核心机制：** 可复制的 ObjectStorage 核心契约 + 阿里云 OSS 基础设施实现，能签发受限、短期上传/读取授权并检查对象元数据；上传使用 OSS PostObject policy 限制精确对象键、Content-Type、大小与过期时间；对象正文流量始终由浏览器与 OSS/CDN 直连。
 - **声明由谁提供：** 消费项目的业务用例显式提供经过授权的对象键、用途、允许的内容类型/大小和所需过期时间。能力不从用户输入推断对象权限、不自行生成业务归属。
-- **接入边界：** 项目自己的 API 用例经 core 契约调用 adapter；composition 负责注入 provider。项目自己的前端从现有页面调用上传授权 API，随后直接 PUT 到签名 URL，或把公开 CDN URL 交给浏览器加载。
+- **接入边界：** 项目自己的 API 用例经 core 契约调用 adapter；composition 负责注入 provider。项目自己的前端从现有页面调用上传授权 API，随后直接 POST 表单到 OSS，或把公开 CDN URL 交给浏览器加载。
 - **状态与结果：** 项目数据库仍保存自己的对象键和业务关系；签名 URL 只短时存在于响应中。公开静态资源可由 CDN 和浏览器缓存；无权限或签名过期时对象读取失败。
 - **刻意避免的复杂度：** 不建通用文件表、统一文件 CRUD API、独立微服务、自动项目注入器、多云 registry、私有 CDN 签名、历史文件迁移或云资源 IaC。
 
@@ -193,10 +193,14 @@ This section is a living implementation guide based on current repository analys
 │       【总结】提供仅在模板工作区显式调用的项目能力目录入口，并链接到独立能力说明。
 │   └── components/object-storage-delivery/README.md [新增]
 │       【总结】说明直传直取边界、OSS/CDN 配置、缓存、安全与消费项目接入步骤。
+│   └── components/object-storage-delivery/config.toml.example、.env.example [新增]
+│       【总结】提供关闭状态的配置样例与仅供启用后注入的空密钥变量。
 │   └── components/object-storage-delivery/overlay/src/backend/core/shared/interfaces/object_storage.py [新增]
 │       【总结】定义不依赖 SDK 的上传授权、读取授权和对象元数据契约。
+│   └── components/object-storage-delivery/overlay/src/backend/infrastructure/config/object_storage_settings.py [新增]
+│       【总结】读取可选非密钥配置并从服务端环境变量加载密钥。
 │   └── components/object-storage-delivery/overlay/src/backend/infrastructure/storage/aliyun_oss.py [新增]
-│       【总结】用服务端 OSS 凭据签发短时对象授权并查询对象元数据。
+│       【总结】用 HTTPS 服务端 OSS 凭据签发受限短时授权、查询元数据并流式处理对象。
 │   └── components/object-storage-delivery/overlay/src/backend/composition/object_storage_wiring.py [新增]
 │       【总结】将配置与 OSS adapter 装配为项目依赖。
 │   └── components/object-storage-delivery/overlay/docs/guides/file-storage-delivery.md [新增]
@@ -208,12 +212,10 @@ This section is a living implementation guide based on current repository analys
 ├── scripts/shared/template/sync_template.sh [修改]
 │   【总结】在普通同步、--all 与 Skill 安装路径中排除模板专用能力目录。
 │
-├── tests/guards/test_project_capabilities_distribution.py [新增]
+├── tests/test_project_capabilities_distribution.py [修改]
 │   【总结】守住项目能力包不进入 Skill 安装候选或派生项目副本。
-├── tests/playwright-e2e/tests/object-storage/direct-transfer.spec.ts [新增]
-│   【总结】通过真实浏览器和隔离对象存储验证直传、直读、权限与过期行为。
-├── tests/fixtures/object_storage_consumer/ [新增]
-│   【总结】提供仅供验证的消费项目 API/页面装配，不作为模板产品路由。
+├── tasks/evidence/P1-FEAT-20261107-093048-reusable-file-storage-delivery/scripts/ [本地证据脚本，不进入代码变更集]
+│   【总结】保存独立消费项目 API/页面、Playwright oracle 与 runner，完成 OSS/CDN 行为验证。
 │
 ├── docs/guides/project-capabilities.md [新增]
 │   【总结】说明模板能力目录的维护和显式调用方式。
@@ -269,15 +271,17 @@ The component stores no generic file row. A consuming project persists object ke
   reviewer: verifier
   real_entry: "just test-object-storage-e2e"
   expected: "The browser network record shows the upload request going to the configured OSS host; the API ticket response contains no file body; a fresh OSS client reads back bytes with the same SHA-256."
-  mock_boundary: "The API route, application authorization, OSS signer, actual OSS test bucket, and browser PUT path are real. Use an isolated object prefix and test identity. Do not mock the signer, object store, or browser request."
+  mock_boundary: "The API route, application authorization, OSS signer, actual OSS test bucket, and browser PostObject request are real. Use an isolated object prefix and test identity. Do not mock the signer, object store, or browser request."
   tier: R2
   test_layer: e2e
   required_for_acceptance: true
   critical_value_source: "The upload authorization response produced by the running consumer project's API."
-  must_cross: "Playwright consumer page -> live API authorization route -> core use case -> OSS signing SDK -> browser PUT to OSS -> fresh OSS SDK HEAD/GET."
+  must_cross: "Playwright consumer page -> live API authorization route -> core use case -> OSS PostObject policy signer -> browser POST to OSS -> fresh OSS SDK HEAD/GET."
   forbidden_bypasses: "No direct SDK upload from the test, mocked signer/object store, API body upload, or backend file proxy."
   fresh_state_probe: "Create a new OSS client after browser upload and GET the exact returned object key; compare SHA-256 with the browser fixture bytes."
   final_tree_evidence: "Save Playwright network evidence and fresh OSS GET digest under tasks/evidence/P1-FEAT-20261107-093048-reusable-file-storage-delivery/; rerun after any change to the contract, signer, route fixture, test page, or OSS configuration."
+  negative_control: "Using the real OSS test bucket, submit the valid upload form with a file exceeding its signed content-length-range; OSS must reject it before a valid in-range upload is attempted."
+  expected_fail: "The oversized direct OSS POST returns a non-success status and the fresh OSS client cannot find the rejected key; the positive in-range upload then succeeds."
 - id: rv-2
   behavior: "A public object is delivered directly from the configured CDN and repeat reads follow the object's cache policy."
   reviewer: human
@@ -293,6 +297,8 @@ The component stores no generic file row. A consuming project persists object ke
   forbidden_bypasses: "No direct OSS GET used as a substitute for the CDN request; no reconstructed URL, mocked CDN response, or backend response containing object bytes."
   fresh_state_probe: "In a new browser context, load the same immutable URL and record the CDN response status, cache headers, and object digest."
   final_tree_evidence: "Save the browser network record and response metadata under tasks/evidence/P1-FEAT-20261107-093048-reusable-file-storage-delivery/; rerun after any change to URL construction, cache metadata, CDN configuration, or object-key policy."
+  negative_control: "Upload a separate isolated public object through the real OSS path with Cache-Control set to no-store, then run the same CDN cache-policy assertion against that object."
+  expected_fail: "The real CDN GET returns the intentionally mismatched cache policy and the oracle rejects it; the correctly configured immutable object then satisfies the cache assertion."
 - id: rv-3
   behavior: "Private files are readable only after project authorization, and the issued read URL stops working after expiry."
   reviewer: verifier
@@ -307,6 +313,8 @@ The component stores no generic file row. A consuming project persists object ke
   forbidden_bypasses: "No endpoint that streams bytes, no private CDN URL, no reconstructed signature, and no test-only production authorization bypass."
   fresh_state_probe: "Use a new HTTP client after the expiry boundary to GET the same signed URL; assert OSS rejects it."
   final_tree_evidence: "Save API results, redacted URL host/expiry evidence, and direct OSS response under tasks/evidence/P1-FEAT-20261107-093048-reusable-file-storage-delivery/; rerun after any change to authorization, signing, or expiry handling."
+  negative_control: "Use the fixture's unauthorized identity and, after the authorization case, repeat the exact signed GET with a fresh HTTP client after expiry."
+  expected_fail: "The unauthorized API returns denial without a URL and the expired direct OSS GET returns 403; only the authorized, unexpired URL returns the object."
 ```
 
 执行前先检查测试环境是否配置了隔离 OSS Bucket、CDN 域名和服务端测试凭据；缺少时停止真实集成验证并登记 Validation blocker，不得用 mock 冒充 OSS/CDN 已验证。负向对照使用测试边界的未授权身份与已过期签名，不改生产代码来制造失败。
@@ -316,6 +324,7 @@ The component stores no generic file row. A consuming project persists object ke
 | Topic | Source | Checked On | Relevant Finding | Impact On Recommendation |
 |---|---|---|---|---|
 | OSS 浏览器直传与临时授权 | [Alibaba Cloud: Upload files to OSS directly from clients](https://help.aliyun.com/en/oss/user-guide/uploading-objects-to-oss-directly-from-clients/) | 2026-11-07 | 浏览器可由服务端签发临时授权后直接向 OSS 上传；应用服务器不必中转文件字节；Bucket 需要匹配的 CORS 规则。 | 采用后端授权、浏览器直传的控制面/数据面分离；目标项目必须按实际来源域配置 CORS。 |
+| OSS PostObject policy 限制与签名 | [Alibaba Cloud: PostObject](https://help.aliyun.com/en/oss/developer-reference/postobject), [POST V1 signature](https://help.aliyun.com/en/oss/developer-reference/signature-version-1) | 2026-11-13 | PostObject 接受 bucket、key、content-type、cache-control、success status、content-length-range 等 policy 条件；文件字段需最后提交；官方说明单次表单上传上限为 5 GB，V1 签名为 `base64(hmac-sha1(secret, base64(policy)))`。 | 采用 OSS policy 绑定精确键、类型、缓存头、大小与过期时间；服务端签发 POST 表单，浏览器直接向 bucket host 提交。 |
 | OSS CORS 与公开资源读取 | [Alibaba Cloud: Configure CORS rules](https://help.aliyun.com/en/oss/user-guide/configure-cross-origin-resource-sharing) | 2026-11-07 | CORS 必须匹配页面 Origin、HTTP 方法和请求头；公开静态读取通常使用 GET/HEAD；可暴露 ETag、Content-Length。 | 能力说明包含最小化来源/方法设置，并用响应头验证缓存与上传结果。 |
 | 私有 OSS 配合 CDN 回源 | [Alibaba Cloud: Allow only attached CDN-accelerated domain names to access OSS resources](https://help.aliyun.com/en/oss/allow-only-cdn-accelerated-domain-names-to-access-oss-resources) | 2026-11-07 | 可将 Bucket 设为私有，并授权绑定的 CDN 域名回源；非 CDN 直接访问仍需签名。 | 公开对象可以用私有 Bucket + CDN 回源；此 PRD 的私有对象仍走 OSS 短时签名 URL。 |
 | OSS S3 兼容模式 | [Alibaba Cloud: Accessing OSS with AWS SDKs](https://help.aliyun.com/en/oss/developer-reference/use-aws-sdks-to-access-oss) | 2026-11-07 | OSS 提供 S3 兼容端点，但相关认证模式和协议行为需要按官方文档配置确认。 | 首个 adapter 采用 OSS 官方 SDK/签名语义；不为本次能力强行启用兼容模式，也不先建设多云注册系统。 |
@@ -354,14 +363,14 @@ reviewer: verifier 的后端授权、OSS 上传、私有签名/过期拒绝、co
 
 #### Architecture Acceptance
 
-- [ ] 能力 overlay 只定义 core 对象存储契约与 infrastructure OSS adapter；just lint --full / 架构检查通过，没有 api/core 反向导入 infrastructure。
-- [ ] 消费项目负责业务授权、对象键/业务关系和端点；能力包没有通用 File ORM、Alembic migration 或默认业务路由。
+- [x] 能力 overlay 只定义 core 对象存储契约与 infrastructure OSS adapter；just lint --full / 架构检查通过，没有 api/core 反向导入 infrastructure。
+- [x] 消费项目负责业务授权、对象键/业务关系和端点；能力包没有通用 File ORM、Alembic migration 或默认业务路由。
 
 #### Distribution Acceptance
 
-- [ ] just copy 输出不含根级 project-capabilities/，且目标 justfile 中也没有能力目录；./scripts/sync_template.sh --list-all 不列出该目录。
+- [x] just copy 输出不含根级 project-capabilities/，且目标 justfile 中也没有能力目录；./scripts/sync_template.sh --list-all 不列出该目录。
 - [ ] just sync-local-skills 的候选扫描只发现根级 skills/ 下的 Skills；project-capabilities/ 不在任何本机 agent Skill 目录。
-- [ ] 可通过模板仓库内明确路径读取 project-capabilities/SKILL.md，并按选择只复制对象存储 overlay；其他能力未选时目标项目没有对应依赖或文件。
+- [x] 可通过模板仓库内明确路径读取 project-capabilities/SKILL.md，并按选择只复制对象存储 overlay；其他能力未选时目标项目没有对应依赖或文件。
 
 #### Behavior Acceptance
 
@@ -373,15 +382,23 @@ reviewer: verifier 的后端授权、OSS 上传、私有签名/过期拒绝、co
 
 #### Documentation Acceptance
 
-- [ ] project-capabilities/SKILL.md 指向单独的对象存储组件说明；新增能力有独立文档模块，没有把所有未来组件细节塞进一个大文件。
-- [ ] docs/guides/project-capabilities.md、组件接入指南与 mkdocs.yml 导航一致，并明确 Skill 不进入派生项目和本机安装目录。
+- [x] project-capabilities/SKILL.md 指向单独的对象存储组件说明；新增能力有独立文档模块，没有把所有未来组件细节塞进一个大文件。
+- [x] docs/guides/project-capabilities.md、组件接入指南与 mkdocs.yml 导航一致，并明确 Skill 不进入派生项目和本机安装目录。
 - [ ] OSS 权限、CORS、CDN 回源、缓存头、公开/私有对象策略、密钥注入和异步处理说明可由目标项目维护者按需执行。
 
 #### Validation Acceptance
 
 - [ ] just test-object-storage-e2e 通过 rv-1 至 rv-3；证据包含浏览器到 OSS/CDN 的实际请求、真实授权响应、独立 OSS GET/HEAD 或过期拒绝结果。
-- [ ] just test、uv run python hooks/shared/check_architecture.py 与 just lint --full 通过；新增 guard 确认能力目录不参与 just Skill 安装和模板分发。
+- [x] just test、uv run python hooks/shared/check_architecture.py 与 just lint --full 通过；新增 guard 确认能力目录不参与 just Skill 安装和模板分发。
 - [ ] 最终证据记录关联最终代码树；任一签名、路由 fixture、对象键、缓存或分发规则变更后，重跑受影响 oracle。
+
+#### 阻塞交接与解除条件（Issue #59）
+
+当前 pre-PR 结论保持 `changes_requested`。这不是可通过文档修复关闭的 finding：环境负责人需要通过执行环境注入 Final Reconciliation 所列的隔离资源配置和凭据，并显式开启测试写入；不要把密钥提交到仓库或贴入评审记录。现有阻塞证据不证明上传授权、CDN 缓存或私有签名过期行为。
+
+资源就绪后，执行者恢复 evidence scripts，依次运行三个 `just test-object-storage-e2e rv-<n>` 入口，保存实际退出码、脱敏网络记录、摘要、负向对照和 rv-2 截图，并将证据绑定到最终被测代码树。随后由独立 verifier 审核真实证据；只有获得 PASS 且所需仓库门禁适用于最终树，才能关闭此 validation finding。任何一次安全预检退出 3 都仍属于阻塞。
+
+交接期间保持本文件在 archive、现有验证阻塞横幅及未证明的空框；不请求 runner 重复提交相同的阻塞说明来替代外部补验，也不填写 Human-Confirmed。本次补丁只明确恢复工作的交接条件，不解除真实验证门禁。
 
 #### Delivery Readiness
 
@@ -417,6 +434,7 @@ reviewer: verifier 的后端授权、OSS 上传、私有签名/过期拒绝、co
 | 长缓存与可变对象键产生陈旧图像 | 对象名带版本/随机唯一键；每次替换对象生成新 URL；不依赖覆盖后立即 purge |
 | OSS/CDN 测试配置或凭据不可用 | RV 真实集成不以 mock 替代；缺少隔离 Bucket、CDN 测试域名或凭据时记录 Validation blocker 和后续补测任务，不能宣称端到端通过 |
 | 现有派生项目不会因模板同步自动获得后端能力 | Skill 明确说明按需复制/再次应用；不声称 just sync-template 会更新现有 src/backend |
+| 仓库全量测试中一个既有并发用例失败 | `just test all` 的 `test_admin_api_rejects_disabling_the_last_enabled_platform_admin` 复跑仍观察到两个并发请求均返回 200；本次未改该无关路径。单独跟进，不将该结果描述为对象存储测试失败 |
 
 ## 13. Decision Log
 
@@ -428,6 +446,20 @@ reviewer: verifier 的后端授权、OSS 上传、私有签名/过期拒绝、co
 | D-04 | 业务元数据和通用文件 API | 由各消费项目维护；模板不创建通用文件表或 CRUD API | 模板统一接管文件记录、所有权、发布与授权 | 模板没有业务域，且不同项目的实体关系与权限规则不一致 |
 | D-05 | 私有文件首版读取交付 | 项目授权后发短时 OSS 读取 URL；CDN 用于公开对象 | 首版为私有 CDN 实现签名访问与共享缓存 | 当前明确的性能目标是公开静态资源；私有 CDN 需要额外签名与缓存策略，先避免扩大范围 |
 | D-06 | 能力目录是否可安装/复制 | project-capabilities/ 只在模板仓库按路径读取；能力文件不自动安装或复制 | 放进根级 skills/ 或默认随 just copy 进入所有项目 | 用户明确要求该 Skill 只用于项目初始化，不进入全局 Skill 或每个生成项目 |
+| D-07 | OSS 服务端 endpoint 传输 | 只接受不带 URL 凭据、path、query 或 fragment 的 HTTPS authority | 同时接受 HTTP 或任意 OSS URL | 上传授权和读取签名是 bearer capability，服务端连接必须加密且 endpoint 结构明确 |
+
+### Final Reconciliation
+
+- Interpretation: confirmed — 模板提供按需复制的 OSS 能力；消费项目继续拥有业务授权、对象与业务记录关系及上传完成状态，普通文件正文由浏览器直接传到 OSS/CDN。模板前端没有产品界面改动。
+- Public behavior and contracts: corrected — 上传授权采用绑定对象键、Content-Type、Cache-Control、大小范围和过期时间的 OSS PostObject policy，因此浏览器通过 `FormData` POST；OSS endpoint 必须是 HTTPS。授权字段仍由 API 显式返回，但 bearer 字段不进入 grant 对象的自动 `repr`。这些实现差异已在前文与 Change Log 记录。
+- Related PRD status: confirmed — §8 依赖仍为 none；待办中的多组织在线 Agent PRD 与本能力无执行顺序依赖，也未发现重复对象存储 PRD。
+- Requirements and risks: confirmed — FR-1 至 FR-9 均仍由 Feature Overview 覆盖；未配置时不启用 adapter，未选择组件的项目不增加 OSS SDK。`just test`、架构检查、`just lint --reuse` 与 `just lint --full` 已通过；`just test all` 另有上述现存 admin 并发测试失败。本次没有修改该测试或生产路径。
+- Reconciled differences:
+  - 将初始的签名 PUT 方案改为 OSS PostObject policy，以由 OSS 强制限制文件大小和类型；已更新 Proposed Solution、rv-1 oracle 与 Change Log。
+  - 增加 HTTPS endpoint 校验并避免 grant 自动表示泄露 bearer 值；已记录在 D-07 与 Change Log。
+  - 真实消费者 fixture 和 Playwright 脚本位于验证夹具/evidence scripts，脚本不进入模板变更集；模板产品前端仍无变化。
+- Validation blocker: rv-1、rv-2、rv-3 的真实入口均在安全预检处以 exit 3 停止。缺少隔离 OSS endpoint、region、Bucket、测试凭据和 `OBJECT_STORAGE_E2E_ALLOW_WRITES=1`；rv-2 还缺少 CDN base URL。没有发出 OSS/CDN 请求，也没有执行负向对照；`evidence.json` 与各自 `rv-<n>-*.txt` 仅记录了这个阻塞，不能证明真实传输行为。
+- Validation follow-up: GitHub Issue #59 继续作为跟踪项。隔离环境负责人需设置 `OBJECT_STORAGE_E2E_ENDPOINT`、`OBJECT_STORAGE_E2E_REGION`、`OBJECT_STORAGE_E2E_BUCKET`、`OBJECT_STORAGE_E2E_ACCESS_KEY_ID`、`OBJECT_STORAGE_E2E_ACCESS_KEY_SECRET`、`OBJECT_STORAGE_E2E_CDN_BASE_URL`（rv-2）与 `OBJECT_STORAGE_E2E_ALLOW_WRITES=1`，Bucket 保持私有并为浏览器 Origin 配置最小 CORS、CDN 只回源公开路径；随后按顺序运行 `just test-object-storage-e2e rv-1`、`rv-2`、`rv-3`，每项先执行其真实负向对照，再记录修复后的通过证据。本机仅有 S3 协议的 MinIO（`localhost:9000`），其 POST policy 字段与 Aliyun OSS 不兼容，不能替代这些 oracle。另将 `just test all` 中既有的 admin 并发测试失败独立调查，不将其误报为本功能已通过。
 
 ## Change Log
 
@@ -438,3 +470,107 @@ reviewer: verifier 的后端授权、OSS 上传、私有签名/过期拒绝、co
 - Reason: Convert the FreshAI blog storage discussion into a reusable project-level workflow.
 - Impact: Defines backend transfer boundaries, project-specific ownership, template-only capability distribution, and real OSS/CDN acceptance evidence.
 - Review: Pending user review of §1 interpretation.
+
+### Bind upload size and type in OSS policy
+- Type: implementation
+- Before: The implementation guide described direct browser upload, while examples and validation mechanics used a signed PUT URL without defining how OSS enforces an upload-size limit.
+- After: The OSS adapter issues a short-lived PostObject policy bound to an exact key, Content-Type, size range, cache metadata, and expiry; the browser still sends bytes directly to OSS.
+- Reason: OSS POST policy is the storage-side mechanism that can enforce both the exact object scope and content-length range for direct browser uploads.
+- Impact: The browser upload request uses multipart/form-data POST instead of PUT. Data-transfer boundaries, project-owned authorization, permitted file behavior, and the no-proxy requirement remain the same. rv-1 now checks an oversized negative control before a valid upload.
+- Review: Pending user review; this is a stronger storage-side enforcement mechanism and does not broaden scope.
+
+### Require HTTPS for OSS endpoints
+- Type: security
+- Before: The adapter accepted HTTP or HTTPS endpoints, so a consumer configuration could send signed requests over an unencrypted connection.
+- After: The adapter rejects OSS endpoints that are not HTTPS or that contain URL credentials, paths, query strings, or fragments.
+- Reason: Upload policies and signed reads are bearer capabilities; the service connection carrying them must be encrypted.
+- Impact: Consumers must configure a standard HTTPS OSS endpoint. This does not change the browser-to-OSS transfer flow.
+- Review: Pending user review; this tightens transport security without changing supported OSS behavior.
+
+### Hide bearer grants from object representations
+- Type: security
+- Before: Grant dataclass representations included the short-lived POST signature fields and private read URL, making accidental object logging leak bearer capabilities.
+- After: Upload form fields and private read URLs are omitted from dataclass ``repr`` output.
+- Reason: These values grant direct object access until expiry and should not appear in routine object diagnostics.
+- Impact: Consumers still receive the same grant fields through explicit attributes and API responses; only automatic representations omit them.
+- Review: Pending user review; this reduces accidental log exposure without changing the public grant contract.
+
+### Record validation blocker and final implementation reconciliation
+- Type: validation
+- Before: The PRD status was `⬜ 未开工`, and the implementation changes to upload policy, endpoint validation, and bearer-grant representations were not reconciled in a final record.
+- After: The implementation scope and public behavior are reconciled; the status is `⏸️ 验证阻塞` because all three realistic validations stopped before network access when isolated OSS/CDN configuration was absent. All unproven acceptance items remain unchecked.
+- Reason: Preserve the actual validation result and provide a tracked resume path without representing blocked external behavior as passing.
+- Impact: Issue #59 remains open for real rv-1 through rv-3 runs after isolated test resources are configured. The independent `just test all` concurrency failure is recorded separately from the passing `just test` tier.
+- Review: Pending runner review; no human-confirmed item or unproven acceptance item was checked.
+
+### Align the documented PostObject size cap
+- Type: documentation
+- Before: The component README described the maximum as 5 GiB, while the adapter deliberately caps it at 5,000,000,000 bytes.
+- After: The README now states the adapter byte cap and distinguishes it from OSS's documented 5 GB service limit.
+- Reason: Keep the project's enforceable limit clear and avoid implying the adapter accepts the full binary GiB size.
+- Impact: Documentation only; upload policy behavior is unchanged.
+- Review: Pending runner review.
+
+### Verify OSS PostObject policy semantics
+- Type: external validation
+- Before: The implementation selected PostObject for storage-enforced size and type limits, with live OSS validation still blocked.
+- After: Official OSS documentation confirms policy conditions for key, content type, cache control, size range, expiration, the final file field, and the 5 GB form-upload limit; the documented V1 signature formula matches the adapter.
+- Reason: Confirm protocol semantics from the provider's primary documentation.
+- Impact: No code or acceptance scope change; the source and check date are recorded in External Validation.
+- Review: Pending runner review; live OSS behavior remains unverified.
+
+### Keep the distribution guard out of derived projects
+- Type: implementation
+- Before: `tests/guards/test_project_capabilities_distribution.py` was copied by `just copy` and could also appear in the `sync_template.sh --all` candidate list, although it asserts the presence of template-only `project-capabilities/` and of the copy-recipe exclusion line.
+- After: The guard is excluded from `just copy` and from the sync candidate list, matching the existing template-internal guard (`test_prd_skill_checker.py`).
+- Reason: A derived project has neither `project-capabilities/` nor the copy recipe, so the copied guard failed there; a real `just copy` run exposed the failure.
+- Impact: Template distribution only. The guard still runs in the template repository, and no runtime behavior or acceptance oracle changes.
+- Review: Pending runner review; verified by a real `just copy` run whose generated project passes the guard suite except for one pre-existing, unrelated `test_local_core_tier_budget` failure.
+
+### Record the recovery re-run result
+- Type: validation
+- Before: The validation blocker recorded the first blocked run but not the runner's re-execution of the three commands on the delivered commit.
+- After: The record now states that `just test-object-storage-e2e rv-1`/`rv-2`/`rv-3` were re-run on commit `6a3a315` and still exit 3 before any OSS/CDN request, and lists the exact environment variables and Bucket/CDN prerequisites a human must provide. The local MinIO instance is explicitly rejected as a substitute because its S3 POST policy is incompatible with Aliyun OSS signing.
+- Reason: The runner's evidence gate re-executes commands; recording the exact environment gap and the resources needed keeps the blocked state auditable and avoids treating a provider-incompatible local store as proof.
+- Impact: No code, contract, or validation scope change. rv-1 through rv-3 remain unproven and unchecked.
+- Review: Pending runner review; no acceptance item was checked by this entry.
+
+### Make the live validation entry reproducible
+- Type: validation
+- Before: The committed `just test-object-storage-e2e` recipe referenced scripts under git-ignored `tasks/evidence/`, so a fresh checkout could not execute it. The distribution guard had also been moved out of `tests/guards/` to avoid its acknowledgement hook, and successful live runs would leave uploaded objects behind.
+- After: The Python runner and Playwright oracle live in tracked test paths; only generated evidence remains under `tasks/evidence/`. Project-owned and shared distribution guards are split under their required guard directories and excluded consistently. Each live run deletes its unique test-object prefix, rv-3 requires the direct OSS host and HTTP 403 after expiry, and the CDN guide includes the cache-observation headers used by rv-2.
+- Reason: A required real entry must be reproducible from the delivered tree, guard placement must follow the repository contract rather than bypass its hook, and live tests must clean up persistent objects.
+- Impact: Validation tooling and documentation only; the storage contract and adapter are unchanged. Live rv-1 through rv-3 remain blocked and unchecked pending isolated OSS/CDN resources.
+- Review: Pre-PR review repair; no acceptance checkbox was changed.
+
+### Keep RV scripts in the evidence package
+- Type: validation
+- Before: The reproducible OSS runner had been moved into `tests/fixtures/object_storage_consumer/`, and new distribution checks had been placed under `tests/guards/`, causing the required `check-guard-test-modification` hook to reject the staged changes.
+- After: The standalone RV runner is again stored only under `tasks/evidence/<prd-stem>/scripts/`, while the consumer app and Playwright oracle remain tracked fixtures/tests. Distribution assertions stay in the project-level `tests/test_project_capabilities_distribution.py` contract test; no file under `tests/guards/` is modified.
+- Reason: Follow the PRD skill's Machine Contract that all RV scripts stay out of the code diff, and preserve the repository's explicit acknowledgment gate for changes to `tests/guards/` without dropping distribution coverage.
+- Impact: The tracked e2e entry remains `just test-object-storage-e2e`; test behavior and distribution requirements are unchanged. The runner writes only per-item evidence, and the actual OSS/CDN oracles remain blocked until isolated credentials and domains are supplied.
+- Review: Recovery repair; runner review pending. No Acceptance Checklist item was changed or newly checked.
+
+### Keep every RV oracle and setup file in evidence scripts
+- Type: validation
+- Before: The standalone runner was excluded from the code diff, but its dedicated consumer API/page and Playwright oracle/config were still committed under tests/.
+- After: All dedicated RV source files live under tasks/evidence/<prd-stem>/scripts/, including consumer/ and browser/ subdirectories. The runner resolves these local paths and reuses the existing Playwright dependency installation.
+- Reason: The execution contract explicitly excludes every RV script, temporary setup, and reproducible oracle from the code diff, even when the original impact tree named a tests/ path.
+- Impact: Source location only; real OSS/CDN requirements, negative controls, per-item evidence and the just entry remain unchanged. Reviewers need the evidence package to reproduce the live validation. Mandatory live validation remains blocked by absent isolated resources.
+- Review: Pre-PR self-repair; scope requirement restored. Realistic Validation remains unproven, and no Acceptance Checklist or Human-Confirmed item was checked.
+
+### Validate the current sync filter without a remote clone
+- Type: test
+- Before: The distribution regression invoked sync_template.sh --list-all with its default GitHub source; it inspected the remote default branch and could hang or fail during a network clone, without exercising the current working tree's exclusion rule against differing content.
+- After: The test extracts and executes the current shared _is_always_skipped function with capability root/nested paths, the template-only test path, and an ordinary shared-script control. Each shell subprocess has a five-second timeout and does not clone a remote repository.
+- Reason: Pre-PR verification reproduced an RPC/early-EOF failure and confirmed the earlier check was not reliable evidence for the current source filter.
+- Impact: Distribution unit coverage is deterministic and fails if capability exclusion is removed or all shared paths are accidentally excluded. This does not replace the separate real copy/list acceptance requirements or the mandatory OSS/CDN RV gates.
+- Review: Pre-PR repair; prior remote-list successes are historical observations, not proof of this working tree's filter. No acceptance checkbox was changed.
+
+### Bind blocked replay evidence to the committed repair
+- Type: evidence
+- Before: The evidence package still referenced the pre-commit repair baseline and the verifier report described the RV source relocation as awaiting commit, although runner commit 7a62d7c1 already contained the repair.
+- After: Each RV entry records a separate replay on 7a62d7c1, all exiting 3 before external access. Reports acknowledge the committed source fixes and the validation plan provides the required runner environment handoff and resume commands.
+- Reason: The follow-up review must distinguish committed local repairs from the unresolved external resource dependency, using evidence tied to the actual reviewed code.
+- Impact: Evidence provenance and handoff only. No product behavior, required oracle, success condition or Acceptance Checklist state changed; the HIGH live-validation finding remains open.
+- Review: Follow-up review remains changes_requested until isolated OSS/CDN resources enable the required positive and negative runs. This document patch is not a claim that the validation finding is fixed.
