@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -232,3 +233,27 @@ def test_partially_applied_branch_is_not_reported_as_replayed(tmp_path: Path) ->
     branch_merge_state = _build_merge_states_by_name(repository_root)["feature/partial"]
 
     assert branch_merge_state["merge_state"] == history.MERGE_STATE_DIVERGED
+
+
+def test_commit_rows_carry_author_time_and_diff_stats(tmp_path: Path) -> None:
+    """提交行必须自带作者、时间与改动规模，否则列表要逐个点开才能认出是谁改了什么。"""
+    repository_root = tmp_path / "repository"
+    repository_root.mkdir()
+    _initialize_repository(repository_root)
+    _write_and_commit(repository_root, "notes.txt", "first\nsecond\n", "feat: add second line")
+
+    history_payload = history.build_git_history_payload(repository_root, offset=0, limit=50).payload
+    commit_rows = [row for row in history_payload["rows"] if row["kind"] == "commit"]
+
+    # 行内作者与提交详情里的 author_name 是同一个来源，避免两处显示不一致。
+    assert commit_rows
+    assert {row["author"] for row in commit_rows} == {"zview test"}
+    # 测试邮箱不是 GitHub noreply 地址，头像只能走生成图案。
+    assert {row["github_username"] for row in commit_rows} == {""}
+    # 列表时间精确到秒，读者不必点开详情才知道是哪天几点提交的。
+    assert all(
+        re.fullmatch(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", row["date"]) for row in commit_rows
+    )
+    # 改动规模取自 shortstat：这次提交给 notes.txt 补了一行，文件数必须是 1。
+    newest_commit_stats = commit_rows[0]["stats"]
+    assert newest_commit_stats == {"files": 1, "insertions": 1, "deletions": 0}

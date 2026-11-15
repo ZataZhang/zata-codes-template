@@ -385,7 +385,11 @@ button, input, select { font: inherit; color: inherit; }
 }
 .history-splitter:focus-visible { outline: none; }
 body.is-resizing-history, body.is-resizing-history * { cursor: col-resize !important; user-select: none; }
-.history-graph-pane { display: flex; min-width: 0; min-height: 0; flex-direction: column; }
+.history-graph-pane {
+  display: flex; min-width: 0; min-height: 0; flex-direction: column;
+  /* 提交行的列宽随这一栏的宽度变化：窄栏先收起改动统计，再收起完整时间。 */
+  container-type: inline-size;
+}
 .history-branch-list {
   display: flex; flex: none; flex-direction: column; gap: 7px;
   border-bottom: 1px solid var(--border); background: var(--card); padding: 6px 12px 8px;
@@ -467,10 +471,11 @@ body.is-resizing-history, body.is-resizing-history * { cursor: col-resize !impor
   color: var(--muted-foreground); font-size: 10.5px; font-weight: 600;
 }
 .history-commit-row {
-  display: grid; width: 100%; min-height: 30px; grid-template-columns: max-content minmax(0, 1fr) auto;
+  display: grid; width: 100%; min-height: 30px;
+  grid-template-columns: max-content minmax(0, 1fr) auto auto;
   /* 窄栏里引用胶囊曾整体溢出到提交图栏外面、盖住右侧详情：行本身也要裁一刀。 */
   overflow: hidden;
-  align-items: center; gap: 8px; border: 0; border-bottom: 1px solid var(--border);
+  align-items: center; column-gap: 8px; border: 0; border-bottom: 1px solid var(--border);
   background: transparent; padding: 3px 10px; text-align: left; cursor: pointer;
 }
 .history-commit-row:hover { background: var(--secondary); }
@@ -528,7 +533,43 @@ body.is-resizing-history, body.is-resizing-history * { cursor: col-resize !impor
    现在先压缩、至少留出一个可读胶囊的宽度——分支名是这一行最该先看到的信息。 */
 .history-commit-refs { display: flex; min-width: 72px; max-width: 55%; flex: 0 1 auto; gap: 4px; overflow: hidden; }
 .history-commit-refs .history-ref { min-width: 22px; flex: 0 1 auto; }
-.history-commit-meta { color: var(--muted-foreground); font-size: 10px; white-space: nowrap; }
+/* 每一行都是独立的 grid，列宽必须写死，否则作者、统计、时间的起点会逐行漂移。 */
+.history-commit-author {
+  display: flex; width: 78px; min-width: 0; align-items: center; gap: 5px;
+  color: var(--muted-foreground); font-size: 10.5px; white-space: nowrap;
+}
+.history-author-avatar {
+  display: block; width: 18px; height: 18px; flex: none; overflow: hidden; border-radius: 4px;
+  object-fit: cover;
+  background: var(--card); box-shadow: inset 0 0 0 1px var(--border);
+  shape-rendering: crispEdges;
+}
+.history-author-avatar rect { fill: currentColor; }
+.history-author-name { overflow: hidden; min-width: 0; text-overflow: ellipsis; }
+.history-commit-stats, .history-commit-time { display: none; }
+.history-commit-stats {
+  width: 78px; min-width: 0; align-items: center; justify-content: flex-end; gap: 5px;
+  color: var(--muted-foreground); font-size: 10px; white-space: nowrap;
+}
+.history-stat-bar {
+  width: 22px; height: 7px; flex: none; border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    var(--add-mark) var(--history-stat-added-share, 100%),
+    var(--del-mark) 0
+  );
+}
+.history-commit-time { width: 120px; color: var(--muted-foreground); font-size: 10px; white-space: nowrap; }
+.history-commit-hash { width: 56px; color: var(--muted-foreground); font-size: 10px; white-space: nowrap; }
+
+@container (min-width: 520px) {
+  .history-commit-row { grid-template-columns: max-content minmax(0, 1fr) 78px 78px auto; }
+  .history-commit-stats { display: inline-flex; }
+}
+@container (min-width: 660px) {
+  .history-commit-row { grid-template-columns: max-content minmax(0, 1fr) 78px 78px 120px 56px; }
+  .history-commit-time { display: inline; }
+}
 .history-ref {
   display: inline-flex; max-width: 210px; align-items: center; overflow: hidden;
   border-radius: 5px; background: var(--secondary); padding: 1px 6px;

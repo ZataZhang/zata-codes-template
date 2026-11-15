@@ -35,8 +35,87 @@ MAX_MERGED_LANE_COMMITS = 100
 
 _HISTORY_RECORD_MARKER = "\x1e"
 _HISTORY_FIELD_SEPARATOR = "\x1f"
-_HISTORY_FORMAT = "%x1e%H%x1f%h%x1f%as%x1f%D%x1f%s"
+_HISTORY_FORMAT = "%x1e%H%x1f%h%x1f%an%x1f%ae%x1f%ad%x1f%D%x1f%s"
+#: 列表里的时间要精确到秒，同时保留读者本机的时区偏移，和 `git log` 默认输出一致。
+_HISTORY_DATE_FORMAT = "format:%Y-%m-%d %H:%M:%S"
+#: GitHub 的 noreply 邮箱把登录名编码在地址里（1234+login@users.noreply.github.com
+#: 是新格式，login@users.noreply.github.com 是旧格式），不必调 API 就能拼出头像地址。
+_GITHUB_NOREPLY_EMAIL_PATTERN = re.compile(
+    r"^(?:\d+\+)?(?P<login>[a-z0-9-]+)@users\.noreply\.github\.com$",
+    re.IGNORECASE,
+)
+_HISTORY_SHORTSTAT_PATTERN = re.compile(
+    r"(?P<files>\d+) files? changed"
+    r"(?:, (?P<insertions>\d+) insertions?\(\+\))?"
+    r"(?:, (?P<deletions>\d+) deletions?\(-\))?"
+)
 _COMMIT_HASH_PATTERN = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})")
+
+
+def _read_author_github_username(author_email: str) -> str:
+    """从 GitHub 的 noreply 邮箱里取出登录名。
+
+    只有 GitHub 代发的地址里带登录名；其它邮箱没有可验证的账号信息，返回空串，
+    由界面退回按作者名生成的方块头像。
+
+    Args:
+        author_email (str): 提交里的作者邮箱。
+
+    Returns:
+        str: GitHub 登录名；不是 noreply 地址时是空串。
+    """
+    noreply_match = _GITHUB_NOREPLY_EMAIL_PATTERN.fullmatch(author_email.strip())
+    return noreply_match.group("login") if noreply_match else ""
+
+
+def _read_history_diff_stats(
+    repository_root: Path,
+    *,
+    offset: int,
+    limit: int,
+) -> dict[str, dict[str, int]]:
+    """读取一页提交各自相对首个父提交的改动规模。
+
+    提交图那一遍只输出元信息，拿不到行数；这里用同样的提交选择条件再走一遍
+    shortstat。合并提交没有 shortstat 行，因此不会出现在结果里。
+
+    Args:
+        repository_root (Path): 被查看仓库的根目录。
+        offset (int): 跳过的提交数，必须与提交图那一遍一致。
+        limit (int): 本页最多读取的提交数。
+
+    Returns:
+        dict[str, dict[str, int]]: 完整哈希到 files / insertions / deletions 的映射。
+    """
+    raw_stats_output = workspace._run_git(
+        repository_root,
+        "log",
+        "--all",
+        "--date-order",
+        "--color=never",
+        f"--skip={offset}",
+        f"--max-count={limit}",
+        "--pretty=format:%x1e%H",
+        "--shortstat",
+        "--",
+        ".",
+    )
+    diff_stats_by_commit: dict[str, dict[str, int]] = {}
+    for raw_record in raw_stats_output.split(_HISTORY_RECORD_MARKER):
+        record_lines = [
+            record_line.strip() for record_line in raw_record.split("\n") if record_line.strip()
+        ]
+        if not record_lines:
+            continue
+        stat_match = _HISTORY_SHORTSTAT_PATTERN.search(" ".join(record_lines[1:]))
+        if stat_match is None:
+            continue
+        diff_stats_by_commit[record_lines[0]] = {
+            "files": int(stat_match.group("files")),
+            "insertions": int(stat_match.group("insertions") or 0),
+            "deletions": int(stat_match.group("deletions") or 0),
+        }
+    return diff_stats_by_commit
 
 
 def build_git_history_payload(
@@ -70,7 +149,7 @@ def build_git_history_payload(
         "--all",
         "--graph",
         "--decorate=short",
-        "--date=short",
+        f"--date={_HISTORY_DATE_FORMAT}",
         "--date-order",
         "--color=never",
         f"--skip={offset}",
@@ -79,6 +158,7 @@ def build_git_history_payload(
         "--",
         ".",
     )
+    diff_stats_by_commit = _read_history_diff_stats(repository_root, offset=offset, limit=limit)
     branch_refs, refs_by_commit, base_branch_name = _read_branch_refs(repository_root)
     try:
         current_head_hash = workspace._run_git(
@@ -98,14 +178,22 @@ def build_git_history_payload(
             continue
 
         graph_prefix, raw_commit_fields = raw_graph_line.split(_HISTORY_RECORD_MARKER, 1)
-        commit_fields = raw_commit_fields.split(_HISTORY_FIELD_SEPARATOR, maxsplit=4)
-        if len(commit_fields) != 5:
+        commit_fields = raw_commit_fields.split(_HISTORY_FIELD_SEPARATOR, maxsplit=6)
+        if len(commit_fields) != 7:
             history_rows.append(
                 {"kind": "edge", "graph": raw_graph_line.replace(_HISTORY_RECORD_MARKER, "")}
             )
             continue
 
-        full_hash, short_hash, authored_date, raw_decorations, raw_subject = commit_fields
+        (
+            full_hash,
+            short_hash,
+            author_name,
+            author_email,
+            authored_date,
+            raw_decorations,
+            raw_subject,
+        ) = commit_fields
         ref_names = list(refs_by_commit.get(full_hash, []))
         ref_names.extend(
             {"name": decoration.removeprefix("tag: "), "kind": "tag"}
@@ -121,7 +209,11 @@ def build_git_history_payload(
                 "graph_prefix": graph_prefix,
                 "hash": full_hash,
                 "short_hash": short_hash,
+                "author": author_name,
+                # 有 GitHub 登录名时界面优先取真实头像；空串表示只能用生成的头像。
+                "github_username": _read_author_github_username(author_email),
                 "date": authored_date,
+                "stats": diff_stats_by_commit.get(full_hash),
                 "subject": clean_subject,
                 "refs": ref_names,
                 "is_head": full_hash == current_head_hash,

@@ -567,7 +567,11 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
                 "default-src 'self'; "
                 f"script-src 'nonce-{script_nonce}' 'strict-dynamic'; "
                 "style-src 'self' 'unsafe-inline'; "
-                "img-src 'self' data: blob:; font-src 'self' data:; "
+                # GitHub 头像由提交里的 noreply 邮箱推出，只放行这两个图片来源；
+                # 取不到时前端回落到本地生成的方块图，不影响离线使用。
+                "img-src 'self' data: blob: "
+                "https://github.com https://avatars.githubusercontent.com; "
+                "font-src 'self' data:; "
                 "connect-src 'self'; worker-src 'self' blob:; object-src 'none'; "
                 "base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
             )

@@ -310,6 +310,7 @@
       const graphList = document.createElement("div");
       graphList.className = "history-graph-list";
       const mergedLaneBranchByCommit = buildMergedLaneBranchByCommit();
+      const authorGithubUsernameByName = buildAuthorGithubUsernameByName();
       for (const historyPage of historyState.historyPages) {
         const pageSection = document.createElement("div");
         pageSection.className = "history-page";
@@ -322,7 +323,12 @@
         for (const historyRow of historyPage.rows) {
           if (historyRow.kind === "commit") {
             pageSection.append(
-              buildHistoryCommitRow(historyRow, isFirstHistoryCommit, mergedLaneBranchByCommit)
+              buildHistoryCommitRow(
+                historyRow,
+                isFirstHistoryCommit,
+                mergedLaneBranchByCommit,
+                authorGithubUsernameByName,
+              )
             );
             isFirstHistoryCommit = false;
           } else {
@@ -462,6 +468,29 @@
     }
 
     /**
+     * 建立「作者名（小写）→ GitHub 登录名」映射，供整页共用同一个头像。
+     *
+     * 同一个人常常混用两套 git 身份：有的提交带 GitHub noreply 邮箱，有的带自己的邮箱。
+     * 只要该作者名下有任何一条提交解出了登录名，整页同名提交就都用同一张真实头像。
+     * @returns {Map<string, string>} 作者名到 GitHub 登录名的映射。
+     */
+    function buildAuthorGithubUsernameByName() {
+      const authorGithubUsernameByName = new Map();
+      for (const historyPage of historyState.historyPages) {
+        for (const historyRow of historyPage.rows) {
+          if (historyRow.kind !== "commit" || !historyRow.github_username) {
+            continue;
+          }
+          const authorKey = (historyRow.author || "").toLowerCase();
+          if (!authorGithubUsernameByName.has(authorKey)) {
+            authorGithubUsernameByName.set(authorKey, historyRow.github_username);
+          }
+        }
+      }
+      return authorGithubUsernameByName;
+    }
+
+    /**
      * 建立「提交哈希 → 已合入分支」映射，用来在提交图上标出这些分支自己的提交。
      * @returns {Map<string, object>} 提交哈希到分支引用的映射。
      */
@@ -554,16 +583,160 @@
     }
 
     /**
+     * 用 FNV-1a 把作者标识压成 32 位整数，作为头像图案和颜色的种子。
+     * @param {string} seedText 作者邮箱或名字（调用方已统一小写）。
+     * @returns {number} 无符号 32 位哈希值。
+     */
+    function hashAuthorSeed(seedText) {
+      let hashValue = 0x811c9dc5;
+      for (const character of seedText) {
+        hashValue ^= character.codePointAt(0);
+        hashValue = Math.imul(hashValue, 0x01000193) >>> 0;
+      }
+      return hashValue;
+    }
+
+    /**
+     * 生成 GitHub 风格的方块头像：5×5、左右镜像、颜色随哈希变化。
+     *
+     * 这是离线和 GitHub 头像加载失败时的回退图案：按作者名算出固定结果，同一个人在
+     * 每一行、每一页、每次刷新里都是同一张图；名字不同才会是另一张。
+     * @param {string} seedText 作者标识。
+     * @returns {SVGSVGElement} 装饰性头像。
+     */
+    function buildHistoryAuthorIdenticon(seedText) {
+      const avatarSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      avatarSvg.setAttribute("class", "history-author-avatar");
+      avatarSvg.setAttribute("viewBox", "0 0 5 5");
+      avatarSvg.setAttribute("aria-hidden", "true");
+      const normalizedSeed = seedText.toLowerCase();
+      // 颜色和图案分开取种子：同一份哈希既当色相又当像素会让相邻色相的图案长得太像。
+      const colorHash = hashAuthorSeed(normalizedSeed);
+      const patternHash = hashAuthorSeed(`${normalizedSeed}#identicon`);
+      avatarSvg.style.color = `oklch(0.62 0.13 ${colorHash % 360})`;
+      let filledCellCount = 0;
+      for (let rowIndex = 0; rowIndex < 5; rowIndex += 1) {
+        for (let columnIndex = 0; columnIndex < 3; columnIndex += 1) {
+          const isFilledCell = ((patternHash >>> (rowIndex * 3 + columnIndex)) & 1) === 1;
+          if (!isFilledCell) {
+            continue
+          }
+          filledCellCount += 1;
+          const avatarCell = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+          avatarCell.setAttribute("x", String(columnIndex));
+          avatarCell.setAttribute("y", String(rowIndex));
+          avatarCell.setAttribute("width", "1");
+          avatarCell.setAttribute("height", "1");
+          avatarSvg.append(avatarCell);
+          if (columnIndex < 2) {
+            const mirroredCell = avatarCell.cloneNode();
+            mirroredCell.setAttribute("x", String(4 - columnIndex));
+            avatarSvg.append(mirroredCell);
+          }
+        }
+      }
+      // 哈希低 15 位过于稀疏时补一道中列，避免整张图只剩一两个像素、读起来像渲染失败。
+      if (filledCellCount < 3) {
+        const fallbackCell = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        fallbackCell.setAttribute("x", "2");
+        fallbackCell.setAttribute("width", "1");
+        fallbackCell.setAttribute("height", "5");
+        avatarSvg.append(fallbackCell);
+      }
+      return avatarSvg;
+    }
+
+    /**
+     * 生成作者头像：有 GitHub 登录名时取真实头像，否则直接用方块图。
+     *
+     * 图片来自 github.com 的重定向链；离线、被代理拦掉或账号改名都会触发 error，
+     * 这时换成按名字算出的方块图，行高和列宽都不受影响。
+     * @param {string} authorName 提交作者名。
+     * @param {string} [githubUsername] 从 noreply 邮箱解出的 GitHub 登录名。
+     * @returns {SVGSVGElement | HTMLImageElement} 头像元素。
+     */
+    function buildHistoryAuthorAvatar(authorName, githubUsername) {
+      const identiconAvatar = buildHistoryAuthorIdenticon(authorName);
+      if (!githubUsername) {
+        return identiconAvatar;
+      }
+      const avatarImage = document.createElement("img");
+      avatarImage.className = "history-author-avatar";
+      avatarImage.src = `https://github.com/${encodeURIComponent(githubUsername)}.png?size=64`;
+      avatarImage.alt = "";
+      avatarImage.loading = "lazy";
+      avatarImage.decoding = "async";
+      avatarImage.referrerPolicy = "no-referrer";
+      avatarImage.addEventListener(
+        "error",
+        () => avatarImage.replaceWith(identiconAvatar),
+        { once: true },
+      );
+      return avatarImage;
+    }
+
+    /**
+     * 创建提交行的作者列：头像 + 名字，窄窗口下名字可以省略。
+     *
+     * 头像按显示名统一（忽略大小写）：同一个人用两套 git 身份提交时（例如换了邮箱、
+     * 名字大小写不同），只要其中一套带 GitHub 登录名，列表里就都用同一个真实头像。
+     * @param {string} authorName 提交作者名。
+     * @param {string} [githubUsername] 该作者对应的 GitHub 登录名。
+     * @returns {HTMLSpanElement} 作者列单元格。
+     */
+    function buildHistoryAuthorCell(authorName, githubUsername) {
+      const displayName = authorName || "未知作者";
+      const authorCell = document.createElement("span");
+      authorCell.className = "history-commit-author";
+      authorCell.title = displayName;
+      const authorNameNode = document.createElement("span");
+      authorNameNode.className = "history-author-name";
+      authorNameNode.textContent = displayName;
+      authorCell.append(buildHistoryAuthorAvatar(displayName, githubUsername), authorNameNode);
+      return authorCell;
+    }
+
+    /**
+     * 创建提交行的改动规模列：一条增删比例条 + 「总行数 in 文件数」。
+     *
+     * 合并提交没有相对首个父提交的 shortstat，服务端会给 null；这时留空占位，
+     * 让同一页里的列仍然对齐。
+     * @param {{files: number, insertions: number, deletions: number} | null} commitStats 改动统计。
+     * @returns {HTMLSpanElement} 改动规模列单元格。
+     */
+    function buildHistoryStatsCell(commitStats) {
+      const statsCell = document.createElement("span");
+      statsCell.className = "history-commit-stats mono";
+      if (!commitStats) {
+        return statsCell;
+      }
+      const totalLineCount = commitStats.insertions + commitStats.deletions;
+      statsCell.title = `${commitStats.files} 个文件：+${commitStats.insertions} −${commitStats.deletions}`;
+      const statsBar = document.createElement("span");
+      statsBar.className = "history-stat-bar";
+      statsBar.setAttribute("aria-hidden", "true");
+      const addedSharePercent = totalLineCount
+        ? (commitStats.insertions / totalLineCount) * 100
+        : 100;
+      statsBar.style.setProperty("--history-stat-added-share", `${addedSharePercent}%`);
+      const statsLabel = document.createElement("span");
+      statsLabel.textContent = `${totalLineCount} in ${commitStats.files}`;
+      statsCell.append(statsBar, statsLabel);
+      return statsCell;
+    }
+    /**
      * 渲染一个提交图节点，可显示分支引用并选择该提交。
      * @param {object} historyRow 服务端返回的提交图行。
      * @param {boolean} isHistoryTopCommit 是否为历史列表中的第一条提交。
      * @param {Map<string, object>} mergedLaneBranchByCommit 提交哈希到已合入分支的映射。
+     * @param {Map<string, string>} authorGithubUsernameByName 作者名（小写）到 GitHub 登录名的映射。
      * @returns {HTMLButtonElement} 可交互的提交行。
      */
     function buildHistoryCommitRow(
       historyRow,
       isHistoryTopCommit = false,
-      mergedLaneBranchByCommit = new Map()
+      mergedLaneBranchByCommit = new Map(),
+      authorGithubUsernameByName = new Map()
     ) {
       const commitButton = document.createElement("button");
       commitButton.type = "button";
@@ -617,18 +790,24 @@
       for (const refLabel of historyRow.refs) {
         commitRefs.append(buildHistoryRefBadge(refLabel));
       }
-      // 哈希与日期拆开：窄栏里日期先让位给提交标题，哈希留着还能定位。
-      const commitMeta = document.createElement("span");
-      commitMeta.className = "history-commit-meta mono";
-      const commitHashLabel = document.createElement("span");
-      commitHashLabel.textContent = historyRow.short_hash;
-      const commitDateLabel = document.createElement("span");
-      commitDateLabel.className = "history-commit-date";
-      commitDateLabel.textContent = ` · ${historyRow.date}`;
-      commitMeta.title = `${historyRow.short_hash} · ${historyRow.date}`;
-      commitMeta.append(commitHashLabel, commitDateLabel);
+      const commitTimeNode = document.createElement("span");
+      commitTimeNode.className = "history-commit-time mono";
+      commitTimeNode.textContent = historyRow.date;
+      const commitHashNode = document.createElement("span");
+      commitHashNode.className = "history-commit-hash mono";
+      commitHashNode.textContent = historyRow.short_hash;
       commitSummary.append(commitSubjectNode, commitRefs);
-      commitButton.append(graphPrefixNode, commitSummary, commitMeta);
+      commitButton.append(
+        graphPrefixNode,
+        commitSummary,
+        buildHistoryAuthorCell(
+          historyRow.author,
+          authorGithubUsernameByName.get((historyRow.author || "").toLowerCase()) || "",
+        ),
+        buildHistoryStatsCell(historyRow.stats),
+        commitTimeNode,
+        commitHashNode,
+      );
       return commitButton;
     }
 
