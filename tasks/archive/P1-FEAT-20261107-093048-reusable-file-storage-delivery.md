@@ -5,7 +5,7 @@
 > ✅ **交付前置**：无，可立即开工。
 > 结构化声明见 §8 Delivery Dependencies，**那里是唯一事实源**；rv-1 / rv-3 的真实验证使用本机已运行的 MinIO（zata-ops `test-minio`），需要测试桶与 `OBJECT_STORAGE_E2E_ALLOW_WRITES=1`，缺失时按 §9 登记 Validation blocker。
 
-> ⬜ **验收状态**：未开工。
+> ⏸️ **验收状态**：验证阻塞。
 > 本行是 §9 Acceptance Checklist 的投影，**那里是唯一事实源**。
 
 本文先供人确认行为解读与范围，再供执行者按仓库架构落地。Part A 不要求读者理解实现细节。
@@ -343,34 +343,34 @@ reviewer: verifier 的后端授权、S3 预签名上传、私有签名/过期拒
 
 #### Architecture Acceptance
 
-- [ ] 能力 overlay 只定义 core 对象存储契约与 infrastructure S3 兼容 adapter；just lint --full / 架构检查通过，没有 api/core 反向导入 infrastructure。
-- [ ] 消费项目负责业务授权、对象键/业务关系和端点；能力包没有通用 File ORM、Alembic migration 或默认业务路由。
+- [~] 能力 overlay 只定义 core 对象存储契约与 infrastructure S3 兼容 adapter；just lint --full / 架构检查通过，没有 api/core 反向导入 infrastructure。— runner-owned gate: independent verifier reviews the overlay boundary and final-tree architecture/lint results
+- [~] 消费项目负责业务授权、对象键/业务关系和端点；能力包没有通用 File ORM、Alembic migration 或默认业务路由。— runner-owned gate: independent verifier reviews the consumer-owned authorization and schema boundary
 
 #### Distribution Acceptance
 
-- [ ] just copy 输出不含根级 project-capabilities/，且目标 justfile 中也没有能力目录；./scripts/sync_template.sh --list-all 不列出该目录。
-- [ ] just sync-local-skills 的候选扫描只发现根级 skills/ 下的 Skills；project-capabilities/ 不在任何本机 agent Skill 目录。
-- [ ] 可通过模板仓库内明确路径读取 project-capabilities/SKILL.md，并按选择只复制对象存储 overlay；其他能力未选时目标项目没有对应依赖或文件。
+- [~] just copy 输出不含根级 project-capabilities/，且目标 justfile 中也没有能力目录；./scripts/sync_template.sh --list-all 不列出该目录。— runner-owned gate: final-tree distribution replay reviews the observed copy-stage output and template-sync list
+- [~] just sync-local-skills 的候选扫描只发现根级 skills/ 下的 Skills；project-capabilities/ 不在任何本机 agent Skill 目录。— runner-owned gate: independent verifier reviews the candidate scan and unchanged local install targets
+- [~] 可通过模板仓库内明确路径读取 project-capabilities/SKILL.md，并按选择只复制对象存储 overlay；其他能力未选时目标项目没有对应依赖或文件。— runner-owned gate: independent verifier reviews the explicit-path skill and isolated selected-overlay copy
 
 #### Behavior Acceptance
 
-- [ ] S3 上传授权只作用于显式对象键、操作、内容类型/大小约束和过期时间；长效访问凭据不会出现在 API 响应或前端代码。
-- [ ] 普通同步 API 不接收/返回对象正文；上传确认只查询对象元数据和保存项目自有引用。
-- [ ] 公开对象键采用版本化或唯一策略，上传缓存元数据与组件接入指南中的 CDN/浏览器缓存规则一致。
-- [ ] 私有对象必须由消费项目先授权；预签名 URL 过期后真实对象存储请求失败。
-- [ ] 异步扫描/转换可使用 adapter 读取和写入对象，普通 API 请求不等待文件字节经过服务端。
+- [~] S3 上传授权只作用于显式对象键、操作、内容类型/大小约束和过期时间；长效访问凭据不会出现在 API 响应或前端代码。— runner-owned gate: independent verifier reviews the real MinIO POST-policy controls and credential boundary
+- [~] 普通同步 API 不接收/返回对象正文；上传确认只查询对象元数据和保存项目自有引用。— runner-owned gate: independent verifier reviews the live API/MinIO evidence
+- [~] 公开对象键采用版本化或唯一策略，上传缓存元数据与组件接入指南中的 CDN/浏览器缓存规则一致。— runner-owned gate: independent verifier reviews the real policy metadata, unique-key probe, and CDN guidance
+- [~] 私有对象必须由消费项目先授权；预签名 URL 过期后真实对象存储请求失败。— runner-owned gate: independent verifier reviews the live API and MinIO expiry evidence
+- [~] 异步扫描/转换可使用 adapter 读取和写入对象，普通 API 请求不等待文件字节经过服务端。— runner-owned gate: independent verifier reviews the real MinIO adapter stream smoke and synchronous API boundary
 
 #### Documentation Acceptance
 
-- [ ] project-capabilities/SKILL.md 指向单独的对象存储组件说明；新增能力有独立文档模块，没有把所有未来组件细节塞进一个大文件。
-- [ ] docs/guides/project-capabilities.md、组件接入指南与 mkdocs.yml 导航一致，并明确 Skill 不进入派生项目和本机安装目录。
-- [ ] S3/MinIO 权限、CORS、CDN 回源、缓存头、公开/私有对象策略、密钥注入和异步处理说明可由目标项目维护者按需执行。
+- [~] project-capabilities/SKILL.md 指向单独的对象存储组件说明；新增能力有独立文档模块，没有把所有未来组件细节塞进一个大文件。— runner-owned gate: independent verifier reviews the skill-to-component documentation route
+- [~] docs/guides/project-capabilities.md、组件接入指南与 mkdocs.yml 导航一致，并明确 Skill 不进入派生项目和本机安装目录。— runner-owned gate: independent verifier reviews the docs build and distribution boundary
+- [~] S3/MinIO 权限、CORS、CDN 回源、缓存头、公开/私有对象策略、密钥注入和异步处理说明可由目标项目维护者按需执行。— runner-owned gate: independent verifier reviews the runnable component and operations guidance
 
 #### Validation Acceptance
 
 - [ ] just test-object-storage-e2e 通过 rv-1、rv-3；证据包含浏览器到 MinIO 的实际请求、真实授权响应、独立 boto3 GET/HEAD 与过期拒绝结果。
-- [ ] just test、uv run python hooks/shared/check_architecture.py 与 just lint --full 通过；新增 guard 确认能力目录不参与 just Skill 安装和模板分发。
-- [ ] 最终证据记录关联最终代码树；任一签名、路由 fixture、对象键、缓存或分发规则变更后，重跑受影响 oracle。
+- [~] just test、uv run python hooks/shared/check_architecture.py 与 just lint --full 通过；新增 guard 确认能力目录不参与 just Skill 安装和模板分发。— runner-owned gate: final-tree test, architecture, lint, and guard replay
+- [~] 最终证据记录关联最终代码树；任一签名、路由 fixture、对象键、缓存或分发规则变更后，重跑受影响 oracle。— runner-owned gate: final-tree RV replay and independent verifier evidence review
 
 #### Delivery Readiness
 
@@ -407,7 +407,7 @@ reviewer: verifier 的后端授权、S3 预签名上传、私有签名/过期拒
 | boto3 默认 checksum/aws-chunked 行为与 MinIO 版本差异 | 显式 `request_checksum_calculation="when_required"`、`response_checksum_validation="when_required"`；presigned POST 由浏览器发送普通 multipart，不经过 boto3 上传请求 |
 | 私有对象被配置成公开缓存，或 CDN 缓存了错误权限响应 | Bucket 默认私有；CDN 仅回源公开对象路径；私有对象首版不走共享 CDN |
 | 长缓存与可变对象键产生陈旧图像 | 对象名带版本/随机唯一键；每次替换对象生成新 URL；不依赖覆盖后立即 purge |
-| MinIO 测试环境不可用 | rv-1、rv-3 的真实集成不以 mock 替代；MinIO 未运行或桶不可写时记录 Validation blocker 和后续补测任务，不能宣称端到端通过 |
+| MinIO 或浏览器验证环境不可用 | rv-1、rv-3 的真实集成不以 mock 替代；MinIO 未运行、桶不可写，或浏览器被运行环境阻止启动时记录 Validation blocker 和后续补测任务，不能宣称端到端通过 |
 | Aliyun OSS S3 兼容端点签名差异 | boto3 SigV4 与 OSS 的 aws-chunked 不兼容，需 SigV2；本次不宣称已验证，后续单独验证预签名 POST/GET 与 CORS |
 | 现有派生项目不会因模板同步自动获得后端能力 | Skill 明确说明按需复制/再次应用；不声称 just sync-template 会更新现有 src/backend |
 | 仓库全量测试中一个既有并发用例失败 | `just test all` 的 `test_admin_api_rejects_disabling_the_last_enabled_platform_admin` 复跑仍观察到两个并发请求均返回 200；本次未改该无关路径。单独跟进，不将该结果描述为对象存储测试失败 |
@@ -428,16 +428,17 @@ reviewer: verifier 的后端授权、S3 预签名上传、私有签名/过期拒
 
 ### Final Reconciliation
 
-- Interpretation: confirmed — 模板提供按需复制的 S3 兼容能力；消费项目继续拥有业务授权、对象与业务记录关系及上传完成状态，普通文件正文由浏览器直接传到对象存储/CDN。模板前端没有产品界面改动。
-- Public behavior and contracts: corrected — 上传授权采用绑定对象键、Content-Type、Cache-Control、大小范围和过期时间的 S3 POST policy（`generate_presigned_post`），因此浏览器通过 `FormData` POST；私有读取使用 `generate_presigned_url`。默认 endpoint 必须 HTTPS，loopback HTTP 仅在显式 `allow_insecure_http=true` 时允许。bearer 字段不进入 grant 对象的自动 `repr`。
+- Interpretation: confirmed — 模板提供按需复制的 S3 兼容能力；消费项目继续拥有业务授权、对象与业务记录关系及上传完成状态，普通文件正文应由浏览器直接传到对象存储/CDN。模板前端没有产品界面改动。
+- Public behavior and contracts: confirmed — 上传授权使用绑定对象键、Content-Type、Cache-Control、大小范围和过期时间的 S3 POST policy（`generate_presigned_post`）；私有读取使用 `generate_presigned_url`。默认 endpoint 必须 HTTPS，loopback HTTP 仅在显式 `allow_insecure_http=true` 时允许。bearer 字段不进入 grant 对象的自动 `repr`。
 - Related PRD status: confirmed — §8 依赖仍为 none；待办中的多组织在线 Agent PRD 与本能力无执行顺序依赖，也未发现重复对象存储 PRD。
-- Requirements and risks: confirmed — FR-1 至 FR-9 均仍由 Feature Overview 覆盖；未配置时不启用 adapter，未选择组件的项目不增加 boto3 依赖。rv-2（真实 CDN）已移除，CDN 由消费项目部署后自验；Aliyun OSS S3 兼容端点列为后续验证项。
+- Requirements and risks: confirmed with one open oracle — FR-1 至 FR-9 仍由 Feature Overview 覆盖；未配置时不启用 adapter，未选择组件的项目不增加 boto3 依赖。rv-2（真实 CDN）已移除，CDN 由消费项目部署后自验；Aliyun OSS S3 兼容端点列为后续验证项。rv-1 的浏览器行为没有通过，不能据补充 HTTP 检查宣称完成直传验收。
 - Reconciled differences:
   - 从 Aliyun OSS 原生 SDK（`oss2`）切换到 S3 兼容 boto3 实现，以 zata-ops 的 MinIO 做真实验证；原因是外部 OSS/CDN 环境此前不可用，且 MinIO 与现有部署一致。
   - 删除 rv-2，并同步调整行为样例、Measurable Objectives、风险登记、§9 与 Validation Acceptance。
-  - 验证脚本与浏览器 fixture 位于 `tasks/evidence/` 下的 RV 脚本目录，不进入模板变更集；模板产品前端仍无变化。
-- Validation environment: 本机 MinIO（`http://127.0.0.1:9000`，`test-minio`）已由 zata-ops 运行；rv-1/rv-3 使用隔离测试桶 `object-storage-e2e`、随机对象前缀与 `OBJECT_STORAGE_E2E_ALLOW_WRITES=1`。runner 提供 loopback 默认值并可在允许写入时创建测试桶；如 MinIO 不可用，按 §9 登记 Validation blocker，不得用 mock 替代。
-- Validation follow-up: 如后续需要声明 Aliyun OSS S3 兼容端点或真实 CDN 交付，另开验证项，覆盖 boto3 签名版本（SigV2）、预签名 POST/GET、CORS、回源与缓存头；不要在本次 PRD 中宣称已验证。
+  - RV runner、consumer fixture、browser oracle、临时设置及额外检查均只存于 `tasks/evidence/<prd-stem>/scripts/`，且不进入代码变更集；模板产品前端仍无变化。
+- Validation environment: 本机 MinIO（`http://127.0.0.1:9000`，`test-minio`）健康检查为 200；rv-3 使用隔离测试桶、随机对象前缀和 loopback 默认配置，真实观察到上传 201、API 元数据确认不含正文、未授权读取 403 且无 URL、授权直读 200、fresh client 在过期后返回 403。补充 API/MinIO 检查也实际验证了 POST policy 的超限、Content-Type、对象键与方法负控、合法上传和 fresh boto3 读取；独立 worker smoke 通过 adapter 读入、写出并由新 adapter HEAD/GET 验证结果。
+- Validation blocker: `just test-object-storage-e2e rv-1` 在 Playwright 页面启动前退出 1。Chromium 报告 macOS `bootstrap_check_in org.chromium.Chromium.MachPortRendezvousServer` permission denied (1100)；系统 Chrome 启动也被沙箱终止，Playwright WebKit 进程 abort。没有浏览器页面或浏览器到 MinIO 的网络请求，因此 rv-1 整体仍未通过。MinIO 本身可访问；补充 HTTP POST policy 检查不验证浏览器 CORS/页面路径，不能替代 rv-1。
+- Validation follow-up: 在允许 Chromium 进程完成 Mach/bootstrap 注册的 runner/shell 中，针对 GitHub Issue #59 重跑 `just test-object-storage-e2e rv-1`，并记录浏览器超限 POST 被拒绝、fresh boto3 HEAD 无对象、合法浏览器 POST 与 SHA-256 匹配；随后刷新 `rv-1-direct-upload.txt` 与 `evidence.json`，重跑受影响门禁并由 runner 独立复核。真实 CDN 与 Aliyun OSS S3 兼容端点仍须单独验证；不要在本次宣称已验证。
 
 ## Change Log
 
@@ -559,6 +560,7 @@ reviewer: verifier 的后端授权、S3 预签名上传、私有签名/过期拒
 - After: The PRD is reopened in `tasks/pending/`; the capability is a S3-compatible adapter built on boto3 (`generate_presigned_post` + `generate_presigned_url`), validated against the already-running local MinIO (`test-minio`, `http://127.0.0.1:9000`). Aliyun OSS S3-compatible endpoints are documented as a follow-up, not a validated claim.
 - Reason: The real deployment and test environment use S3-compatible MinIO; the previous OSS/CDN environment was unavailable and blocked every runner attempt at the validation gate.
 - Impact: Overlay file/class names, config provider, SDK dependency, endpoint policy (loopback HTTP opt-in), validation plan (rv-1/rv-3 only), and evidence tooling all change. The core contract (`UploadGrant {url, form_fields}`, `ReadGrant`) stays unchanged.
+- Review: Pending runner review; rv-3 now has a real MinIO pass, while rv-1 browser execution remains blocked by the local macOS browser sandbox.
 
 ### Remove real-CDN acceptance (rv-2)
 - Type: scope
@@ -566,6 +568,7 @@ reviewer: verifier 的后端授权、S3 预签名上传、私有签名/过期拒
 - After: rv-2 is removed from the validation plan; CDN delivery is code plus cache-metadata documentation, and real CDN behavior is verified by consuming projects after deployment.
 - Reason: The user explicitly asked to drop the CDN acceptance and keep implementation code only; the missing CDN prerequisite should have been surfaced before work started.
 - Impact: Behavior sample, measurable objectives, risk register, §9 presentation, and Validation Acceptance now reference rv-1/rv-3 only; the CDN change point is reviewed via code and docs.
+- Review: Pending runner review; the remaining rv-1/rv-3 commands exercise the declared MinIO scope, not a real CDN.
 
 ### Declare the local MinIO validation environment
 - Type: validation
@@ -573,6 +576,7 @@ reviewer: verifier 的后端授权、S3 预签名上传、私有签名/过期拒
 - After: §8 and the delivery-gate banner declare the local MinIO endpoint, isolated test bucket, loopback HTTP opt-in, and `OBJECT_STORAGE_E2E_ALLOW_WRITES=1`. The runner supplies loopback defaults and may create the test bucket.
 - Reason: A real validation prerequisite must be declared before the task starts and must be reproducible on the runner host.
 - Impact: Validation tooling and documentation only; rv-1/rv-3 remain the required real-entry oracles.
+- Review: Pending runner review; MinIO is reachable and rv-3 passed, but the rv-1 browser process is blocked before network access.
 
 ### Record Aliyun OSS S3-compatibility findings
 - Type: external validation
@@ -580,3 +584,12 @@ reviewer: verifier 的后端授权、S3 预签名上传、私有签名/过期拒
 - After: The External Validation table records that Aliyun OSS S3-compatible endpoints require boto3 SigV2 (V4/aws-chunked is incompatible) and that presigned POST behavior was not verified. Aliyun OSS stays a documented follow-up.
 - Reason: Avoid claiming Aliyun OSS support that this iteration does not test.
 - Impact: Recommendation and Decision Log now scope this PRD to S3-compatible MinIO; no Aliyun OSS acceptance claim remains.
+- Review: Pending runner review; Aliyun OSS and real CDN remain explicitly unverified follow-ups.
+
+### Reconcile evidence after browser launch failure
+- Type: validation
+- Before: The evidence report and verification plan incorrectly recorded rv-1 as PASS, while the current Playwright rerun exited before page launch because macOS denied Chromium Mach rendezvous registration. The verifier report also contained stale claims of a completed end-to-end run.
+- After: Evidence now records rv-1 as blocked with its actual browser-launch output and separately describes real API/MinIO POST-policy controls as supplemental evidence. rv-3 remains a real MinIO PASS. The PRD banner is `⏸️ 验收状态：验证阻塞`; rv-1 and final delivery presentation remain unchecked, and the Human-Confirmed item remains untouched.
+- Reason: Keep the acceptance state aligned with the actual evidence and avoid representing a non-browser HTTP check as browser direct-upload validation.
+- Impact: Evidence status and handoff only; no product scope or success criterion is weakened. The required rv-1 browser oracle remains open until rerun on a host where Chromium can launch.
+- Review: Pending runner review; this update contains no independent verifier verdict and does not mark any unproven acceptance item.
