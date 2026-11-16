@@ -36,7 +36,7 @@ def render_feature_diagram(
     step_core_indexes: Sequence[Sequence[int]],
     feature_index: int,
 ) -> str:
-    """渲染可选的功能图；摘要无效时返回空字符串以使用流程图回退。"""
+    """渲染可选的功能图；摘要无效时不输出图表。"""
     if not isinstance(raw_diagram, dict):
         return ""
 
@@ -61,8 +61,8 @@ def render_feature_diagram(
             not node_id
             or node_id in node_ids
             or not label
-            or not _is_grid_coordinate(column, 1)
-            or not _is_grid_coordinate(row, 5)
+            or not _is_grid_coordinate(column, 5)
+            or not _is_grid_coordinate(row, 2)
             or (column, row) in occupied_positions
         ):
             return ""
@@ -114,8 +114,8 @@ def render_feature_diagram(
     node_width = 170 if column_count > 1 else 342
     node_height = 98
     column_gap = 32
-    row_gap = 42
-    padding = 14
+    row_gap = 26
+    padding = 12
     svg_width = padding * 2 + column_count * node_width + (column_count - 1) * column_gap
     svg_height = padding * 2 + row_count * node_height + (row_count - 1) * row_gap
     node_positions = {
@@ -130,9 +130,10 @@ def render_feature_diagram(
     escaped_diagram_title = html.escape(diagram_title, quote=True)
     diagram_svg = [
         f'<figure class="feature-svg-figure" ' f'aria-label="{escaped_diagram_title}">',
-        "<figcaption><strong>功能结构图</strong>"
+        f"<figcaption><strong>{html.escape(diagram_title)}</strong>"
         "<span>点击模块查看关联核心 diff</span></figcaption>",
-        f'<svg class="feature-svg-diagram" viewBox="0 0 {svg_width} {svg_height}" '
+        f'<svg class="feature-svg-diagram" width="{svg_width}" height="{svg_height}" '
+        f'viewBox="0 0 {svg_width} {svg_height}" '
         f'role="group" aria-labelledby="{title_id}">',
         f'<title id="{title_id}">{html.escape(diagram_title)}</title>',
         "<defs>",

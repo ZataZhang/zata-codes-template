@@ -33,6 +33,7 @@ from feature_navigation import (
     render_feature_navigation,
 )
 from feature_navigation_assets import FEATURE_SCRIPT, FEATURE_STYLE
+from file_tree_assets import TREE_SCRIPT, TREE_STYLE
 
 DIFF_GIT_HEADER = "diff --git "
 #: ``git diff`` 在新增/删除的文件上用 ``/dev/null`` 表示缺失的那一侧。
@@ -567,6 +568,8 @@ def render_tree(
         file_entry = files[leaf["index"]]
         path = str(file_entry["path"])
         summary = file_summary(summaries, path)
+        search_index = f"{path} {summary}"
+        row_tooltip = f"{path} — {summary}" if summary else path
         moved_from = moved_from_path(file_entry)
         # 移动过的文件要一眼看出来：名字旁边给徽标，下面单独一行写清从哪来
         badge_html = '<span class="move-badge">移动</span>' if moved_from else ""
@@ -580,7 +583,7 @@ def render_tree(
         )
         rows.append(
             f'<a class="node file-row" href="#f{leaf["index"]}" data-index="{leaf["index"]}" '
-            f'title="{esc(path)}">'
+            f'data-search="{esc(search_index)}" title="{esc(row_tooltip)}">'
             f'<span class="file-name">{esc(leaf["name"])}{must_read_badge}</span>'
             f'<span class="file-hit">{badge_html}<span class="add-stat">+{leaf["added"]}</span>'
             f'<span class="del-stat">-{leaf["removed"]}</span></span>'
@@ -1029,6 +1032,12 @@ STYLE = """
     flex: none; color: var(--muted-foreground); font-family: var(--mono);
     font-size: 12px; font-variant-numeric: tabular-nums;
   }
+  .all-files-shortcut {
+    border: 0; border-radius: 5px; background: transparent; padding: 3px 5px;
+    color: inherit; font: inherit; cursor: pointer;
+  }
+  .all-files-shortcut:hover { background: var(--secondary); color: var(--primary); }
+  .all-files-shortcut:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
 
   /* ── 改动总览（可选摘要）───────────────────────────────── */
   .overview { padding: 0; }
@@ -1043,12 +1052,19 @@ STYLE = """
   }
   .overview[open] > summary.overview-head::before { transform: rotate(90deg); }
   .overview-badge { font-size: 13px; font-weight: 650; }
-  .overview-hint { margin-left: auto; color: var(--muted-foreground); font-size: 11px; }
+  .overview-teaser {
+    min-width: 0; flex: 1; overflow: hidden; color: var(--muted-foreground);
+    font-size: 11px; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .overview-hint { flex: none; color: var(--muted-foreground); font-size: 10px; }
   .overview-body {
     border-top: 1px solid var(--border); padding: 4px 16px 14px;
   }
   .overview[open] .overview-body {
-    overflow-y: auto; overscroll-behavior: contain; max-height: min(52vh, 620px);
+    overflow-y: auto; overscroll-behavior: contain; max-height: min(42vh, 460px);
+  }
+  .overview:has(.ov-more[open]) .overview-body {
+    max-height: min(64vh, 620px);
   }
   .overview-body h2, .overview-body h3, .overview-body h4 {
     margin: 14px 0 6px; font-size: 13.5px; font-weight: 650;
@@ -1088,6 +1104,31 @@ STYLE = """
     background: var(--secondary); border-radius: 8px; padding: 0 6px; font-weight: 400;
   }
   .ov-files { list-style: none; margin: 0 0 4px; padding: 0; }
+  .ov-feature-intro { color: var(--muted-foreground); font-size: 11.5px; }
+  .ov-feature-cards {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 7px;
+    margin: 8px 0 12px;
+  }
+  .ov-feature-card {
+    min-width: 0; padding: 8px 9px; border: 1px solid var(--border);
+    border-radius: 7px; background: var(--card);
+  }
+  .ov-feature-card strong {
+    display: block; margin-bottom: 4px; font-size: 11px; line-height: 1.35;
+  }
+  .ov-feature-card p {
+    margin: 0; color: var(--muted-foreground); font-size: 10px; line-height: 1.45;
+  }
+  .ov-more { margin-top: 6px; border-top: 1px solid var(--border); padding-top: 6px; }
+  .ov-more > summary { cursor: pointer; color: var(--muted-foreground); font-size: 10.5px; }
+  .ov-more-body { padding-top: 6px; }
+  .ov-feature-diagrams { margin-top: 2px; }
+  .ov-feature-diagrams > h2 { margin-bottom: 8px; }
+  .ov-feature-diagram + .ov-feature-diagram {
+    margin-top: 15px; padding-top: 14px; border-top: 1px solid var(--border);
+  }
+  .ov-feature-diagram > h3 { margin: 0 0 7px; font-size: 13px; font-weight: 650; }
+  .ov-feature-diagram .feature-svg-figure { margin: 0; }
   .ov-file a {
     display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 8px;
     align-items: baseline; padding: 4px 8px; border-radius: 6px;
@@ -1751,33 +1792,106 @@ def _render_overview_prose(summaries: dict[str, Any], link_targets: dict[str, Li
     return "".join(blocks)
 
 
-def render_overview(summaries: dict[str, Any], files: Sequence[dict[str, Any]]) -> str:
-    """渲染顶部可折叠的「改动总览」卡；作者未提供 overview/reading_path 时返回空串。
+def _overview_teaser(summaries: dict[str, Any]) -> str:
+    """从 overview 取一行简述，显示在可折叠总览标题栏中。"""
+    raw_overview = summaries.get("overview")
+    overview_text = (
+        "\n".join(str(line) for line in raw_overview)
+        if isinstance(raw_overview, list)
+        else raw_overview
+    )
+    if not isinstance(overview_text, str):
+        return ""
+    for raw_line in overview_text.splitlines():
+        line = raw_line.strip()
+        if not line or _OVERVIEW_HEADING_RE.match(line):
+            continue
+        bullet_match = _OVERVIEW_BULLET_RE.match(line)
+        ordered_match = _OVERVIEW_ORDERED_RE.match(line)
+        if bullet_match or ordered_match:
+            line = (bullet_match or ordered_match).group(1).strip()
+        line = re.sub(r"`([^`]+)`", r"\1", line)
+        line = re.sub(r"\*\*(.+?)\*\*", r"\1", line)
+        return line
+    return ""
 
-    卡片由三块组成，都是**可选**的：正文（``overview``）、建议阅读顺序
-    （``reading_path``）、重点文件清单（按 ``files`` 自动生成，不需手写）。只要正文或
-    阅读顺序有一项存在就出卡——文件清单本来就是本次改动的镜像，单独为它出卡会平白
-    多占版面。
+
+def _render_feature_overview_cards(summaries: dict[str, Any]) -> str:
+    """渲染总览中的功能摘要卡片。"""
+    raw_groups = summaries.get("feature_groups")
+    if not isinstance(raw_groups, list):
+        return ""
+    cards: list[str] = []
+    for raw_group in raw_groups:
+        if not isinstance(raw_group, dict):
+            continue
+        title = str(raw_group.get("title", "")).strip()
+        if not title:
+            continue
+        summary = str(raw_group.get("summary") or raw_group.get("core_change") or "").strip()
+        cards.append(
+            '<article class="ov-feature-card">'
+            f"<strong>{esc(title)}</strong>"
+            f"<p>{esc(summary)}</p>"
+            "</article>"
+        )
+    return f'<div class="ov-feature-cards">{"".join(cards)}</div>' if cards else ""
+
+
+def render_overview(
+    summaries: dict[str, Any],
+    files: Sequence[dict[str, Any]],
+    feature_diagrams_html: str = "",
+) -> str:
+    """渲染顶部可折叠的「改动总览」卡。
+
+    正文（``overview``）、功能 SVG 图、建议阅读顺序（``reading_path``）和重点文件清单
+    都是**可选**的。只要其中有正文、图或阅读顺序就出卡；文件清单本来就是本次改动的
+    镜像，单独为它出卡会平白多占版面。
 
     Args:
         summaries (dict[str, Any]): 摘要 JSON（见 ``load_summaries``）。
         files (Sequence[dict[str, Any]]): 本次改动的文件，用于生成文件清单与链接目标。
+        feature_diagrams_html (str): 已校验的功能 SVG 图 HTML，点击节点可跳到对应 diff。
 
     Returns:
-        str: 「改动总览」卡的 HTML；作者未提供总览内容时为空串。
+        str: 「改动总览」卡的 HTML；没有可展示内容时为空串。
     """
     link_targets = build_link_targets(files)
     prose_html = _render_overview_prose(summaries, link_targets)
     reading_html = _render_reading_path(summaries, link_targets)
-    if not prose_html and not reading_html:
+    feature_cards_html = _render_feature_overview_cards(summaries)
+    if not prose_html and not reading_html and not feature_diagrams_html and not feature_cards_html:
         return ""
+    teaser = _overview_teaser(summaries)
+    teaser_html = f'<span class="overview-teaser">{esc(teaser)}</span>' if teaser else ""
     index_html = _render_file_index(summaries, files)
-    initially_open = "" if summaries.get("feature_groups") else " open"
+    diagram_section_html = (
+        f'<section class="ov-feature-diagrams">{feature_diagrams_html}</section>'
+        if feature_diagrams_html
+        else ""
+    )
+    if feature_cards_html:
+        reference_content = f"{diagram_section_html}{prose_html}{reading_html}{index_html}"
+        reference_label = (
+            "展开 SVG 功能图、范围说明与完整文件清单"
+            if feature_diagrams_html
+            else "范围说明、阅读顺序与完整文件清单"
+        )
+        reference_html = (
+            f'<details class="ov-more"><summary>{reference_label}</summary>'
+            f'<div class="ov-more-body">{reference_content}</div></details>'
+            if reference_content
+            else ""
+        )
+        overview_body = f"{feature_cards_html}{reference_html}"
+    else:
+        overview_body = f"{prose_html}{diagram_section_html}{reading_html}{index_html}"
     return (
-        f'<details class="overview surface"{initially_open}>'
+        '<details class="overview surface" open>'
         '<summary class="overview-head"><span class="overview-badge">改动总览</span>'
-        '<span class="overview-hint">点此行折叠 / 展开</span></summary>'
-        f'<div class="overview-body">{prose_html}{reading_html}{index_html}</div></details>'
+        f'{teaser_html}<span class="overview-hint">点击折叠 / 展开</span></summary>'
+        f'<div class="overview-body">{overview_body}</div></details>'
     )
 
 
@@ -1795,7 +1909,7 @@ def render_page(
     moves_html = render_moves_card(files, display_indexes)
     feature_groups = normalize_feature_groups(summaries, files)
     initial_feature_index = feature_groups[0].index if feature_groups else None
-    feature_nav_html, feature_flow_html = render_feature_navigation(
+    feature_tree_html, feature_diagrams_html = render_feature_navigation(
         feature_groups, files, summaries, count_changes
     )
     sections = "".join(
@@ -1811,7 +1925,9 @@ def render_page(
     )
     if not files:
         sections = '<p class="empty">没有匹配的改动。</p>'
-    overview_html = render_overview(summaries, files)
+    overview_html = render_overview(summaries, files, feature_diagrams_html)
+    tree_toolbar_html = render_tree_toolbar(len(files), feature_mode=bool(feature_groups))
+    file_count_html = f"{len(files)} 个文件"
     app_classes = ["app"]
     if overview_html:
         app_classes.append("has-overview")
@@ -1819,17 +1935,29 @@ def render_page(
         app_classes.append("has-feature-groups")
     app_class = " ".join(app_classes)
     if feature_groups:
+        first_group = feature_groups[0]
+        feature_header_html = render_feature_view_header(first_group, files)
         navigation_html = (
-            f'<div class="body-grid feature-grid">{feature_nav_html}'
-            f'<aside class="surface feature-aside">{moves_html}'
-            f'<div class="feature-flow-list">{feature_flow_html}</div>'
-            f'<div class="tree" hidden>{tree_html}</div></aside>'
-            f'<main class="surface"><div class="viewer-body">{sections}</div></main></div>'
+            '<div class="body-grid feature-grid">'
+            '<aside class="surface feature-aside" aria-label="代码改动树">'
+            '<div class="feature-tree-heading"><div class="feature-tree-title-row">'
+            '<strong class="feature-tree-title">代码改动树</strong>'
+            f'<span class="feature-tree-count">{len(files)} 个文件 · '
+            f"{len(feature_groups)} 个功能</span></div>"
+            '<p class="feature-tree-intro">先按功能找到要看的改动；展开后可逐层定位目录和文件。</p>'
+            f'</div>{tree_toolbar_html}{moves_html}<div class="tree">'
+            f'{feature_tree_html}<div class="path-tree" hidden>{tree_html}</div>'
+            '<div class="tree-empty" role="status" aria-live="polite" hidden>没有匹配的文件。</div>'
+            "</div></aside>"
+            f'<main class="surface feature-viewer">{feature_header_html}'
+            f'<div class="viewer-body">{sections}</div></main></div>'
         )
     else:
         navigation_html = (
             '<div class="body-grid"><aside class="surface">'
-            f'{moves_html}<div class="tree">{tree_html}</div></aside>'
+            f'{tree_toolbar_html}{moves_html}<div class="tree">{tree_html}'
+            '<div class="tree-empty" role="status" aria-live="polite" hidden>没有匹配的文件。</div>'
+            "</div></aside>"
             f'<main class="surface"><div class="viewer-body">{sections}</div></main></div>'
         )
     return f"""<!DOCTYPE html>
@@ -1838,7 +1966,7 @@ def render_page(
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>{esc(title)}</title>
-<style>{STYLE}{FEATURE_STYLE}</style>
+<style>{STYLE}{TREE_STYLE}{FEATURE_STYLE}</style>
 </head>
 <body>
 <div class="{app_class}">
@@ -1849,17 +1977,134 @@ def render_page(
       <div class="meta-line">{esc(meta_line)}</div>
     </div>
     <span class="spacer"></span>
-    <span class="totals">{len(files)} 个文件 ·
+    <span class="totals">{file_count_html} ·
       <span class="add-stat">+{total_added}</span>
       <span class="del-stat">-{total_removed}</span></span>
   </header>
   {overview_html}
   {navigation_html}
 </div>
-<script>{SCRIPT}{FEATURE_SCRIPT}</script>
+{render_feature_question_panel() if feature_groups else ""}
+<script>{SCRIPT}{TREE_SCRIPT}{FEATURE_SCRIPT}</script>
 </body>
 </html>
 """
+
+
+def render_tree_toolbar(
+    file_count: int,
+    *,
+    feature_mode: bool,
+) -> str:
+    """渲染文件树的分组切换和搜索框。
+
+    Args:
+        file_count (int): 当前报告中的改动文件数。
+        feature_mode (bool): 是否显示按功能/按路径切换。
+
+    Returns:
+        str: 文件树上方工具栏的 HTML。
+    """
+    if feature_mode:
+        return (
+            '<div class="feature-tree-controls">'
+            '<div class="feature-tree-switch" role="group" aria-label="改动树分组方式">'
+            '<button type="button" class="active" data-tree-mode="feature" aria-pressed="true">'
+            '按功能</button><button type="button" data-tree-mode="path" aria-pressed="false">'
+            "按路径</button></div>"
+            '<label class="tree-search"><span aria-hidden="true">⌕</span>'
+            '<input class="tree-search-input" type="search" placeholder="搜索功能或文件名" '
+            'aria-label="筛选功能、文件路径或文件摘要" aria-keyshortcuts="/" autocomplete="off" />'
+            '<kbd aria-hidden="true">/</kbd></label>'
+            f'<span class="tree-count" data-total="{file_count}" hidden '
+            f'aria-live="polite">{file_count} 个文件</span></div>'
+        )
+    return (
+        '<div class="tree-toolbar">'
+        '<label class="tree-search"><span aria-hidden="true">⌕</span>'
+        '<input class="tree-search-input" type="search" placeholder="筛选路径或摘要" '
+        'aria-label="筛选功能、文件路径或文件摘要" aria-keyshortcuts="/" autocomplete="off" />'
+        '<kbd aria-hidden="true">/</kbd></label>'
+        '<div class="tree-toolbar-meta">'
+        f'<span class="tree-count" data-total="{file_count}" aria-live="polite">'
+        f"{file_count} 个文件</span></div></div>"
+    )
+
+
+def render_feature_view_header(group: FeatureGroup, files: Sequence[dict[str, Any]]) -> str:
+    """渲染当前功能的摘要、统计与核心/全部文件分段切换。
+
+    Args:
+        group (FeatureGroup): 初始选中的功能组。
+        files (Sequence[dict[str, Any]]): 当前报告的文件列表。
+
+    Returns:
+        str: 功能 diff 面板顶部的 HTML。
+    """
+    added = sum(count_changes(files[index])[0] for index in group.file_indexes)
+    removed = sum(count_changes(files[index])[1] for index in group.file_indexes)
+    support_count = len(group.file_indexes) - len(group.core_file_indexes)
+    summary = group.summary or group.core_change
+    return (
+        '<header class="feature-view-header">'
+        f'<div class="feature-crumb" data-feature-crumb>改动树 / 按功能 / {esc(group.title)}</div>'
+        '<div class="feature-hero-line"><div class="feature-hero-copy">'
+        f"<h2 data-feature-title>{esc(group.title)}</h2>"
+        f"<p data-feature-summary>{esc(summary)}</p></div>"
+        '<button class="feature-ask-button" type="button">问这个功能</button>'
+        '<button class="feature-back-button" type="button" hidden>← 返回功能</button></div>'
+        '<div class="feature-badges">'
+        '<span class="feature-badge"><strong data-feature-file-count>'
+        f"{len(group.file_indexes)}</strong> 个文件</span>"
+        f'<span class="feature-badge"><strong><span data-feature-added>+{added}</span> '
+        f"<span data-feature-removed>-{removed}</span></strong></span>"
+        f'<span class="feature-badge core">核心 <span data-feature-core-count>'
+        f"{len(group.core_file_indexes)}</span></span>"
+        '<span class="feature-badge">配套 '
+        f"<span data-feature-support-count>{support_count}</span></span>"
+        '</div><div class="feature-scope-row">'
+        '<div class="feature-scope-switch" role="group" aria-label="diff 范围">'
+        f'<button type="button" class="active" data-feature-scope="core" aria-pressed="true">'
+        '核心改动<span class="scope-count" data-feature-core-count>'
+        f"{len(group.core_file_indexes)}</span>"
+        "</button>"
+        '<button type="button" data-feature-scope="all" aria-pressed="false">'
+        f'全部文件<span class="scope-count">{len(group.file_indexes)}</span></button></div>'
+        '<span class="feature-scope-hint">点左侧文件，直接聚焦单文件 diff</span>'
+        '</div><div class="feature-scope-note">'
+        "先展示核心 diff；配套文件仍可在左侧树中浏览，或点「全部文件」。</div>"
+        "</header>"
+    )
+
+
+def render_feature_question_panel() -> str:
+    """渲染静态报告的提问抽屉；用户问题与当前改动上下文可复制到 AI 对话。"""
+    prompts = (
+        "请用业务语言解释这组改动解决了什么问题，并按执行顺序说明主要步骤。",
+        "请沿着核心文件梳理调用链，说明数据从哪里进入、经过哪些处理、最终输出到哪里。",
+        "请结合本组文件说明可能影响的下游模块、兼容性风险和需要人工核对的边界。",
+        "请逐段解释当前选中的文件改动，并指出新增逻辑的输入、输出和失败处理。",
+    )
+    prompt_buttons = "".join(
+        f'<button type="button" data-prompt="{esc(prompt)}">{esc(prompt)}</button>'
+        for prompt in prompts
+    )
+    return (
+        '<div class="question-scrim" hidden></div>'
+        '<aside class="question-panel" aria-label="围绕改动提问" hidden>'
+        '<header class="question-head"><h2>围绕改动提问</h2>'
+        '<button type="button" class="question-close" aria-label="关闭">×</button></header>'
+        '<div class="question-body"><div class="question-scope">'
+        "<small>问题会带上当前选中范围</small>"
+        "<strong></strong></div><h3>可以从这些问题开始</h3>"
+        f'<div class="question-prompts">{prompt_buttons}</div>'
+        '<h3>补充你的问题</h3><textarea aria-label="补充你的问题" '
+        'placeholder="例如：PDFium 离线资源是在哪里加载的？"></textarea></div>'
+        '<footer class="question-foot"><button type="button" class="question-copy">'
+        "复制问题和改动上下文</button>"
+        "<p>静态报告会整理上下文供粘贴到 AI 对话，不会在页面内生成答案。</p></footer>"
+        '</aside><div class="question-toast" role="status" hidden></div>'
+    )
 
 
 def open_in_browser(path: Path) -> None:
