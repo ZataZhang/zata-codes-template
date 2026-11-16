@@ -18,7 +18,7 @@ endpoint 默认只接受无 URL 凭据、无 query/path 的 HTTPS authority；�
 
 ## 公开与私有读取
 
-公开资源用配置的 CDN 域名加不可变对象键。推荐 `public, max-age=31536000, immutable`。替换图片时新建版本键，避免清缓存或覆盖同 URL。浏览器从 CDN 读取对象正文；真实 CDN 回源与缓存由消费项目部署后自验。
+公开资源用配置的 CDN 域名加不可变对象键，由 `public_url(object_key)` 拼接并编码对象键；未配置 `cdn_base_url` 时该方法报错，避免退回对象存储原始地址。推荐 `public, max-age=31536000, immutable`。替换图片时新建版本键，避免清缓存或覆盖同 URL。浏览器从 CDN 读取对象正文；真实 CDN 回源与缓存由消费项目部署后自验。
 
 私有资源在每次读取前由消费项目完成领域授权。仅授权通过后才能调用 `create_read_grant()`，预签名 URL 只对单个 key 的 GET 操作有效，短时过期。私有 URL 直接读对象存储，不进入公开 CDN 缓存。
 

@@ -9,7 +9,7 @@
 - 预签名表单中的访问凭据标识会出现在授权字段中；服务端 Secret 不返回给浏览器，也不写入日志、数据库或前端构建产物。
 - endpoint 默认必须使用不带 URL 凭据的 HTTPS 地址；仅当 `allow_insecure_http = true` 时允许 loopback（`127.0.0.1` / `localhost` / `::1`）HTTP，供本地 MinIO 测试。
 - 上传完成后，消费项目可调用 `head_object()` 校验元数据，再保存自己的业务引用。普通 API 不接收或返回对象正文。
-- 公开 URL 由项目配置的 CDN 域名与唯一对象键组成；能力只提供这一约定与缓存元数据说明，不验证真实 CDN。私有对象须先经过消费项目授权，再通过短时预签名 GET URL 直接读取。
+- 公开 URL 由项目配置的 CDN 域名与唯一对象键组成，`public_url(object_key)` 负责拼接并编码对象键，但能力不验证真实 CDN。私有对象须先经过消费项目授权，再通过短时预签名 GET URL 直接读取。
 - 后台扫描或转换任务可以通过 `open_object()` 流式读取，并通过 `write_object()` 流式写入。
 
 ## 复制 overlay
@@ -36,7 +36,7 @@
 3. 用例调用 `create_upload_grant(UploadGrantRequest(...))`；把返回的 `url`、`form_fields`、对象键和过期时间作为 JSON 返回。不要记录 `policy`、签名字段或完整授权响应。
 4. 浏览器创建 `FormData`，按 `form_fields` 加入字段，再加入 `file`，将表单 POST 到授权返回的 URL。上传正文不经过项目 API。
 5. 上传完成后，应用可通过 `head_object(object_key)` 检查长度、Content-Type 与 ETag，再由消费项目更新自己的业务记录。
-6. 公开图片 URL 使用 CDN 域名加上 URL 编码后的唯一对象键；建议上传时使用 `Cache-Control: public, max-age=31536000, immutable`。替换内容时生成新对象键。
+6. 公开图片 URL 使用 `public_url(object_key)`（配置的 CDN 域名加上 URL 编码后的唯一对象键）；未配置 `cdn_base_url` 时该方法会报错，不应退回使用对象存储原始地址。建议上传时使用 `Cache-Control: public, max-age=31536000, immutable`。替换内容时生成新对象键。
 7. 私有读取用例先完成业务授权，再调用 `create_read_grant(ReadGrantRequest(...))`。未经授权的分支不得调用签名方法或返回 URL。
 8. 后台任务使用 `open_object()` / `write_object()` 处理扫描、OCR、转码或缩略图，不让同步 HTTP 请求等待正文下载或上传。
 

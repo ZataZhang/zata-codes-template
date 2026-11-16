@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 from backend.core.shared.interfaces.object_storage import (
     ObjectMetadata,
@@ -124,6 +124,23 @@ class S3CompatibleObjectStorage:
             ExpiresIn=request.expires_in_seconds,
         )
         return ReadGrant(url=signed_read_url, expires_at=expires_at_datetime)
+
+    def public_url(self, object_key: str) -> str:
+        """拼接公开对象的 CDN 地址，供浏览器直接读取。
+
+        Args:
+            object_key (str): 已上传并写入消费项目业务记录的不可变对象键。
+
+        Returns:
+            str: 配置的 CDN 域名加 URL 编码后的对象键。
+
+        Raises:
+            ValueError: 未配置 ``cdn_base_url`` 或对象键非法。
+        """
+        self._validate_object_key(object_key)
+        if not self._settings.cdn_base_url:
+            raise ValueError("未配置 cdn_base_url，无法生成公开对象 URL")
+        return f"{self._settings.cdn_base_url}/{quote(object_key, safe='/')}"
 
     def head_object(self, object_key: str) -> ObjectMetadata:
         """仅查询对象头信息，不读取对象正文。

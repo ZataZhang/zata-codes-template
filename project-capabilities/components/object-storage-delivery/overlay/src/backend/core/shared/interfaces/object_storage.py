@@ -88,6 +88,10 @@ class ObjectStorage(Protocol):
         """为项目已完成领域授权的单个对象键生成短时读取 URL。"""
         ...
 
+    def public_url(self, object_key: str) -> str:
+        """用项目配置的 CDN 域名与不可变对象键拼出公开对象地址。"""
+        ...
+
     def head_object(self, object_key: str) -> ObjectMetadata:
         """查询对象元数据，不下载对象正文。"""
         ...
