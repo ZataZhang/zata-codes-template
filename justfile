@@ -1108,4 +1108,13 @@ test-debt top="12":
 # RV runner 与生成的日志、uv 缓存只写入 PRD evidence 目录；runner 脚本随 evidence 包分发，不随代码仓库提交，
 # 因此在干净检出上直接运行会因缺少 scripts/run_real_s3_e2e.py 而失败，需先从证据分支取回该目录。
 test-object-storage-e2e oracle='all':
-    UV_CACHE_DIR="{{justfile_directory()}}/tasks/evidence/P1-FEAT-20261107-093048-reusable-file-storage-delivery/.uv-cache" uv run python tasks/evidence/P1-FEAT-20261107-093048-reusable-file-storage-delivery/scripts/run_real_s3_e2e.py {{oracle}}
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{justfile_directory()}}"
+    rv_runner_path="tasks/evidence/P1-FEAT-20261107-093048-reusable-file-storage-delivery/scripts/run_real_s3_e2e.py"
+    if [[ ! -f "$rv_runner_path" ]]; then
+        echo "缺少对象存储 RV runner：$rv_runner_path" >&2
+        echo "该脚本随 PRD evidence 包分发、不进入代码提交。请先取回 tasks/evidence/P1-FEAT-20261107-093048-reusable-file-storage-delivery/ 后重试。" >&2
+        exit 2
+    fi
+    UV_CACHE_DIR="{{justfile_directory()}}/tasks/evidence/P1-FEAT-20261107-093048-reusable-file-storage-delivery/.uv-cache" uv run python "$rv_runner_path" {{oracle}}

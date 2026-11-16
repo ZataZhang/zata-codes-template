@@ -431,14 +431,14 @@ reviewer: verifier 的后端授权、S3 预签名上传、私有签名/过期拒
 - Interpretation: confirmed — 模板提供按需复制的 S3 兼容能力；消费项目继续拥有业务授权、对象与业务记录关系及上传完成状态，普通文件正文应由浏览器直接传到对象存储/CDN。模板前端没有产品界面改动。
 - Public behavior and contracts: confirmed — 上传授权使用绑定对象键、Content-Type、Cache-Control、大小范围和过期时间的 S3 POST policy（`generate_presigned_post`）；私有读取使用 `generate_presigned_url`。默认 endpoint 必须 HTTPS，loopback HTTP 仅在显式 `allow_insecure_http=true` 时允许。bearer 字段不进入 grant 对象的自动 `repr`。
 - Related PRD status: confirmed — §8 依赖仍为 none；待办中的多组织在线 Agent PRD 与本能力无执行顺序依赖，也未发现重复对象存储 PRD。
-- Requirements and risks: confirmed with one open oracle — FR-1 至 FR-9 仍由 Feature Overview 覆盖；未配置时不启用 adapter，未选择组件的项目不增加 boto3 依赖。rv-2（真实 CDN）已移除，CDN 由消费项目部署后自验；Aliyun OSS S3 兼容端点列为后续验证项。rv-1 的浏览器行为没有通过，不能据补充 HTTP 检查宣称完成直传验收。
+- Requirements and risks: confirmed — FR-1 至 FR-9 仍由 Feature Overview 覆盖；未配置时不启用 adapter，未选择组件的项目不增加 boto3 依赖。rv-2（真实 CDN）已移除，CDN 由消费项目部署后自验；Aliyun OSS S3 兼容端点列为后续验证项。rv-1 已在最终树复跑通过（浏览器页面与浏览器到 MinIO 的网络请求均有记录）。
 - Reconciled differences:
   - 从 Aliyun OSS 原生 SDK（`oss2`）切换到 S3 兼容 boto3 实现，以 zata-ops 的 MinIO 做真实验证；原因是外部 OSS/CDN 环境此前不可用，且 MinIO 与现有部署一致。
   - 删除 rv-2，并同步调整行为样例、Measurable Objectives、风险登记、§9 与 Validation Acceptance。
   - RV runner、consumer fixture、browser oracle、临时设置及额外检查均只存于 `tasks/evidence/<prd-stem>/scripts/`，且不进入代码变更集；模板产品前端仍无变化。
-- Validation environment: 本机 MinIO（`http://127.0.0.1:9000`，`test-minio`）健康检查为 200；rv-3 使用隔离测试桶、随机对象前缀和 loopback 默认配置，真实观察到上传 201、API 元数据确认不含正文、未授权读取 403 且无 URL、授权直读 200、fresh client 在过期后返回 403。补充 API/MinIO 检查也实际验证了 POST policy 的超限、Content-Type、对象键与方法负控、合法上传和 fresh boto3 读取；独立 worker smoke 通过 adapter 读入、写出并由新 adapter HEAD/GET 验证结果。
-- Validation blocker: `just test-object-storage-e2e rv-1` 在 Playwright 页面启动前退出 1。Chromium 报告 macOS `bootstrap_check_in org.chromium.Chromium.MachPortRendezvousServer` permission denied (1100)；系统 Chrome 启动也被沙箱终止，Playwright WebKit 进程 abort。没有浏览器页面或浏览器到 MinIO 的网络请求，因此 rv-1 整体仍未通过。MinIO 本身可访问；补充 HTTP POST policy 检查不验证浏览器 CORS/页面路径，不能替代 rv-1。
-- Validation follow-up: 在允许 Chromium 进程完成 Mach/bootstrap 注册的 runner/shell 中，针对 GitHub Issue #59 重跑 `just test-object-storage-e2e rv-1`，并记录浏览器超限 POST 被拒绝、fresh boto3 HEAD 无对象、合法浏览器 POST 与 SHA-256 匹配；随后刷新 `rv-1-direct-upload.txt` 与 `evidence.json`，重跑受影响门禁并由 runner 独立复核。真实 CDN 与 Aliyun OSS S3 兼容端点仍须单独验证；不要在本次宣称已验证。
+- Validation environment: 本机 MinIO（`http://127.0.0.1:9000`，`test-minio`）健康检查为 200；rv-3 使用隔离测试桶、随机对象前缀和 loopback 默认配置，真实观察到上传 201、API 元数据确认不含正文、未授权读取 403 且无 URL、授权直读 200、fresh client 在过期后返回 403。rv-1 在最终树 `63991b771` 复跑时 Chromium 实际启动页面：浏览器超限 POST 被对象存储拒绝（400）且 fresh boto3 HEAD 无该对象，合法浏览器 POST 返回 201，API 响应无正文，新建 boto3 GET 的 SHA-256 与夹具一致。补充 API/MinIO 检查也实际验证了 POST policy 的超限、Content-Type、对象键与方法负控、合法上传和 fresh boto3 读取；独立 worker smoke 通过 adapter 读入、写出并由新 adapter HEAD/GET 验证结果。`kc evidence check` 复跑为 3/3 passed，本轮未遗留测试对象。
+- Validation blocker: 环境层面的 rv-1 阻塞已不再复现（本轮真实浏览器直传通过），剩余阻塞是流程性的：尚无独立 verifier 对最终树与证据包给出结论，且真实入口依赖不进入代码提交的 evidence 包（干净检出需先取回 `tasks/evidence/<prd-stem>/`）。因此 §9 的 runner-owned 项与 Validation Acceptance / Delivery Readiness 仍未勾选，Human-Confirmed 项保持未勾选，不得据此宣称已完成验收。
+- Validation follow-up: 由独立 verifier 复核最终树 `63991b771`、三份证据与 `3/3 passed` 的 evidence check 结果，并按 §9 决定是否勾选 executor-owned 项；随后完成 §9.1 的人读呈递。真实 CDN 与 Aliyun OSS S3 兼容端点仍须单独验证，不要在本次宣称已验证。
 
 ## Change Log
 
@@ -593,3 +593,11 @@ reviewer: verifier 的后端授权、S3 预签名上传、私有签名/过期拒
 - Reason: Keep the acceptance state aligned with the actual evidence and avoid representing a non-browser HTTP check as browser direct-upload validation.
 - Impact: Evidence status and handoff only; no product scope or success criterion is weakened. The required rv-1 browser oracle remains open until rerun on a host where Chromium can launch.
 - Review: Pending runner review; this update contains no independent verifier verdict and does not mark any unproven acceptance item.
+
+### Record the rv-1 browser re-run pass on the final tree
+- Type: validation
+- Before: The evidence package recorded rv-1 as BLOCKED because Chromium exited before page launch on macOS; `kc evidence check` reported 2/3 passed and the PRD Validation blocker described only the browser-launch failure.
+- After: rv-1, rv-3 and the supplemental policy check were re-executed on final tree `63991b771`; rv-1 now records a real browser page and browser-to-MinIO requests (oversized POST rejected with 400, valid POST 201, fresh boto3 SHA-256 match), rv-3 remains PASS and `kc evidence check` reports 3/3 passed. The Validation blocker now names the remaining process gap (no independent verifier verdict; the real entry depends on the non-committed evidence package) instead of an environment failure.
+- Reason: The recorded blocked state no longer matched the executable behaviour of the delivered tree, and stale evidence would misstate whether the required oracle runs.
+- Impact: Evidence status and handoff only. No acceptance checkbox, Human-Confirmed item or product behaviour changed; the banner remains `⏸️ 验收状态：验证阻塞` because the independent verifier verdict and human review are still outstanding.
+- Review: Pre-PR review repair; no Acceptance Checklist item was checked.
