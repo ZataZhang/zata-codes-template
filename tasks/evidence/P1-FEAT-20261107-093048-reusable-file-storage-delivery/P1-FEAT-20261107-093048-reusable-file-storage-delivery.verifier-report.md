@@ -2,30 +2,31 @@
 
 ## 状态
 
-**VERDICT: CHANGES REQUESTED** — 已完成当前 feature 的代码与需求边界审查；这不代表独立真实行为验证 PASS。
+**VERDICT: 待独立 verifier 复核** — 执行者已完成 S3/MinIO 改写的自测；本文件不是独立验证 PASS。
 
 ## 验收视图
 
-交付边界是按需复制的 core 契约、OSS adapter、配置装配与模板分发规则。消费项目拥有领域授权与对象引用；普通文件字节由浏览器直接传给 OSS/CDN；不新增模板产品路由、ORM 或页面。
+交付边界是按需复制的 core 契约、S3 兼容 adapter（boto3）、配置装配与模板分发规则。消费项目拥有领域授权与对象引用；普通文件字节由浏览器直接传给 S3 兼容对象存储；不新增模板产品路由、ORM 或页面。CDN 只保留公开 URL 构造与缓存元数据文档，不再作为本轮验收项。
 
-## 发现与修复
+## 本轮审查与修复
 
-[HIGH][requirement] 专用 RV 源码仍在代码提交中。已将消费 API/页面、Playwright oracle/config 全部移入 evidence scripts/，并调整 runner、文档和 PRD Change Log。修复已由 runner 提交为 7a62d7c1；跟进审查确认最终分支差异中已无这些 RV 源码，验收行为未削减。
-
-[HIGH][validation] PRD §9 Validation Acceptance 要求 rv-1 至 rv-3 通过真实 OSS/CDN 入口。逐项重跑仍因缺少隔离 endpoint、region、Bucket、服务端测试凭据、写入授权及 CDN 域名而 exit 3。没有观察 POST policy 大小约束、fresh OSS GET 摘要、CDN 缓存、私有签名过期拒绝，也没有对应负向对照与截图，无法批准安全与交付边界。此项需要环境负责人提供隔离资源，不能通过改 exit code、mock 或放宽 oracle 修复。
-
-[MEDIUM][validation] 分发回归测试默认克隆远端默认分支，不能可靠验证当前工作树。已修复为运行当前过滤器并覆盖允许/拒绝对照，设置五秒上限；不将该单元测试当成完整 copy/list 证据。
+- [HIGH][scope] 原 PRD 依赖阿里云 OSS/CDN 真实环境，runner 连续因缺少隔离凭据在 rv-1/2/3 预检 exit 3。已按用户决定切换为 S3 兼容 boto3 + zata-ops MinIO，并删除 rv-2（真实 CDN 验收）。
+- [HIGH][implementation] overlay 从 `oss2` PostObject 改为 boto3 `generate_presigned_post` / `generate_presigned_url`；core 契约不变。配置 provider 改为 `s3`，新增 `addressing_style` 与默认关闭的 loopback `allow_insecure_http`。
+- [MEDIUM][validation] rv-1/rv-3 已在真实 MinIO 上通过，包含超限负控、API 正文边界、fresh boto3 摘要与过期 403；证据位于本目录。
+- [MEDIUM][docs] README、接入指南、配置示例、SKILL 路由与分发说明同步为 S3/MinIO；Aliyun OSS S3 兼容端点记录为未验证后续项。
 
 ## 代码审查
 
-已阅读 core 契约、OSS PostObject/GET 签名适配、可选配置、composition、分发规则及全部 RV 路径。本轮未发现另一项置信度超过 80% 的产品代码缺陷。服务端密钥只从环境读取，bearer grant 的 repr 已隐藏，普通 API 不转发对象正文。
+已阅读 core 契约、S3 预签名适配、配置校验、composition、消费 fixture、Playwright oracle 与分发规则。未发现新的高置信度产品代码缺陷。服务端 Secret 只从环境读取，bearer grant 的 `repr` 已隐藏，普通 API 不转发对象正文。
 
-## 文档与验证
+## 本地门禁
 
-文档和导航覆盖按需集成、权限、CORS、CDN、缓存与异步字节处理。最终修复树已通过 just test（核心档与 OIDC 包）、架构检查、mkdocs build、迁移后 oracle 枚举与 TypeScript/Python 静态检查。真实 RV 继续保持 BLOCKED，Acceptance Checklist 与 Human-Confirmed 未勾选。
+- `just test`：PASS（核心档 544 passed, 1 skipped；OIDC 17 passed）。
+- `uv run python hooks/shared/check_architecture.py`：PASS。
+- `just lint --full` / `just lint --reuse`：PASS（staged tree 一致后）。
+- `just test-object-storage-e2e`：PASS（rv-1、rv-3）。
+- 测试桶清理：残留对象 0。
 
-结论：必需真实验证门禁未满足，禁止将阻塞记录解释为行为通过。
+## 结论
 
-## 跟进审查结论
-
-已在 7a62d7c1 上重新执行三个真实入口，结果均为缺配置 exit 3。本轮只修正证据来源提交和环境交接说明；这份补丁没有补齐真实资源，HIGH validation finding 继续开放，不能批准。
+执行者侧实现与真实验证已完成，但仍需独立 verifier 在最终提交树上复核并给出 PASS；在此之前不勾选 §9 非人工项，也不宣称人工验收完成。runner 重新触发后会再次执行 RV 并生成新的 verifier 结论。

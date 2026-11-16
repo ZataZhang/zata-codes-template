@@ -8,6 +8,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+DEFAULT_REGION = "us-east-1"
+DEFAULT_ADDRESSING_STYLE = "path"
+SUPPORTED_ADDRESSING_STYLES = frozenset({"path", "virtual", "auto"})
+
 
 class ObjectStorageConfigError(RuntimeError):
     """对象存储被启用但配置缺失或非法时抛出。"""
@@ -15,7 +19,7 @@ class ObjectStorageConfigError(RuntimeError):
 
 @dataclass(frozen=True)
 class ObjectStorageSettings:
-    """阿里云 OSS adapter 所需的运行配置。"""
+    """S3 兼容对象存储 adapter 所需的运行配置。"""
 
     endpoint: str
     region: str
@@ -23,6 +27,8 @@ class ObjectStorageSettings:
     access_key_id: str
     access_key_secret: str = field(repr=False)
     cdn_base_url: str | None
+    addressing_style: str = DEFAULT_ADDRESSING_STYLE
+    allow_insecure_http: bool = False
 
 
 def load_object_storage_settings(
@@ -34,7 +40,7 @@ def load_object_storage_settings(
         config_path (str | Path): 项目 TOML 配置路径。
 
     Returns:
-        ObjectStorageSettings | None: 已启用的 OSS 设置；缺少配置段或显式关闭时为 ``None``。
+        ObjectStorageSettings | None: 已启用的 S3 设置；缺少配置段或显式关闭时为 ``None``。
 
     Raises:
         ObjectStorageConfigError: TOML 无法读取、配置字段非法或密钥环境变量为空。
@@ -59,8 +65,8 @@ def load_object_storage_settings(
         return None
 
     provider_name = _required_string(storage_section, "provider")
-    if provider_name != "aliyun-oss":
-        raise ObjectStorageConfigError("[object_storage] provider 当前只支持 aliyun-oss")
+    if provider_name != "s3":
+        raise ObjectStorageConfigError("[object_storage] provider 当前只支持 s3")
 
     access_key_id_env_name = _required_string(storage_section, "access_key_id_env")
     access_key_secret_env_name = _required_string(storage_section, "access_key_secret_env")
@@ -81,11 +87,13 @@ def load_object_storage_settings(
 
     return ObjectStorageSettings(
         endpoint=_required_string(storage_section, "endpoint").rstrip("/"),
-        region=_required_string(storage_section, "region"),
+        region=_optional_string(storage_section.get("region")) or DEFAULT_REGION,
         bucket=_required_string(storage_section, "bucket"),
         access_key_id=access_key_id_value,
         access_key_secret=access_key_secret_value,
         cdn_base_url=_optional_string(storage_section.get("cdn_base_url")),
+        addressing_style=_addressing_style(storage_section.get("addressing_style")),
+        allow_insecure_http=_optional_bool(storage_section.get("allow_insecure_http"), False),
     )
 
 
@@ -104,4 +112,33 @@ def _optional_string(setting_value: Any) -> str | None:
     return setting_value.strip().rstrip("/")
 
 
-__all__ = ["ObjectStorageConfigError", "ObjectStorageSettings", "load_object_storage_settings"]
+def _addressing_style(setting_value: Any) -> str:
+    """读取并校验 S3 寻址风格。"""
+    if setting_value is None:
+        return DEFAULT_ADDRESSING_STYLE
+    if (
+        not isinstance(setting_value, str)
+        or setting_value.strip() not in SUPPORTED_ADDRESSING_STYLES
+    ):
+        raise ObjectStorageConfigError(
+            "[object_storage] addressing_style 必须是 path、virtual 或 auto"
+        )
+    return setting_value.strip()
+
+
+def _optional_bool(setting_value: Any, default_value: bool) -> bool:
+    """读取可选布尔设置；未填写时返回默认值。"""
+    if setting_value is None:
+        return default_value
+    if not isinstance(setting_value, bool):
+        raise ObjectStorageConfigError("[object_storage] allow_insecure_http 必须是布尔值")
+    return setting_value
+
+
+__all__ = [
+    "DEFAULT_ADDRESSING_STYLE",
+    "DEFAULT_REGION",
+    "ObjectStorageConfigError",
+    "ObjectStorageSettings",
+    "load_object_storage_settings",
+]

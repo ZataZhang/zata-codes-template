@@ -21,7 +21,7 @@ description: "模板仓库专用的项目初始化能力目录。用户明确选
 
 ## 现有组件
 
-- [对象存储直传直取](components/object-storage-delivery/README.md)：core 对象存储端口与阿里云 OSS adapter。项目自行控制授权、对象键与业务关系。
+- [对象存储直传直取](components/object-storage-delivery/README.md)：core 对象存储端口与 S3 兼容 adapter（boto3，本地 MinIO 验证）。项目自行控制授权、对象键与业务关系。
 
 ## 分发边界
 
