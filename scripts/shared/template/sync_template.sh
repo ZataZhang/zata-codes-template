@@ -339,6 +339,13 @@ _is_always_skipped() {
         # collection-time FileNotFoundError downstream. Keep these tests
         # template-internal by listing them here.
         tests/guards/test_prd_skill_checker.py) return 0 ;;
+        # 该测试断言模板仓库存在 project-capabilities/ 与 copy recipe 的排除行，
+        # 派生产物两者都没有；随 --all 同步过去会让派生项目测试必红。与
+        # test_prd_skill_checker.py 同理，保持模板内部。
+        tests/test_project_capabilities_distribution.py) return 0 ;;
+        # Template-only project capabilities are loaded by explicit path and
+        # must never appear in regular sync or the --all candidate list.
+        project-capabilities|project-capabilities/*) return 0 ;;
         tests/test_prd_contract.py) return 0 ;;
         tests/test_prd_human_review_checklist.py) return 0 ;;
         tests/test_zata_writer_gzh_build.py) return 0 ;;
