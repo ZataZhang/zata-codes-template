@@ -75,11 +75,11 @@ just ops-dashboard --mock     # 终端状态看板
 
 生产环境模板使用根目录的 `docker-compose.dokploy.yml`。该 compose 文件部署三个服务：
 
-- `<slug>-backend`：Python 后端 API，暴露 `/health`、`/auth/*`、`/api/*` 等接口。
+- `<slug>-backend`：Python 后端 API，暴露 `/health`、`/auth/*`、`/admin/*`、`/agents`、`/agent-runs` 与独立的 `/a2a/*` 协议入口。
 - `<slug>-admin`：管理平台前端（`frontend-admin/`），Nginx 监听 80 端口，通过 `admin.${DOMAIN}` 访问。
 - `<slug>-public`：前台官网（`frontend-public/`），Next.js standalone 监听 3000 端口，通过 `${DOMAIN}` 访问。
 
-两个前端都直接面向最终用户：public 站点负责营销首页和登录/注册，admin 站点负责登录后的管理 Dashboard。两个前端都通过 `/api/*` 代理到 Compose 项目名对应的专属后端别名。Traefik 只对 `/api/` 路由应用速率、并发和 1 MiB 请求体上限，页面与静态资源使用普通站点路由。模板不再包含 `<slug>-backup` 服务——备份能力由独立的 `zata-ops` CLI 提供，通过 Dokploy Scheduled Job 调用即可。
+两个前端都直接面向最终用户：public 站点负责营销首页和登录/注册，admin 站点负责登录后的管理入口。浏览器 API 经同源 `/api/*` 代理到 Compose 项目名对应的专属后端别名；A2A 客户端使用公开的 `/a2a/*` 路径，由前端容器直接转发后端，避免与浏览器 `/api` baseURL 重复加前缀。Traefik 只对 `/api/` 路由应用速率、并发和 1 MiB 请求体上限，页面与静态资源使用普通站点路由。模板不再包含 `<slug>-backup` 服务——备份能力由独立的 `zata-ops` CLI 提供，通过 Dokploy Scheduled Job 调用即可。
 
 > **网络边界**：`just copy <slug>` 会把 Compose 服务和卷的占位前缀替换为项目名。生产栈只让 admin/public 前端接入共享的 `dokploy-network` 或 `traefik` 网络；后端只加入项目私有 `backend-app` 网络。前端通过 `${COMPOSE_PROJECT_NAME}-backend` 别名访问后端，后端不发布宿主机端口，也不直接暴露给共享入口网络。
 >
@@ -106,13 +106,20 @@ DNS 需要把 `${DOMAIN}` 与 `admin.${DOMAIN}` 都解析到 Dokploy 服务器�
 3. `docker logs <slug>-backend --tail=100` 是否有数据库、迁移或配置错误。
 4. 实际访问的域名是否正好匹配 Traefik 的 Host rule。
 
+Public 前端的 Next.js standalone 会在 `next build` 时固化 `/api` 与 `/a2a` 的转发目标。构建镜像必须通过 Docker build arg `API_BASE_URL` 指定后端服务地址（默认 `http://zata-codes-template-backend:8000`）；只修改运行时环境变量不会改变已构建镜像中的代理目标。Admin 前端则在运行时渲染 Nginx 配置。
+
+本地开发时，Admin 的 Vite 代理按 `^/a2a/` 匹配独立协议路径；不要使用会命中 `/a2a-approvals/` 管理页的宽泛 `/a2a` 前缀。
+
 前端 Nginx 配置使用 Docker 内置 DNS 做运行时重解析：
 
 - `resolver 127.0.0.11 ipv6=off valid=5s`
 - `BACKEND_UPSTREAM` 由 Compose 设置为 `${COMPOSE_PROJECT_NAME}-backend:8000`；Nginx 容器启动时只替换该变量，保留 `$host`、`$remote_addr` 等 Nginx 自身变量
 - `/api/*` 先 `rewrite` 去掉 `/api` 前缀，再 `proxy_pass http://$backend_upstream`
+- `/a2a/*` 保留完整路径代理到同一后端；A2A Card 使用后端配置的 `A2A_PUBLIC_BASE_URL`
 
 Docker DNS 运行时重解析可以避免 Dokploy 或 Docker Compose 只重建 backend 时，未重启的前端 Nginx 继续使用旧 backend 容器 IP。使用变量形式的 `proxy_pass` 时不要在 upstream 后追加尾部 `/`，否则 Nginx 不会沿用普通 `proxy_pass http://<slug>-backend:8000/` 的 URI 替换语义，可能把请求错误转发到根路径。
+
+发布 A2A Agent Card 时，在后端环境设置 `A2A_PUBLIC_BASE_URL=https://<public-origin>`。Admin 与 Public 前端容器都转发 `/a2a/*`，因此该 origin 可选其一，但必须与外部客户端实际访问的 host 一致。出站 A2A 另需按部署情况填写精确 `allowed_outbound_hosts`；外部对端 Bearer token 只放在服务端环境中。
 
 ## VPS + Traefik 部署
 

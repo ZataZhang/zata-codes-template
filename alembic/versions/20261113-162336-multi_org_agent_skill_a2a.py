@@ -9,6 +9,7 @@ Create Date: 2026-11-13 16:23:36.000000
 设计要点：``run.organization_id`` 回填为固定默认组织后设为非空，``conversation_id`` 与 ``execution_snapshot`` 冻结会话和执行来源；Skill 版本以 ``uq_skill_version_number`` 保证线性序号。A2A 凭据仅存哈希或密文。
 """
 
+import logging
 from typing import Sequence, Union
 
 import sqlalchemy as sa
@@ -34,10 +35,19 @@ def upgrade() -> None:
             comment="Run 创建时所属组织；不随成员调动改变。",
         ),
     )
-    op.execute(
-        sa.text(
-            "UPDATE run SET organization_id = :organization_id WHERE organization_id IS NULL"
-        ).bindparams(organization_id="default")
+    backfilled_run_count = (
+        op.get_bind()
+        .execute(
+            sa.text(
+                "UPDATE run SET organization_id = :organization_id WHERE organization_id IS NULL"
+            ),
+            {"organization_id": "default"},
+        )
+        .rowcount
+    )
+    # 按表输出回填数量供复核；Run 是唯一带历史数据的业务表，其余表在本迁移中新建为空。
+    logging.getLogger("alembic.runtime.migration").info(
+        "organization backfill: run=%s rows -> default, unattributable=0", backfilled_run_count
     )
     op.add_column(
         "run",
@@ -278,22 +288,16 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """删除新增 Agent/A2A 表并撤销 Run 组织与会话列。"""
-    op.drop_index("ix_a2a_peer_organization_id", table_name="a2a_peer")
+    # 整表删除会同时清理索引及外键；不要先在 MySQL 上删除外键依赖的索引。
     op.drop_table("a2a_peer")
-    op.drop_index("ix_a2a_credential_agent_id", table_name="a2a_credential")
-    op.drop_index("ix_a2a_credential_organization_id", table_name="a2a_credential")
     op.drop_table("a2a_credential")
-    op.drop_index("ix_agent_organization_id", table_name="agent")
     op.drop_table("agent")
-    op.drop_index("ix_skill_version_organization_id", table_name="skill_version")
-    op.drop_index("ix_skill_version_skill_id", table_name="skill_version")
     op.drop_table("skill_version")
-    op.drop_index("ix_skill_organization_id", table_name="skill")
     op.drop_table("skill")
     with op.batch_alter_table("run") as batch_op:
+        batch_op.drop_constraint("fk_run_organization_id_organization", type_="foreignkey")
         batch_op.drop_index("ix_run_conversation_id")
         batch_op.drop_index("ix_run_organization_id")
-        batch_op.drop_constraint("fk_run_organization_id_organization", type_="foreignkey")
         batch_op.drop_column("execution_snapshot")
         batch_op.drop_column("conversation_id")
         batch_op.drop_column("organization_id")

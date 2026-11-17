@@ -53,6 +53,25 @@ class SkillRevision:
 
 
 @dataclass(frozen=True)
+class SkillWriteIdempotency:
+    """Skill 写入的调用方重试键与服务端请求摘要。"""
+
+    key_hash: str
+    request_checksum: str
+
+
+@dataclass(frozen=True)
+class SkillRevisionDraft:
+    """一次待串行追加的 Skill 版本写入。"""
+
+    organization_id: str
+    skill_id: str
+    created_by: str
+    body: str
+    idempotency: SkillWriteIdempotency | None = None
+
+
+@dataclass(frozen=True)
 class A2ACredential:
     """绑定组织和 Agent 的入站服务凭据元数据。"""
 

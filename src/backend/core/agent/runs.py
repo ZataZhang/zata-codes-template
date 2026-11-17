@@ -18,9 +18,11 @@ from backend.core.shared.interfaces.agent_types import (
     AgentExecutionSnapshot,
     SkillRevision,
 )
+from backend.core.shared.interfaces.organization_repository import OrganizationRepository
 from backend.core.shared.interfaces.run_repository import RunRepository
 from backend.core.shared.models.organization import DEFAULT_ORGANIZATION_ID
 from backend.core.shared.models.run import (
+    ORGANIZATION_AGENT_SUBJECT_TYPE,
     Run,
     RunEvent,
     RunEventCandidate,
@@ -54,6 +56,7 @@ class AgentRunUseCase:
         agent_repository: AgentRepository,
         run_repository: RunRepository,
         executor: AgentExecutor,
+        organization_repository: OrganizationRepository,
     ) -> None:
         """初始化在线 Run 用例。
 
@@ -61,10 +64,12 @@ class AgentRunUseCase:
             agent_repository (AgentRepository): Agent、Skill 与 A2A 目录。
             run_repository (RunRepository): 现有 Canonical Run/Event 仓库。
             executor (AgentExecutor): 受控模型与 A2A 执行适配器。
+            organization_repository (OrganizationRepository): 组织启停状态读取端口。
         """
         self._agent_repository = agent_repository
         self._run_repository = run_repository
         self._executor = executor
+        self._organization_repository = organization_repository
         self._active_tasks: dict[str, asyncio.Task[None]] = {}
         self._executor_instance_id = uuid.uuid4().hex
 
@@ -87,6 +92,9 @@ class AgentRunUseCase:
             raise ValueError("message_required_or_too_large")
         if not command.idempotency_key.strip():
             raise ValueError("idempotency_key_required")
+        organization = self._organization_repository.get_by_id(command.organization_id)
+        if organization is None or not organization.is_active:
+            raise AgentUnavailableError("organization_unavailable")
         agent = self._agent_repository.get_agent(command.organization_id, command.agent_id)
         if agent is None or not agent.is_published:
             raise AgentNotFoundError("Agent 不存在")
@@ -146,9 +154,9 @@ class AgentRunUseCase:
             id=run_id,
             owner_id=command.owner_id,
             subject_id=agent.id,
-            subject_type="agent",
+            subject_type=ORGANIZATION_AGENT_SUBJECT_TYPE,
             subject_snapshot=RunSubjectSnapshot(
-                subject_type="agent",
+                subject_type=ORGANIZATION_AGENT_SUBJECT_TYPE,
                 subject_id=agent.id,
                 subject_name=agent.name,
                 snapshot_checksum=snapshot_checksum,
@@ -261,11 +269,19 @@ class AgentRunUseCase:
                 ),
             )
             peers = self._approved_peers_for_run(run)
+            streamed_deltas = _StreamedDeltas(
+                run_id=run.id,
+                run_repository=self._run_repository,
+                trace_id=run_trace_id,
+                span_id=root_span_id,
+            )
             execution_result = await self._executor.execute(
                 snapshot={**snapshot_document, "run_id": run.id},
                 message=input_message,
                 peers=peers,
+                on_delta=streamed_deltas.append,
             )
+            streamed_deltas.flush()
             for external_call in execution_result.external_calls:
                 tool_call_id = uuid.uuid4().hex
                 tool_span_id = derive_span_id(run.id, "tool", tool_call_id)
@@ -318,20 +334,23 @@ class AgentRunUseCase:
             final_text = execution_result.content.strip()
             if not final_text:
                 raise ValueError("empty_model_response")
-            for delta_text in _split_message(final_text):
-                self._run_repository.append_event(
-                    run.id,
-                    RunEventCandidate(
-                        "message.delta",
-                        {
-                            "message_id": f"assistant_{run.id}",
-                            "content_index": 0,
-                            "delta": delta_text,
-                        },
-                        trace_id=run_trace_id,
-                        span_id=root_span_id,
-                    ),
-                )
+            if not execution_result.content_streamed:
+                # 端点没有返回流式文本时（例如忽略了 stream 参数），用最终内容补齐
+                # 同一条 message.delta 链，前端不需要两套展示路径。
+                for delta_text in _split_message(final_text):
+                    self._run_repository.append_event(
+                        run.id,
+                        RunEventCandidate(
+                            "message.delta",
+                            {
+                                "message_id": f"assistant_{run.id}",
+                                "content_index": 0,
+                                "delta": delta_text,
+                            },
+                            trace_id=run_trace_id,
+                            span_id=root_span_id,
+                        ),
+                    )
             message_checksum = _checksum(final_text)
             self._run_repository.append_event(
                 run.id,
@@ -626,3 +645,59 @@ def _split_message(message: str, chunk_size: int = 180) -> tuple[str, ...]:
     return tuple(
         message[index : index + chunk_size] for index in range(0, len(message), chunk_size)
     )
+
+
+class _StreamedDeltas:
+    """把模型流式片段合批写入唯一 Canonical Event 链。"""
+
+    def __init__(
+        self,
+        *,
+        run_id: str,
+        run_repository: RunRepository,
+        trace_id: str,
+        span_id: str,
+        flush_threshold: int = 24,
+    ) -> None:
+        """初始化增量合批状态。
+
+        Args:
+            run_id (str): 当前 Run ID。
+            run_repository (RunRepository): Canonical Run/Event 仓库。
+            trace_id (str): 当前 Run 的 trace 标识。
+            span_id (str): Run 根节点 span 标识。
+            flush_threshold (int): 缓冲区达到该字符数时立即持久化一片增量。
+        """
+        self._run_id = run_id
+        self._run_repository = run_repository
+        self._trace_id = trace_id
+        self._span_id = span_id
+        self._flush_threshold = max(flush_threshold, 1)
+        self._buffer = ""
+
+    async def append(self, delta_text: str) -> None:
+        """接收一个模型文本片段，达到阈值时写入事件。"""
+        if not delta_text:
+            return
+        self._buffer += delta_text
+        if len(self._buffer) >= self._flush_threshold:
+            self.flush()
+
+    def flush(self) -> None:
+        """把缓冲区里剩余的片段写入一条 ``message.delta`` 事件。"""
+        if not self._buffer:
+            return
+        delta_text, self._buffer = self._buffer, ""
+        self._run_repository.append_event(
+            self._run_id,
+            RunEventCandidate(
+                "message.delta",
+                {
+                    "message_id": f"assistant_{self._run_id}",
+                    "content_index": 0,
+                    "delta": delta_text,
+                },
+                trace_id=self._trace_id,
+                span_id=self._span_id,
+            ),
+        )

@@ -5,6 +5,8 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 
 from backend.api.agent_schemas import (
+    AgentRunAssetListResponse,
+    AgentRunAssetResponse,
     AgentRunCreateRequest,
     AgentRunEventResponse,
     AgentRunEventsResponse,
@@ -85,10 +87,53 @@ def _run_detail_response(
         **_agent_run_item(run).model_dump(),
         input_message=input_message,
         assistant_message=assistant_message,
+        skill_version=(
+            int(run.execution_snapshot["skill_version"])
+            if run.execution_snapshot and run.execution_snapshot.get("skill_version") is not None
+            else None
+        ),
+        skill_version_id=(
+            str(run.execution_snapshot["skill_version_id"])
+            if run.execution_snapshot and run.execution_snapshot.get("skill_version_id")
+            else None
+        ),
         unavailable_reason=(
             str(run.error.get("code")) if run.error and run.error.get("code") else None
         ),
     )
+
+
+def _run_asset_items(
+    run: Run, run_events: list[RunEvent] | tuple[RunEvent, ...]
+) -> list[AgentRunAssetResponse]:
+    """从 Canonical Event 投影资产元数据，不另建任务或资产状态库。"""
+    assets: list[AgentRunAssetResponse] = []
+    for run_event in run_events:
+        if run_event.event_type == "input.accepted":
+            resources = run_event.payload.get("resources")
+            if isinstance(resources, list):
+                assets.extend(
+                    AgentRunAssetResponse(
+                        id=str(resource.get("id") or f"resource_{run.id}_{run_event.seq}"),
+                        run_id=run.id,
+                        kind=str(resource.get("kind") or "input"),
+                        created_at=run_event.recorded_at.isoformat(),
+                    )
+                    for resource in resources
+                    if isinstance(resource, dict)
+                )
+        elif run_event.event_type == "artifact.created":
+            assets.append(
+                AgentRunAssetResponse(
+                    id=str(
+                        run_event.payload.get("artifact_id") or f"artifact_{run.id}_{run_event.seq}"
+                    ),
+                    run_id=run.id,
+                    kind=str(run_event.payload.get("kind") or "output"),
+                    created_at=run_event.recorded_at.isoformat(),
+                )
+            )
+    return assets
 
 
 @router.get("/agents", response_model=MemberAgentListResponse)
@@ -174,6 +219,27 @@ def list_agent_runs(
     return AgentRunListResponse(items=[_agent_run_item(run) for run in runs], total=total)
 
 
+def _read_run_with_events(
+    run_use_case: AgentRunUseCase,
+    *,
+    run_id: str,
+    organization_id: str,
+    owner_id: str,
+) -> tuple[Run, list[RunEvent] | tuple[RunEvent, ...]]:
+    """在同一授权边界读取 Run 与事件，供详情、资产和取消复用。"""
+    run = run_use_case.get_scoped_run(
+        run_id=run_id,
+        organization_id=organization_id,
+        owner_id=owner_id,
+    )
+    run_events = run_use_case.list_scoped_events(
+        run_id=run.id,
+        organization_id=organization_id,
+        owner_id=owner_id,
+    )
+    return run, run_events
+
+
 @router.get("/agent-runs/{run_id}", response_model=AgentRunResponse)
 def get_agent_run(
     run_id: str,
@@ -181,21 +247,35 @@ def get_agent_run(
     run_use_case: AgentRunUseCase = Depends(get_agent_run_use_case),
 ) -> AgentRunResponse:
     """独立新请求读取当前成员的 Run、最终回复与持久状态。"""
-    organization_id = _require_public_organization(principal)
     try:
-        run = run_use_case.get_scoped_run(
+        run, run_events = _read_run_with_events(
+            run_use_case,
             run_id=run_id,
-            organization_id=organization_id,
-            owner_id=principal.user_id,
-        )
-        run_events = run_use_case.list_scoped_events(
-            run_id=run.id,
-            organization_id=organization_id,
+            organization_id=_require_public_organization(principal),
             owner_id=principal.user_id,
         )
     except AgentNotFoundError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found") from None
     return _run_detail_response(run, run_events)
+
+
+@router.get("/agent-runs/{run_id}/assets", response_model=AgentRunAssetListResponse)
+def get_agent_run_assets(
+    run_id: str,
+    principal: AuthenticatedPrincipal = Depends(get_current_public_user),
+    run_use_case: AgentRunUseCase = Depends(get_agent_run_use_case),
+) -> AgentRunAssetListResponse:
+    """按所属 Run 的组织和 owner 读取输入资源与产物元数据。"""
+    try:
+        run, run_events = _read_run_with_events(
+            run_use_case,
+            run_id=run_id,
+            organization_id=_require_public_organization(principal),
+            owner_id=principal.user_id,
+        )
+    except AgentNotFoundError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found") from None
+    return AgentRunAssetListResponse(items=_run_asset_items(run, run_events))
 
 
 @router.get("/agent-runs/{run_id}/events", response_model=AgentRunEventsResponse)

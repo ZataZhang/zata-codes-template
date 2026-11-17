@@ -2,17 +2,56 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Sequence
 
 from backend.core.agent.catalog import SkillNotFoundError
+from backend.core.agent.helpers import _checksum
 from backend.core.shared.interfaces.agent_repository import AgentRepository
 from backend.core.shared.interfaces.agent_types import (
     SkillDefinition,
     SkillRevision,
+    SkillRevisionDraft,
+    SkillWriteIdempotency,
 )
+
+
+@dataclass(frozen=True)
+class CreateSkillCommand:
+    """创建 Skill 与首个版本的命令。"""
+
+    organization_id: str
+    actor_id: str
+    name: str
+    description: str
+    body: str
+    idempotency_key: str = ""
+
+
+@dataclass(frozen=True)
+class AppendSkillRevisionCommand:
+    """追加 Skill 版本的命令。"""
+
+    organization_id: str
+    skill_id: str
+    actor_id: str
+    body: str
+    idempotency_key: str = ""
+
+
+@dataclass(frozen=True)
+class RestoreSkillRevisionCommand:
+    """以历史正文追加恢复版本的命令。"""
+
+    organization_id: str
+    skill_id: str
+    actor_id: str
+    version: int
+    idempotency_key: str = ""
 
 
 class SkillUseCase:
@@ -26,37 +65,34 @@ class SkillUseCase:
         """
         self._repository = repository
 
-    def create_skill(
-        self, *, organization_id: str, actor_id: str, name: str, description: str, body: str
-    ) -> tuple[SkillDefinition, SkillRevision]:
-        """创建 Skill 并追加初始版本。
-
-        Args:
-            organization_id (str): 会话组织范围。
-            actor_id (str): 创建管理员 ID。
-            name (str): Skill 名称。
-            description (str): Skill 说明。
-            body (str): 声明式 Skill 正文。
-
-        Returns:
-            tuple[SkillDefinition, SkillRevision]: 新 Skill 与版本 1。
-        """
-        normalized_name = name.strip()
+    def create_skill(self, command: CreateSkillCommand) -> tuple[SkillDefinition, SkillRevision]:
+        """创建 Skill 并追加初始版本；相同重试键返回首次写入结果。"""
+        normalized_name = command.name.strip()
         if not normalized_name:
             raise ValueError("skill_name_required")
-        initial_body = validate_skill_body(body)
+        initial_body = validate_skill_body(command.body)
+        normalized_description = command.description.strip()
         now = datetime.now(UTC)
         skill = SkillDefinition(
             id=uuid.uuid4().hex,
-            organization_id=organization_id,
-            created_by=actor_id,
+            organization_id=command.organization_id,
+            created_by=command.actor_id,
             name=normalized_name,
-            description=description.strip(),
+            description=normalized_description,
             current_version=0,
             created_at=now,
             updated_at=now,
         )
-        return self._repository.create_skill(skill, initial_body)
+        idempotency = _skill_write_idempotency(
+            scope=f"{command.organization_id}:{command.actor_id}",
+            idempotency_key=command.idempotency_key,
+            request_document={
+                "name": normalized_name,
+                "description": normalized_description,
+                "body": initial_body,
+            },
+        )
+        return self._repository.create_skill(skill, initial_body, idempotency=idempotency)
 
     def list_skills(self, organization_id: str) -> Sequence[SkillDefinition]:
         """列出当前组织 Skill。"""
@@ -67,24 +103,43 @@ class SkillUseCase:
         self._require_skill(organization_id, skill_id)
         return self._repository.list_skill_revisions(organization_id, skill_id)
 
-    def add_revision(
-        self, *, organization_id: str, skill_id: str, actor_id: str, body: str
-    ) -> SkillRevision:
-        """追加一个新的不可变 Skill 版本。"""
-        self._require_skill(organization_id, skill_id)
+    def add_revision(self, command: AppendSkillRevisionCommand) -> SkillRevision:
+        """追加一个新的不可变 Skill 版本；重试不会生成重复版本。"""
+        self._require_skill(command.organization_id, command.skill_id)
+        normalized_body = validate_skill_body(command.body)
         return self._repository.append_skill_revision(
-            organization_id, skill_id, actor_id, validate_skill_body(body)
+            SkillRevisionDraft(
+                organization_id=command.organization_id,
+                skill_id=command.skill_id,
+                created_by=command.actor_id,
+                body=normalized_body,
+                idempotency=_skill_write_idempotency(
+                    scope=f"{command.organization_id}:{command.skill_id}:{command.actor_id}",
+                    idempotency_key=command.idempotency_key,
+                    request_document={"body": normalized_body},
+                ),
+            )
         )
 
-    def restore_revision(
-        self, *, organization_id: str, skill_id: str, version: int, actor_id: str
-    ) -> SkillRevision:
+    def restore_revision(self, command: RestoreSkillRevisionCommand) -> SkillRevision:
         """把旧版本正文作为一个新版本追加，不改写历史记录。"""
-        selected_revision = self._repository.get_skill_revision(organization_id, skill_id, version)
+        selected_revision = self._repository.get_skill_revision(
+            command.organization_id, command.skill_id, command.version
+        )
         if selected_revision is None:
             raise SkillNotFoundError("Skill version 不存在")
         return self._repository.append_skill_revision(
-            organization_id, skill_id, actor_id, selected_revision.body
+            SkillRevisionDraft(
+                organization_id=command.organization_id,
+                skill_id=command.skill_id,
+                created_by=command.actor_id,
+                body=selected_revision.body,
+                idempotency=_skill_write_idempotency(
+                    scope=f"{command.organization_id}:{command.skill_id}:{command.actor_id}",
+                    idempotency_key=command.idempotency_key,
+                    request_document={"body": selected_revision.body},
+                ),
+            )
         )
 
     def compare_revisions(
@@ -105,6 +160,21 @@ class SkillUseCase:
         if skill_definition is None:
             raise SkillNotFoundError("Skill 不存在")
         return skill_definition
+
+
+def _skill_write_idempotency(
+    *, scope: str, idempotency_key: str, request_document: dict[str, str]
+) -> SkillWriteIdempotency | None:
+    """把可选调用方重试键转换为组织内唯一摘要和请求摘要。"""
+    normalized_key = idempotency_key.strip()
+    if not normalized_key:
+        return None
+    if len(normalized_key) > 128:
+        raise ValueError("idempotency_key_too_large")
+    return SkillWriteIdempotency(
+        key_hash=hashlib.sha256(f"{scope}:{normalized_key}".encode("utf-8")).hexdigest(),
+        request_checksum=_checksum(request_document),
+    )
 
 
 _EXECUTABLE_SKILL_LANGUAGE_PATTERN = re.compile(

@@ -55,8 +55,8 @@ const knowledgeSourceRecordList = [
 const agentRecordList = [
   {
     id: 'agent-001',
-    name: 'Freight Assistant',
-    description: 'Primary chat agent for logistics support',
+    name: 'Knowledge Guide',
+    description: 'Primary chat agent for organization knowledge support',
     agent_type: 'chat',
     model_name: 'gpt-4.1-mini',
     status: 'active',
@@ -489,13 +489,13 @@ function renderAgentDetailPageHtml() {
     <div class="breadcrumb">
       <button class="btn-link" data-action="back-to-agents-list">Agents</button>
       <span>/</span>
-      <span>Freight Assistant</span>
+      <span>Knowledge Guide</span>
     </div>
 
     <div class="page-header">
       <div>
-        <h1>Freight Assistant</h1>
-        <p class="page-subtitle">Primary chat agent for logistics support</p>
+        <h1>Knowledge Guide</h1>
+        <p class="page-subtitle">Primary chat agent for organization knowledge support</p>
       </div>
     </div>
 

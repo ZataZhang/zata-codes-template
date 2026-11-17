@@ -92,7 +92,9 @@ export async function createSkill(input: {
   description: string
   body: string
 }): Promise<SkillDefinition> {
-  return apiPost<SkillDefinition>('/admin/skills', input)
+  return apiPost<SkillDefinition>('/admin/skills', input, {
+    headers: { 'Idempotency-Key': crypto.randomUUID() },
+  })
 }
 
 /** Read the immutable revisions for a Skill. */
@@ -110,7 +112,8 @@ export async function listSkillVersions(
 export async function appendSkillVersion(skillId: string, body: string) {
   return apiPost<SkillRevision>(
     `/admin/skills/${encodeURIComponent(skillId)}/versions`,
-    { body }
+    { body },
+    { headers: { 'Idempotency-Key': crypto.randomUUID() } }
   )
 }
 
@@ -132,7 +135,9 @@ export async function compareSkillVersions(
 /** Restore old Skill contents by appending a new version. */
 export async function restoreSkillVersion(skillId: string, version: number) {
   return apiPost<SkillRevision>(
-    `/admin/skills/${encodeURIComponent(skillId)}/restore/${version}`
+    `/admin/skills/${encodeURIComponent(skillId)}/restore/${version}`,
+    undefined,
+    { headers: { 'Idempotency-Key': crypto.randomUUID() } }
   )
 }
 

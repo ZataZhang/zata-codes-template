@@ -81,9 +81,7 @@ def test_task_document_uses_task_states_artifacts_and_history_length() -> None:
     ]
 
     full_task = _task_document(_run(), events)
-    compact_task = _task_document(
-        _run(), events, include_artifacts=False, history_length=0
-    )
+    compact_task = _task_document(_run(), events, include_artifacts=False, history_length=0)
 
     assert full_task["id"] == "run-123"
     assert full_task["status"]["state"] == "TASK_STATE_COMPLETED"
@@ -121,9 +119,12 @@ def test_outbound_task_id_is_allowed_as_low_sensitivity_trace_metadata() -> None
         "remote_task_id": "remote-123",
     }
 
-    assert decide_projection_transition(
-        RunStatus.RUNNING, RunEventCandidate("tool.call.completed", candidate)
-    ).next_status is RunStatus.RUNNING
+    assert (
+        decide_projection_transition(
+            RunStatus.RUNNING, RunEventCandidate("tool.call.completed", candidate)
+        ).next_status
+        is RunStatus.RUNNING
+    )
     candidate["result"] = {"status": "completed", "api_key": "never-log-this"}
     with pytest.raises(ValueError, match="禁止"):
         decide_projection_transition(

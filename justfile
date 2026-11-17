@@ -875,15 +875,29 @@ copy name force='':
     # 不显式排除就会随 copy 落进派生项目；sync_template.sh 走 git clone，
     # 天然看不到未跟踪目录，因此无需（也无法）在那里登记。
     #
-    # 注意：以下 --exclude 列表靠反斜杠续行，中间不能插入注释行。
+    # 注意：以下 rsync filter 列表靠反斜杠续行，中间不能插入注释行。
     # `\` 会把注释行并入同一逻辑行，`#` 之后的源和目标路径会被整段丢弃，
     # rsync 因缺少参数直接报 usage 错误。
     rsync -av \
+        --include='**/.env.example' \
+        --include='**/.env.*.example' \
+        --exclude='.env' \
+        --exclude='.env.*' \
+        --exclude='**/.env' \
+        --exclude='**/.env.*' \
         --exclude='.git' \
         --exclude='.venv' \
         --exclude='.uv-cache' \
         --exclude='.pytest_cache' \
         --exclude='.ruff_cache' \
+        --exclude='.pnpm-store' \
+        --exclude='.next' \
+        --exclude='.turbo' \
+        --exclude='.cache' \
+        --exclude='playwright-report' \
+        --exclude='test-results' \
+        --exclude='coverage' \
+        --exclude='*.tsbuildinfo' \
         --exclude='node_modules' \
         --exclude='dist' \
         --exclude='/build/' \
@@ -895,6 +909,7 @@ copy name force='':
         --exclude='__pycache__' \
         --exclude='/prompt' \
         --exclude='/skills' \
+        --exclude='/tasks/evidence/' \
         --exclude='/tests/guards/test_prd_skill_checker.py' \
         --exclude='tasks/archive/*.md' \
         --exclude='tasks/pending/*.md' \
@@ -910,8 +925,33 @@ copy name force='':
         --exclude='/.kedacode/' \
         --exclude='/.iar-worktrees/' \
         --exclude='/.workbuddy-ai/' \
+        --exclude='/.agent-runner/' \
+        --exclude='/.env.view-state' \
         --exclude='/zata_code_template.zip' \
         "$TEMPLATE_DIR/" "$NEW_DIR/"
+
+    # Source-machine secrets may be needed to provision the copy's isolated
+    # migration database, but must not become part of the derived project.
+    # Preserve an existing destination .env.local when --force is used.
+    COPY_LOCAL_ENV_PATH="$NEW_DIR/.env.local"
+    COPY_LOCAL_ENV_BACKUP=""
+    if [ -f "$COPY_LOCAL_ENV_PATH" ]; then
+        COPY_LOCAL_ENV_BACKUP="$(mktemp)"
+        cp "$COPY_LOCAL_ENV_PATH" "$COPY_LOCAL_ENV_BACKUP"
+    fi
+    restore_copy_local_env() {
+        if [ -n "$COPY_LOCAL_ENV_BACKUP" ]; then
+            cp "$COPY_LOCAL_ENV_BACKUP" "$COPY_LOCAL_ENV_PATH"
+            rm -f "$COPY_LOCAL_ENV_BACKUP"
+            COPY_LOCAL_ENV_BACKUP=""
+        else
+            rm -f "$COPY_LOCAL_ENV_PATH"
+        fi
+    }
+    trap restore_copy_local_env EXIT
+    if [ -f "$TEMPLATE_DIR/.env.local" ]; then
+        cp "$TEMPLATE_DIR/.env.local" "$COPY_LOCAL_ENV_PATH"
+    fi
 
     # Strip this `copy` recipe from the destination's justfile — only the
     # template maintainer needs it. The marker is the comment line above the
@@ -959,16 +999,23 @@ copy name force='':
     find "$NEW_DIR" -type d -empty -delete
 
     echo "Setting up git and pre-commit hooks..."
-    if git -C "$NEW_DIR" rev-parse --git-dir > /dev/null 2>&1; then
-        echo "Git repository already exists, running pre-commit install..."
-    else
+    copy_git_prefix="$(git -C "$NEW_DIR" rev-parse --show-prefix 2>/dev/null || true)"
+    create_initial_commit="true"
+    if [[ -n "$copy_git_prefix" ]]; then
+        create_initial_commit="false"
+        echo "Copy is nested inside another repository; parent hooks and commits will not be touched."
+    elif ! git -C "$NEW_DIR" rev-parse --git-dir > /dev/null 2>&1; then
         echo "Initializing git repository..."
         git -C "$NEW_DIR" init
     fi
-    (cd "$NEW_DIR" && uv run pre-commit install)
+    if [[ "$create_initial_commit" == "true" ]]; then
+        (cd "$NEW_DIR" && uv run pre-commit install)
+    fi
 
     echo "Running database migrations..."
     (cd "$NEW_DIR" && uv run alembic upgrade head)
+    restore_copy_local_env
+    trap - EXIT
 
     # Seed the destination's single source of truth for host-side runtime ports.
     # Keep the copied justfile's fallback values unchanged so future recipe
@@ -980,6 +1027,11 @@ copy name force='':
         printf 'FRONTEND_ADMIN_PORT=%s\n' "$frontend_admin_random_port"
         printf 'FRONTEND_PUBLIC_PORT=%s\n' "$frontend_public_random_port"
     } > "$run_state_file"
+
+    if [[ "$create_initial_commit" == "false" ]]; then
+        echo "Skipping initial commit for the nested copy."
+        exit 0
+    fi
 
     # Check git identity so the initial commit below fails with a clear hint
     # rather than git's default "Author identity unknown" error.

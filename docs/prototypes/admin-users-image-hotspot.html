@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>用户管理 · AI 生成图片热点原型</title>
+    <title>用户管理 · 图片热点原型</title>
     <style>
       * { box-sizing: border-box; }
       :root { color-scheme:light; --ink:#1b2335; --muted:#6e7688; --accent:#6e5df5; --line:#e4e7ee; }
@@ -37,11 +37,11 @@
   </head>
   <body>
     <header class="demo-toolbar">
-      <div class="demo-title"><strong>AI 生成图片热点原型</strong><span>四张画面由 ImageGen 直接生成，HTML 只提供透明交互层</span></div>
+      <div class="demo-title"><strong>用户管理图片热点原型</strong><span>画面来自交互原型的浏览器截图，HTML 提供透明交互层</span></div>
       <div class="state-steps" id="stateSteps"></div>
       <button class="toolbar-button active" id="hotspotGuide" type="button" aria-pressed="true">隐藏热点</button>
       <button class="toolbar-button" id="restart" type="button">重新开始</button>
-      <a class="hub-link" href="prototype-hub.html?prototype=ai-image-users">原型中心</a>
+      <a class="hub-link" href="prototype-hub.html?prototype=users-image-hotspot">原型中心</a>
     </header>
     <main class="canvas-wrap">
       <div class="canvas show-hotspots" id="canvas">
@@ -54,33 +54,33 @@
       const states = {
         list: {
           title: '列表',
-          image: 'assets/ai-users-list.png',
+          image: 'assets/users-list-state.png',
           actions: [
-            { label:'打开林夏详情', next:'detail', x:87.9, y:54.5, w:8.5, h:4.9 },
+            { label:'打开林夏详情', next:'detail', x:91.2, y:42.4, w:5.4, h:3.1 },
           ],
         },
         detail: {
           title: '详情',
-          image: 'assets/ai-users-detail.png',
+          image: 'assets/users-detail-state.png',
           actions: [
-            { label:'禁用用户', next:'confirm', x:84.0, y:87.9, w:13.7, h:6.7 },
-            { label:'关闭详情', next:'list', x:95.8, y:2.0, w:2.7, h:4.7 },
+            { label:'禁用用户', next:'confirm', x:86.3, y:47.3, w:12.1, h:3.8 },
+            { label:'关闭详情', next:'list', x:96.1, y:2.4, w:2.2, h:3.4 },
           ],
         },
         confirm: {
           title: '确认',
-          image: 'assets/ai-users-confirm.png',
+          image: 'assets/users-confirm-state.png',
           actions: [
-            { label:'取消', next:'detail', x:48.4, y:58.1, w:8.3, h:6.2 },
-            { label:'确认禁用', next:'success', x:57.4, y:58.1, w:9.2, h:6.2 },
+            { label:'取消', next:'detail', x:53.5, y:55.7, w:3.7, h:3.8 },
+            { label:'确认禁用', next:'success', x:57.8, y:55.7, w:5.4, h:3.8 },
           ],
         },
         success: {
           title: '完成',
-          image: 'assets/ai-users-success.png',
+          image: 'assets/users-success-state.png',
           actions: [
-            { label:'重新演示', next:'list', x:84.0, y:87.9, w:13.7, h:6.7 },
-            { label:'关闭详情', next:'list', x:95.8, y:2.0, w:2.7, h:4.7 },
+            { label:'重新演示', next:'list', x:86.3, y:47.3, w:12.1, h:3.8 },
+            { label:'关闭详情', next:'list', x:96.1, y:2.4, w:2.2, h:3.4 },
           ],
         },
       }

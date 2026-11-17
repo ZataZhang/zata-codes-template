@@ -12,6 +12,7 @@ from backend.api.agent_schemas import (
     AgentUpdateRequest,
 )
 from backend.api.dependencies import (
+    get_a2a_public_base_url,
     get_agent_catalog_use_case,
     get_current_organization_admin,
 )
@@ -21,7 +22,6 @@ from backend.core.agent import (
     UpdateAgentCommand,
 )
 from backend.core.auth.models import AuthenticatedPrincipal
-from backend.infrastructure.config.settings import config
 
 router = APIRouter(prefix="/admin", tags=["admin-agent-management"])
 
@@ -30,11 +30,12 @@ router = APIRouter(prefix="/admin", tags=["admin-agent-management"])
 def list_agents(
     admin: AuthenticatedPrincipal = Depends(get_current_organization_admin),
     catalog: AgentCatalogUseCase = Depends(get_agent_catalog_use_case),
+    public_base_url: str = Depends(get_a2a_public_base_url),
 ) -> AgentListResponse:
     """列出当前组织全部 Agent 与可运行状态。"""
     return AgentListResponse(
         items=[
-            _agent_response(entry, public_base_url=config.a2a.public_base_url)
+            _agent_response(entry, public_base_url=public_base_url)
             for entry in catalog.list_agents(admin.organization_id or "", published_only=False)
         ]
     )
@@ -45,6 +46,7 @@ def create_agent(
     request: AgentCreateRequest,
     admin: AuthenticatedPrincipal = Depends(get_current_organization_admin),
     catalog: AgentCatalogUseCase = Depends(get_agent_catalog_use_case),
+    public_base_url: str = Depends(get_a2a_public_base_url),
 ) -> AgentResponse:
     """创建当前组织未发布 Agent。"""
     try:
@@ -65,7 +67,7 @@ def create_agent(
                 for entry in catalog.list_agents(admin.organization_id or "", published_only=False)
                 if entry.agent.id == agent.id
             ),
-            public_base_url=config.a2a.public_base_url,
+            public_base_url=public_base_url,
         )
     except (ValueError, LookupError) as agent_error:
         _raise_agent_error(agent_error)
@@ -77,6 +79,7 @@ def update_agent(
     request: AgentUpdateRequest,
     admin: AuthenticatedPrincipal = Depends(get_current_organization_admin),
     catalog: AgentCatalogUseCase = Depends(get_agent_catalog_use_case),
+    public_base_url: str = Depends(get_a2a_public_base_url),
 ) -> AgentResponse:
     """更新当前组织 Agent 的配置并允许停用。"""
     try:
@@ -97,7 +100,7 @@ def update_agent(
             for item in catalog.list_agents(admin.organization_id or "", published_only=False)
             if item.agent.id == agent.id
         )
-        return _agent_response(entry, public_base_url=config.a2a.public_base_url)
+        return _agent_response(entry, public_base_url=public_base_url)
     except (ValueError, LookupError) as agent_error:
         _raise_agent_error(agent_error)
 
@@ -107,6 +110,7 @@ def publish_agent(
     agent_id: str,
     admin: AuthenticatedPrincipal = Depends(get_current_organization_admin),
     catalog: AgentCatalogUseCase = Depends(get_agent_catalog_use_case),
+    public_base_url: str = Depends(get_a2a_public_base_url),
 ) -> AgentResponse:
     """发布一个启用状态的 Agent。"""
     try:
@@ -117,7 +121,7 @@ def publish_agent(
                 for entry in catalog.list_agents(admin.organization_id or "", published_only=False)
                 if entry.agent.id == agent.id
             ),
-            public_base_url=config.a2a.public_base_url,
+            public_base_url=public_base_url,
         )
     except (ValueError, LookupError) as agent_error:
         _raise_agent_error(agent_error)
@@ -128,6 +132,7 @@ def unpublish_agent(
     agent_id: str,
     admin: AuthenticatedPrincipal = Depends(get_current_organization_admin),
     catalog: AgentCatalogUseCase = Depends(get_agent_catalog_use_case),
+    public_base_url: str = Depends(get_a2a_public_base_url),
 ) -> AgentResponse:
     """撤下当前组织 Agent。"""
     try:
@@ -138,7 +143,7 @@ def unpublish_agent(
                 for entry in catalog.list_agents(admin.organization_id or "", published_only=False)
                 if entry.agent.id == agent.id
             ),
-            public_base_url=config.a2a.public_base_url,
+            public_base_url=public_base_url,
         )
     except (ValueError, LookupError) as agent_error:
         _raise_agent_error(agent_error)

@@ -26,6 +26,9 @@ class RunStatus(str, Enum):
     INTERRUPTED = "interrupted"
 
 
+# 组织 Agent Run 的 subject_type；其事件含成员消息正文，只能经组织范围入口读取。
+ORGANIZATION_AGENT_SUBJECT_TYPE = "agent"
+
 TERMINAL_RUN_STATUSES = frozenset(
     {
         RunStatus.SUCCEEDED,

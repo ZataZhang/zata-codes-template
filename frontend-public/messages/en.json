@@ -70,7 +70,7 @@
       "sectionSubtitle": "Copy the template, configure the environment, start the services",
       "copy": {
         "title": "Copy the template",
-        "description": "Run just copy <name> to create a new project without dependencies or build artifacts."
+        "description": "Run just copy with a project name to create a new project without dependencies or build artifacts."
       },
       "configure": {
         "title": "Configure the environment",
@@ -94,7 +94,7 @@
       },
       "createProject": {
         "question": "How do I create a new project from the template?",
-        "answer": "Use just copy <name> to copy it into a standalone project, then configure environment variables and the database as described in the README."
+        "answer": "Run just copy with a project name to create a standalone project, then configure environment variables and the database as described in the README."
       }
     },
     "cta": {
@@ -218,8 +218,10 @@
     "agentReply": "Agent reply",
     "runStatus": "Status: {status}",
     "thinking": "The Agent is working…",
+    "streamingReply": "Streaming reply…",
     "noReply": "No reply was recorded.",
     "runId": "Run ID: {id}",
+    "skillVersion": "Frozen Skill version: v{version}",
     "emptyConversation": "Choose an Agent and send a message to begin.",
     "messagePlaceholder": "Write a message…",
     "send": "Send message",

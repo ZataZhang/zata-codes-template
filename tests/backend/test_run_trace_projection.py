@@ -44,7 +44,7 @@ def _build_run(status: RunStatus, *, finished_at: datetime | None = None) -> Run
         subject_snapshot=RunSubjectSnapshot(
             subject_type="internal",
             subject_id="subject_1",
-            subject_name="freight-agent",
+            subject_name="example-agent",
             snapshot_checksum="c" * 64,
         ),
         subject_snapshot_checksum="c" * 64,

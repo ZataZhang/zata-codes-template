@@ -90,7 +90,7 @@ def _application_routers() -> list[object]:
             and node.func.attr == "include_router"
             and node.args
             and isinstance(node.args[0], ast.Name)
-                and node.args[0].id != "api_router"
+            and node.args[0].id != "api_router"
             and node.args[0].id not in router_names
         ):
             router_names.append(node.args[0].id)
@@ -123,9 +123,7 @@ def test_owner_tables_record_organization_or_have_reviewed_waiver() -> None:
 
 def test_organization_guard_detects_an_unscoped_owner_table() -> None:
     """负例：新增 owner_id 但不保存 organization_id 时，检查器必须报出表名。"""
-    assert _unscoped_owner_tables([("unsafe_asset", frozenset({"owner_id"}))]) == [
-        "unsafe_asset"
-    ]
+    assert _unscoped_owner_tables([("unsafe_asset", frozenset({"owner_id"}))]) == ["unsafe_asset"]
 
 
 def test_every_application_http_route_has_auth_or_public_reason() -> None:

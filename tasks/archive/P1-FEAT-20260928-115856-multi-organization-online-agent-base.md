@@ -2,10 +2,10 @@
 
 - GitHub Issue: https://github.com/ZataZhang/zata-codes-template/issues/58
 
-> ✅ **交付前置**：已满足。组织表、普通用户归属与平台/组织两级管理员已由 `P1-FEAT-20261112-142923-organizations-and-two-tier-admins` 交付；本 PRD 可复用该组织范围与角色模型。
+> ✅ **交付前置**：无待完成依赖，可立即开工。组织表、普通用户归属与平台/组织两级管理员已由 `P1-FEAT-20261112-142923-organizations-and-two-tier-admins` 交付；本 PRD 可复用该组织范围与角色模型。
 > 结构化声明见 §8 Delivery Dependencies，**那里是唯一事实源**。
 
-> ⬜ **验收状态**：未开工。
+> 🧍 **验收状态**：待人工验收 — 执行侧全部验收项已在最终树取得证据，7 项 RV 命令经 KedaCode 复跑 7/7 通过；只剩 5 项 Human-Confirmed 待人工确认。独立 verifier 因执行器故障未返回有效 verdict，属 runner-owned 门禁，记录见 Final Reconciliation。
 > 本行是 §9 Acceptance Checklist 的投影，**那里是唯一事实源**。
 
 > 本 PRD 分为 Part A 人审层和 Part B 执行器层。Part A 用于确认目标行为和关键取舍；Part B 记录实现路径与验证证据。
@@ -342,7 +342,7 @@ ER 目标结构见 §2 决策一。具体新表、索引、外键和存量 Run �
   tier: R3
   test_layer: e2e
   required_for_acceptance: true
-  presentation: "tasks/evidence/<prd-stem>/rv-2-agent-run.png 与 rv-2-agent-run.webm；同视口并排对照目标原型，检查运行 ID、状态、结果和历史"
+  presentation: "tasks/evidence/<prd-stem>/rv-2-agent-run.png 与 rv-2-demo-multi-organization-agent.mp4；MP4 由单独的真实浏览器主演示录制，带中文字幕并与目标原型配对"
   critical_value_source: "管理页创建 Agent 后显示的 ID 与前台选择项；Run ID 从浏览器实际请求/响应及页面取得，不在测试中重构"
   must_cross: "管理 UI → admin API → Agent commit → 成员 UI → 正式 Run API → event commit → SSE/轮询 → 新页面历史读取 → 管理轨迹"
   forbidden_bypasses: "组件预览、直接调 core、伪造 Run ID、只检查写响应、/api/api/agent-runs 或旧兼容路由、任何租户代码或命令执行回退"
@@ -453,12 +453,58 @@ ER 目标结构见 §2 决策一。具体新表、索引、外键和存量 Run �
 
 | 结果 | 呈递物 | 10 秒自查 |
 |---|---|---|
-| Agent 从发布到运行和历史闭环（rv-2） | `tasks/evidence/<prd-stem>/rv-2-agent-run.png`、`rv-2-agent-run.webm`（交付时内嵌） | 页面 Run ID、终态与重开历史一致；录屏末帧为历史页 |
-| Skill 更新、差异与恢复（rv-3） | `tasks/evidence/<prd-stem>/rv-3-skill-version.png`（交付时内嵌） | 恢复生成的新版本号可见，旧版本仍在 |
+| Agent 从发布到运行和历史闭环（rv-2） | `tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/rv-2-agent-run.png`、`rv-2-demo-multi-organization-agent.mp4`；`open "tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/rv-2-demo-multi-organization-agent.mp4"` | 独立真实浏览器录屏含中文字幕；Run ID、终态、重开历史和低敏轨迹一致；模型步骤注明 mock，未验证真实模型 |
+| Skill 更新、差异与恢复（rv-3） | `tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/rv-3-skill-version.png`；`open "tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/rv-3-skill-version.png"` | 恢复生成 v3，v1/v2 仍在；旧 Run 为 v1，新 Run 为 v3 |
 
 未在此展示（verifier 负责）：rv-1 跨组织负控、rv-4 分发审计、rv-5 模板复制、rv-6 容器部署、rv-7 A2A 双向协议。
 
-上表是未来交付的呈递槽位；PRD 创建时尚无截图，不得把目标原型当成真实验收证据。交付时静态图片以仓库相对路径内嵌（如 `![Agent 运行](rv-2-agent-run.png)`）、注明本地证据限制并附可执行 `open` 命令；交付报告以相同内容开头（`## 人审导航 / Human Review Navigation`），最终回复或已授权 PR 的证据评论直接呈递该页面。原型与真实截图须同状态、视口、主题、代表数据并排，分别标注设计意图与真实验证层级。
+以下图片是本地证据，模型传输为 mock，未验证真实模型。左/上图是 `interactive prototype` 设计意图，右/下图是同视口 `real user flow`。交付报告以相同内容开头（`## 人审导航 / Human Review Navigation`），最终回复或已授权 PR 的证据评论直接呈递该页面。
+
+rv-2 目标原型（`interactive prototype`，1440×1200）：
+
+![rv-2 目标原型](../evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/rv-2-prototype.png)
+
+本地图片：`open "tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/rv-2-prototype.png"`
+
+rv-2 真实实现（`real user flow`，1440×1200）：
+
+![rv-2 真实 Agent Run](../evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/rv-2-agent-run.png)
+
+本地图片：`open "tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/rv-2-agent-run.png"`
+
+RV-2 主演示分步截图（全部为生产路由的真实浏览器呈递；第 2–5 步注明模型 mock，未验证真实模型）：
+
+![RV-2 主演示步骤 1：管理员创建 Skill](../evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/rv-2-demo-step-1-skill.png)
+
+本地图片，验证层级 `real user flow`：`open "tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/rv-2-demo-step-1-skill.png"`
+
+![RV-2 主演示步骤 2：管理员发布 Agent](../evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/rv-2-demo-step-2-publish.png)
+
+本地图片，验证层级 `real user flow`：`open "tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/rv-2-demo-step-2-publish.png"`
+
+![RV-2 主演示步骤 3：成员运行 Agent](../evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/rv-2-demo-step-3-run.png)
+
+本地图片，验证层级 `real user flow`：`open "tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/rv-2-demo-step-3-run.png"`
+
+![RV-2 主演示步骤 4：重新打开历史](../evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/rv-2-demo-step-4-history.png)
+
+本地图片，验证层级 `real user flow`：`open "tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/rv-2-demo-step-4-history.png"`
+
+![RV-2 主演示步骤 5：管理员查看低敏轨迹](../evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/rv-2-demo-step-5-trace.png)
+
+本地图片，验证层级 `real user flow`：`open "tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/rv-2-demo-step-5-trace.png"`
+
+rv-3 目标原型（`interactive prototype`，1440×1200）：
+
+![rv-3 目标原型](../evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/rv-3-prototype.png)
+
+本地图片：`open "tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/rv-3-prototype.png"`
+
+rv-3 真实实现（`real user flow`，1440×1200）：
+
+![rv-3 真实 Skill 版本](../evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/rv-3-skill-version.png)
+
+本地图片：`open "tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/rv-3-skill-version.png"`
 
 ### 9.2 Acceptance Evidence Package
 
@@ -474,38 +520,38 @@ ER 目标结构见 §2 决策一。具体新表、索引、外键和存量 Run �
 
 ### Architecture Acceptance
 
-- [ ] 只保留一套 Run/event 存储和 Skill 版本写入口；`rg` 引用清单与架构检查结果入证据包。
-- [ ] A2A Task 与现有 Run 的映射、远端 Task 与父 Run 的关联均可追溯；无第二套任务状态存储；Agent Card 仅声明实际实现的 A2A 1.0 REST 能力。
-- [ ] `api/core/engines/infrastructure/composition` 依赖符合现有约束；记录 `just lint --reuse` 的架构与重复检测结果。
+- [x] 只保留一套 Run/event 存储和 Skill 版本写入口；`rv-7-run-a2a-architecture.txt` 的 `rg` 引用清单与 `just lint --reuse` 全绿结果入证据包。
+- [x] A2A Task 与现有 Run 的映射、远端 Task 与父 Run 的关联均可追溯；无第二套任务状态存储；Agent Card 仅声明实际实现的 A2A 1.0 REST 能力；证据为 `rv-7-run-a2a-architecture.txt`、`rv-7-a2a-bidirectional.txt` 与 `rv-7-official-client.json`。
+- [x] `api/core/engines/infrastructure/composition` 依赖符合现有约束；`rv-7-run-a2a-architecture.txt` 记录 `just lint --reuse` 的架构与重复检测全绿结果。
 
 ### Data And Security Acceptance
 
-- [ ] `rv-1` 从真实会话跨组织负控变红/修复后变绿，PostgreSQL/MySQL 升降级、历史 Run/event 数量和归属对账均留证。
-- [ ] 成员调组织场景（`rv-1` 扩展部分）通过：调走后本人与新组织管理员看不到旧数据，原组织管理员可见；证据为经正式接口调组织后的新请求读取结果。
-- [ ] 两条守卫测试存在并通过，且各自的内置违规样例被点名：`tests/guards/` 下「带 `owner_id` 的表必须有 `organization_id` 或带原因豁免」与「每个路由挂鉴权依赖或在带原因的公开名单中」。
-- [ ] 组织停用、被禁用 Agent、无模型配置及未审核工具均拒绝新的 Run，且不泄露内容、不产生伪成功；在线 API 无租户代码或命令执行路径。证据来自正式 API 与新请求查询。
-- [ ] `rv-7` 证明入站凭据与任务读取按组织隔离，出站仅访问已批准对端；DNS/IP、重定向和凭据传播负控没有外呼或泄漏，任务流与取消在新请求中一致。
+- [x] `rv-1` 从真实会话跨组织负控变红/修复后变绿，PostgreSQL/MySQL 升降级、历史 Run/event 数量和归属对账均留证；证据为 `rv-1-negative-control-pg.txt`、`rv-1-org-isolation-pg.txt`、`rv-1-org-isolation-mysql.txt`。
+- [x] 成员调组织场景（`rv-1` 扩展部分）通过：调走后本人与新组织管理员看不到旧数据，原组织管理员可见；证据为 `rv-1-org-isolation-pg.txt`、`rv-1-org-isolation-mysql.txt` 中经正式接口调组织后的新请求读取结果。
+- [x] 两条守卫测试存在并通过，且各自的内置违规样例被点名：`tests/guards/test_agent_organization_and_route_scope.py` 的 `test_organization_guard_detects_an_unscoped_owner_table` 与 `test_route_guard_rejects_a_new_unlisted_public_endpoint`；`just test` 全绿。
+- [x] 组织停用、被禁用 Agent、无模型配置及未审核工具均拒绝新的 Run，且不泄露内容、不产生伪成功；在线 API 无租户代码或命令执行路径。证据为 `rv-7-a2a-bidirectional.txt` 的正式 API 与新请求查询。
+- [x] `rv-7` 证明入站凭据与任务读取按组织隔离，出站仅访问已批准对端；DNS/IP、重定向和凭据传播负控没有外呼或泄漏，任务流与取消在新请求中一致；证据为 `rv-7-a2a-bidirectional.txt`、`rv-7-official-client.json`、`tests/backend/test_a2a_outbound_policy.py`。
 
 ### Behavior And Frontend Acceptance
 
-- [ ] `rv-2` 与 `rv-3` 的真实页面流程通过；请求记录证明前端使用正式 API，截图标注 `real user flow`，并与相同状态的目标原型并排呈递。
-- [ ] 管理界面能查看 Agent 的 A2A 发布状态、卡片地址和本组织获授权对端；真实管理页面操作与后续 A2A 入站/出站结果一致。
-- [ ] 运行状态、事件、Skill 版本和历史在新会话/新请求中仍一致；证据列出关键 ID 来源、事务边界、禁止旁路、独立读取和最终 Git tree。
+- [x] `rv-2` 与 `rv-3` 的真实页面流程通过；`rv-2-real-user-flow.txt` 与 `rv-3-real-user-flow.txt` 证明正式 API 请求，截图标注 `real user flow`，并与相同状态的目标原型并排呈递。
+- [x] 管理界面能查看 Agent 的 A2A 发布状态、卡片地址和本组织获授权对端；`rv-3-skill-version.png` 的真实管理页面操作与 `rv-7-a2a-bidirectional.txt` 的后续 A2A 入站/出站结果一致。
+- [x] 运行状态、事件、Skill 版本和历史在新会话/新请求中仍一致；证据报告列出关键 ID 来源、事务边界、禁止旁路、独立读取和最终 Git tree `36e39234368a8876fa58589615793905277d14df`。
 
 ### Dependency And Documentation Acceptance
 
-- [ ] `rv-4` 的分发清单覆盖源码、配置、文档、图片/字体、压缩包、二进制元数据及拟公开的 Git 历史；所有来源资产均有保留/替换/排除及权利核对记录，未把私有值写入证据。
-- [ ] `rv-5` 的实际 `just copy` 项目能启动并列出同步候选；`README.md`、`docs/architecture/`、`docs/guides/`、`mkdocs.yml` 与实际契约一致。
-- [ ] `rv-6` 的三服务生产容器构建与同源 API 代理通过，前台静态包和 HTTP 响应无模型密钥；记录容器入口与环境需求，不要求实际公网部署。
+- [x] `rv-4` 的分发清单覆盖源码、配置、文档、图片/字体、压缩包、二进制元数据及拟公开的 Git 历史；`rv-4-distribution-audit.txt` 记录所有来源资产的保留/替换/排除及权利核对，未把私有值写入证据。
+- [x] `rv-5` 的实际 `just copy` 项目能启动并列出同步候选；`rv-5-template-copy.txt` 证明真实复制、迁移、同步与 `/health`；`README.md`、`docs/architecture/`、`docs/guides/`、`mkdocs.yml` 与实际契约一致。
+- [x] `rv-6` 的三服务生产容器构建与同源 API 代理通过，前台静态包和 HTTP 响应无模型密钥；`rv-6-production-compose.txt` 记录容器入口与环境需求，未执行实际公网部署。
 
 ### Validation Acceptance
 
-- [ ] `just test`、相关前端构建、`just e2e` 真实入口、A2A 独立实现互通和 `uv run mkdocs build --strict` 结果入证据包；真实模型/外部 Agent 连接若无凭据明确标为未验证及阻塞条件。
-- [ ] 每项关键证据绑定最终 Git tree；入口、存储、权限或 UI 改动后重收相关 `rv-id`，独立 verifier 给出有效 `PASS`，无未解决 `BLOCKER` 或 `REVIEW_INCIDENT / INCONCLUSIVE`。
+- [x] `just test`、相关前端构建、`just e2e` 真实入口、A2A 独立实现互通和 `uv run mkdocs build --strict` 结果入证据包；真实模型/外部 Agent 连接无凭据，已在证据报告明确标为未验证及阻塞条件。
+- [~] 每项关键证据绑定最终 Git tree；入口、存储、权限或 UI 改动后重收相关 `rv-id`，独立 verifier 给出有效 `PASS`，无未解决 `BLOCKER` 或 `REVIEW_INCIDENT / INCONCLUSIVE` — runner-owned gate: 独立 verifier 与最终 tree 审查。
 
 ### Delivery Readiness
 
-- [ ] §10 全部要求完成，无未解决发布和隔离阻塞；若有 PR，正文唯一关联本 PRD 并明确“合并即验收”，证据评论呈递 §9.1；合并后核对最终 tree 才能回填与归档。
+- [~] §10 全部要求完成，无未解决发布和隔离阻塞；若有 PR，正文唯一关联本 PRD 并明确“合并即验收”，证据评论呈递 §9.1；合并后核对最终 tree 才能回填与归档 — runner-owned gate: PR、独立 verifier、归档与合并后回填。
 
 ## 10. Functional Requirements
 
@@ -553,12 +599,18 @@ ER 目标结构见 §2 决策一。具体新表、索引、外键和存量 Run �
 
 ### Final Reconciliation
 
-- Interpretation: pending — 实施完成后与最终行为核对。
-- Public behavior and contracts: pending — 实施完成后与 API/UI 证据核对。
-- Related PRD status: pending — 归档前重新检查。
-- Requirements and risks: pending — 按最终证据更新。
+- Interpretation: confirmed against final behavior — 双组织隔离、持久 Run、Skill 线性版本、失败闭合、双向 A2A、中性复制与三服务入口均与行为样例一致。
+- Public behavior and contracts: confirmed — `/agents`、`/agent-runs`、管理 API、A2A 1.0 REST、Run 资产与冻结 Skill 版本均由真实 API/UI 证据覆盖；浏览器只经一次 `/api` 代理，A2A 使用独立路径。
+- Related PRD status: confirmed — 组织与两级管理员上游 PRD 已归档交付，本 PRD 未改变其角色模型；未复制其他 pending PRD 的范围。
+- Requirements and risks: FR-1–FR-12 均有实现与证据；真实模型和公网外部 Agent 未验证，GitHub 同步抓取失败已披露；无关的既有管理员并发测试失败未隐藏，独立 verifier 与 runner 交付门禁待完成。
 - Reconciled differences:
-  - pending
+  - 新增 Skill 幂等重试迁移与 Run 冻结版本展示，属于 FR-4/FR-5 的明确实现，不改变用户可见需求。
+  - Run 资产仅从 Canonical Event 投影，不增加资产表；A2A Task 不增加状态表。
+  - Next.js 后端代理改为构建期配置，嵌套模板复制不触碰父仓库，均为原部署/分发契约的必要修复。
+  - 当前最终验证树为 `94f1e11857184941a1f007a3e7d1ec65db17c267`（delivery records、生成的 Playwright 文件和本机包缓存均排除）。RV-1 至 RV-7 均由 `kc evidence check` 在该树重跑并通过；RV-2 主演示按五步脚本单独录制并附字幕轨迹与逐步检查结果。该结果只证明登记命令可复跑，不替代独立 verifier verdict。
+  - 成员可见的增量回复改为真实 SSE 流式写入 `message.delta` 并由成员页轮询事件端点渲染；独立 verifier 在上一棵树上标记的 BLOCKER 由此闭环，RV-2 的增量断言会让旧实现变红。
+- Validation blocker: 独立 verifier 在 `e7b3d5d60` 上返回 RED 的唯一 BLOCKER 是成员界面缺少增量回复，本轮已按 finding 修复并在 `94f1e118` 重采 RV-2 证据；此前还有一次 `REVIEW_INCIDENT / INCONCLUSIVE`（executor 故障，无有效 verdict）记录在 Issue #58 的失败记录（https://github.com/ZataZhang/zata-codes-template/issues/58#issuecomment-6897865207）显示独立 verifier 对 codex、kimi、claude 的调用均未返回可解析 verdict，最终诊断为 Claude 个人额度耗尽；没有产品层面的 verifier finding，也不得记作 `PASS`。
+- Validation follow-up: 在 Issue #58（https://github.com/ZataZhang/zata-codes-template/issues/58）上通过正常 KedaCode 验证流程重跑独立 verifier；PR #62（https://github.com/ZataZhang/zata-codes-template/pull/62）保持 Draft，直到有效 verifier `PASS` 且最终 head/tree 证据一致后再请求人工审阅。
 
 ## Change Log
 
@@ -593,3 +645,75 @@ ER 目标结构见 §2 决策一。具体新表、索引、外键和存量 Run �
 - Reason: 上游 PRD 允许平台管理员调整成员所属组织；派生项目实践中，「按当前成员反推组织范围」在成员换组织后造成了跨组织读取，用户 2026-11-13 要求把该结论与守卫补入模板。
 - Impact: 实施时需在 Run、会话、资源、Skill、产物等表加组织列并按上述规则读写；迁移回填依据见 §1；不改变上游 PRD 已交付的组织与管理员模型。
 - Review: 用户已在对话中确认方向；§1 解读与 §2 决策一勾选框仍待勾选。
+
+### 完成双向互通、重试与生产部署收口
+- Type: scope
+- Before: WIP checkpoint 已有 Agent/Skill/A2A 主体实现，但 MySQL 降级失败；Skill 重试会产生重复版本；A2A 卡片安全字段不符合 1.0；Run 资产无授权读取入口；Next.js standalone 将 localhost 固化为代理目标；模板复制会带入本机状态并误写父仓库。
+- After: 修复 MySQL 降级顺序；Skill 创建/追加/恢复支持数据库约束的幂等重试；Run 资产从 Canonical Event 按 owner 与组织投影；组织停用同时关闭浏览器和 A2A 新运行；A2A 使用官方 1.0 卡片安全结构、受控对端与 DNS 固定；生产镜像在构建时写入后端代理地址；嵌套复制不触碰父仓库且排除 runner/viewer 本机状态；旧 freight 示例改为中性支持示例。
+- Reason: 真实双数据库、官方 A2A SDK、浏览器、复制与三服务容器验证暴露了 checkpoint 未完成的安全、协议和部署缺陷，必须修复后才能收集有效验收证据。
+- Impact: 保持既定功能范围和组织边界，不新增第二套 Run/Task/资产状态存储；新增一条 Skill 重试迁移，公开 Run 详情显示冻结 Skill 版本；生产构建和模板同步契约与文档同步更新。
+- Review: 执行器证据已收集；独立 verifier 由 runner 后续审查，Human-Confirmed 项保持未勾选。
+
+### 收紧模板复制边界并补录独立主演示
+- Type: evidence
+- Before: `just copy` 的根目录 dotenv 过滤可能把来源 `.env.local` 带入副本，缓存与证据目录没有完整排除；§7.6/§9.1 将 RV-2 的截图拼接 WebM 列为主演示材料。
+- After: `just copy` 只在数据库迁移期间临时读取来源 `.env.local`，复制输出不保留非示例 dotenv、构建缓存或 `tasks/evidence/`；RV-2 主演示由独立真实浏览器流程录制成带中文字幕的 `rv-2-demo-multi-organization-agent.mp4`，模型相关字幕注明 mock、未验证真实模型。
+- Reason: RV-4/5 真实副本审计发现私有配置和本机产物的分发风险；主演示要求独立录制并与回归 e2e 分开。
+- Impact: 保护模板派生项目不继承维护者凭据与机器缓存；不改变 Agent、Run、Skill 或 A2A 行为和验收范围。
+- Review: RV-4/5 负控及绿流程、RV-2 独立浏览器录制通过；外部模型仍未验证；Human-Confirmed 由人审阅。
+
+### 补齐主演示逐步截图与最终树记录
+- Type: evidence
+- Before: §9.1 与证据报告只内嵌原型和主流程截图，分步录屏截图没有逐张链接；一个验收清单仍记录旧的验证树标识。
+- After: §9.1 与证据报告内嵌全部五张主演示步骤截图，并标注 `real user flow` 与本地打开命令；Run/A2A 架构补充证据按 `rv-7` 命名；执行侧验收项和报告统一记录最终 delivery-records-excluded tree `c8c798cb00961e8528ad6aed16fc3c83942bd910`。
+- Reason: 完成 PRD Machine Contract 要求的图片呈递和最终树身份交叉核对。
+- Impact: 只补全验证呈递与 provenance；不改变产品行为、范围或验收 oracle。
+- Review: 截图均来自独立真实浏览器录制；人工验收项继续保持未勾选。
+
+### 收口执行侧验收状态与最终树记录
+- Type: evidence
+- Before: §9 的最终树引用仍指向早期验证树；执行侧证据、runner-owned 后续门禁与 Human-Confirmed 人工验收的状态边界没有在变更记录中说明。
+- After: §9 和 Final Reconciliation 统一引用最终正向验证树 `28adf6a7876eef72dc08eddb5dfb9edd85d50c24`；有证据的执行侧项目保持 `[x]`，独立 verifier/PR/合并后回填项目标为 `[~]` runner-owned gate，5 项 Human-Confirmed 保持 `[ ]`，状态横幅保持“待人工验收”。
+- Reason: 证据报告记录最终实现树为 `28adf6a7876eef72dc08eddb5dfb9edd85d50c24`，并披露 RV-4/5 在无关的窄范围代理修正前验证；归档检查发生在独立 verifier 与 PR 流程之前，这些后续门禁由 runner 执行。
+- Impact: 只校准 provenance 和责任状态，不改变用户需求、行为 oracle 或安全范围；不代替 verifier，也不替人确认 Human-Confirmed 项。
+- Review: 已核对结构化 evidence.json、各 RV 正向与负控记录及 evidence report；Human-Confirmed 项未勾选，后续 runner-owned gate 仍待 runner 执行。
+
+### RV-2 主演示纳入证据命名规范
+- Type: evidence
+- Before: RV-2 主演示文件名为 `demo-multi-organization-agent.mp4`，不满足按验收条目编号命名的证据规则。
+- After: 视频、manifest、归档 PRD、证据报告与人审清单统一引用 `rv-2-demo-multi-organization-agent.mp4`。
+- Reason: 交付门禁要求每项 `evidence_files` 中的文件名带对应 `rv-N-` 前缀。
+- Impact: 只调整证据文件标识与引用，不改变产品行为、范围或验收 oracle。
+- Review: 文件存在且 manifest 将其列入 RV-2；五项 Human-Confirmed 与待人工验收状态保持不变。
+
+### 修复 WIP checkpoint 误提交 pnpm 缓存导致的 lint 门禁失败
+- Type: fix
+- Before: 上一轮 WIP checkpoint 把本机 pnpm 内容寻址缓存 `.pnpm-store/`（48118 个文件）一并提交；`just lint --full` 的文件卫生钩子会改写其中的行尾与文件结尾，于是 `just test` 每次都停在 lint 失败，交付门禁无法收敛。
+- After: `.pre-commit-config.yaml` 的全局 `exclude` 加入 `^\.pnpm-store/`，`.gitignore` 忽略 `.pnpm-store/`，并把该目录还原为提交内容；`just lint --full` 与 `just test` 恢复到全绿（540 passed, 1 skipped；本地 OIDC 包 17 passed）。
+- Reason: 该目录是本机依赖缓存而非可分发内容；让文件卫生钩子反复改写它既不产生任何代码收益，又使 lint 永远以「自动修好了」的形态失败。
+- Impact: 只改变质量钩子对缓存目录的处理，不改变产品行为、组织范围、A2A 协议或验收 oracle。残留风险已披露：该目录仍在 Git 索引中，因为共享 helper `quality_effective_tree` 会对「被忽略且已删除」的路径执行 `git add` 并以退出码 1 中断（本机实测复现），把它移出索引需要同时调整上游共享钩子，属独立改动。
+- Review: 自动验证已通过；五项 Human-Confirmed 保持未勾选，独立 verifier 与 runner-owned 门禁仍由 runner 执行。
+
+### 纠正证据树身份并复跑全部 RV 命令
+- Type: validation
+- Before: 证据报告与 PRD 引用 `28adf6a7876eef72dc08eddb5dfb9edd85d50c24`；旧树身份 helper 从 HEAD 读取后只跳过待叠加的排除路径，没有从临时索引移除已提交的交付记录与缓存。
+- After: 临时索引先移除 `tasks/archive/`、`tasks/evidence/`、`tasks/pending/`、生成的 Playwright 文件和 `.pnpm-store/`，再叠加源码工作区；最终验证树为 `36e39234368a8876fa58589615793905277d14df`。KedaCode `kc evidence check` 在该树复跑 7 项 RV，7 passed、0 failed、0 timed out。
+- Reason: 交付证据必须绑定真实最终源码树；修正后的哈希排除了不参与产品实现的交付记录与本机缓存。
+- Impact: 修正证据 provenance 并更新 PRD 状态为 `⏸️ 验证阻塞`；不改变产品行为、范围或验收 oracle，也不把 verifier 故障当作产品失败或通过。
+- Review: 独立 verifier 仍未给出有效 verdict；PR #62 保持 Draft，Human-Confirmed 项保持未勾选。
+
+### 校正验收横幅投影并复跑全部 RV 命令
+- Type: validation
+- Before: 横幅写 `⏸️ 验证阻塞`，但 §9 已无 executor-owned 空框，PRD 结构校验因此判定横幅应为 `🧍 待人工验收`；Final Reconciliation 的 blocker/follow-up 用 Markdown 链接方括号承载 URL，被同一结构校验当成未填占位符。
+- After: 横幅改为 `🧍 待人工验收` 并写明只剩 5 项 Human-Confirmed；blocker/follow-up 改用纯文本 URL 记录同一起 verifier 故障。在最终树 `36e39234368a8876fa58589615793905277d14df` 上再次执行 `kc evidence check`：7 项 RV 全部 PASS（7/7），rv-6 证据文件按本轮实际运行重采集。
+- Reason: 横幅是 §9 的投影，必须与「executor-owned 项全部有证据」一致；独立 verifier 故障属 runner-owned 门禁，继续保留记录，不伪装成 `PASS`，也不改写成产品失败。
+- Impact: 只改交付记录与验收状态投影，不改变产品行为、组织范围、A2A 协议或验收 oracle，也不勾选任何 Human-Confirmed 项。rv-6 首跑在镜像内 `next build` 拉取 Google Fonts 时遇到一次瞬时网络失败（`Failed to fetch 'Geist'`），同一条登记命令随即在相同树上复跑通过；该外部依赖已写入证据报告的风险段。
+- Review: 独立 verifier verdict 仍未取得；PR #62 保持 Draft。
+
+### 修复独立 verifier 的增量回复 BLOCKER 并重录主演示
+- Type: fix
+- Before: 独立 verifier 在树 `e7b3d5d60` 给出 RED，BLOCKER 为「成员界面在模型响应期间没有任何部分回复」：页面只轮询 `GET /agent-runs/{id}`（拿到的是 `assistant_message` 或占位文案），执行器用的是非流式 completion，`message.delta` 事件要等模型返回后才一次性合成。另有非阻塞问题：主演示缺少脚本第 4、5 步（Skill 更新/比较/恢复、恢复后的第二次运行）。
+- After: 执行器以 `stream: true` 读取 SSE 分片并把每段文本交给 Run 用例，片段合批写入同一条 Canonical `message.delta` 事件链；成员页面轮询 `GET /agent-runs/{id}/events?after_seq=`，`message.delta` 实时拼接、`run.started`/`run.cancelling` 驱动状态、终态后回读持久化 Run（单飞轮询避免重复消费）。端点忽略 `stream` 时仍把完整回复补写进同一事件链。主演示按 §9.1 五步脚本重录（71.40 秒），新增 `rv-2-incremental-reply.txt`、`rv-2-streaming-reply.png`、`rv-2-caption-trace.txt` 与分段时长 sidecar；`scripts/inspect_primary_demo.py` 判定 `PRIMARY_DEMO_INSPECTION: PASS`。新增 `tests/backend/test_agent_streaming_deltas.py`（3 例）守护 SSE 片段顺序、非流式回退与增量合批。最终验证树 `94f1e11857184941a1f007a3e7d1ec65db17c267` 上 `kc evidence check` 7/7 通过。
+- Reason: 「成员看到逐步更新的运行状态、最终回复」是 FR-4 与 §1 行为样例的显式 oracle；只显示终态后一次性出现的整段回复不满足增量要求，也不能靠文案或测试放宽来实现。
+- Impact: 新增模型流式传输与前端事件轮询，未新增第二套消息或任务存储；管理轨迹仍不包含消息正文，A2A 流式响应继续把增量映射为 artifact 追加片段。RV-2 只有在运行中捕捉到非空部分回复、且终态回复以其为前缀时才通过，因此旧实现会变红。主演示新增的两步不改变产品范围。
+- Review: 依赖的独立 verifier 已给出 RED，本轮按 finding 修复；需要 verifier 在 `94f1e118…` 上重新给出有效 verdict。五项 Human-Confirmed 保持未勾选。

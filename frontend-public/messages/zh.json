@@ -70,7 +70,7 @@
       "sectionSubtitle": "复制模板、配置环境、启动服务",
       "copy": {
         "title": "复制模板",
-        "description": "just copy <name> 创建新项目，不包含依赖与构建产物。"
+        "description": "运行 just copy 并提供项目名称，即可创建不包含依赖与构建产物的新项目。"
       },
       "configure": {
         "title": "配置环境",
@@ -94,7 +94,7 @@
       },
       "createProject": {
         "question": "如何用模板创建新项目？",
-        "answer": "使用 just copy <name> 复制为独立项目，再按 README 配置环境变量与数据库即可启动。"
+        "answer": "运行 just copy 并提供项目名称，将模板复制为独立项目，再按 README 配置环境变量与数据库即可启动。"
       }
     },
     "cta": {
@@ -218,8 +218,10 @@
     "agentReply": "智能体回复",
     "runStatus": "状态：{status}",
     "thinking": "智能体正在运行…",
+    "streamingReply": "正在接收流式回复…",
     "noReply": "没有记录回复。",
     "runId": "运行 ID：{id}",
+    "skillVersion": "冻结的 Skill 版本：v{version}",
     "emptyConversation": "选择一个智能体并发送消息即可开始。",
     "messagePlaceholder": "输入消息…",
     "send": "发送消息",

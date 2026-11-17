@@ -7,7 +7,9 @@ import ipaddress
 import socket
 from urllib.parse import urlsplit
 
+import httpcore
 import httpx
+from httpcore._backends.auto import AutoBackend
 
 from backend.core.shared.interfaces.agent_executor import A2AClient, A2AResponse
 from backend.core.shared.interfaces.agent_repository import AgentRepository
@@ -16,6 +18,53 @@ from backend.infrastructure.config.settings import config
 
 class OutboundA2APolicyError(ValueError):
     """目标地址不符合部署策略或 A2A Card 契约。"""
+
+
+class _PinnedNetworkBackend:
+    """将 HTTP 连接固定到通过出站策略检查的 DNS 地址。"""
+
+    def __init__(self, pinned_addresses: dict[tuple[str, int], tuple[str, ...]]) -> None:
+        """保存 URL 主机与已验证 IP 的映射。"""
+        self._pinned_addresses = pinned_addresses
+        self._backend = AutoBackend()
+
+    async def connect_tcp(
+        self,
+        host: str,
+        port: int,
+        timeout: float | None = None,
+        local_address: str | None = None,
+        socket_options: tuple[object, ...] | None = None,
+    ) -> httpcore.AsyncNetworkStream:
+        """只连接预先解析和校验的地址，避免 HTTP 客户端再次解析 DNS。"""
+        target_key = (host.lower().rstrip("."), port)
+        pinned_addresses = self._pinned_addresses.get(target_key)
+        if not pinned_addresses:
+            raise OutboundA2APolicyError("a2a_unpinned_host_denied")
+        last_error: OSError | TimeoutError | None = None
+        for pinned_address in pinned_addresses:
+            try:
+                return await self._backend.connect_tcp(
+                    pinned_address,
+                    port,
+                    timeout=timeout,
+                    local_address=local_address,
+                    socket_options=socket_options,
+                )
+            except (OSError, TimeoutError) as connection_error:
+                last_error = connection_error
+        if last_error is not None:
+            raise last_error
+        raise OutboundA2APolicyError("a2a_host_resolution_failed")
+
+    async def connect_unix_socket(
+        self,
+        path: str,
+        timeout: float | None = None,
+        socket_options: tuple[object, ...] | None = None,
+    ) -> httpcore.AsyncNetworkStream:
+        """拒绝 Unix Socket；对端目录只允许 HTTP(S) 网络地址。"""
+        raise OutboundA2APolicyError("a2a_unix_socket_denied")
 
 
 class HttpA2AClient(A2AClient):
@@ -52,7 +101,18 @@ class HttpA2AClient(A2AClient):
             raise OutboundA2APolicyError("a2a_peer_not_authorized")
         if not self._same_origin(peer_target.peer.card_url, peer_target.peer.endpoint_url):
             raise OutboundA2APolicyError("a2a_card_and_endpoint_origin_mismatch")
-        self._validate_url(peer_target.peer.card_url)
+        pinned_addresses = self._validate_url(peer_target.peer.card_url)
+        registered_endpoint_addresses = self._validate_url(peer_target.peer.endpoint_url)
+        if registered_endpoint_addresses != pinned_addresses:
+            raise OutboundA2APolicyError("a2a_card_and_endpoint_resolution_mismatch")
+        transport = httpx.AsyncHTTPTransport(retries=0)
+        transport._pool._network_backend = _PinnedNetworkBackend(  # pyright: ignore[reportPrivateUsage]
+            {
+                self._url_network_key(peer_target.peer.card_url): tuple(
+                    str(address) for address in sorted(pinned_addresses)
+                )
+            }
+        )
         authorization_headers = {"A2A-Version": "1.0"}
         if peer_target.bearer_token:
             authorization_headers["Authorization"] = f"Bearer {peer_target.bearer_token}"
@@ -60,6 +120,7 @@ class HttpA2AClient(A2AClient):
             timeout=httpx.Timeout(30.0),
             follow_redirects=False,
             trust_env=False,
+            transport=transport,
         ) as http_client:
             try:
                 card_response = await http_client.get(
@@ -72,7 +133,9 @@ class HttpA2AClient(A2AClient):
                     card_document,
                     peer_target.peer.endpoint_url,
                 )
-                self._validate_url(endpoint_url)
+                endpoint_addresses = self._validate_url(endpoint_url)
+                if endpoint_addresses != pinned_addresses:
+                    raise OutboundA2APolicyError("a2a_card_and_endpoint_resolution_mismatch")
                 message_response = await http_client.post(
                     f"{endpoint_url.rstrip('/')}/message:send",
                     headers={**authorization_headers, "Content-Type": "application/json"},
@@ -133,6 +196,15 @@ class HttpA2AClient(A2AClient):
         )
 
     @staticmethod
+    def _url_network_key(url: str) -> tuple[str, int]:
+        """返回用于 DNS 固定的标准化主机与端口。"""
+        parsed_url = urlsplit(url)
+        return (
+            (parsed_url.hostname or "").lower().rstrip("."),
+            parsed_url.port or (443 if parsed_url.scheme == "https" else 80),
+        )
+
+    @staticmethod
     def _extract_task_text(response_document: object) -> str:
         """提取 A2A Task Artifact 或直接 Message 的文本部分。"""
         if not isinstance(response_document, dict):
@@ -173,7 +245,7 @@ class HttpA2AClient(A2AClient):
         return task_id if isinstance(task_id, str) and task_id.strip() else None
 
     @staticmethod
-    def _validate_url(url: str) -> None:
+    def _validate_url(url: str) -> frozenset[ipaddress.IPv4Address | ipaddress.IPv6Address]:
         """拒绝不安全 scheme、非批准主机、重定向目标和私网解析结果。"""
         parsed_url = urlsplit(url)
         hostname = (parsed_url.hostname or "").lower().rstrip(".")
@@ -229,6 +301,7 @@ class HttpA2AClient(A2AClient):
                 raise OutboundA2APolicyError("a2a_dns_rebinding_denied")
         elif not all(address.is_global for address in resolved_addresses):
             raise OutboundA2APolicyError("a2a_non_public_address_denied")
+        return frozenset(resolved_addresses)
 
 
 __all__ = ["HttpA2AClient", "OutboundA2APolicyError"]

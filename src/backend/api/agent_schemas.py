@@ -142,6 +142,8 @@ class AgentRunResponse(AgentRunListItem):
 
     input_message: str
     assistant_message: str | None
+    skill_version: int | None = None
+    skill_version_id: str | None = None
     unavailable_reason: str | None = None
 
 
@@ -150,6 +152,21 @@ class AgentRunListResponse(BaseModel):
 
     items: list[AgentRunListItem]
     total: int
+
+
+class AgentRunAssetResponse(BaseModel):
+    """继承所属 Run 组织范围的低敏资产元数据。"""
+
+    id: str
+    run_id: str
+    kind: str
+    created_at: str
+
+
+class AgentRunAssetListResponse(BaseModel):
+    """当前成员可见的 Run 资产列表。"""
+
+    items: list[AgentRunAssetResponse]
 
 
 class AgentRunEventResponse(BaseModel):

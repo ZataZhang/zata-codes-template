@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Header, Query, status
 
 from backend.api.admin.agent_admin_helpers import (
     _raise_agent_error,
@@ -23,6 +23,9 @@ from backend.api.dependencies import (
     get_skill_use_case,
 )
 from backend.core.agent import (
+    AppendSkillRevisionCommand,
+    CreateSkillCommand,
+    RestoreSkillRevisionCommand,
     SkillUseCase,
 )
 from backend.core.auth.models import AuthenticatedPrincipal
@@ -44,17 +47,21 @@ def list_skills(
 @router.post("/skills", response_model=SkillResponse, status_code=status.HTTP_201_CREATED)
 def create_skill(
     request: SkillCreateRequest,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     admin: AuthenticatedPrincipal = Depends(get_current_organization_admin),
     skills: SkillUseCase = Depends(get_skill_use_case),
 ) -> SkillResponse:
-    """创建 Skill 和不可变版本 1。"""
+    """创建 Skill 和不可变版本 1；重试键防止重复创建。"""
     try:
         skill, _revision = skills.create_skill(
-            organization_id=admin.organization_id or "",
-            actor_id=admin.user_id,
-            name=request.name,
-            description=request.description,
-            body=request.body,
+            CreateSkillCommand(
+                organization_id=admin.organization_id or "",
+                actor_id=admin.user_id,
+                name=request.name,
+                description=request.description,
+                body=request.body,
+                idempotency_key=idempotency_key or "",
+            )
         )
         return _skill_response(skill)
     except (ValueError, LookupError) as skill_error:
@@ -79,16 +86,20 @@ def list_skill_versions(
 def append_skill_version(
     skill_id: str,
     request: SkillRevisionRequest,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     admin: AuthenticatedPrincipal = Depends(get_current_organization_admin),
     skills: SkillUseCase = Depends(get_skill_use_case),
 ) -> SkillRevisionResponse:
-    """追加 Skill 新版本，拒绝任何对旧记录的改写。"""
+    """追加 Skill 新版本，拒绝任何对旧记录的改写或重复重试。"""
     try:
         revision = skills.add_revision(
-            organization_id=admin.organization_id or "",
-            skill_id=skill_id,
-            actor_id=admin.user_id,
-            body=request.body,
+            AppendSkillRevisionCommand(
+                organization_id=admin.organization_id or "",
+                skill_id=skill_id,
+                actor_id=admin.user_id,
+                body=request.body,
+                idempotency_key=idempotency_key or "",
+            )
         )
     except (ValueError, LookupError) as skill_error:
         _raise_agent_error(skill_error)
@@ -122,16 +133,20 @@ def compare_skill_versions(
 def restore_skill_version(
     skill_id: str,
     version: int,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     admin: AuthenticatedPrincipal = Depends(get_current_organization_admin),
     skills: SkillUseCase = Depends(get_skill_use_case),
 ) -> SkillRevisionResponse:
-    """以旧版本正文创建新版本。"""
+    """以旧版本正文创建新版本；相同恢复重试返回同一版本。"""
     try:
         revision = skills.restore_revision(
-            organization_id=admin.organization_id or "",
-            skill_id=skill_id,
-            version=version,
-            actor_id=admin.user_id,
+            RestoreSkillRevisionCommand(
+                organization_id=admin.organization_id or "",
+                skill_id=skill_id,
+                version=version,
+                actor_id=admin.user_id,
+                idempotency_key=idempotency_key or "",
+            )
         )
     except (ValueError, LookupError) as skill_error:
         _raise_agent_error(skill_error)

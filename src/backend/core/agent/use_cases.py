@@ -9,15 +9,24 @@ from backend.core.agent.catalog import (
     UpdateAgentCommand,
 )
 from backend.core.agent.runs import AgentRunUseCase, CreateAgentRunCommand
-from backend.core.agent.skills import SkillUseCase, validate_skill_body
+from backend.core.agent.skills import (
+    AppendSkillRevisionCommand,
+    CreateSkillCommand,
+    RestoreSkillRevisionCommand,
+    SkillUseCase,
+    validate_skill_body,
+)
 
 __all__ = [
     "AgentCatalogUseCase",
     "AgentNotFoundError",
     "AgentRunUseCase",
     "AgentUnavailableError",
+    "AppendSkillRevisionCommand",
     "CreateAgentCommand",
     "CreateAgentRunCommand",
+    "CreateSkillCommand",
+    "RestoreSkillRevisionCommand",
     "SkillNotFoundError",
     "SkillUseCase",
     "UpdateAgentCommand",

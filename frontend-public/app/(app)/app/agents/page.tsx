@@ -1,11 +1,12 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
 import { Bot, Clock3, LoaderCircle, Send, Sparkles } from "lucide-react"
 import {
   createAgentRun,
   getAgentRun,
+  getAgentRunEvents,
   getAgentRuns,
   getMemberAgents,
   type AgentRunDetail,
@@ -15,6 +16,12 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
+
+/** 由 Canonical Event 推导的、可展示的逐步运行状态。 */
+const RUN_STATUS_BY_EVENT: Record<string, string> = {
+  "run.started": "running",
+  "run.cancelling": "cancelling",
+}
 
 /** Show the organization Agent directory and persisted run history. */
 export default function AgentsPage() {
@@ -28,6 +35,8 @@ export default function AgentsPage() {
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState("")
+  const [liveReply, setLiveReply] = useState("")
+  const eventCursorRef = useRef(0)
 
   const selectedAgent = useMemo(
     () => agents.find((agent) => agent.id === selectedAgentId) ?? null,
@@ -65,21 +74,65 @@ export default function AgentsPage() {
       !["queued", "running", "cancelling"].includes(activeRun.status)
     )
       return
+    const runId = activeRun.id
     let cancelled = false
+    let pollInFlight = false
+    /**
+     * 读取新增的 Canonical Event：`message.delta` 立即拼接到实时回复，
+     * 终态事件到达后重新读取持久化 Run 并刷新历史。同一时刻只允许一个
+     * 请求在飞，避免慢响应下重复消费同一批事件。
+     */
     const poll = async () => {
+      if (pollInFlight) return
+      pollInFlight = true
       try {
-        const refreshed = await getAgentRun(activeRun.id)
-        if (!cancelled) {
+        const { items, nextAfterSeq } = await getAgentRunEvents(
+          runId,
+          eventCursorRef.current
+        )
+        if (cancelled) return
+        eventCursorRef.current = nextAfterSeq
+        const streamedText = items
+          .filter((runEvent) => runEvent.event_type === "message.delta")
+          .map((runEvent) =>
+            typeof runEvent.payload.delta === "string"
+              ? runEvent.payload.delta
+              : ""
+          )
+          .join("")
+        if (streamedText) setLiveReply((previous) => previous + streamedText)
+        const progressedStatus = items
+          .filter((runEvent) =>
+            Object.keys(RUN_STATUS_BY_EVENT).includes(runEvent.event_type)
+          )
+          .at(-1)
+        if (progressedStatus) {
+          const nextStatus = RUN_STATUS_BY_EVENT[progressedStatus.event_type]
+          setActiveRun((previous) =>
+            previous && previous.status !== nextStatus
+              ? { ...previous, status: nextStatus }
+              : previous
+          )
+        }
+        const reachedTerminalState = items.some((runEvent) =>
+          ["run.completed", "run.failed", "run.cancelled"].includes(
+            runEvent.event_type
+          )
+        )
+        if (reachedTerminalState) {
+          const refreshed = await getAgentRun(runId)
+          if (cancelled) return
           setActiveRun(refreshed)
-          if (!["queued", "running", "cancelling"].includes(refreshed.status)) {
-            void reloadHistory()
-          }
+          setLiveReply("")
+          await reloadHistory()
         }
       } catch {
         if (!cancelled) setError(t("refreshFailed"))
+      } finally {
+        pollInFlight = false
       }
     }
-    const timer = window.setInterval(() => void poll(), 650)
+    const timer = window.setInterval(() => void poll(), 400)
     void poll()
     return () => {
       cancelled = true
@@ -109,6 +162,8 @@ export default function AgentsPage() {
         message: message.trim(),
       })
       setMessage("")
+      setLiveReply("")
+      eventCursorRef.current = 0
       setActiveRun(createdRun)
       await reloadHistory()
     } catch (submissionError) {
@@ -127,6 +182,8 @@ export default function AgentsPage() {
     setError("")
     try {
       const persistedRun = await getAgentRun(runId)
+      setLiveReply("")
+      eventCursorRef.current = 0
       setActiveRun(persistedRun)
       setSelectedAgentId(persistedRun.agent_id)
     } catch {
@@ -217,7 +274,11 @@ export default function AgentsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             {activeRun ? (
-              <div className="space-y-3" aria-live="polite">
+              <div
+                className="space-y-3"
+                aria-live="polite"
+                data-testid="agent-run-detail"
+              >
                 <div className="rounded-lg bg-muted/60 p-4">
                   <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
                     {t("you")}
@@ -231,17 +292,43 @@ export default function AgentsPage() {
                     <span>{t("agentReply")}</span>
                     <span>{t("runStatus", { status: activeRun.status })}</span>
                   </div>
-                  <p className="mt-2 min-h-6 text-sm whitespace-pre-wrap">
+                  <p
+                    className="mt-2 min-h-6 text-sm whitespace-pre-wrap"
+                    data-testid="agent-run-reply"
+                  >
                     {activeRun.assistant_message ??
-                      (["queued", "running", "cancelling"].includes(
-                        activeRun.status
-                      )
-                        ? t("thinking")
-                        : t("noReply"))}
+                      (liveReply ||
+                        (["queued", "running", "cancelling"].includes(
+                          activeRun.status
+                        )
+                          ? t("thinking")
+                          : t("noReply")))}
                   </p>
-                  <p className="mt-3 font-mono text-[11px] break-all text-muted-foreground">
+                  {liveReply &&
+                    ["queued", "running", "cancelling"].includes(
+                      activeRun.status
+                    ) && (
+                      <p
+                        className="mt-2 font-mono text-[11px] text-muted-foreground"
+                        data-testid="agent-run-live-reply"
+                      >
+                        {t("streamingReply")}
+                      </p>
+                    )}
+                  <p
+                    className="mt-3 font-mono text-[11px] break-all text-muted-foreground"
+                    data-testid="agent-run-id"
+                  >
                     {t("runId", { id: activeRun.id })}
                   </p>
+                  {activeRun.skill_version !== null && (
+                    <p
+                      className="mt-1 text-xs text-muted-foreground"
+                      data-testid="agent-run-skill-version"
+                    >
+                      {t("skillVersion", { version: activeRun.skill_version })}
+                    </p>
+                  )}
                 </div>
               </div>
             ) : (
@@ -299,6 +386,7 @@ export default function AgentsPage() {
               <button
                 key={run.id}
                 type="button"
+                data-testid={`agent-run-history-${run.id}`}
                 onClick={() => void reopenRun(run.id)}
                 className={`w-full rounded-md border p-3 text-left hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
                   activeRun?.id === run.id ? "border-primary" : ""

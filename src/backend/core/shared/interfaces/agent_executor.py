@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol, Sequence
+from typing import Awaitable, Callable, Protocol, Sequence
 
 from backend.core.shared.interfaces.agent_types import A2APeer
 
@@ -35,6 +35,11 @@ class AgentExecutionResult:
     content: str
     model_name: str
     external_calls: tuple[AgentExternalCall, ...] = ()
+    content_streamed: bool = False
+
+
+#: 模型流式返回文本片段时的回调；调用方负责把片段写入唯一 Run/Event 事实源。
+DeltaCallback = Callable[[str], Awaitable[None]]
 
 
 class AgentExecutor(Protocol):
@@ -61,8 +66,17 @@ class AgentExecutor(Protocol):
         snapshot: dict[str, object],
         message: str,
         peers: Sequence[A2APeer],
+        on_delta: DeltaCallback | None = None,
     ) -> AgentExecutionResult:
-        """调用已配置模型及允许的 A2A 对端。"""
+        """调用已配置模型及允许的 A2A 对端。
+
+        Args:
+            snapshot (dict[str, object]): Run 创建时冻结的 Agent 配置。
+            message (str): 当前用户消息。
+            peers (Sequence[A2APeer]): 当前组织已批准的 A2A 对端。
+            on_delta (DeltaCallback | None): 收到流式文本片段时的回调；为 ``None``
+                时执行器可以一次性返回完整回复。
+        """
         ...
 
 
@@ -82,4 +96,5 @@ __all__ = [
     "AgentExecutionResult",
     "AgentExecutor",
     "AgentExternalCall",
+    "DeltaCallback",
 ]

@@ -21,6 +21,8 @@ from backend.core.shared.interfaces.agent_types import (
     AgentDefinition,
     SkillDefinition,
     SkillRevision,
+    SkillRevisionDraft,
+    SkillWriteIdempotency,
 )
 from backend.infrastructure.config.settings import config
 from backend.infrastructure.persistence.models.agent import (
@@ -189,9 +191,17 @@ class SqlAlchemyAgentRepository(AgentRepository):
         return self.get_agent(agent.organization_id, agent.id) or agent
 
     def create_skill(
-        self, skill: SkillDefinition, initial_body: str
+        self,
+        skill: SkillDefinition,
+        initial_body: str,
+        *,
+        idempotency: SkillWriteIdempotency | None,
     ) -> tuple[SkillDefinition, SkillRevision]:
-        """在同一事务创建 Skill 与首个不可变版本。"""
+        """在同一事务创建 Skill 与首个不可变版本，并收敛并发重试。"""
+        if idempotency is not None:
+            existing_write = self._find_skill_creation_retry(skill.organization_id, idempotency)
+            if existing_write is not None:
+                return existing_write
         now = datetime.now(UTC)
         checksum = hashlib.sha256(initial_body.encode("utf-8")).hexdigest()
         skill_model = SkillModel(
@@ -201,6 +211,8 @@ class SqlAlchemyAgentRepository(AgentRepository):
             name=skill.name,
             description=skill.description,
             current_version=1,
+            idempotency_key_hash=idempotency.key_hash if idempotency else None,
+            request_checksum=idempotency.request_checksum if idempotency else None,
             created_at=now,
             updated_at=now,
         )
@@ -219,20 +231,40 @@ class SqlAlchemyAgentRepository(AgentRepository):
                 database_session.add(skill_model)
                 database_session.add(revision_model)
                 database_session.flush()
-                committed_revision = SkillRevision(
-                    id=revision_model.id,
-                    skill_id=revision_model.skill_id,
-                    organization_id=revision_model.organization_id,
-                    version=revision_model.version,
-                    body=revision_model.body,
-                    checksum=revision_model.checksum,
-                    created_by=revision_model.created_by,
-                    created_at=revision_model.created_at,
-                )
+                committed_revision = _to_revision(revision_model)
         except IntegrityError as integrity_error:
+            if idempotency is not None:
+                existing_write = self._find_skill_creation_retry(skill.organization_id, idempotency)
+                if existing_write is not None:
+                    return existing_write
             raise ValueError("skill_name_conflict") from integrity_error
         committed_skill = self.get_skill(skill.organization_id, skill.id) or skill
         return committed_skill, committed_revision
+
+    def _find_skill_creation_retry(
+        self, organization_id: str, idempotency: SkillWriteIdempotency
+    ) -> tuple[SkillDefinition, SkillRevision] | None:
+        """读取已提交的 Skill 创建重试，并拒绝同键不同请求。"""
+        with self._session_factory() as database_session:
+            skill_model = database_session.scalar(
+                select(SkillModel).where(
+                    SkillModel.organization_id == organization_id,
+                    SkillModel.idempotency_key_hash == idempotency.key_hash,
+                )
+            )
+            if skill_model is None:
+                return None
+            if skill_model.request_checksum != idempotency.request_checksum:
+                raise ValueError("idempotency_key_reused_with_different_request")
+            revision_model = database_session.scalar(
+                select(SkillVersionModel).where(
+                    SkillVersionModel.skill_id == skill_model.id,
+                    SkillVersionModel.version == 1,
+                )
+            )
+            if revision_model is None:
+                raise RuntimeError("skill_initial_revision_missing")
+            return _to_skill(skill_model), _to_revision(revision_model)
 
     def get_skill(self, organization_id: str, skill_id: str) -> SkillDefinition | None:
         """按组织范围读取 Skill。"""
@@ -255,20 +287,22 @@ class SqlAlchemyAgentRepository(AgentRepository):
             ).all()
             return [_to_skill(skill_model) for skill_model in skill_models]
 
-    def append_skill_revision(
-        self, organization_id: str, skill_id: str, created_by: str, body: str
-    ) -> SkillRevision:
-        """锁定 Skill 主记录并追加下一个版本。"""
+    def append_skill_revision(self, draft: SkillRevisionDraft) -> SkillRevision:
+        """锁定 Skill 主记录并追加下一个版本；重复写入返回首次版本。"""
+        if draft.idempotency is not None:
+            existing_revision = self._find_revision_retry(draft)
+            if existing_revision is not None:
+                return existing_revision
         revision_now = datetime.now(UTC)
-        revision_checksum = hashlib.sha256(body.encode("utf-8")).hexdigest()
+        revision_checksum = hashlib.sha256(draft.body.encode("utf-8")).hexdigest()
         committed_revision: SkillRevision | None = None
         try:
             with self._session_factory.begin() as database_session:
                 skill_model = database_session.scalar(
                     select(SkillModel)
                     .where(
-                        SkillModel.organization_id == organization_id,
-                        SkillModel.id == skill_id,
+                        SkillModel.organization_id == draft.organization_id,
+                        SkillModel.id == draft.skill_id,
                     )
                     .with_for_update()
                 )
@@ -280,30 +314,49 @@ class SqlAlchemyAgentRepository(AgentRepository):
                     skill_id=skill_model.id,
                     organization_id=skill_model.organization_id,
                     version=next_version,
-                    body=body,
+                    body=draft.body,
                     checksum=revision_checksum,
-                    created_by=created_by,
+                    idempotency_key_hash=(
+                        draft.idempotency.key_hash if draft.idempotency else None
+                    ),
+                    request_checksum=(
+                        draft.idempotency.request_checksum if draft.idempotency else None
+                    ),
+                    created_by=draft.created_by,
                     created_at=revision_now,
                 )
                 skill_model.current_version = next_version
                 skill_model.updated_at = revision_now
                 database_session.add(revision_model)
                 database_session.flush()
-                committed_revision = SkillRevision(
-                    id=revision_model.id,
-                    skill_id=revision_model.skill_id,
-                    organization_id=revision_model.organization_id,
-                    version=revision_model.version,
-                    body=revision_model.body,
-                    checksum=revision_model.checksum,
-                    created_by=revision_model.created_by,
-                    created_at=revision_model.created_at,
-                )
+                committed_revision = _to_revision(revision_model)
         except IntegrityError as integrity_error:
+            if draft.idempotency is not None:
+                existing_revision = self._find_revision_retry(draft)
+                if existing_revision is not None:
+                    return existing_revision
             raise ValueError("skill_version_conflict") from integrity_error
         if committed_revision is None:
             raise RuntimeError("skill_revision_not_created")
         return committed_revision
+
+    def _find_revision_retry(self, draft: SkillRevisionDraft) -> SkillRevision | None:
+        """读取已提交版本重试，同键不同正文必须失败。"""
+        if draft.idempotency is None:
+            return None
+        with self._session_factory() as database_session:
+            revision_model = database_session.scalar(
+                select(SkillVersionModel).where(
+                    SkillVersionModel.organization_id == draft.organization_id,
+                    SkillVersionModel.skill_id == draft.skill_id,
+                    SkillVersionModel.idempotency_key_hash == draft.idempotency.key_hash,
+                )
+            )
+            if revision_model is None:
+                return None
+            if revision_model.request_checksum != draft.idempotency.request_checksum:
+                raise ValueError("idempotency_key_reused_with_different_request")
+            return _to_revision(revision_model)
 
     def list_skill_revisions(self, organization_id: str, skill_id: str) -> list[SkillRevision]:
         """按版本号升序列出同组织 Skill 历史。"""

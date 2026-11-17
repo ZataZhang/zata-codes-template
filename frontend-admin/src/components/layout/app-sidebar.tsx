@@ -8,12 +8,12 @@ import {
   SidebarHeader,
   SidebarRail,
 } from '@/components/ui/sidebar'
-import { createNavGroups, sidebarTeams, sidebarUser } from './data/sidebar-data'
+import { createNavGroups, sidebarUser } from './data/sidebar-data'
 import { NavGroup } from './nav-group'
 import { NavUser } from './nav-user'
-import { TeamSwitcher } from './team-switcher'
+import { AppTitle } from './app-title'
 
-/** Render the AppSidebar component. */
+/** 根据管理员角色渲染对应的后台导航。 */
 export function AppSidebar() {
   const { collapsible, variant } = useLayout()
   const { auth } = useAuthStore()
@@ -31,7 +31,7 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible={collapsible} variant={variant}>
       <SidebarHeader>
-        <TeamSwitcher teams={sidebarTeams} />
+        <AppTitle />
       </SidebarHeader>
       <SidebarContent>
         {navGroups.map((props) => (

@@ -1,23 +1,17 @@
 # admin-users-interactive.png
 
-- 来源类型：浏览器截图，无 AI 生成提示词
-- 日期：2026-09-16（文件提交时间；原始截图命令未在仓库中记录）
-- 画布：1440 × 1000
+- 来源类型：Playwright Chromium 浏览器截图
+- 更新日期：2026-11-17（原始截图为 2026-09-16；本次由当前原型重新生成）
+- 画布：1440 × 1003
 - 页面：`../admin-users-interactive.html`
 - 工具：Playwright Chromium `page.screenshot()`
 
-> 本文件为建立 Prototype Hub registry 时补记。上方的日期取自该图片进入版本库的时间，
-> **原始截图命令、视口设置与状态准备步骤未在仓库中找到记录**；如已知原始命令，请在此补全，
-> 不要把推测写成事实。
+> 本次截图按下方步骤由当前 HTML 原型重生成；这份记录不声称复现 2026-09-16 的旧截图。
 
 ## 复现（建议口径）
 
-```js
-await page.goto('<static-server>/admin-users-interactive.html')
-await page.waitForTimeout(700)
-await page.screenshot({ path: 'docs/prototypes/assets/admin-users-interactive.png' })
-```
+打开 `../admin-users-interactive.html`，使用 Chromium `1440 × 1000` 视口，等待字体加载并停留 400ms 后截图列表默认态。点击首行 `[data-open]`，等待抽屉动画 350ms 后截图详情态。
 
 ## 说明
 
-本图只作为 Hub 目录的缩略图使用；原型的可交互状态与边界见 `../admin-users-interactive.md`。
+本图用于文档预览与 Prototype Hub；原型的可交互状态与边界见 `../admin-users-interactive.md`。

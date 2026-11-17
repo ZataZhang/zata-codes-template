@@ -63,7 +63,7 @@ nav:
       - API 与部署安全基线: guides/security.md
       - Model Context Protocol: guides/mcp.md
       - 前端 i18n（中英文双语）: guides/i18n.md
-      - 部署指南（SSH / 后台任务边界）: guides/deployment.md
+      - 部署指南（容器、API 与 A2A）: guides/deployment.md
       - 可观测性: guides/observability.md
       - Run 执行轨迹: guides/run-tracing.md
       - 备份与恢复: guides/backup.md
@@ -81,12 +81,7 @@ nav:
   - 原型演示:
       - 概览: prototypes/index.md
       - 可点击原型中心: prototypes/prototype-hub.html
-      - 后台用户管理: prototypes/admin-users-interactive.md
-      - AI 生成图片热点: prototypes/admin-users-ai-image-hotspot.md
-      - PRD Demo UI: prototypes/prd-demo.html
-      - 登录页: prototypes/login-demo.md
-      - 只读文件与改动查看器: prototypes/file-viewer-interactive.md
-      - Run 执行轨迹: prototypes/run-tracing.md
+      - Agent 在线底座: prototypes/agent-online.md
       - Assets 命名规范: prototypes/assets/README.md
   - 核心概念:
       - Prompt 工程: core/prompt_engineering.md
@@ -99,5 +94,6 @@ nav:
       - 架构设计: architecture/system-design.md
       - 认证与会话: architecture/authentication.md
       - 前端架构: architecture/frontend-architecture.md
+      - 多组织 Agent 底座: architecture/multi-org-agent.md
   - 开发者:
       - 评测与测试: dev/evaluation.md

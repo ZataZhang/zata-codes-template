@@ -179,7 +179,7 @@ base 取 `--base`；未传时读 `KODA_WORKTREE_BASE_BRANCH`，再退回 `main`�
 - `src/backend/infrastructure/helpers.py`：无状态通用辅助函数。
 - `src/backend/engines/`：平台能力扩展点（项目按需挂载具体能力）。
 - `src/backend/infrastructure/persistence/`：数据库接入与通用持久化工具。
-- `frontend-admin/`：管理平台前端（Vite + React + TanStack Router + shadcn-admin）。
+- `frontend-admin/`：管理平台前端（Vite + React + TanStack Router + shadcn/ui）。
 - `frontend-public/`：前台官网（Next.js + React + Tailwind CSS v4 + shadcn/ui）。
 - `tests/`：单元测试与集成测试。
 - `tests/playwright-e2e/`：端到端测试（独立 Node 包）。

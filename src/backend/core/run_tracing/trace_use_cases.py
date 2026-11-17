@@ -15,6 +15,7 @@ from uuid import uuid4
 
 from backend.core.shared.interfaces.run_repository import RunRepository
 from backend.core.shared.models.run import (
+    ORGANIZATION_AGENT_SUBJECT_TYPE,
     Run,
     RunEvent,
     RunExportAudit,
@@ -278,7 +279,8 @@ class RunTraceUseCase:
             RunExportError: Run 未终结、事件不完整或超过大小上限。
         """
         run = self._repository.get_by_id(run_id)
-        if run is None:
+        # 组织 Agent Run 含成员消息正文；平台诊断入口不因平台身份获得原文，按不存在处理。
+        if run is None or run.subject_type == ORGANIZATION_AGENT_SUBJECT_TYPE:
             raise LookupError("Run 不存在")
         if run.status not in _TERMINAL_RUN_STATUSES:
             raise RunExportError(409, "Run 尚未终结，请稍后下载")

@@ -110,6 +110,7 @@ def create_app(
                 _app.state.runtime_config = dict(await config_provider.load())
             finally:
                 await config_provider.close()
+
         async def monitor_agent_runs() -> None:
             """恢复过期 Run 队列并收敛已失去执行租约的 Run。"""
             while True:
@@ -249,10 +250,13 @@ def create_app(
     agent_components = build_agent_components(
         session_factory,
         run_tracing_components.run_repository,
+        organization_repository,
     )
     fastapi_app.state.agent_catalog_use_case = agent_components.catalog
     fastapi_app.state.skill_use_case = agent_components.skills
     fastapi_app.state.agent_run_use_case = agent_components.runs
+    fastapi_app.state.a2a_public_base_url = config.a2a.public_base_url
+    fastapi_app.state.a2a_allow_http_origin = config.a2a.allow_loopback_for_dev
 
     seed_admin_user(
         auth_components.admin_user_repository,

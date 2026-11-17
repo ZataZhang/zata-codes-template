@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.infrastructure.persistence.database import Base
@@ -56,6 +56,12 @@ class SkillModel(Base, TimestampMixin):
     __tablename__ = "skill"
     __table_args__ = (
         UniqueConstraint("organization_id", "name", name="uq_skill_organization_name"),
+        Index(
+            "uq_skill_create_idempotency",
+            "organization_id",
+            "idempotency_key_hash",
+            unique=True,
+        ),
         {"comment": "组织内声明式 Skill 目录。"},
     )
 
@@ -73,6 +79,12 @@ class SkillModel(Base, TimestampMixin):
     current_version: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, comment="当前版本序号。"
     )
+    idempotency_key_hash: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, comment="创建请求重试键摘要。"
+    )
+    request_checksum: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, comment="创建请求内容摘要，用于检测重试键冲突。"
+    )
 
 
 class SkillVersionModel(Base):
@@ -81,6 +93,12 @@ class SkillVersionModel(Base):
     __tablename__ = "skill_version"
     __table_args__ = (
         UniqueConstraint("skill_id", "version", name="uq_skill_version_number"),
+        Index(
+            "uq_skill_version_write_idempotency",
+            "skill_id",
+            "idempotency_key_hash",
+            unique=True,
+        ),
         {"comment": "只追加的 Skill 正文版本历史。"},
     )
 
@@ -102,6 +120,12 @@ class SkillVersionModel(Base):
     version: Mapped[int] = mapped_column(Integer, nullable=False, comment="从 1 开始的线性版本号。")
     body: Mapped[str] = mapped_column(Text, nullable=False, comment="声明式 Skill 正文。")
     checksum: Mapped[str] = mapped_column(String(64), nullable=False, comment="正文 SHA-256。")
+    idempotency_key_hash: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, comment="版本写入重试键摘要。"
+    )
+    request_checksum: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, comment="版本写入请求摘要，用于检测重试键冲突。"
+    )
     created_by: Mapped[str] = mapped_column(
         String(64), nullable=False, comment="创建版本的管理员 ID。"
     )

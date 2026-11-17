@@ -371,10 +371,7 @@ class SqlAlchemyRunRepository:
             if (
                 run_model is None
                 or run_model.status != RunStatus.QUEUED.value
-                or (
-                    run_model.lease_expires_at is not None
-                    and run_model.lease_expires_at > now
-                )
+                or (run_model.lease_expires_at is not None and run_model.lease_expires_at > now)
             ):
                 return False
             run_model.executor_instance_id = instance_id

@@ -22,7 +22,16 @@ export interface AgentRunSummary {
 export interface AgentRunDetail extends AgentRunSummary {
   input_message: string
   assistant_message: string | null
+  skill_version: number | null
+  skill_version_id: string | null
   unavailable_reason: string | null
+}
+
+export interface AgentRunEvent {
+  seq: number
+  event_type: string
+  occurred_at: string
+  payload: Record<string, unknown>
 }
 
 /** Load the published Agent directory visible to the current organization. */
@@ -46,6 +55,23 @@ export async function getAgentRun(runId: string): Promise<AgentRunDetail> {
     `/agent-runs/${encodeURIComponent(runId)}`
   )
   return response.data
+}
+
+/** Read canonical Run events after `afterSeq` so the UI can show live progress. */
+export async function getAgentRunEvents(
+  runId: string,
+  afterSeq: number
+): Promise<{ items: AgentRunEvent[]; nextAfterSeq: number }> {
+  const response = await apiClient.get<{
+    items: AgentRunEvent[]
+    next_after_seq: number
+  }>(`/agent-runs/${encodeURIComponent(runId)}/events`, {
+    params: { after_seq: afterSeq },
+  })
+  return {
+    items: response.data.items,
+    nextAfterSeq: response.data.next_after_seq,
+  }
 }
 
 /** Start an Agent run with a one-request idempotency key. */

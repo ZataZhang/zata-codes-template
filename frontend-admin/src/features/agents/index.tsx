@@ -32,7 +32,7 @@ import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 
-/** Render organization-scoped Agent and Skill governance plus A2A registration. */
+/** 渲染组织范围内的 Agent、Skill 管理与 A2A 登记界面。 */
 export function Agents() {
   const { t } = useTranslation()
   const [agents, setAgents] = useState<AgentDefinition[]>([])
@@ -69,7 +69,7 @@ export function Agents() {
   })
   const [credentialResult, setCredentialResult] = useState('')
 
-  /** Refresh all organization-scoped management views from their API entrypoints. */
+  /** 从 API 刷新当前组织的 Agent、Skill、A2A 目标和运行记录。 */
   const refresh = async () => {
     const [agentItems, skillItems, peerItems, runItems] = await Promise.all([
       listAgents(),
@@ -112,16 +112,21 @@ export function Agents() {
   }, [t])
 
   useEffect(() => {
-    if (!selectedSkillId) {
-      setRevisions([])
-      return
-    }
+    if (!selectedSkillId) return
+    let cancelled = false
     listSkillVersions(selectedSkillId)
-      .then(setRevisions)
-      .catch(() => setError(String(t('agents.loadVersionsFailed'))))
+      .then((skillRevisions) => {
+        if (!cancelled) setRevisions(skillRevisions)
+      })
+      .catch(() => {
+        if (!cancelled) setError(String(t('agents.loadVersionsFailed')))
+      })
+    return () => {
+      cancelled = true
+    }
   }, [selectedSkillId, skills, t])
 
-  /** Create an unpublished Agent from the current form. */
+  /** 根据表单创建尚未发布的 Agent。 */
   const submitAgent = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     try {
@@ -144,13 +149,14 @@ export function Agents() {
     }
   }
 
-  /** Create a new Skill and load its initial immutable version. */
+  /** 创建 Skill 并加载其初始不可变版本。 */
   const submitSkill = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     try {
       const createdSkill = await createSkill(skillForm)
       setSkillForm({ name: '', description: '', body: '' })
       setSelectedSkillId(createdSkill.id)
+      setRevisions([])
       await refresh()
       toast.success(t('agents.skillCreated'))
     } catch {
@@ -158,7 +164,7 @@ export function Agents() {
     }
   }
 
-  /** Append a new Skill version through the immutable version API. */
+  /** 调用不可变版本接口追加 Skill 新版本。 */
   const submitRevision = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!selectedSkillId || !revisionBody.trim()) return
@@ -173,7 +179,7 @@ export function Agents() {
     }
   }
 
-  /** Compare a previous version with the current version using the real API. */
+  /** 通过 API 比较历史版本与当前版本。 */
   const compareRevision = async (version: number) => {
     if (!selectedSkillId) return
     try {
@@ -194,7 +200,7 @@ export function Agents() {
     }
   }
 
-  /** Restore an earlier version by creating a new version containing its contents. */
+  /** 复制历史版本内容并创建新的当前版本。 */
   const restoreRevision = async (version: number) => {
     if (
       !selectedSkillId ||
@@ -211,7 +217,7 @@ export function Agents() {
     }
   }
 
-  /** Register an external A2A peer without exposing a saved secret in the response. */
+  /** 登记外部 A2A 目标，且不回显已保存的凭据。 */
   const submitPeer = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     try {
@@ -389,6 +395,7 @@ export function Agents() {
                 {agents.map((agent) => (
                   <div
                     key={agent.id}
+                    data-testid={`managed-agent-${agent.id}`}
                     className='flex flex-wrap items-center justify-between gap-3 rounded-md border p-3'
                   >
                     <div className='min-w-0'>
@@ -517,7 +524,10 @@ export function Agents() {
                 <select
                   className='h-10 rounded-md border bg-background px-3'
                   value={selectedSkillId}
-                  onChange={(event) => setSelectedSkillId(event.target.value)}
+                  onChange={(event) => {
+                    setRevisions([])
+                    setSelectedSkillId(event.target.value)
+                  }}
                 >
                   {skills.map((skill) => (
                     <option key={skill.id} value={skill.id}>
@@ -547,6 +557,7 @@ export function Agents() {
                 {revisions.map((revision) => (
                   <div
                     key={revision.id}
+                    data-testid={`skill-revision-${revision.version}`}
                     className='flex items-center justify-between gap-2 rounded border p-2 text-sm'
                   >
                     <span>

@@ -16,6 +16,7 @@ from backend.core.shared.interfaces.agent_types import (
     AgentCatalogEntry,
     AgentDefinition,
 )
+from backend.core.shared.interfaces.organization_repository import OrganizationRepository
 from backend.core.shared.interfaces.secret_resolver import SecretResolver
 
 
@@ -66,6 +67,7 @@ class AgentCatalogUseCase:
         repository: AgentRepository,
         executor: AgentExecutor,
         secret_resolver: SecretResolver | None = None,
+        organization_repository: OrganizationRepository | None = None,
     ) -> None:
         """初始化 Agent 目录用例。
 
@@ -73,10 +75,19 @@ class AgentCatalogUseCase:
             repository (AgentRepository): 组织范围持久化端口。
             executor (AgentExecutor): 已装配的 Agent 执行端口。
             secret_resolver (SecretResolver | None): 部署方服务端密钥解析端口。
+            organization_repository (OrganizationRepository | None): 组织启停状态读取端口。
         """
         self._repository = repository
         self._executor = executor
         self._secret_resolver = secret_resolver
+        self._organization_repository = organization_repository
+
+    def is_organization_active(self, organization_id: str) -> bool:
+        """返回组织是否仍允许服务凭据发起新的在线调用。"""
+        if self._organization_repository is None:
+            return True
+        organization = self._organization_repository.get_by_id(organization_id)
+        return organization is not None and organization.is_active
 
     def create_agent(self, command: CreateAgentCommand) -> AgentDefinition:
         """创建组织内未发布 Agent。

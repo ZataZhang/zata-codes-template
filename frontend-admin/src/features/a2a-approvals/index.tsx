@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
@@ -12,30 +12,31 @@ import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 
-/** Render the platform's pending A2A destination review queue. */
+/** 渲染平台待审核的 A2A 目标队列。 */
 export function A2AApprovals() {
   const { t } = useTranslation()
   const [peers, setPeers] = useState<A2APeerApproval[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  /** Reload the queue from the authenticated platform API. */
-  const refresh = useCallback(async () => {
-    try {
-      setPeers(await listPendingA2APeers())
-      setError('')
-    } catch {
-      setError(String(t('a2aApprovals.loadFailed')))
-    } finally {
-      setLoading(false)
+  useEffect(() => {
+    let cancelled = false
+    listPendingA2APeers()
+      .then((pendingPeers) => {
+        if (!cancelled) setPeers(pendingPeers)
+      })
+      .catch(() => {
+        if (!cancelled) setError(String(t('a2aApprovals.loadFailed')))
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
     }
   }, [t])
 
-  useEffect(() => {
-    void refresh()
-  }, [refresh])
-
-  /** Approve a peer after an operator verifies its organization and endpoint. */
+  /** 管理员确认组织与端点后批准外部 A2A 目标。 */
   const approve = async (peer: A2APeerApproval) => {
     try {
       await approveA2APeer(peer.id)

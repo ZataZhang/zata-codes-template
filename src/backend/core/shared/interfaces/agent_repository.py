@@ -11,6 +11,8 @@ from backend.core.shared.interfaces.agent_types import (
     AgentDefinition,
     SkillDefinition,
     SkillRevision,
+    SkillRevisionDraft,
+    SkillWriteIdempotency,
 )
 
 
@@ -36,9 +38,13 @@ class AgentRepository(Protocol):
         ...
 
     def create_skill(
-        self, skill: SkillDefinition, initial_body: str
+        self,
+        skill: SkillDefinition,
+        initial_body: str,
+        *,
+        idempotency: SkillWriteIdempotency | None,
     ) -> tuple[SkillDefinition, SkillRevision]:
-        """事务创建 Skill 及其版本一。"""
+        """事务创建 Skill 及其版本一，并处理调用方重试。"""
         ...
 
     def get_skill(self, organization_id: str, skill_id: str) -> SkillDefinition | None:
@@ -49,10 +55,8 @@ class AgentRepository(Protocol):
         """列出当前组织 Skill。"""
         ...
 
-    def append_skill_revision(
-        self, organization_id: str, skill_id: str, created_by: str, body: str
-    ) -> SkillRevision:
-        """锁定 Skill 并追加下一个不可变版本。"""
+    def append_skill_revision(self, draft: SkillRevisionDraft) -> SkillRevision:
+        """锁定 Skill 并追加下一个不可变版本，重复键返回首次结果。"""
         ...
 
     def list_skill_revisions(self, organization_id: str, skill_id: str) -> Sequence[SkillRevision]:

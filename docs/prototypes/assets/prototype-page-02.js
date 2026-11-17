@@ -9,7 +9,7 @@ const initialState = {
   activeViewKey: 'evaluation-datasets',
   densityKey: 'comfortable',
   selectedDatasetId: 'ds_helpdesk_v3',
-  selectedAgentId: 'agent_freight_assistant',
+  selectedAgentId: 'agent_knowledge_guide',
   isFrozen: false,
   datasetItemsCount: 120,
   runStarted: false,
@@ -28,16 +28,16 @@ const datasetRowList = [
     updatedAt: '2026-03-04 10:21',
   },
   {
-    id: 'ds_customs_v2',
-    name: 'Customs Classification',
+    id: 'ds_refund_v2',
+    name: 'Refund Policy',
     versionText: 'v2',
     itemCount: 84,
     isFrozen: true,
     updatedAt: '2026-03-03 18:12',
   },
   {
-    id: 'ds_bol_v4',
-    name: 'B/L Clause Reasoning',
+    id: 'ds_onboarding_v4',
+    name: 'Onboarding Guide',
     versionText: 'v4',
     itemCount: 210,
     isFrozen: true,
@@ -46,9 +46,9 @@ const datasetRowList = [
 ];
 
 const agentOptionList = [
-  { id: 'agent_freight_assistant', name: 'Freight Assistant (chat)' },
+  { id: 'agent_knowledge_guide', name: 'Knowledge Guide (chat)' },
   { id: 'agent_support_alpha', name: 'Customer Support Alpha (chat)' },
-  { id: 'agent_trade_ops', name: 'Trade Ops Copilot (chat)' },
+  { id: 'agent_research_ops', name: 'Research Copilot (chat)' },
 ];
 
 function resolveDatasetIsFrozenById(datasetId) {

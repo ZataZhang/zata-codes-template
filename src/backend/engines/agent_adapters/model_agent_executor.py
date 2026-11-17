@@ -13,6 +13,7 @@ from backend.core.shared.interfaces.agent_executor import (
     AgentExecutionResult,
     AgentExecutor,
     AgentExternalCall,
+    DeltaCallback,
 )
 from backend.core.shared.interfaces.agent_types import A2APeer
 from backend.infrastructure.config.settings import (
@@ -62,6 +63,7 @@ class OpenAICompatibleAgentExecutor(AgentExecutor):
         snapshot: dict[str, object],
         message: str,
         peers: Sequence[A2APeer],
+        on_delta: DeltaCallback | None = None,
     ) -> AgentExecutionResult:
         """调用默认 OpenAI-compatible 端点并执行模型选择的已批准对端。
 
@@ -69,6 +71,8 @@ class OpenAICompatibleAgentExecutor(AgentExecutor):
             snapshot (dict[str, object]): Run 创建时冻结的 Agent 配置。
             message (str): 当前用户消息。
             peers (Sequence[A2APeer]): 当前组织已批准的 A2A 对端。
+            on_delta (DeltaCallback | None): 流式文本片段回调；传入时向端点要求
+                ``stream`` 并把每个片段交给调用方持久化。
 
         Returns:
             AgentExecutionResult: 最终回复和低敏调用摘要。
@@ -96,11 +100,12 @@ class OpenAICompatibleAgentExecutor(AgentExecutor):
             )
         message_history.append({"role": "user", "content": message})
         tool_definitions = self._build_tool_definitions(peers)
-        completion_response = await self._create_completion(
+        completion_response, content_streamed = await self._create_completion(
             settings=settings,
             model_name=model_name,
             messages=message_history,
             tools=tool_definitions,
+            on_delta=on_delta,
         )
         assistant_message = self._read_assistant_message(completion_response)
         external_calls: list[AgentExternalCall] = []
@@ -134,9 +139,7 @@ class OpenAICompatibleAgentExecutor(AgentExecutor):
                     organization_id=organization_id,
                     peer_id=peer.id,
                     message=peer_message,
-                    idempotency_key=(
-                        f"{snapshot.get('run_id', 'run')}:a2a:{tool_call_index}"
-                    ),
+                    idempotency_key=(f"{snapshot.get('run_id', 'run')}:a2a:{tool_call_index}"),
                 )
                 external_calls.append(
                     AgentExternalCall(
@@ -157,11 +160,12 @@ class OpenAICompatibleAgentExecutor(AgentExecutor):
                         "content": peer_response.content,
                     }
                 )
-            completion_response = await self._create_completion(
+            completion_response, content_streamed = await self._create_completion(
                 settings=settings,
                 model_name=model_name,
                 messages=message_history,
                 tools=None,
+                on_delta=on_delta,
             )
             assistant_message = self._read_assistant_message(completion_response)
         final_content = assistant_message.get("content")
@@ -171,6 +175,7 @@ class OpenAICompatibleAgentExecutor(AgentExecutor):
             content=final_content,
             model_name=model_name,
             external_calls=tuple(external_calls),
+            content_streamed=content_streamed,
         )
 
     @staticmethod
@@ -220,8 +225,24 @@ class OpenAICompatibleAgentExecutor(AgentExecutor):
         model_name: str,
         messages: list[dict[str, object]],
         tools: list[dict[str, object]] | None,
-    ) -> dict[str, object]:
-        """发送 OpenAI-compatible Chat Completions 请求并校验响应对象。"""
+        on_delta: DeltaCallback | None = None,
+    ) -> tuple[dict[str, object], bool]:
+        """发送 OpenAI-compatible Chat Completions 请求并校验响应对象。
+
+        Args:
+            settings (PrimaryModelSettings): 主模型端点与凭据。
+            model_name (str): 本次调用使用的模型名。
+            messages (list[dict[str, object]]): 已构造的对话消息。
+            tools (list[dict[str, object]] | None): 允许模型调用的受控工具。
+            on_delta (DeltaCallback | None): 流式文本片段回调。
+
+        Returns:
+            tuple[dict[str, object], bool]: 归一化后的响应对象，以及是否已经
+            通过回调交付过文本片段。
+
+        Raises:
+            RuntimeError: 网络失败、响应不是合法 JSON 或流式分片不可解析。
+        """
         request_document: dict[str, object] = {
             "model": model_name,
             "messages": messages,
@@ -230,18 +251,24 @@ class OpenAICompatibleAgentExecutor(AgentExecutor):
         if tools:
             request_document["tools"] = tools
             request_document["tool_choice"] = "auto"
+        if on_delta is not None:
+            request_document["stream"] = True
         async with httpx.AsyncClient(
             timeout=httpx.Timeout(90.0),
             follow_redirects=False,
             trust_env=False,
         ) as http_client:
+            if on_delta is not None:
+                return await self._stream_completion(
+                    http_client=http_client,
+                    settings=settings,
+                    request_document=request_document,
+                    on_delta=on_delta,
+                )
             try:
                 response = await http_client.post(
                     f"{settings.base_url.rstrip('/')}/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {settings.api_key.get_secret_value()}",
-                        "Content-Type": "application/json",
-                    },
+                    headers=self._request_headers(settings),
                     json=request_document,
                 )
                 response.raise_for_status()
@@ -250,7 +277,157 @@ class OpenAICompatibleAgentExecutor(AgentExecutor):
                 raise RuntimeError("model_request_failed") from model_error
         if not isinstance(response_document, dict):
             raise RuntimeError("model_response_invalid")
-        return response_document
+        return response_document, False
+
+    @staticmethod
+    def _request_headers(settings: PrimaryModelSettings) -> dict[str, str]:
+        """构造只用于服务端模型调用、不进入日志或浏览器的请求头。"""
+        return {
+            "Authorization": f"Bearer {settings.api_key.get_secret_value()}",
+            "Content-Type": "application/json",
+        }
+
+    async def _stream_completion(
+        self,
+        *,
+        http_client: httpx.AsyncClient,
+        settings: PrimaryModelSettings,
+        request_document: dict[str, object],
+        on_delta: DeltaCallback,
+    ) -> tuple[dict[str, object], bool]:
+        """逐片读取模型 SSE 响应，边交付文本片段边组装最终 assistant message。
+
+        Args:
+            http_client (httpx.AsyncClient): 已构造的受限 HTTP 客户端。
+            settings (PrimaryModelSettings): 主模型端点与凭据。
+            request_document (dict[str, object]): 已声明的流式请求体。
+            on_delta (DeltaCallback): 文本片段回调。
+
+        Returns:
+            tuple[dict[str, object], bool]: 与非流式响应同构的归一化对象，以及
+            是否已经交付过文本片段。
+
+        Raises:
+            RuntimeError: 连接失败、分片不可解析或端点没有返回可识别内容。
+        """
+        content_fragments: list[str] = []
+        tool_call_fragments: dict[int, dict[str, object]] = {}
+        finish_reason = "stop"
+        streamed_any_content = False
+        try:
+            async with http_client.stream(
+                "POST",
+                f"{settings.base_url.rstrip('/')}/chat/completions",
+                headers=self._request_headers(settings),
+                json=request_document,
+            ) as response:
+                response.raise_for_status()
+                content_type = response.headers.get("content-type", "")
+                if "text/event-stream" not in content_type:
+                    buffered_document = json.loads(await response.aread())
+                    if not isinstance(buffered_document, dict):
+                        raise RuntimeError("model_response_invalid")
+                    return buffered_document, False
+                async for raw_line in response.aiter_lines():
+                    line = raw_line.strip()
+                    if not line or not line.startswith("data:"):
+                        continue
+                    payload_text = line.removeprefix("data:").strip()
+                    if payload_text == "[DONE]":
+                        break
+                    finish_reason = await self._consume_stream_chunk(
+                        payload_text=payload_text,
+                        content_fragments=content_fragments,
+                        tool_call_fragments=tool_call_fragments,
+                        fallback_finish_reason=finish_reason,
+                        on_delta=on_delta,
+                    )
+                    streamed_any_content = streamed_any_content or bool(content_fragments)
+        except (httpx.HTTPError, ValueError) as model_error:
+            raise RuntimeError("model_request_failed") from model_error
+        assistant_message: dict[str, object] = {
+            "role": "assistant",
+            "content": "".join(content_fragments) if content_fragments else None,
+        }
+        if tool_call_fragments:
+            assistant_message["tool_calls"] = [
+                tool_call_fragments[fragment_index]
+                for fragment_index in sorted(tool_call_fragments)
+            ]
+        return (
+            {"choices": [{"message": assistant_message, "finish_reason": finish_reason}]},
+            streamed_any_content,
+        )
+
+    async def _consume_stream_chunk(
+        self,
+        *,
+        payload_text: str,
+        content_fragments: list[str],
+        tool_call_fragments: dict[int, dict[str, object]],
+        fallback_finish_reason: str,
+        on_delta: DeltaCallback,
+    ) -> str:
+        """解析单个 SSE 分片，交付文本片段并累积工具调用参数。
+
+        Args:
+            payload_text (str): ``data:`` 之后的 JSON 文本。
+            content_fragments (list[str]): 已收到的文本片段。
+            tool_call_fragments (dict[int, dict[str, object]]): 累积中的工具调用。
+            fallback_finish_reason (str): 尚未收到 ``finish_reason`` 时的取值。
+            on_delta (DeltaCallback): 文本片段回调。
+
+        Returns:
+            str: 本分片声明或延续的 ``finish_reason``。
+
+        Raises:
+            RuntimeError: 分片不是合法 JSON 对象。
+        """
+        try:
+            chunk_document = json.loads(payload_text)
+        except json.JSONDecodeError as decode_error:
+            raise RuntimeError("model_response_invalid") from decode_error
+        if not isinstance(chunk_document, dict):
+            raise RuntimeError("model_response_invalid")
+        choices = chunk_document.get("choices")
+        if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+            # 只带用量统计的分片不改变文本内容。
+            return fallback_finish_reason
+        choice_document = choices[0]
+        delta_document = choice_document.get("delta")
+        finish_reason = str(choice_document.get("finish_reason") or fallback_finish_reason)
+        if not isinstance(delta_document, dict):
+            return finish_reason
+        delta_content = delta_document.get("content")
+        if isinstance(delta_content, str) and delta_content:
+            content_fragments.append(delta_content)
+            await on_delta(delta_content)
+        for fragment in delta_document.get("tool_calls") or []:
+            if not isinstance(fragment, dict):
+                continue
+            fragment_index = int(fragment.get("index") or 0)
+            accumulated = tool_call_fragments.setdefault(
+                fragment_index,
+                {"id": "", "type": "function", "function": {"name": "", "arguments": ""}},
+            )
+            if fragment.get("id"):
+                accumulated["id"] = str(fragment["id"])
+            function_fragment = fragment.get("function")
+            if not isinstance(function_fragment, dict):
+                continue
+            accumulated_function = accumulated.get("function")
+            if not isinstance(accumulated_function, dict):
+                accumulated_function = {"name": "", "arguments": ""}
+                accumulated["function"] = accumulated_function
+            if function_fragment.get("name"):
+                accumulated_function["name"] = str(accumulated_function["name"]) + str(
+                    function_fragment["name"]
+                )
+            if function_fragment.get("arguments"):
+                accumulated_function["arguments"] = str(accumulated_function["arguments"]) + str(
+                    function_fragment["arguments"]
+                )
+        return finish_reason
 
     @staticmethod
     def _read_assistant_message(response_document: dict[str, object]) -> dict[str, object]:

@@ -35,12 +35,13 @@ jobs:
             dockerfile: src/backend/Dockerfile
           - service: admin
             image_name: zata-codes-template-admin
-            context: ./frontend-admin
+            context: .
             dockerfile: ./frontend-admin/Dockerfile
           - service: public
             image_name: zata-codes-template-public
-            context: ./frontend-public
+            context: .
             dockerfile: ./frontend-public/Dockerfile
+            build-args: API_BASE_URL=http://zata-codes-template-backend:8000
 
     steps:
       - name: Checkout repository

@@ -20,7 +20,6 @@ from backend.core.agent import (
 )
 from backend.core.shared.interfaces.agent_types import A2ACredential
 from backend.core.shared.models.run import Run, RunEvent, RunStatus
-from backend.infrastructure.config.settings import config
 
 _TERMINAL_STATES = {
     RunStatus.SUCCEEDED,
@@ -36,9 +35,9 @@ def _require_version(a2a_version: str | None) -> None:
         raise HTTPException(status_code=400, detail="unsupported_a2a_version")
 
 
-def _public_a2a_base_url() -> str:
-    """读取部署方声明的 A2A origin，不采信未验证的 HTTP Host。"""
-    public_base_url = config.a2a.public_base_url.strip().rstrip("/")
+def _public_a2a_base_url(configured_base_url: str, *, allow_http_origin: bool) -> str:
+    """校验部署方声明的 A2A origin，不采信未验证的 HTTP Host。"""
+    public_base_url = configured_base_url.strip().rstrip("/")
     parsed_url = urlsplit(public_base_url)
     if (
         parsed_url.scheme not in {"https", "http"}
@@ -48,7 +47,7 @@ def _public_a2a_base_url() -> str:
         or parsed_url.path
         or parsed_url.query
         or parsed_url.fragment
-        or (parsed_url.scheme == "http" and not config.a2a.allow_loopback_for_dev)
+        or (parsed_url.scheme == "http" and not allow_http_origin)
     ):
         raise HTTPException(status_code=503, detail="a2a_public_base_url_unavailable")
     return public_base_url
@@ -73,7 +72,12 @@ def _resolve_credential(
         agent = catalog.get_agent(credential.organization_id, agent_id)
     except AgentNotFoundError:
         raise HTTPException(status_code=404, detail="agent_not_found") from None
-    if not credential.is_active or not agent.is_enabled or not agent.is_published:
+    if (
+        not credential.is_active
+        or not agent.is_enabled
+        or not agent.is_published
+        or not catalog.is_organization_active(credential.organization_id)
+    ):
         raise HTTPException(status_code=404, detail="agent_not_found")
     return credential
 

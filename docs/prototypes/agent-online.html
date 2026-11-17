@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>多组织 Agent 底座 · 交互原型</title>
+    <style>
+      :root {
+        --bg: #f7f8fa;
+        --surface: #fff;
+        --line: #e5e7eb;
+        --ink: #171923;
+        --muted: #6b7280;
+        --primary: #5b4ce2;
+        --primary-soft: #efedff;
+        --green: #18794e;
+        --green-soft: #e8f7ef;
+        --amber: #a45c06;
+        --amber-soft: #fff5dd;
+        --red: #b42318;
+        --red-soft: #fff0ee;
+        --radius: 12px;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      * { box-sizing: border-box; }
+      [hidden] { display: none !important; }
+      body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink); font-size: 14px; }
+      button, input, textarea, select { font: inherit; }
+      button { cursor: pointer; }
+      .product { min-height: 100vh; display: grid; grid-template-columns: 244px minmax(0, 1fr); }
+      .sidebar { padding: 20px 14px; background: #fff; border-right: 1px solid var(--line); }
+      .brand { display: flex; align-items: center; gap: 10px; padding: 4px 9px 20px; font-weight: 750; letter-spacing: -.02em; }
+      .brand-mark { width: 30px; height: 30px; display: grid; place-items: center; color: #fff; background: var(--primary); border-radius: 9px; font-weight: 800; }
+      .org-switch { display: flex; justify-content: space-between; align-items: center; padding: 11px; margin-bottom: 20px; border: 1px solid var(--line); border-radius: 10px; color: var(--muted); font-size: 12px; }
+      .nav-label { margin: 18px 10px 7px; color: #9ca3af; font-size: 10px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; }
+      .nav { width: 100%; display: flex; align-items: center; gap: 11px; padding: 10px 11px; border: 0; border-radius: 9px; color: #596070; background: transparent; text-align: left; font-size: 13px; }
+      .nav:hover { background: #f7f7fa; color: var(--ink); }
+      .nav.active { background: var(--primary-soft); color: var(--primary); font-weight: 650; }
+      .nav-icon { width: 18px; text-align: center; font-size: 15px; }
+      .workspace { min-width: 0; }
+      .topbar { height: 64px; display: flex; align-items: center; justify-content: space-between; padding: 0 30px; background: var(--surface); border-bottom: 1px solid var(--line); }
+      .crumb { color: var(--muted); font-size: 12px; }
+      .user-chip { display: flex; align-items: center; gap: 9px; color: #555b68; font-size: 12px; }
+      .avatar { width: 29px; height: 29px; display: grid; place-items: center; border-radius: 50%; background: #ecebff; color: var(--primary); font-weight: 700; }
+      .page { width: min(1200px, 100%); margin: 0 auto; padding: 28px 30px 54px; }
+      .page-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 22px; }
+      h1 { margin: 0; font-size: 24px; letter-spacing: -.035em; }
+      .subhead { margin: 6px 0 0; color: var(--muted); line-height: 1.5; }
+      .button { min-height: 36px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 13px; border: 1px solid var(--line); border-radius: 8px; color: #343846; background: #fff; font-size: 12px; font-weight: 650; }
+      .button:hover { background: #fafafa; border-color: #cfd2db; }
+      .button.primary { border-color: var(--primary); color: #fff; background: var(--primary); }
+      .button.primary:hover { background: #4f40d1; }
+      .button.ghost { background: transparent; }
+      .button.danger { color: var(--red); }
+      .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+      .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; padding: 13px 15px; border-bottom: 1px solid var(--line); }
+      .search { width: min(320px, 100%); min-height: 35px; padding: 0 11px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); }
+      .toolbar-note { margin-left: auto; color: var(--muted); font-size: 11px; }
+      .agent-list { display: grid; gap: 0; }
+      .agent-row { display: grid; grid-template-columns: minmax(220px, 1.6fr) minmax(120px, .7fr) minmax(120px, .7fr) auto; align-items: center; gap: 16px; padding: 16px; border-bottom: 1px solid #f0f1f4; }
+      .agent-row:last-child { border-bottom: 0; }
+      .agent-main { min-width: 0; display: flex; align-items: center; gap: 12px; }
+      .agent-glyph { width: 38px; height: 38px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 11px; color: #624fe3; background: #f1efff; font-weight: 800; }
+      .agent-title { font-weight: 680; }
+      .agent-desc { margin-top: 4px; color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .meta-label { display: block; margin-bottom: 4px; color: #9297a3; font-size: 10px; }
+      .meta-value { color: #4a4f5b; font-size: 12px; }
+      .status { display: inline-flex; align-items: center; gap: 6px; width: fit-content; padding: 5px 9px; border-radius: 999px; font-size: 10px; font-weight: 680; white-space: nowrap; }
+      .status.ready { color: var(--green); background: var(--green-soft); }
+      .status.draft { color: #555b68; background: #f0f1f4; }
+      .status.unavailable { color: var(--amber); background: var(--amber-soft); }
+      .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+      .row-actions { display: flex; justify-content: flex-end; gap: 7px; }
+      .row-actions .button { min-height: 31px; padding: 0 9px; font-size: 11px; }
+      .section-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 18px 0 10px; }
+      .section-head h2 { margin: 0; font-size: 15px; }
+      .section-head span { color: var(--muted); font-size: 11px; }
+      .callout { margin-top: 14px; padding: 12px 14px; border: 1px solid #f2ddb2; border-radius: 10px; background: #fffaf0; color: #795516; font-size: 11px; line-height: 1.55; }
+      .skill-layout { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 16px; }
+      .skill-nav { padding: 10px; }
+      .skill-choice { width: 100%; display: block; padding: 12px; border: 0; border-radius: 9px; text-align: left; background: transparent; }
+      .skill-choice.selected { background: var(--primary-soft); color: var(--primary); }
+      .skill-choice span { display: block; margin-top: 4px; color: var(--muted); font-size: 10px; }
+      .skill-content { padding: 18px; }
+      .version-list { display: grid; gap: 0; margin: 14px 0; border-top: 1px solid var(--line); }
+      .version-row { display: grid; grid-template-columns: 76px 1fr 112px auto; align-items: center; gap: 12px; padding: 12px 4px; border-bottom: 1px solid #f0f1f4; font-size: 12px; }
+      .version-id { color: #4f46c7; font-weight: 700; }
+      .version-copy { color: var(--muted); font-size: 11px; }
+      .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding-top: 14px; border-top: 1px solid var(--line); }
+      .compare-pane { min-height: 120px; padding: 13px; border: 1px solid var(--line); border-radius: 9px; background: #fbfbfd; }
+      .compare-pane h3 { margin: 0 0 10px; font-size: 11px; }
+      .compare-pane p { margin: 0; color: #4d5360; font-size: 11px; line-height: 1.7; }
+      del { color: #a94438; background: #fff0ee; text-decoration-thickness: 1.5px; }
+      ins { color: #18794e; background: #eaf8f0; text-decoration: none; }
+      .member-grid { display: grid; grid-template-columns: 250px minmax(0, 1fr); min-height: 590px; overflow: hidden; }
+      .history { padding: 14px; border-right: 1px solid var(--line); background: #fcfcfd; }
+      .history h2 { margin: 2px 0 12px; font-size: 12px; }
+      .history-item { width: 100%; display: block; margin: 4px 0; padding: 10px; border: 1px solid transparent; border-radius: 9px; text-align: left; background: transparent; }
+      .history-item:hover, .history-item.active { border-color: #e7e4ff; background: #f2f0ff; }
+      .history-item strong { display: block; font-size: 11px; }
+      .history-item small { display: block; margin-top: 4px; color: var(--muted); font-size: 10px; }
+      .chat { min-width: 0; display: grid; grid-template-rows: auto 1fr auto; }
+      .chat-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 15px 18px; border-bottom: 1px solid var(--line); }
+      .chat-head strong { font-size: 13px; }
+      .chat-head small { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
+      .chat-body { display: flex; flex-direction: column; gap: 13px; padding: 19px; overflow: auto; }
+      .message { max-width: min(620px, 90%); padding: 12px 14px; border-radius: 12px; font-size: 12px; line-height: 1.6; }
+      .message.user { align-self: flex-end; background: var(--primary); color: #fff; border-bottom-right-radius: 4px; }
+      .message.agent { align-self: flex-start; border: 1px solid var(--line); background: #fff; border-bottom-left-radius: 4px; }
+      .run-progress { display: grid; gap: 6px; padding: 11px 13px; border: 1px solid #e6e2ff; border-radius: 10px; color: #5950b8; background: #faf9ff; font-size: 10px; }
+      .run-progress span { display: flex; align-items: center; gap: 7px; }
+      .composer { display: flex; align-items: flex-end; gap: 9px; padding: 13px; border-top: 1px solid var(--line); }
+      .composer textarea { flex: 1; min-height: 48px; max-height: 100px; resize: vertical; padding: 11px; border: 1px solid var(--line); border-radius: 9px; }
+      .muted { color: var(--muted); }
+      .mini { font-size: 10px; }
+      .modal-backdrop { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 16px; background: rgb(17 24 39 / 38%); }
+      .modal { width: min(440px, 100%); padding: 21px; border-radius: 14px; background: #fff; box-shadow: 0 20px 55px rgb(0 0 0 / 18%); }
+      .modal h2 { margin: 0; font-size: 17px; }
+      .modal p { margin: 8px 0 17px; color: var(--muted); font-size: 12px; line-height: 1.55; }
+      .field { display: grid; gap: 6px; margin: 12px 0; color: #4c5260; font-size: 11px; font-weight: 650; }
+      .field input, .field textarea, .field select { min-height: 37px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; }
+      .field textarea { min-height: 72px; resize: vertical; }
+      .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 19px; }
+      .toast { position: fixed; right: 20px; top: 78px; z-index: 30; padding: 10px 14px; border-radius: 9px; color: #fff; background: #262331; box-shadow: 0 7px 20px rgb(0 0 0 / 16%); font-size: 11px; }
+      .hotspots-on [data-hotspot] { outline: 2px solid #b897ff !important; outline-offset: 2px; box-shadow: 0 0 0 4px rgb(184 151 255 / 16%); }
+      .prototype-chrome { position: fixed; left: 50%; bottom: 16px; z-index: 40; display: flex; align-items: center; gap: 3px; width: 392px; max-width: calc(100vw - 20px); padding: 5px; border: 1px solid rgb(255 255 255 / 75%); border-radius: 15px; background: rgb(255 255 255 / 88%); box-shadow: 0 14px 38px rgb(45 23 68 / 18%); backdrop-filter: blur(18px); color: #40384d; font-size: 11px; transform: translateX(-50%); transition: width .3s ease, opacity .3s ease, transform .3s ease; }
+      .prototype-chrome__label { display: grid; place-items: center; min-width: 43px; height: 34px; border-radius: 10px; color: #fff; background: #6d42d8; font-weight: 750; }
+      .prototype-chrome a, .prototype-chrome button { min-height: 34px; padding: 0 9px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 9px; color: #51485e; background: transparent; text-decoration: none; cursor: pointer; font: inherit; white-space: nowrap; }
+      .prototype-chrome a:hover, .prototype-chrome button:hover { background: #fff; color: #5f46d8; }
+      .prototype-chrome a:focus-visible, .prototype-chrome button:focus-visible { outline: 2px solid #6d42d8; }
+      .prototype-chrome.is-idle { width: 56px; opacity: .42; transform: translate(-50%, 9px); }
+      .prototype-chrome.is-idle a, .prototype-chrome.is-idle button { opacity: 0; pointer-events: none; }
+      .prototype-chrome.is-idle:hover, .prototype-chrome.is-idle:focus-within { opacity: .78; }
+      .capture-product-only [data-prototype-chrome] { display: none !important; }
+      @media (max-width: 900px) { .product { grid-template-columns: 70px minmax(0,1fr); }.sidebar { padding: 16px 8px; }.brand { justify-content: center; padding: 4px 0 18px; }.brand-name,.org-switch,.nav-label,.nav-text { display: none; }.nav { justify-content: center; padding: 11px 4px; }.topbar { padding: 0 17px; }.page { padding: 21px 17px 50px; }.agent-row { grid-template-columns: minmax(0,1fr) auto; gap: 9px; }.agent-row > :nth-child(2),.agent-row > :nth-child(3) { display: none; }.row-actions { grid-column: 2; grid-row: 1; }.skill-layout { grid-template-columns: 1fr; }.skill-nav { display: flex; gap: 6px; overflow-x: auto; }.skill-choice { min-width: 160px; }.member-grid { grid-template-columns: 190px minmax(0,1fr); } }
+      @media (max-width: 580px) { .product { grid-template-columns: 54px minmax(0,1fr); }.brand-mark { width: 28px; height: 28px; }.topbar { height: 54px; }.page { padding: 18px 12px 52px; }.page-head { align-items: center; }.page-head h1 { font-size: 20px; }.subhead { max-width: 290px; font-size: 11px; }.toolbar-note { display: none; }.agent-row { padding: 13px 10px; }.agent-desc { max-width: 200px; }.row-actions { gap: 4px; }.row-actions .button { padding: 0 7px; }.member-grid { display: block; min-height: 0; }.history { display: flex; gap: 6px; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); }.history h2 { display: none; }.history-item { min-width: 145px; }.chat { min-height: 430px; }.chat-body { min-height: 240px; }.compare { grid-template-columns: 1fr; }.version-row { grid-template-columns: 52px 1fr auto; }.version-row .version-copy { display: none; }.user-chip span { display: none; }.prototype-chrome a,.prototype-chrome button { padding: 0 6px; } }
+      @media (prefers-reduced-motion: reduce) { *,*::before,*::after { transition-duration: .01ms !important; scroll-behavior: auto !important; } }
+    </style>
+  </head>
+  <body class="hotspots-on">
+    <div class="product">
+      <aside class="sidebar" aria-label="产品导航">
+        <div class="brand"><span class="brand-mark">A</span><span class="brand-name">Agent Workspace</span></div>
+        <div class="org-switch"><span>Northwind · 组织</span><span>⌄</span></div>
+        <div class="nav-label">工作台</div>
+        <button class="nav" data-view="member" data-hotspot aria-label="打开成员 Agent 工作台"><span class="nav-icon">◉</span><span class="nav-text">Agent 工作台</span></button>
+        <div class="nav-label">管理</div>
+        <button class="nav active" data-view="agents" data-hotspot aria-label="打开 Agent 管理"><span class="nav-icon">✦</span><span class="nav-text">Agents</span></button>
+        <button class="nav" data-view="skills" data-hotspot aria-label="打开 Skill 版本管理"><span class="nav-icon">▤</span><span class="nav-text">Skills</span></button>
+        <button class="nav" data-view="agents" data-hotspot aria-label="打开 A2A 授权对端"><span class="nav-icon">⇄</span><span class="nav-text">A2A 对端</span></button>
+        <button class="nav" data-view="agents" data-hotspot aria-label="打开运行轨迹"><span class="nav-icon">⌁</span><span class="nav-text">运行轨迹</span></button>
+        <div class="nav-label">平台</div>
+        <button class="nav" data-view="agents" data-hotspot aria-label="打开组织管理"><span class="nav-icon">▦</span><span class="nav-text">组织</span></button>
+      </aside>
+      <div class="workspace">
+        <header class="topbar"><span class="crumb" id="crumb">组织管理 / Agents</span><div class="user-chip"><span>组织管理员</span><span class="avatar">Z</span></div></header>
+        <main class="page">
+          <section id="agentsView" data-view-panel="agents">
+            <div class="page-head"><div><h1>Agents</h1><p class="subhead">管理本组织发布的 Agent，并查看成员可运行状态。</p></div><button id="openCreate" class="button primary" data-hotspot>＋ 创建 Agent</button></div>
+            <div class="card">
+              <div class="toolbar"><input id="agentSearch" class="search" type="search" placeholder="搜索 Agent…" aria-label="搜索 Agent" /><button class="button" data-hotspot>筛选状态⌄</button><span class="toolbar-note">3 个 Agent · 2 个可运行</span></div>
+              <div class="agent-list" id="agentList">
+                <article class="agent-row" data-agent="Knowledge Guide">
+                  <div class="agent-main"><div class="agent-glyph">K</div><div><div class="agent-title">Knowledge Guide</div><div class="agent-desc">回答组织知识库中的常见问题</div></div></div>
+                  <div><span class="meta-label">模型</span><span class="meta-value">qwen3-max</span></div>
+                  <div><span class="meta-label">Skill</span><span class="meta-value">Support · v2</span></div>
+                  <div class="row-actions"><span class="status ready"><i class="dot"></i>已发布 · 可运行</span><button class="button" data-hotspot>管理</button></div>
+                </article>
+                <article class="agent-row" data-agent="Research Assistant">
+                  <div class="agent-main"><div class="agent-glyph">R</div><div><div class="agent-title">Research Assistant</div><div class="agent-desc">汇总已授权资料并附来源说明</div></div></div>
+                  <div><span class="meta-label">模型</span><span class="meta-value">gpt-4.1-mini</span></div>
+                  <div><span class="meta-label">Skill</span><span class="meta-value">Research · v4</span></div>
+                  <div class="row-actions"><span class="status ready"><i class="dot"></i>已发布 · 可运行</span><button class="button" data-hotspot>管理</button></div>
+                </article>
+                <article class="agent-row" data-agent="Draft Agent">
+                  <div class="agent-main"><div class="agent-glyph">D</div><div><div class="agent-title">Draft Agent</div><div class="agent-desc">模型配置缺失，成员暂不可运行</div></div></div>
+                  <div><span class="meta-label">模型</span><span class="meta-value">未配置</span></div>
+                  <div><span class="meta-label">Skill</span><span class="meta-value">—</span></div>
+                  <div class="row-actions"><span class="status unavailable"><i class="dot"></i>草稿 · 缺少模型</span><button class="button" data-hotspot>配置</button></div>
+                </article>
+              </div>
+            </div>
+            <div class="callout"><strong>执行边界</strong> · Agent 仅调用部署方配置的模型和已批准的 A2A 对端。缺模型或停用时显示原因并拒绝创建 Run；不执行租户脚本或宿主命令。</div>
+          </section>
+
+          <section id="skillsView" data-view-panel="skills" hidden>
+            <div class="page-head"><div><h1>Skill versions</h1><p class="subhead">变更只追加新版本；恢复旧内容也会生成一个新版本。</p></div><button class="button primary" id="newVersion" data-hotspot>＋ 新版本</button></div>
+            <div class="skill-layout">
+              <div class="card skill-nav"><button class="skill-choice selected" data-hotspot><strong>Support playbook</strong><span>当前版本 v2 · 2 个 Agent 使用</span></button><button class="skill-choice" data-hotspot><strong>Research guide</strong><span>当前版本 v4</span></button></div>
+              <div class="card skill-content"><div class="section-head" style="margin-top:0"><div><h2>Support playbook</h2><span>组织共享 · 声明式参考内容</span></div><span class="status ready"><i class="dot"></i>当前 v2</span></div>
+                <div class="version-list" id="versionList">
+                  <div class="version-row"><span class="version-id">v2 · 当前</span><span>加入“升级到人工支持”的建议</span><span class="version-copy">创建于 11 月 13 日</span><button class="button" data-hotspot>查看</button></div>
+                  <div class="version-row"><span class="version-id">v1</span><span>基础客服问答流程</span><span class="version-copy">创建于 11 月 12 日</span><button class="button compareAction" data-hotspot>比较 / 恢复</button></div>
+                </div>
+                <div class="compare" id="comparison" hidden><div class="compare-pane"><h3>v1 · 原版本</h3><p>先确认用户的问题类型。<br /><del>必要时请用户重新提交问题。</del></p></div><div class="compare-pane"><h3>v2 · 当前版本</h3><p>先确认用户的问题类型。<br /><ins>解释解决步骤；无法处理时建议联系人工支持。</ins></p></div></div>
+                <div class="section-head"><h2>使用此 Skill 的 Agent</h2><span>知识助手 · Support Agent</span></div>
+              </div>
+            </div>
+          </section>
+
+          <section id="memberView" data-view-panel="member" hidden>
+            <div class="page-head"><div><h1>Agent 工作台</h1><p class="subhead">选择本组织可运行的 Agent，运行过程与历史都从同一条 Run 读取。</p></div><span class="status ready"><i class="dot"></i>Northwind</span></div>
+            <div class="card member-grid">
+              <aside class="history"><h2>最近对话</h2><button class="history-item active" data-history="run_8a71"><strong>Knowledge Guide</strong><small>今天 · run_8a71 · 已完成</small></button><button class="history-item" data-history="run_51c2"><strong>Research Assistant</strong><small>昨天 · run_51c2 · 已完成</small></button></aside>
+              <section class="chat"><header class="chat-head"><div><strong id="chatAgentName">Knowledge Guide</strong><small>可运行 · 组织管理员已发布</small></div><select id="agentSelect" aria-label="选择 Agent"><option>Knowledge Guide</option><option>Research Assistant</option><option disabled>Draft Agent · 缺少模型</option></select></header>
+                <div class="chat-body" id="chatBody" aria-live="polite"><div class="message user">新员工怎样申请访问知识库？</div><div class="run-progress"><span><i class="dot"></i> Run run_8a71 · 已完成</span><span>模型调用完成 · Support Skill v2 已冻结</span></div><div class="message agent">请在工作台提交访问申请，并选择对应团队空间。审批通过后，你会收到访问确认。<br /><br />如果不知道该选哪个空间，请联系团队管理员。</div></div>
+                <form class="composer" id="messageForm"><textarea id="messageInput" aria-label="发送消息" placeholder="向 Knowledge Guide 发送消息…"></textarea><button class="button primary" type="submit" data-hotspot>发送 ↑</button></form>
+              </section>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="createModal" hidden><form class="modal" id="createForm"><h2>创建 Agent</h2><p>Agent 创建后先保存为草稿。配置模型和 Skill 后可发布给本组织成员。</p><label class="field">名称<input id="newAgentName" required value="Operations Assistant" /></label><label class="field">模型<select id="newAgentModel"><option value="">选择模型配置</option><option value="primary">默认模型配置 · qwen3-max</option></select></label><label class="field">指令<textarea required>回答组织内部的流程问题。仅使用配置的模型与已批准的 Agent。</textarea></label><div class="modal-actions"><button class="button" type="button" data-close="createModal">取消</button><button class="button primary" type="submit" data-hotspot>保存草稿</button></div></form></div>
+    <div class="modal-backdrop" id="restoreModal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="restoreTitle"><h2 id="restoreTitle">恢复到 v1 的内容？</h2><p>这会以 v1 正文新增 v3，不会修改或删除 v1、v2。已完成的 Run 会保留创建时冻结的 Skill 版本。</p><div class="modal-actions"><button class="button" id="cancelRestore" data-hotspot>返回</button><button class="button primary" id="confirmRestore" data-hotspot>创建 v3</button></div></div></div>
+    <div class="toast" id="toast" role="status" hidden></div>
+    <nav class="prototype-chrome" data-prototype-chrome aria-label="原型评审工具"><span class="prototype-chrome__label">原型</span><a href="./prototype-hub.html">⌂ Hub</a><a href="./agent-online.md">≡ 说明</a><button id="hotspotToggle" type="button" aria-pressed="true">◎ 可点击区域：开</button><button id="resetButton" type="button">↺ 重置</button></nav>
+    <script>
+      const viewLabels = { agents: "组织管理 / Agents", skills: "组织管理 / Skill versions", member: "工作台 / Agent 会话" };
+      const views = [...document.querySelectorAll("[data-view-panel]")];
+      const navButtons = [...document.querySelectorAll(".nav[data-view]")];
+      const createModal = document.getElementById("createModal");
+      const restoreModal = document.getElementById("restoreModal");
+      const toast = document.getElementById("toast");
+      let toastTimer;
+
+      function notify(message) {
+        toast.textContent = message;
+        toast.hidden = false;
+        window.clearTimeout(toastTimer);
+        toastTimer = window.setTimeout(() => { toast.hidden = true; }, 2400);
+      }
+
+      function showView(viewName) {
+        views.forEach((view) => { view.hidden = view.dataset.viewPanel !== viewName; });
+        navButtons.forEach((button) => button.classList.toggle("active", button.dataset.view === viewName));
+        document.getElementById("crumb").textContent = viewLabels[viewName];
+      }
+
+      document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => showView(button.dataset.view)));
+      document.getElementById("openCreate").addEventListener("click", () => { createModal.hidden = false; document.getElementById("newAgentName").focus(); });
+      document.querySelectorAll("[data-close]").forEach((button) => button.addEventListener("click", () => { document.getElementById(button.dataset.close).hidden = true; }));
+      document.getElementById("createForm").addEventListener("submit", (event) => {
+        event.preventDefault();
+        const agentName = document.getElementById("newAgentName").value.trim();
+        const modelReady = document.getElementById("newAgentModel").value !== "";
+        const row = document.createElement("article");
+        row.className = "agent-row";
+        row.dataset.agent = agentName;
+        row.innerHTML = `<div class="agent-main"><div class="agent-glyph">${agentName.slice(0, 1).toUpperCase()}</div><div><div class="agent-title"></div><div class="agent-desc">新建草稿 · 指令已保存</div></div></div><div><span class="meta-label">模型</span><span class="meta-value">${modelReady ? "qwen3-max" : "未配置"}</span></div><div><span class="meta-label">Skill</span><span class="meta-value">—</span></div><div class="row-actions"><span class="status ${modelReady ? "ready" : "unavailable"}"><i class="dot"></i>${modelReady ? "草稿 · 可运行" : "草稿 · 缺少模型"}</span><button class="button publishAction" type="button" data-hotspot>${modelReady ? "发布" : "配置"}</button></div>`;
+        row.querySelector(".agent-title").textContent = agentName;
+        row.querySelector(".publishAction").addEventListener("click", (clickEvent) => {
+          const button = clickEvent.currentTarget;
+          if (!modelReady) { notify("缺少模型配置，运行入口保持禁用"); return; }
+          button.closest(".row-actions").querySelector(".status").outerHTML = '<span class="status ready"><i class="dot"></i>已发布 · 可运行</span>';
+          button.textContent = "管理";
+          button.disabled = true;
+          notify(`${agentName} 已发布给本组织成员`);
+        });
+        document.getElementById("agentList").prepend(row);
+        createModal.hidden = true;
+        notify(modelReady ? `${agentName} 已保存为草稿` : `${agentName} 已保存；需配置模型后发布`);
+      });
+
+      document.querySelectorAll(".compareAction").forEach((button) => button.addEventListener("click", () => {
+        document.getElementById("comparison").hidden = false;
+        document.getElementById("restoreModal").hidden = false;
+      }));
+      document.getElementById("cancelRestore").addEventListener("click", () => { restoreModal.hidden = true; });
+      document.getElementById("confirmRestore").addEventListener("click", () => {
+        const row = document.createElement("div");
+        row.className = "version-row";
+        row.innerHTML = '<span class="version-id">v3 · 当前</span><span>恢复了基础客服问答流程</span><span class="version-copy">刚刚创建</span><span class="status ready">已恢复</span>';
+        const oldCurrent = document.querySelector(".version-row .version-id");
+        oldCurrent.textContent = "v2";
+        document.getElementById("versionList").prepend(row);
+        restoreModal.hidden = true;
+        notify("已新增 v3，v1 与 v2 保持不变");
+      });
+
+      document.getElementById("agentSelect").addEventListener("change", (event) => {
+        document.getElementById("chatAgentName").textContent = event.target.value;
+        document.getElementById("messageInput").placeholder = `向 ${event.target.value} 发送消息…`;
+        if (event.target.selectedOptions[0].disabled) notify("该 Agent 缺少模型配置，当前不可运行");
+      });
+      document.querySelectorAll("[data-history]").forEach((button) => button.addEventListener("click", () => {
+        document.querySelectorAll("[data-history]").forEach((entry) => entry.classList.toggle("active", entry === button));
+        const runId = button.dataset.history;
+        document.getElementById("chatBody").innerHTML = `<div class="message user">${runId === "run_8a71" ? "新员工怎样申请访问知识库？" : "整理本季度的研究摘要。"}</div><div class="run-progress"><span><i class="dot"></i> Run ${runId} · 已完成</span><span>重新读取已持久化状态 · Skill 版本快照保留</span></div><div class="message agent">${runId === "run_8a71" ? "请在工作台提交访问申请，并选择对应团队空间。审批通过后，你会收到访问确认。" : "已整理本季度的重点主题，并按组织授权范围列出参考来源。"}</div>`;
+      }));
+      document.getElementById("messageForm").addEventListener("submit", (event) => {
+        event.preventDefault();
+        const input = document.getElementById("messageInput");
+        const message = input.value.trim();
+        if (!message) { input.focus(); return; }
+        if (document.getElementById("agentSelect").selectedOptions[0].disabled) { notify("模型缺失，API 会拒绝创建 Run"); return; }
+        const body = document.getElementById("chatBody");
+        const userMessage = document.createElement("div");
+        userMessage.className = "message user";
+        userMessage.textContent = message;
+        body.append(userMessage);
+        const progress = document.createElement("div");
+        progress.className = "run-progress";
+        progress.innerHTML = '<span><i class="dot"></i> Run run_new · 已排队</span><span>等待模型执行…</span>';
+        body.append(progress);
+        input.value = "";
+        body.scrollTop = body.scrollHeight;
+        window.setTimeout(() => { progress.innerHTML = '<span><i class="dot"></i> Run run_new · 运行中</span><span>模型响应已收到 · 正在写入事件</span>'; }, 500);
+        window.setTimeout(() => {
+          progress.innerHTML = '<span><i class="dot"></i> Run run_new · 已完成</span><span>最终结果已提交，可从历史重新打开</span>';
+          const reply = document.createElement("div");
+          reply.className = "message agent";
+          reply.textContent = "我已按组织内可用资料整理结果。需要更多细节时，可以继续在这个会话中提问。";
+          body.append(reply);
+          body.scrollTop = body.scrollHeight;
+          const historyItem = document.createElement("button");
+          historyItem.className = "history-item active";
+          historyItem.dataset.history = "run_new";
+          historyItem.innerHTML = `<strong>${document.getElementById("chatAgentName").textContent}</strong><small>刚刚 · run_new · 已完成</small>`;
+          historyItem.addEventListener("click", () => notify("已从持久化历史重新打开 run_new"));
+          document.querySelectorAll("[data-history]").forEach((entry) => entry.classList.remove("active"));
+          document.querySelector(".history").prepend(historyItem);
+          notify("Run 已完成并保存到历史");
+        }, 1400);
+      });
+
+      document.getElementById("agentSearch").addEventListener("input", (event) => {
+        const keyword = event.target.value.toLowerCase();
+        document.querySelectorAll(".agent-row").forEach((row) => { row.hidden = !row.dataset.agent.toLowerCase().includes(keyword); });
+      });
+
+      document.getElementById("hotspotToggle").addEventListener("click", (event) => {
+        const enabled = !document.body.classList.contains("hotspots-on");
+        document.body.classList.toggle("hotspots-on", enabled);
+        event.currentTarget.setAttribute("aria-pressed", String(enabled));
+        event.currentTarget.textContent = `◎ 可点击区域：${enabled ? "开" : "关"}`;
+      });
+      document.getElementById("resetButton").addEventListener("click", () => window.location.reload());
+      document.addEventListener("keydown", (event) => { if (event.key === "Escape") { createModal.hidden = true; restoreModal.hidden = true; } });
+
+      const chrome = document.querySelector("[data-prototype-chrome]");
+      let idleTimer;
+      const sleepLater = () => { window.clearTimeout(idleTimer); idleTimer = window.setTimeout(() => { if (!chrome.matches(":hover") && !chrome.matches(":focus-within")) chrome.classList.add("is-idle"); }, 2600); };
+      chrome.addEventListener("pointerenter", () => { window.clearTimeout(idleTimer); chrome.classList.remove("is-idle"); });
+      chrome.addEventListener("pointerleave", sleepLater);
+      chrome.addEventListener("focusin", () => chrome.classList.remove("is-idle"));
+      chrome.addEventListener("focusout", sleepLater);
+      if (new URLSearchParams(location.search).get("capture") === "product") document.body.classList.add("capture-product-only");
+      sleepLater();
+    </script>
+  </body>
+</html>

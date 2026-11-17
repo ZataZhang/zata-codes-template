@@ -117,6 +117,16 @@ def get_skill_use_case(request: Request) -> SkillUseCase:
     return request.app.state.skill_use_case
 
 
+def get_a2a_public_base_url(request: Request) -> str:
+    """读取部署方声明的 A2A 公共 origin；为空表示未开放对外 Agent Card。"""
+    return request.app.state.a2a_public_base_url
+
+
+def get_a2a_allow_http_origin(request: Request) -> bool:
+    """读取是否允许本地开发使用 HTTP A2A origin。"""
+    return request.app.state.a2a_allow_http_origin
+
+
 def get_api_rate_limiter(request: Request) -> ApiRateLimiter:
     """从应用状态获取共享 API 限流策略。"""
     return request.app.state.api_rate_limiter

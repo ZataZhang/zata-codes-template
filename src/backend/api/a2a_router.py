@@ -17,7 +17,12 @@ from backend.api.a2a_support import (
     _wait_for_run,
     get_current_a2a_credential,
 )
-from backend.api.dependencies import get_agent_catalog_use_case, get_agent_run_use_case
+from backend.api.dependencies import (
+    get_a2a_allow_http_origin,
+    get_a2a_public_base_url,
+    get_agent_catalog_use_case,
+    get_agent_run_use_case,
+)
 from backend.core.agent import AgentCatalogUseCase, AgentNotFoundError, AgentRunUseCase
 from backend.core.shared.interfaces.agent_types import A2ACredential
 from backend.core.shared.models.run import RunStatus
@@ -30,11 +35,16 @@ def get_agent_card(
     a2a_version: str | None = Header(default=None, alias="A2A-Version"),
     credential: A2ACredential = Depends(get_current_a2a_credential),
     catalog: AgentCatalogUseCase = Depends(get_agent_catalog_use_case),
+    configured_base_url: str = Depends(get_a2a_public_base_url),
+    allow_http_origin: bool = Depends(get_a2a_allow_http_origin),
 ) -> dict[str, Any]:
     """返回只对该 Agent 入站凭据可见的 A2A Agent Card。"""
     _require_version(a2a_version)
     agent = catalog.get_agent(credential.organization_id, credential.agent_id)
-    agent_url = _public_a2a_base_url() + f"/a2a/agents/{agent.id}"
+    agent_url = (
+        _public_a2a_base_url(configured_base_url, allow_http_origin=allow_http_origin)
+        + f"/a2a/agents/{agent.id}"
+    )
     return {
         "name": agent.name,
         "description": agent.description,
@@ -62,12 +72,13 @@ def get_agent_card(
         ],
         "securitySchemes": {
             "bearerAuth": {
-                "type": "http",
-                "scheme": "bearer",
-                "description": "A2A service credential",
+                "httpAuthSecurityScheme": {
+                    "scheme": "bearer",
+                    "description": "A2A service credential",
+                }
             }
         },
-        "securityRequirements": [{"bearerAuth": []}],
+        "securityRequirements": [{"schemes": {"bearerAuth": {"list": []}}}],
     }
 
 
@@ -92,9 +103,7 @@ async def send_message(
         isinstance(configuration, dict) and configuration.get("returnImmediately") is True
     )
     current_run = (
-        run
-        if return_immediately
-        else await _wait_for_run(run.id, credential, run_use_case) or run
+        run if return_immediately else await _wait_for_run(run.id, credential, run_use_case) or run
     )
     events = list(
         run_use_case.list_a2a_events(
@@ -151,13 +160,17 @@ def list_tasks(
             offset = max(0, int(page_token))
         except ValueError:
             raise HTTPException(status_code=400, detail="invalid_page_token") from None
-    task_status = {
-        "TASK_STATE_SUBMITTED": RunStatus.QUEUED,
-        "TASK_STATE_WORKING": RunStatus.RUNNING,
-        "TASK_STATE_COMPLETED": RunStatus.SUCCEEDED,
-        "TASK_STATE_FAILED": RunStatus.FAILED,
-        "TASK_STATE_CANCELED": RunStatus.CANCELLED,
-    }.get(status) if status else None
+    task_status = (
+        {
+            "TASK_STATE_SUBMITTED": RunStatus.QUEUED,
+            "TASK_STATE_WORKING": RunStatus.RUNNING,
+            "TASK_STATE_COMPLETED": RunStatus.SUCCEEDED,
+            "TASK_STATE_FAILED": RunStatus.FAILED,
+            "TASK_STATE_CANCELED": RunStatus.CANCELLED,
+        }.get(status)
+        if status
+        else None
+    )
     if status and task_status is None:
         raise HTTPException(status_code=400, detail="invalid_task_status")
     runs, total = run_use_case.list_a2a_runs(

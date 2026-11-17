@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from backend.core.agent import AgentCatalogUseCase, AgentRunUseCase, SkillUseCase
+from backend.core.shared.interfaces.organization_repository import OrganizationRepository
 from backend.core.shared.interfaces.run_repository import RunRepository
 from backend.engines.agent_adapters import OpenAICompatibleAgentExecutor
 from backend.infrastructure.a2a import HttpA2AClient
@@ -24,12 +25,17 @@ class AgentComponents:
     runs: AgentRunUseCase
 
 
-def build_agent_components(session_factory: Any, run_repository: RunRepository) -> AgentComponents:
+def build_agent_components(
+    session_factory: Any,
+    run_repository: RunRepository,
+    organization_repository: OrganizationRepository,
+) -> AgentComponents:
     """装配 Agent、Skill 和 canonical Run 用例。
 
     Args:
         session_factory: SQLAlchemy 会话工厂。
         run_repository (RunRepository): 已装配的 Canonical Run 仓库。
+        organization_repository (OrganizationRepository): 组织启停状态读取端口。
 
     Returns:
         AgentComponents: 供 API 注入的用例集合。
@@ -42,12 +48,14 @@ def build_agent_components(session_factory: Any, run_repository: RunRepository) 
             agent_repository,
             agent_executor,
             EnvironmentSecretResolver(),
+            organization_repository,
         ),
         skills=SkillUseCase(agent_repository),
         runs=AgentRunUseCase(
             agent_repository=agent_repository,
             run_repository=run_repository,
             executor=agent_executor,
+            organization_repository=organization_repository,
         ),
     )
 
