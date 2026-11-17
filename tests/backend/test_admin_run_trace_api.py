@@ -22,6 +22,7 @@ from sqlalchemy import text
 
 from backend.core.run_tracing import trace_use_cases
 from backend.core.shared.models.run import (
+    ORGANIZATION_AGENT_SUBJECT_TYPE,
     Run,
     RunEventCandidate,
     RunStatus,
@@ -308,6 +309,51 @@ def test_admin_trace_api_projects_seeded_run_without_leaking_content(
         ).scalar_one()
     # 两次被拒的请求都不得留下审计行，成功的导出仍然只有那一条。
     assert audit_count == 1
+
+
+def test_platform_trace_api_hides_organization_agent_run(
+    build_client: Callable[[], TestClient],
+    seed_admin: Callable[[str, str], str],
+    entity_registry: TrackedEntityRegistry,
+) -> None:
+    """平台级诊断列表、详情和导出不读取组织 Agent 业务 Run。"""
+    repository = SqlAlchemyRunRepository(SessionLocal)
+    run_id = f"run_{uuid4().hex}"
+    private_agent_name = "org-a-private-agent"
+    private_owner_id = "org-a-private-member"
+    created_run = repository.create_run(
+        Run(
+            id=run_id,
+            owner_id=private_owner_id,
+            subject_id="org-a-private-agent-id",
+            subject_type=ORGANIZATION_AGENT_SUBJECT_TYPE,
+            subject_snapshot=RunSubjectSnapshot(
+                subject_type=ORGANIZATION_AGENT_SUBJECT_TYPE,
+                subject_id="org-a-private-agent-id",
+                subject_name=private_agent_name,
+                snapshot_checksum="c" * 64,
+            ),
+            subject_snapshot_checksum="c" * 64,
+            status=RunStatus.QUEUED,
+            last_event_seq=0,
+            created_at=_BASE_TIME,
+            organization_id="default",
+        ),
+        idempotency_key_hash=uuid4().hex,
+        request_checksum="r" * 64,
+        input_text="org-a-private-member-message",
+    )
+    entity_registry.run_ids.append(created_run.id)
+    admin_client, _admin_id = _login_admin(build_client, seed_admin)
+
+    list_response = admin_client.get("/admin/run-traces", params={"run_id": run_id})
+    assert list_response.status_code == 200
+    assert list_response.json()["items"] == []
+    assert list_response.json()["total"] == 0
+    assert private_agent_name not in list_response.text
+    assert private_owner_id not in list_response.text
+    assert admin_client.get(f"/admin/run-traces/{run_id}").status_code == 404
+    assert admin_client.get(f"/admin/run-traces/{run_id}/export").status_code == 404
 
 
 def _assert_admin_trace_contract(

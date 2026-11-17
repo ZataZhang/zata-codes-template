@@ -284,6 +284,8 @@ class SqlAlchemyRunRepository:
             filter_conditions.append(RunModel.conversation_id == query.conversation_id)
         if query.subject_id:
             filter_conditions.append(RunModel.subject_id == query.subject_id)
+        if query.excluded_subject_type:
+            filter_conditions.append(RunModel.subject_type != query.excluded_subject_type)
         if query.status is not None:
             filter_conditions.append(RunModel.status == query.status.value)
         if query.created_after is not None:

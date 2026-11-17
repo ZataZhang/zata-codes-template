@@ -358,6 +358,7 @@ class RunQuery:
 
     run_id: str | None = None
     subject_id: str | None = None
+    excluded_subject_type: str | None = None
     status: RunStatus | None = None
     created_after: datetime | None = None
     created_before: datetime | None = None

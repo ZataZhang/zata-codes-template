@@ -7,7 +7,7 @@
 - 后端从 `session_id` 或 `admin_session_id` 解析主体与当前组织。请求体中的 `organization_id` 不参与授权。
 - Agent、Skill、A2A 凭据、A2A 对端在创建时写入组织 ID。Run 同时保存创建组织、owner、Agent 快照、Skill 版本快照与会话 ID。
 - 成员读取 Run 要同时匹配 owner 和 Run 的组织；组织管理员按创建组织读取。成员调组织后不能读取旧组织的数据，也不能向旧会话追加 Run。
-- 平台管理员能治理组织与管理员，但不会因平台角色自动获得 Agent、Skill 或 Run 正文访问权。
+- 平台管理员能治理组织与管理员，但不会因平台角色自动获得 Agent、Skill 或组织 Run 的读取权；组织 Run 的低敏轨迹只由当前组织管理员通过 `/admin/agent-runs` 读取。
 - `RunEvent` 通过 Run 外键继承组织范围。运行轨迹只输出低敏字段；原始消息和模型结果不会放进管理轨迹响应。
 
 ## Agent 与 Canonical Run

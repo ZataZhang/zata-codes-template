@@ -110,6 +110,8 @@ API 层的 admin 认证依赖上。原始导出会写入 `run_export_audit`（�
 管理端页面位于 `frontend-admin` 的「执行轨迹」（路由 `/run-tracing`），只调用上述 admin API，
 不读取进程内状态，刷新后从数据库重新投影。
 
+平台级 `/admin/run-traces` 列表、详情和导出会排除组织 Agent Run。组织 Agent 的运行元数据由当前组织管理员通过 `/admin/agent-runs` 及其事件接口读取，平台管理员需经单独授权与审计流程后才能访问组织业务数据。
+
 ## 可选 OTLP 导出
 
 ```bash

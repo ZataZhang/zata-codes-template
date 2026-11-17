@@ -233,7 +233,11 @@ class RunTraceUseCase:
         Returns:
             tuple[list[RunTraceSummary], int]: 当前页摘要与命中总数。
         """
-        page = self._repository.query_runs_page(query)
+        platform_diagnostic_query = replace(
+            query,
+            excluded_subject_type=ORGANIZATION_AGENT_SUBJECT_TYPE,
+        )
+        page = self._repository.query_runs_page(platform_diagnostic_query)
         activity_by_run_id = self._repository.summarize_trace_activity(
             [run.id for run in page.runs]
         )
@@ -259,7 +263,7 @@ class RunTraceUseCase:
             LookupError: Run 不存在时抛出。
         """
         run = self._repository.get_by_id(run_id)
-        if run is None:
+        if run is None or run.subject_type == ORGANIZATION_AGENT_SUBJECT_TYPE:
             raise LookupError("Run 不存在")
         events = self._repository.list_events(run_id, 0)
         return project_run_trace(run, events)
