@@ -41,7 +41,7 @@ jobs:
             image_name: zata-codes-template-public
             context: .
             dockerfile: ./frontend-public/Dockerfile
-            build-args: API_BASE_URL=http://zata-codes-template-backend:8000
+            build_args: API_BASE_URL=http://zata-codes-template-backend:8000
 
     steps:
       - name: Checkout repository
@@ -62,6 +62,7 @@ jobs:
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
+          build-args: ${{ matrix.build_args }}
           # 只构建并载入本地镜像库，推送交给下一步的重试循环。
           # gha 缓存依赖 build-push-action 注入的 ACTIONS_RUNTIME_TOKEN，
           # 无法在 run: 步骤里直接使用 type=gha。
