@@ -118,22 +118,12 @@ def _read_history_diff_stats(
     return diff_stats_by_commit
 
 
-def build_git_history_payload(
-    repository_root: Path,
+def _validate_history_page_arguments(
     *,
     offset: int,
-    limit: int = DEFAULT_HISTORY_PAGE_SIZE,
-) -> workspace_read.WorkspacePayload:
-    """读取一页 Git 提交图，附带本地分支和远程跟踪分支标记。
-
-    Args:
-        repository_root (Path): 被查看仓库的根目录。
-        offset (int): 跳过的提交数。
-        limit (int): 本页最多返回的提交数。
-
-    Returns:
-        workspace_read.WorkspacePayload: 含图形行、分支引用和分页状态的应答。
-    """
+    limit: int,
+) -> workspace_read.WorkspacePayload | None:
+    """校验历史页参数；合法时返回 ``None``。"""
     if offset < 0 or offset > MAX_HISTORY_OFFSET:
         return workspace_read.build_refusal_payload(
             400, f"拒绝：Git 历史偏移量必须在 0 到 {MAX_HISTORY_OFFSET} 之间。"
@@ -142,6 +132,30 @@ def build_git_history_payload(
         return workspace_read.build_refusal_payload(
             400, f"拒绝：每页提交数必须在 1 到 {MAX_HISTORY_PAGE_SIZE} 之间。"
         )
+    return None
+
+
+def build_git_history_payload(
+    repository_root: Path,
+    *,
+    offset: int,
+    limit: int = DEFAULT_HISTORY_PAGE_SIZE,
+) -> workspace_read.WorkspacePayload:
+    """快速读取一页 Git 提交图及基础分支引用。
+
+    改动统计与分支合并状态由独立接口补充，避免计算补丁时阻塞列表首屏。
+
+    Args:
+        repository_root (Path): 被查看仓库的根目录。
+        offset (int): 跳过的提交数。
+        limit (int): 本页最多返回的提交数。
+
+    Returns:
+        workspace_read.WorkspacePayload: 含图形行、基础分支引用和分页状态的应答。
+    """
+    invalid_page_payload = _validate_history_page_arguments(offset=offset, limit=limit)
+    if invalid_page_payload is not None:
+        return invalid_page_payload
 
     raw_graph_output = workspace._run_git(
         repository_root,
@@ -158,8 +172,9 @@ def build_git_history_payload(
         "--",
         ".",
     )
-    diff_stats_by_commit = _read_history_diff_stats(repository_root, offset=offset, limit=limit)
-    branch_refs, refs_by_commit, base_branch_name = _read_branch_refs(repository_root)
+    branch_refs, refs_by_commit, base_branch_name = _read_branch_refs(
+        repository_root, include_merge_states=False
+    )
     try:
         current_head_hash = workspace._run_git(
             repository_root, "rev-parse", "--verify", "HEAD"
@@ -213,7 +228,8 @@ def build_git_history_payload(
                 # 有 GitHub 登录名时界面优先取真实头像；空串表示只能用生成的头像。
                 "github_username": _read_author_github_username(author_email),
                 "date": authored_date,
-                "stats": diff_stats_by_commit.get(full_hash),
+                # shortstat 会计算整页提交的补丁，列表显示后再经统计接口补充。
+                "stats": None,
                 "subject": clean_subject,
                 "refs": ref_names,
                 "is_head": full_hash == current_head_hash,
@@ -235,6 +251,58 @@ def build_git_history_payload(
             "rows": history_rows,
             "branch_refs": branch_refs,
             # 基准分支为空表示没找到可比较的默认分支，此时各分支状态都是 unknown。
+            "base_branch": base_branch_name,
+        },
+    )
+
+
+def build_git_history_stats_payload(
+    repository_root: Path,
+    *,
+    offset: int,
+    limit: int = DEFAULT_HISTORY_PAGE_SIZE,
+) -> workspace_read.WorkspacePayload:
+    """读取一页提交的改动统计，供历史列表首屏显示后异步补齐。
+
+    Args:
+        repository_root (Path): 被查看仓库的根目录。
+        offset (int): 跳过的提交数，必须与历史页一致。
+        limit (int): 本页最多读取的提交数。
+
+    Returns:
+        workspace_read.WorkspacePayload: 完整提交哈希到文件数、增删行数的映射。
+    """
+    invalid_page_payload = _validate_history_page_arguments(offset=offset, limit=limit)
+    if invalid_page_payload is not None:
+        return invalid_page_payload
+    return workspace_read.WorkspacePayload(
+        status_code=200,
+        payload={
+            "offset": offset,
+            "stats_by_commit": _read_history_diff_stats(
+                repository_root, offset=offset, limit=limit
+            ),
+        },
+    )
+
+
+def build_git_history_branch_refs_payload(
+    repository_root: Path,
+) -> workspace_read.WorkspacePayload:
+    """读取带合并状态的分支引用，供提交图显示后异步补齐。
+
+    Args:
+        repository_root (Path): 被查看仓库的根目录。
+
+    Returns:
+        workspace_read.WorkspacePayload: 分支列表、提交引用映射和默认分支名。
+    """
+    branch_refs, refs_by_commit, base_branch_name = _read_branch_refs(repository_root)
+    return workspace_read.WorkspacePayload(
+        status_code=200,
+        payload={
+            "branch_refs": branch_refs,
+            "refs_by_commit": refs_by_commit,
             "base_branch": base_branch_name,
         },
     )
@@ -351,11 +419,14 @@ def _read_git_commit_diff_text(
 
 def _read_branch_refs(
     repository_root: Path,
+    *,
+    include_merge_states: bool = True,
 ) -> tuple[list[dict[str, object]], dict[str, list[dict[str, object]]], str]:
     """读取分支引用及其指向的提交，并标注每个分支相对基准分支的合并状态。
 
     Args:
         repository_root (Path): 被查看仓库的根目录。
+        include_merge_states (bool): 是否同步计算分支的补丁合并状态。
 
     Returns:
         tuple[list[dict[str, object]], dict[str, list[dict[str, object]]], str]: 分支引用列表、
@@ -381,7 +452,17 @@ def _read_branch_refs(
         ref_kind = "remote" if full_name.startswith("refs/remotes/") else "local"
         branch_refs.append({"name": short_name, "kind": ref_kind, "hash": commit_hash})
 
-    base_branch_name = _annotate_branch_merge_states(repository_root, branch_refs)
+    if include_merge_states:
+        base_branch_name = _annotate_branch_merge_states(repository_root, branch_refs)
+    else:
+        base_ref = _resolve_base_branch(repository_root)
+        base_branch_name = _short_branch_name(base_ref) if base_ref else ""
+        for branch_ref in branch_refs:
+            is_base_branch_ref = (
+                bool(base_branch_name)
+                and _short_branch_name(str(branch_ref["name"])) == base_branch_name
+            )
+            branch_ref.update(_base_merge_state() if is_base_branch_ref else _unknown_merge_state())
     refs_by_commit: dict[str, list[dict[str, object]]] = {}
     for branch_ref in branch_refs:
         refs_by_commit.setdefault(str(branch_ref["hash"]), []).append(
@@ -426,13 +507,7 @@ def _annotate_branch_merge_states(
     ]
     for branch_name in local_branch_names[:MAX_MERGE_STATE_BRANCHES]:
         if base_ref and branch_name == base_branch_name:
-            local_merge_states[branch_name] = {
-                "merge_state": MERGE_STATE_BASE,
-                "ahead": 0,
-                "behind": 0,
-                "merged_into": None,
-                "lane_commits": [],
-            }
+            local_merge_states[branch_name] = _base_merge_state()
             continue
         local_merge_states[branch_name] = (
             _read_branch_merge_state(repository_root, f"refs/heads/{branch_name}", base_ref)
@@ -729,6 +804,17 @@ def _unknown_merge_state() -> dict[str, object]:
         "merge_state": MERGE_STATE_UNKNOWN,
         "ahead": None,
         "behind": None,
+        "merged_into": None,
+        "lane_commits": [],
+    }
+
+
+def _base_merge_state() -> dict[str, object]:
+    """返回基准分支本身的合并状态。"""
+    return {
+        "merge_state": MERGE_STATE_BASE,
+        "ahead": 0,
+        "behind": 0,
         "merged_into": None,
         "lane_commits": [],
     }

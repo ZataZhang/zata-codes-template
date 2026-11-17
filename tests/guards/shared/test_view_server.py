@@ -632,6 +632,40 @@ def test_repository_escape_requests_are_refused(running_view_server: RunningView
         assert "/etc/hosts" not in response_text
 
 
+def test_git_history_list_returns_before_its_enrichment(
+    running_view_server: RunningViewServer,
+) -> None:
+    """真实 HTTP 首屏先返回提交行，统计与完整分支状态走独立接口。"""
+    history_status, history_payload = running_view_server.request("/api/log?offset=0&limit=50")
+    assert history_status == 200
+    commit_rows = [row for row in history_payload["rows"] if row["kind"] == "commit"]
+    assert commit_rows
+    assert all(commit_row["stats"] is None for commit_row in commit_rows)
+    assert all(
+        branch_ref["merge_state"] in {"base", "unknown"}
+        for branch_ref in history_payload["branch_refs"]
+    )
+
+    stats_status, stats_payload = running_view_server.request("/api/log/stats?offset=0&limit=50")
+    assert stats_status == 200
+    newest_commit_hash = commit_rows[0]["hash"]
+    assert newest_commit_hash in stats_payload["stats_by_commit"]
+
+    branches_status, branches_payload = running_view_server.request("/api/log/branches")
+    assert branches_status == 200
+    assert branches_payload["base_branch"] == "main"
+    newest_commit_branch_refs = branches_payload["refs_by_commit"][newest_commit_hash]
+    assert any(
+        branch_ref["name"] == "main" and branch_ref["merge_state"] == "base"
+        for branch_ref in newest_commit_branch_refs
+    )
+
+    invalid_offset_status, _ = running_view_server.request("/api/log/stats?offset=bad")
+    invalid_limit_status, _ = running_view_server.request("/api/log/stats?limit=101")
+    assert invalid_offset_status == 400
+    assert invalid_limit_status == 400
+
+
 def test_malformed_path_parameters_are_refused_not_dropped(
     running_view_server: RunningViewServer,
 ) -> None:

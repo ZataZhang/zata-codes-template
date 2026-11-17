@@ -269,6 +269,8 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
             self._serve_workspace_payload(workspace.build_changes_payload(repository_root))
         elif route_path in {
             "/api/log",
+            "/api/log/stats",
+            "/api/log/branches",
             "/api/log/commit",
             "/api/log/diff",
         }:
@@ -280,7 +282,7 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
             # 稳定超过 100 MiB 时排查。这是维护目标，不是运行时硬限制。
             import history
 
-            if route_path == "/api/log":
+            if route_path in {"/api/log", "/api/log/stats"}:
                 offset_text = self._read_query_parameter(query_parameters, "offset") or "0"
                 limit_text = self._read_query_parameter(query_parameters, "limit") or str(
                     history.DEFAULT_HISTORY_PAGE_SIZE
@@ -291,12 +293,18 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
                 except ValueError:
                     self._send_json_payload(400, {"error": "拒绝：Git 历史分页参数必须是整数。"})
                     return
-                self._serve_workspace_payload(
-                    history.build_git_history_payload(
-                        repository_root,
-                        offset=history_offset,
-                        limit=history_limit,
+                if route_path == "/api/log":
+                    history_payload = history.build_git_history_payload(
+                        repository_root, offset=history_offset, limit=history_limit
                     )
+                else:
+                    history_payload = history.build_git_history_stats_payload(
+                        repository_root, offset=history_offset, limit=history_limit
+                    )
+                self._serve_workspace_payload(history_payload)
+            elif route_path == "/api/log/branches":
+                self._serve_workspace_payload(
+                    history.build_git_history_branch_refs_payload(repository_root)
                 )
             elif route_path == "/api/log/commit":
                 self._serve_workspace_payload(

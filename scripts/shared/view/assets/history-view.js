@@ -51,6 +51,7 @@
     const openCommitInDiffView = historyContext.openCommitInDiffView;
     const historyState = {
       historyPages: [],
+      historyGeneration: 0,
       historyBranchRefs: [],
       historyBaseBranch: "",
       historyOffset: 0,
@@ -98,6 +99,7 @@
         return;
       }
       if (requestOptions.reset) {
+        historyState.historyGeneration += 1;
         historyState.historyPages = [];
         historyState.historyBranchRefs = [];
         historyState.historyBaseBranch = "";
@@ -146,6 +148,7 @@
         historyState.historyIsLoaded = true;
         historyState.hasMoreHistory = historyPage.has_more;
         historyState.historyLimitReached = historyPage.limit_reached;
+        void loadHistoryPageEnrichment(historyPage, historyState.historyGeneration);
       });
       historyState.isLoadingHistory = false;
       if (didLoad && isActive()) {
@@ -156,6 +159,86 @@
         if (!historyState.selectedHistoryCommitHash && firstCommitRow) {
           await selectHistoryCommit(firstCommitRow.hash);
         }
+      }
+    }
+
+    /**
+     * 列表页先显示后，分别异步补齐改动统计和分支合并状态。
+     * @param {object} historyPage 已显示的历史页。
+     * @param {number} historyGeneration 当前历史刷新代数。
+     */
+    function loadHistoryPageEnrichment(historyPage, historyGeneration) {
+      const statsRequestUrl =
+        `/api/log/stats?offset=${historyPage.offset}&limit=${historyPage.limit}`;
+      void requestHistoryEnrichment(
+        statsRequestUrl,
+        historyGeneration,
+        (enrichmentPayload) => {
+          const statsByCommit = enrichmentPayload.stats_by_commit || {};
+          for (const historyRow of historyPage.rows) {
+            if (historyRow.kind === "commit") {
+              historyRow.stats = statsByCommit[historyRow.hash] || null;
+            }
+          }
+        }
+      );
+
+      if (historyPage.offset !== 0) {
+        return;
+      }
+      void requestHistoryEnrichment(
+        "/api/log/branches",
+        historyGeneration,
+        (enrichmentPayload) => {
+          historyState.historyBranchRefs = enrichmentPayload.branch_refs || [];
+          historyState.historyBaseBranch = enrichmentPayload.base_branch || "";
+          const branchRefLabelsByCommit = enrichmentPayload.refs_by_commit || {};
+          for (const loadedHistoryPage of historyState.historyPages) {
+            for (const historyRow of loadedHistoryPage.rows) {
+              if (historyRow.kind !== "commit") {
+                continue;
+              }
+              const tagRefLabels = historyRow.refs.filter(
+                (refLabel) => refLabel.kind === "tag"
+              );
+              historyRow.refs = [
+                ...(branchRefLabelsByCommit[historyRow.hash] || []),
+                ...tagRefLabels,
+              ];
+            }
+          }
+        }
+      );
+    }
+
+    /**
+     * 请求一类历史补充数据；刷新后的旧请求不能覆盖新一代历史状态。
+     * @param {string} requestUrl 补充接口地址。
+     * @param {number} historyGeneration 请求开始时的历史刷新代数。
+     * @param {(enrichmentPayload: object) => void} applyEnrichmentPayload 应用补充结果。
+     */
+    async function requestHistoryEnrichment(
+      requestUrl,
+      historyGeneration,
+      applyEnrichmentPayload
+    ) {
+      let didApplyEnrichment = false;
+      const didLoad = await guardAgainstServiceExit(async () => {
+        if (historyGeneration !== historyState.historyGeneration) {
+          return;
+        }
+        const enrichmentResponse = await requestJson(requestUrl);
+        if (
+          enrichmentResponse.status !== 200 ||
+          historyGeneration !== historyState.historyGeneration
+        ) {
+          return;
+        }
+        applyEnrichmentPayload(enrichmentResponse.body);
+        didApplyEnrichment = true;
+      });
+      if (didLoad && didApplyEnrichment && isActive()) {
+        renderHistoryView();
       }
     }
 
