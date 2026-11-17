@@ -256,7 +256,21 @@ def test_commit_rows_carry_author_time_and_diff_stats(tmp_path: Path) -> None:
     _initialize_repository(repository_root)
     _write_and_commit(repository_root, "notes.txt", "first\nsecond\n", "feat: add second line")
 
-    history_payload = history.build_git_history_payload(repository_root, offset=0, limit=50).payload
+    with (
+        patch.object(
+            history,
+            "_read_history_diff_stats",
+            side_effect=AssertionError("首屏不应计算 diff 统计"),
+        ),
+        patch.object(
+            history,
+            "_annotate_branch_merge_states",
+            side_effect=AssertionError("首屏不应比较分支补丁"),
+        ),
+    ):
+        history_payload = history.build_git_history_payload(
+            repository_root, offset=0, limit=50
+        ).payload
     commit_rows = [row for row in history_payload["rows"] if row["kind"] == "commit"]
 
     # 行内作者与提交详情里的 author_name 是同一个来源，避免两处显示不一致。
@@ -276,37 +290,3 @@ def test_commit_rows_carry_author_time_and_diff_stats(tmp_path: Path) -> None:
     ).payload
     newest_commit_stats = stats_payload["stats_by_commit"][commit_rows[0]["hash"]]
     assert newest_commit_stats == {"files": 1, "insertions": 1, "deletions": 0}
-
-
-def test_initial_history_payload_skips_expensive_enrichment(tmp_path: Path) -> None:
-    """首屏不得运行 shortstat 或分支补丁比对。"""
-    repository_root = tmp_path / "repository"
-    repository_root.mkdir()
-    _initialize_repository(repository_root)
-    _run_git(repository_root, "checkout", "-q", "-b", "feature/ahead")
-    _write_and_commit(repository_root, "ahead.txt", "ahead\n", "feat: ahead work")
-
-    with (
-        patch.object(
-            history,
-            "_read_history_diff_stats",
-            side_effect=AssertionError("首屏不应计算 diff 统计"),
-        ),
-        patch.object(
-            history,
-            "_annotate_branch_merge_states",
-            side_effect=AssertionError("首屏不应比较分支补丁"),
-        ),
-    ):
-        history_payload = history.build_git_history_payload(
-            repository_root, offset=0, limit=50
-        ).payload
-
-    feature_branch_ref = next(
-        branch_ref
-        for branch_ref in history_payload["branch_refs"]
-        if branch_ref["name"] == "feature/ahead"
-    )
-    commit_rows = [row for row in history_payload["rows"] if row["kind"] == "commit"]
-    assert feature_branch_ref["merge_state"] == history.MERGE_STATE_UNKNOWN
-    assert commit_rows and all(history_row["stats"] is None for history_row in commit_rows)
