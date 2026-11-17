@@ -8,7 +8,7 @@
 
 当前提供的组件：
 
-- `project-capabilities/components/object-storage-delivery/README.md`：core 对象存储端口、S3 兼容 adapter（boto3，本地 MinIO 验证）、可选配置与 CORS/CDN 接入说明。此源文件位于模板仓库维护目录，不会进入 MkDocs 发布文件集。
++ `project-capabilities/components/object-storage-delivery/README.md`：core 对象存储端口、阿里云 OSS V4 adapter、可选配置与 CORS/CDN 接入说明。真实验收需使用隔离 OSS Bucket 和配置的 CDN 域名；此源文件位于模板仓库维护目录，不会进入 MkDocs 发布文件集。
 
 ## 分发与维护
 

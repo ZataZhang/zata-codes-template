@@ -6,28 +6,28 @@ from pathlib import Path
 
 from backend.core.shared.interfaces.object_storage import ObjectStorage
 from backend.infrastructure.config.object_storage_settings import load_object_storage_settings
-from backend.infrastructure.storage.s3_object_storage import S3CompatibleObjectStorage
+from backend.infrastructure.storage.oss_object_storage import AliyunOSSObjectStorage
 
 
 def build_object_storage(
     config_path: str | Path = "config.toml",
 ) -> ObjectStorage | None:
-    """按需装配 S3 兼容 adapter；未启用时不导入或初始化 boto3。
+    """按需装配阿里云 OSS adapter；未启用时不初始化 OSS SDK。
 
     Args:
         config_path (str | Path): 消费项目配置文件路径。
 
     Returns:
-        ObjectStorage | None: 配置启用时的 S3 adapter；未配置时为 ``None``。
+        ObjectStorage | None: 配置启用时的 OSS adapter；未配置时返回空值。
 
     Raises:
         ObjectStorageConfigError: 能力启用但配置或服务端凭据非法。
-        RuntimeError: 能力启用但消费项目没有安装 boto3。
+        RuntimeError: 能力启用但消费项目没有安装 oss2。
     """
     storage_settings = load_object_storage_settings(config_path)
     if storage_settings is None:
         return None
-    return S3CompatibleObjectStorage(storage_settings)
+    return AliyunOSSObjectStorage(storage_settings)
 
 
 __all__ = ["build_object_storage"]

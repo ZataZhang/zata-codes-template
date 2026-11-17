@@ -1,14 +1,11 @@
-# 复制并合并到目标项目 config.toml 后，才会启用 S3 兼容 adapter。
+# 复制并合并到目标项目 config.toml 后，才会启用阿里云 OSS adapter。
 # 不启用能力时不要添加此段，模板启动不读取对象存储配置。
 [object_storage]
 enabled = false
-provider = "s3"
-endpoint = "https://s3.example.com"
-region = "us-east-1"
+provider = "aliyun_oss"
+endpoint = "https://oss-cn-hangzhou.aliyuncs.com"
+region = "cn-hangzhou"
 bucket = ""
 cdn_base_url = ""
-addressing_style = "path"
-# 仅本地 MinIO 测试使用；生产端点保持 false，必须使用 HTTPS。
-allow_insecure_http = false
-access_key_id_env = "S3_ACCESS_KEY_ID"
-access_key_secret_env = "S3_ACCESS_KEY_SECRET"
+access_key_id_env = "OSS_ACCESS_KEY_ID"
+access_key_secret_env = "OSS_ACCESS_KEY_SECRET"

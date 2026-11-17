@@ -1,41 +1,41 @@
-# 对象存储直传直取接入指南
+# 文件存储直传直取接入指南
 
-本页随 overlay 复制到消费项目的 `docs/guides/`。它说明组件接入后的职责边界和运维配置；不创建任何模板产品 API。
+## 配置与依赖
 
-## 配置与启动
+将组件源码合并到消费项目后，只有显式启用 [object_storage] 配置才初始化 OSS adapter。未复制或未启用组件时，模板启动路径不读取 OSS 配置，也不导入 OSS SDK。
 
-未复制或未启用 `[object_storage]` 时，`build_object_storage()` 返回 `None`，模板启动路径无需对象存储配置。启用后，配置中只保存非密钥值与环境变量名，服务端在环境中读取 `S3_ACCESS_KEY_ID`、`S3_ACCESS_KEY_SECRET`。启用但缺少环境变量时应在 composition 阶段失败，避免能力看似启用却无法签名。
+配置只保存地域、Bucket、endpoint、CDN 域名和凭据环境变量名称。服务端从 OSS_ACCESS_KEY_ID 与 OSS_ACCESS_KEY_SECRET 读取真实凭据。启用后缺少凭据时，composition 必须明确失败。OSS endpoint 和 CDN 域名均使用 HTTPS；endpoint 仅允许 authority，不包含用户名、密码、路径、query 或 fragment。
 
-endpoint 默认只接受无 URL 凭据、无 query/path 的 HTTPS authority；本地 MinIO 测试可在 `[object_storage]` 中显式设置 `allow_insecure_http = true`，此时仅放行 `127.0.0.1` / `localhost` / `::1` 的 HTTP。不要把生产签名请求发到明文 HTTP 端点。
+V4 签名需要 OSS Python SDK oss2 2.18.4 或更高版本。组件复制到消费项目后再添加依赖，不要给模板默认依赖增加 oss2。
 
-`ObjectStorageSettings` 的 `cdn_base_url` 只供消费项目构造公开 CDN URL；adapter 不代理 CDN 请求，也不验证真实 CDN。不要把 URL、对象正文或完整签名字段写入日志或数据库。
+## 上传与完成确认
 
-## 上传
+消费项目先校验会话、业务归属、允许的 MIME 类型和大小，再为每次上传生成不可变或唯一对象键。业务用例将对象键、Content-Type、Cache-Control、大小范围和短过期时间传入 UploadGrantRequest。
 
-消费项目先检查身份、业务归属、MIME 类型和文件大小，再为每次上传分配唯一对象键。将键、Content-Type、Cache-Control、大小范围和短过期时间传入 `UploadGrantRequest`。S3 POST policy 将这些值绑定到单个 POST 表单；服务端会拒绝超限大小或与策略字段不符的请求。
+阿里云 OSS adapter 使用 V4 签名的 PostObject policy。表单只允许精确对象键和所需元数据，并由服务端限制上传长度与授权有效期。浏览器把 API 返回的表单字段和文件放入 FormData，直接 POST 到 OSS。不要把文件送入应用 API，也不要手动设置 multipart/form-data 请求头。
 
-浏览器通过授权 API 获取表单后，使用 `FormData` 直接请求 S3 兼容对象存储。不要把文件传给应用 API，也不要手工设置 `multipart/form-data` 请求头。完成后应用只调用 `head_object()` 读取元数据，再更新消费项目自己的业务状态。
+上传成功后，项目调用 head_object() 读取长度、Content-Type、Cache-Control 和 ETag，再按自身业务规则更新记录。授权响应与签名字段不得落日志或数据库。API 不得通过上传回调或兼容端点重新转发普通文件正文。
 
-## 公开与私有读取
+## 公开和私有读取
 
-公开资源用配置的 CDN 域名加不可变对象键，由 `public_url(object_key)` 拼接并编码对象键；未配置 `cdn_base_url` 时该方法报错，避免退回对象存储原始地址。推荐 `public, max-age=31536000, immutable`。替换图片时新建版本键，避免清缓存或覆盖同 URL。浏览器从 CDN 读取对象正文；真实 CDN 回源与缓存由消费项目部署后自验。
+公开资源通过 public_url() 生成 CDN 域名加不可变对象键的地址。上传授权应设置与公开资源相符的 Cache-Control，例如 public, max-age=31536000, immutable。更新内容时分配新对象键，不依赖覆盖同 URL 后清缓存。
 
-私有资源在每次读取前由消费项目完成领域授权。仅授权通过后才能调用 `create_read_grant()`，预签名 URL 只对单个 key 的 GET 操作有效，短时过期。私有 URL 直接读对象存储，不进入公开 CDN 缓存。
+私有资源必须先由消费项目执行领域授权，然后调用 create_read_grant() 返回短期 OSS GET 地址。未经授权的分支不生成签名 URL；URL 到期后，OSS 应拒绝读取。私有对象使用 private, no-store，不进入公共 CDN 缓存。
 
-## CORS 与缓存
+## 后台字节处理
 
-Bucket CORS 应按消费项目实际页面 Origin 配置最小范围：直传允许 POST，必要时允许 GET / HEAD；允许 Content-Type 和 Cache-Control；按浏览器验证需要暴露 ETag、Content-Length 和 Cache-Control。MinIO 官方兼容说明称 BucketCORS 默认启用；若版本差异导致跨域被拦，用 `mc cors` 或 `MINIO_API_CORS_ALLOW_ORIGIN` 配置后重跑真实浏览器验证。
+病毒扫描、OCR、转码和缩略图由后台任务调用 open_object() 流式读取原对象，处理后调用 write_object() 写入新的唯一对象键。同步 API 只处理授权、对象元数据和业务状态，不等待或代理对象正文。
 
-Bucket 保持私有，只授予服务器处理身份所需的前缀与操作权限，并配置 CDN 对公开路径的私有回源访问。缓存 key 不得丢弃私有签名参数；私有对象不应经共享 CDN。
+## Bucket、CORS 与 CDN
 
-## 异步处理
+- Bucket 保持私有；RAM 身份只授予实际业务前缀需要的 PutObject、GetObject、HeadObject 权限。
+- Bucket CORS 只允许实际前端 Origin 和 POST；需要浏览器读取时再开放 GET/HEAD。允许必需的 Content-Type 与 Cache-Control，并按实际读请求暴露 ETag、Content-Length 和 Cache-Control。
+- CDN 只回源公开对象路径。若 CDN 访问私有 Bucket，按阿里云配置私有 Bucket 回源，并确保客户端 URL 不携带 OSS 签名参数。
+- 对公开对象检查 CDN 响应中的 Cache-Control，并连续请求同一唯一 URL，记录 CDN 缓存响应头和字节摘要。
+- 服务端凭据和完整签名 URL 是 bearer capability；不打印、不持久化，也不返回给未授权调用方。
 
-同步 API 只负责授权、元数据校验与业务状态。扫描、OCR、转码和缩略图等任务由后台进程通过 `open_object()` 和 `write_object()` 流式读写。调用方应关闭读取句柄，并按业务需要写回新的对象键。
+## 仓库真实验证
 
-## 安全边界
+通过 just test-object-storage-e2e rv-1、rv-2、rv-3 分项运行。每项必须使用隔离的真实 Aliyun OSS 测试 Bucket；rv-2 还要使用配置的真实 CDN 域名。不要用 MinIO 或 mock 替代 OSS/CDN 边界。只从 OBJECT_STORAGE_E2E_* 明确提供的环境变量读取测试端点、Bucket、凭据和 CDN 域名；命令要求 OBJECT_STORAGE_E2E_ALLOW_WRITES=1 和精确 Bucket 名确认。不得自动读取通用 .env S3 配置。
 
-- 服务端 Secret 只存在服务端；预签名字段中的访问凭据标识不是密钥，但仍不应长期暴露。
-- Policy、签名字段与读取签名 URL 都是短时 bearer capability，不入库、不打日志、不放到可长期缓存的响应中。
-- 上传 policy 的大小上限由对象存储强制；浏览器端文件限制只是体验优化，不替代服务端授权与存储侧校验。
-- 无权限读取时不生成签名 URL。过期链接必须重新走消费项目授权。
-- 若改用阿里云 OSS 的 S3 兼容端点，先验证 boto3 的签名版本要求（SigV2）与预签名 POST/GET 行为，再声称支持。
+真实资源未配置时，入口应在任何网络写操作前失败，并按 PRD 记录 Validation blocker。证据、浏览器 fixture、捕获脚本和临时文件均放在 PRD evidence 目录；这些 RV 脚本不得进入代码变更集。
