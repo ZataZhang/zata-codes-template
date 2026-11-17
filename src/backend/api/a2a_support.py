@@ -142,6 +142,7 @@ def _task_document(
     """把既有 Run/Event 投影为 A2A Task，不创建第二套任务状态。"""
     input_message: dict[str, Any] | None = None
     result_message: dict[str, Any] | None = None
+    streamed_text_parts: list[str] = []
     for run_event in run_events:
         if run_event.event_type == "input.accepted":
             text_value = ""
@@ -164,6 +165,7 @@ def _task_document(
         elif run_event.event_type == "message.completed":
             assistant_text = run_event.payload.get("content")
             if isinstance(assistant_text, str):
+                streamed_text_parts = []
                 result_message = {
                     "messageId": f"assistant_{run.id}",
                     "taskId": run.id,
@@ -171,13 +173,28 @@ def _task_document(
                     "role": "ROLE_AGENT",
                     "parts": [{"text": assistant_text}],
                 }
+        elif run_event.event_type == "message.delta":
+            delta_text = run_event.payload.get("delta")
+            if isinstance(delta_text, str):
+                streamed_text_parts.append(delta_text)
+    if result_message is None and streamed_text_parts:
+        artifacts_text = "".join(streamed_text_parts)
+    elif result_message is not None:
+        result_parts = result_message["parts"]
+        artifacts_text = (
+            str(result_parts[0].get("text", ""))
+            if isinstance(result_parts, list) and result_parts and isinstance(result_parts[0], dict)
+            else ""
+        )
+    else:
+        artifacts_text = ""
     artifacts = []
-    if result_message is not None:
+    if artifacts_text:
         artifacts.append(
             {
                 "artifactId": f"artifact_{run.id}",
                 "name": "response",
-                "parts": result_message["parts"],
+                "parts": [{"text": artifacts_text}],
             }
         )
     task: dict[str, Any] = {
@@ -250,16 +267,23 @@ def _task_events(
                 }
             )
         elif run_event.event_type == "message.completed":
-            last_artifact_event = next(
-                (
-                    task_event.get("artifactUpdate")
-                    for task_event in reversed(task_events)
-                    if isinstance(task_event.get("artifactUpdate"), dict)
-                ),
-                None,
-            )
-            if isinstance(last_artifact_event, dict):
-                last_artifact_event["lastChunk"] = True
+            completed_text = run_event.payload.get("content")
+            if isinstance(completed_text, str) and completed_text:
+                task_events.append(
+                    {
+                        "artifactUpdate": {
+                            "taskId": run.id,
+                            "contextId": run.conversation_id,
+                            "artifact": {
+                                "artifactId": f"artifact_{run.id}",
+                                "name": "response",
+                                "parts": [{"text": completed_text}],
+                            },
+                            "append": False,
+                            "lastChunk": True,
+                        },
+                    }
+                )
     return task_events
 
 
@@ -370,7 +394,8 @@ async def _stream_task_events(
             )
             yield f"data: {initial_task}\n\n"
             send_initial_task = False
-            last_sequence = run.last_event_seq
+            # Task 快照包含该游标之前已经持久化的部分 Artifact；后续轮询只发送新事件。
+            last_sequence = max((run_event.seq for run_event in events), default=run.last_event_seq)
             if run.status in _TERMINAL_STATES:
                 return
             await asyncio.sleep(0.2)

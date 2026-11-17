@@ -91,3 +91,11 @@ export async function createAgentRun(input: {
   )
   return response.data
 }
+
+/** 通过当前成员的组织权限取消正在运行的 Run。 */
+export async function cancelAgentRun(runId: string): Promise<AgentRunDetail> {
+  const response = await apiClient.post<AgentRunDetail>(
+    `/agent-runs/${encodeURIComponent(runId)}/cancel`
+  )
+  return response.data
+}

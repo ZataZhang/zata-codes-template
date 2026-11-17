@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
 import { Bot, Clock3, LoaderCircle, Send, Sparkles } from "lucide-react"
 import {
+  cancelAgentRun,
   createAgentRun,
   getAgentRun,
   getAgentRunEvents,
@@ -34,6 +35,7 @@ export default function AgentsPage() {
   const [message, setMessage] = useState("")
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
+  const [cancellingRun, setCancellingRun] = useState(false)
   const [error, setError] = useState("")
   const [liveReply, setLiveReply] = useState("")
   const eventCursorRef = useRef(0)
@@ -191,6 +193,24 @@ export default function AgentsPage() {
     }
   }
 
+  /** 取消当前运行，并刷新持久状态与历史。 */
+  const cancelActiveRun = async () => {
+    if (!activeRun || cancellingRun) return
+    setCancellingRun(true)
+    setError("")
+    try {
+      const cancelledRun = await cancelAgentRun(activeRun.id)
+      setActiveRun(cancelledRun)
+      setLiveReply("")
+      eventCursorRef.current = 0
+      await reloadHistory()
+    } catch {
+      setError(t("cancelFailed"))
+    } finally {
+      setCancellingRun(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center text-muted-foreground">
@@ -292,6 +312,24 @@ export default function AgentsPage() {
                     <span>{t("agentReply")}</span>
                     <span>{t("runStatus", { status: activeRun.status })}</span>
                   </div>
+                  {["queued", "running", "cancelling"].includes(
+                    activeRun.status
+                  ) && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="mt-3"
+                      disabled={
+                        cancellingRun || activeRun.status === "cancelling"
+                      }
+                      onClick={() => void cancelActiveRun()}
+                    >
+                      {cancellingRun || activeRun.status === "cancelling"
+                        ? t("cancelling")
+                        : t("cancelRun")}
+                    </Button>
+                  )}
                   <p
                     className="mt-2 min-h-6 text-sm whitespace-pre-wrap"
                     data-testid="agent-run-reply"

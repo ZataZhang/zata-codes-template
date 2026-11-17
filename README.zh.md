@@ -6,7 +6,7 @@
   <img src="skills/zata-writer/assets/brand/zata-signature-blue-z-black-ata.png" width="180" alt="Zata 品牌签名字标">
 </p>
 
-面向 Python Web 项目的可演进工程模板：后端采用 **FastAPI + 四层模块化单体**，并配有独立的管理后台和用户端前端。模板提供可运行的认证、数据库迁移、运行轨迹诊断和可选沙箱基础设施；具体业务域由派生项目添加。
+面向 Python Web 项目的可演进工程模板：后端采用 **FastAPI + 四层模块化单体**，并配有独立的管理后台和用户端前端。模板提供多组织 Agent 工作区、认证、数据库迁移、运行轨迹诊断和可选沙箱基础设施；派生项目可继续添加产品专属流程。
 
 ## 项目特点
 

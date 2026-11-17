@@ -106,7 +106,7 @@ DNS 需要把 `${DOMAIN}` 与 `admin.${DOMAIN}` 都解析到 Dokploy 服务器�
 3. `docker logs <slug>-backend --tail=100` 是否有数据库、迁移或配置错误。
 4. 实际访问的域名是否正好匹配 Traefik 的 Host rule。
 
-Public 前端的 Next.js standalone 会在 `next build` 时固化 `/api` 与 `/a2a` 的转发目标。构建镜像必须通过 Docker build arg `API_BASE_URL` 指定后端服务地址（默认 `http://zata-codes-template-backend:8000`）；只修改运行时环境变量不会改变已构建镜像中的代理目标。Admin 前端则在运行时渲染 Nginx 配置。
+Public 前端的 Next.js standalone 会在 `next build` 时固化 `/api` 与 `/a2a` 的转发目标。构建镜像必须通过 Docker build arg `API_BASE_URL` 指定后端服务地址（默认 `http://zata-codes-template-backend:8000`）；只修改运行时环境变量不会改变已构建镜像中的代理目标。Public 容器只接收该代理地址，不加载包含数据库、认证或模型密钥的后端 `app.env`。Admin 前端则在运行时渲染 Nginx 配置。
 
 本地开发时，Admin 的 Vite 代理按 `^/a2a/` 匹配独立协议路径；不要使用会命中 `/a2a-approvals/` 管理页的宽泛 `/a2a` 前缀。
 

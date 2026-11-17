@@ -2,7 +2,7 @@
 
 本目录是 `zata-codes-template` 的前台官网与应用骨架（Public Website + App Shell），基于 Next.js 16 + React 19 + Tailwind CSS v4 + shadcn/ui 构建。
 
-模板不内置业务域，应用区只保留极简的 Dashboard / Settings 骨架，派生项目在此之上搭建自己的业务。
+应用区提供组织范围的 Agent 目录、Run 对话与历史，也保留 Dashboard / Settings 页面供项目继续扩展。
 
 ## 技术栈
 

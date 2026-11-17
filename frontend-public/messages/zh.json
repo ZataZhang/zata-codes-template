@@ -1,7 +1,7 @@
 {
   "html": {
     "title": "My App - 项目模板",
-    "description": "四层后端骨架 + 双认证域 + 双前端 + 可观测性的 Python 项目模板，不内置业务域。"
+    "description": "包含组织范围 Agent 工作区、双认证域、双前端和可观测能力的 Python 项目模板。"
   },
   "common": {
     "appName": "My App",
@@ -25,10 +25,10 @@
       "badge": "面向长期演进的项目模板",
       "titleLine1": "干净的骨架，",
       "titleAccent": "只留工程化",
-      "subtitle": "四层模块化单体 + 双认证域 + 可观测性。不内置业务域，让每个派生项目从零开始搭建自己的业务。",
+      "subtitle": "四层应用底座，提供组织隔离的 Agent、持久化运行、双认证域和可观测能力。",
       "ctaPrimary": "免费开始",
       "ctaSecondary": "了解骨架",
-      "highlightNoDomain": "无业务域残留",
+      "highlightNoDomain": "组织范围 Agent 工作区",
       "highlightAuth": "认证开箱即用",
       "highlightTooling": "工程化完整"
     },
@@ -90,7 +90,7 @@
       },
       "businessCode": {
         "question": "模板内置业务代码吗？",
-        "answer": "不内置任何业务域。认证、配置、可观测性与持久化是唯一骨架，业务模块由派生项目自行添加。"
+        "answer": "包含组织隔离的 Agent、持久化运行、版本化 Skill 和经授权的 A2A 互通，也提供可复用的工程基础。"
       },
       "createProject": {
         "question": "如何用模板创建新项目？",
@@ -104,7 +104,7 @@
     },
     "aboutPage": {
       "title": "关于本模板",
-      "description": "这是一个用于启动新项目的 Python 模板：提供四层后端骨架、双认证域与完整工程化设施，同时刻意不内置任何业务域，让每个派生项目从干净的起点开始搭建自己的业务。",
+      "description": "这是一个用于启动新项目的 Python 模板：提供组织范围 Agent、持久化运行、版本化 Skill、双认证域和四层后端，便于继续扩展项目能力。",
       "principles": {
         "simple": {
           "title": "简洁至上",
@@ -122,7 +122,7 @@
     },
     "featuresPage": {
       "title": "模板能力",
-      "subtitle": "只提供工程化骨架，不内置任何业务域",
+      "subtitle": "提供组织范围 Agent 工作区和可复用的工程底座",
       "items": {
         "architecture": {
           "title": "四层架构",
@@ -219,6 +219,9 @@
     "runStatus": "状态：{status}",
     "thinking": "智能体正在运行…",
     "streamingReply": "正在接收流式回复…",
+    "cancelRun": "取消运行",
+    "cancelling": "正在取消…",
+    "cancelFailed": "无法取消本次运行。",
     "noReply": "没有记录回复。",
     "runId": "运行 ID：{id}",
     "skillVersion": "冻结的 Skill 版本：v{version}",

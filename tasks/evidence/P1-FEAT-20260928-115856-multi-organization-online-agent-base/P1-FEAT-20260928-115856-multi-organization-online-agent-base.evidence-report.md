@@ -187,3 +187,12 @@ The comparison checks v1/v2/v3 ordering, v1/v2 comparison text, restored-current
 - Existing configuration documentation was updated; no new page or navigation entry was added. Runner must apply independent verification and final RV gates to this repair tree; prior verdicts do not cover these edits.
 
 - Repair verification on the previous repair tree: just test passed (545 passed, 1 skipped; OIDC 17 passed); just lint --full and mkdocs build --strict passed; git diff --check HEAD and manifest naming/reference checks passed. RV-2 and RV-7 passed on source tree 7255cbdd1bb9168b3deccd7d54002cbb5be1665f. The current recovery tree is recorded above with its complete RV rerun and updated demo.
+
+## Pre-PR review repair round 2 (2026-11-17)
+
+- A2A task projection: a running Task snapshot now carries the `message.delta` text already persisted, `message.completed` emits a replacing `append=false` / `lastChunk=true` artifact, and the subscription cursor advances past events included in the snapshot. Covered by `tests/backend/test_a2a_10_contract.py` — 7 passed on this tree.
+- Member UI: the public agent page gained a cancel action backed by the existing owner-and-organization-scoped `POST /agent-runs/{run_id}/cancel`; `frontend-public` `tsc --noEmit` passes.
+- Container secret boundary: the public frontend services in `docker-compose.yml` and `deploy/vps-traefik/docker-compose.yml` no longer load the backend `app.env`; only the build-time `API_BASE_URL` proxy target is provided.
+- Documentation: README, `docs/index.md`, `docs/guides/deployment.md`, `docs/architecture/multi-org-agent.md` and the English/Chinese UI copy now describe the organization-scoped Agent workspace instead of claiming the template ships no business domain.
+- Validation on this tree: `git diff --check`, `uv run mkdocs build`, `just test` (warm flag valid for tree `f8950ab7`), `just lint --full`, focused A2A contract tests and the public frontend typecheck all pass.
+- Evidence scope limitation: the RV-2 and RV-7 raw evidence files still carry the tree identity captured before this repair. They are not re-collected or re-signed here; the runner-owned final-tree gate must repeat RV-2 and RV-7 (including the cancel action and the streaming artifact shape) before this repair can be treated as verified.

@@ -733,3 +733,11 @@ rv-3 真实实现（`real user flow`，1440×1200）：
 - Reason: 交付证据必须对应最终实现树，并且单独主演示要呈现当前用户界面。
 - Impact: 只刷新证据与来源树记录；不改变产品行为、范围、安全边界或验收 oracle，不勾选 Human-Confirmed 项。
 - Review: 当前树的七项负控均产生预期红色结果，随后 `kc evidence check` 7/7 通过；`UV_CACHE_DIR=/tmp/uv-cache-issue58 just test` 通过（540 passed、1 skipped；OIDC 17 passed）。Human-Confirmed 项保持未勾选，独立 verifier 与 runner-owned 门禁仍由 runner 处理。
+
+### 补齐成员取消入口、A2A 完成任务 Artifact 与公共容器密钥边界
+- Type: fix
+- Before: A2A 订阅已运行的 Task 时，首个 Task 快照的 `artifacts` 只包含 `message.completed` 之后的整段回复，运行中订阅看不到已落库的部分回复；`message.completed` 只把最后一个增量标记为 `lastChunk`，没有发送可替换的完整最终 Artifact。成员页面只展示运行状态，没有取消入口，`POST /agent-runs/{run_id}/cancel` 只能经 API 调用。`docker-compose.yml` 与 `deploy/vps-traefik/docker-compose.yml` 的 public 前台仍通过 `env_file` 加载后端 `app.env`，把数据库、认证与模型密钥暴露给浏览器容器的运行环境；README、`docs/index.md` 与前台文案仍写“不内置业务域”。
+- After: `_task_document` 用已持久化的 `message.delta` 投影部分 Artifact，`_task_events` 在 `message.completed` 时发送 `append=false`、`lastChunk=true` 的完整最终 Artifact，订阅游标推进到快照已包含的最后序号以免重放；新增 3 条契约测试（运行中快照含部分回复、独立批次后的最终 Artifact、快照游标前进）。成员页面新增“取消运行”按钮，复用既有 `POST /agent-runs/{run_id}/cancel` 并按组织与 owner 校验。两个 compose 文件的 public 前台只接收构建期固化的 `API_BASE_URL`，不再加载后端 `app.env`；README、`docs/index.md`、`docs/guides/deployment.md`、`docs/architecture/multi-org-agent.md` 与中英文文案同步改为“组织范围 Agent 工作区”。
+- Reason: FR-4 要求成员看到逐步更新的运行状态并能控制当前运行；FR-11 要求 A2A 任务状态与结果在订阅、取消和重新查询下一致；FR-10 要求模型密钥不出现在浏览器侧容器与响应中；README 与前台文案属于模板中性定位的一部分，必须与实现同步。
+- Impact: 只补齐既有 Run/Task 投影与成员操作入口，不新增第二套任务状态存储，不改变组织范围或 A2A 授权模型。RV-2/RV-7 的既有证据采集于这些改动之前，本轮不代勾选任何验收项，重新采集由 runner-owned 门禁在最终树执行。
+- Review: 本树 `just test`、`tests/backend/test_a2a_10_contract.py`（7 passed）、`frontend-public` 的 `tsc --noEmit`、`just lint --full` 与 `uv run mkdocs build` 通过；五项 Human-Confirmed 保持未勾选，独立 verifier 与 PR/合并门禁仍由 runner 执行。

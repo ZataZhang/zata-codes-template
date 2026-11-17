@@ -127,8 +127,6 @@ services:
     pull_policy: always
     expose:
       - "3000"
-    env_file:
-      - app.env
     environment:
       API_BASE_URL: ${API_BASE_URL:-http://${COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME is required}-backend:8000}
     depends_on:

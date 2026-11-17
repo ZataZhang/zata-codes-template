@@ -5,9 +5,9 @@
 2. Nacos JSON 启动配置（配置了地址时）
 3. config.toml 与代码中的默认值
 
-需要调用大模型的派生项目，用 ``.env`` 的 ``MODEL_BASE_URL`` / ``MODEL_API_KEY`` /
-``MODEL_NAME`` 三件套声明端点，经 :func:`load_primary_model_settings` 读取。模板
-只做这层解析，不内置 LLM 客户端，也不维护 provider 目录。
+需要调用大模型的项目，用 ``.env`` 的 ``MODEL_BASE_URL`` / ``MODEL_API_KEY`` /
+``MODEL_NAME`` 三件套声明端点，经 :func:`load_primary_model_settings` 读取。模板内置
+轻量 OpenAI 兼容 HTTP 执行适配，但不维护 provider 目录。
 
 新增配置项约定：
 - 非敏感默认值放到 ``config.toml`` 对应 section。

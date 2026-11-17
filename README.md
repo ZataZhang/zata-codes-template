@@ -6,7 +6,7 @@ English | [简体中文](README.zh.md)
   <img src="skills/zata-writer/assets/brand/zata-signature-blue-z-black-ata.png" width="180" alt="Zata signature brand logo">
 </p>
 
-An extensible starter for Python web projects. It combines a **FastAPI modular monolith with four backend layers** and separate admin and public frontends. The template includes working authentication, database migrations, run-trace diagnostics, and optional sandbox infrastructure; downstream projects add their own business domain.
+An extensible starter for Python web projects. It combines a **FastAPI modular monolith with four backend layers** and separate admin and public frontends. The template includes a multi-organization Agent workspace, authentication, database migrations, run-trace diagnostics, and optional sandbox infrastructure; downstream projects can add product-specific workflows.
 
 ## Features
 

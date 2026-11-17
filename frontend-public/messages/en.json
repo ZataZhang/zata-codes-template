@@ -1,7 +1,7 @@
 {
   "html": {
     "title": "My App - Project Template",
-    "description": "A Python project template with a four-layer backend skeleton, dual auth domains, two frontends, and observability. Ships with no business domain."
+    "description": "A Python project template with an organization-scoped Agent workspace, dual auth domains, two frontends, and observability."
   },
   "common": {
     "appName": "My App",
@@ -25,10 +25,10 @@
       "badge": "A project template built for long-term evolution",
       "titleLine1": "A clean skeleton,",
       "titleAccent": "engineering only",
-      "subtitle": "A four-layer modular monolith with dual auth domains and observability. No business domain inside, so every derived project starts its own from scratch.",
+      "subtitle": "A four-layer application base with organization-scoped Agents, persistent runs, dual auth domains, and observability.",
       "ctaPrimary": "Start for free",
       "ctaSecondary": "Explore the skeleton",
-      "highlightNoDomain": "No business domain residue",
+      "highlightNoDomain": "Organization-scoped Agent workspace",
       "highlightAuth": "Auth works out of the box",
       "highlightTooling": "Complete engineering setup"
     },
@@ -90,7 +90,7 @@
       },
       "businessCode": {
         "question": "Does the template ship business code?",
-        "answer": "No business domain is included. Auth, configuration, observability, and persistence are the only skeleton; derived projects add their own business modules."
+        "answer": "Yes. It includes organization-scoped Agents, persistent runs, versioned Skills, and authorized A2A interoperability, alongside reusable engineering foundations."
       },
       "createProject": {
         "question": "How do I create a new project from the template?",
@@ -104,7 +104,7 @@
     },
     "aboutPage": {
       "title": "About this template",
-      "description": "A Python template for starting new projects: a four-layer backend skeleton, dual auth domains, and complete engineering facilities. It deliberately ships no business domain, so every derived project builds its own from a clean starting point.",
+      "description": "A Python template with organization-scoped Agents, persistent runs, versioned Skills, dual auth domains, and a four-layer backend for project-specific extensions.",
       "principles": {
         "simple": {
           "title": "Simplicity first",
@@ -122,7 +122,7 @@
     },
     "featuresPage": {
       "title": "Template capabilities",
-      "subtitle": "Engineering skeleton only — no business domain included",
+      "subtitle": "A reusable engineering base with an organization-scoped Agent workspace",
       "items": {
         "architecture": {
           "title": "Four-layer architecture",
@@ -219,6 +219,9 @@
     "runStatus": "Status: {status}",
     "thinking": "The Agent is working…",
     "streamingReply": "Streaming reply…",
+    "cancelRun": "Cancel run",
+    "cancelling": "Cancelling…",
+    "cancelFailed": "Could not cancel this run.",
     "noReply": "No reply was recorded.",
     "runId": "Run ID: {id}",
     "skillVersion": "Frozen Skill version: v{version}",
