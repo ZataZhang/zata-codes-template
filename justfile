@@ -1103,18 +1103,18 @@ test-budget junit="":
 test-debt top="12":
     cd "{{justfile_directory()}}" && uv run python scripts/shared/testing/test_debt_report.py --top {{top}}
 
-# 对象存储直传直取必须使用调用者显式配置的隔离 Aliyun OSS Bucket 和 CDN 域名。
-# 缺少 OBJECT_STORAGE_E2E_* 或写入确认时，runner 在任何网络写操作前失败；不回退到通用 S3 配置。
+# 对象存储直传直取真实 S3/MinIO 验证；默认使用本机 zata-ops MinIO（http://127.0.0.1:9000）
+# 与隔离测试桶 object-storage-e2e，loopback 下自动启用 OBJECT_STORAGE_E2E_ALLOW_WRITES=1。
 # RV runner 与生成的日志、uv 缓存只写入 PRD evidence 目录；runner 脚本随 evidence 包分发，不随代码仓库提交，
 # 因此在干净检出上直接运行会因缺少 scripts/run_real_s3_e2e.py 而失败，需先从证据分支取回该目录。
 test-object-storage-e2e oracle='all':
     #!/usr/bin/env bash
     set -euo pipefail
     cd "{{justfile_directory()}}"
-    rv_runner_path="tasks/evidence/P1-FEAT-20261107-093048-reusable-file-storage-delivery/scripts/run_real_oss_e2e.py"
+    rv_runner_path="tasks/evidence/P1-FEAT-20261107-093048-reusable-file-storage-delivery/scripts/run_real_s3_e2e.py"
     if [[ ! -f "$rv_runner_path" ]]; then
         echo "缺少对象存储 RV runner：$rv_runner_path" >&2
         echo "该脚本随 PRD evidence 包分发、不进入代码提交。请先取回 tasks/evidence/P1-FEAT-20261107-093048-reusable-file-storage-delivery/ 后重试。" >&2
         exit 2
     fi
-    UV_CACHE_DIR="{{justfile_directory()}}/tasks/evidence/P1-FEAT-20261107-093048-reusable-file-storage-delivery/.uv-cache" uv run --with 'oss2>=2.18.4' python "$rv_runner_path" {{oracle}}
+    UV_CACHE_DIR="{{justfile_directory()}}/tasks/evidence/P1-FEAT-20261107-093048-reusable-file-storage-delivery/.uv-cache" uv run --with 'boto3>=1.35' python "$rv_runner_path" {{oracle}}

@@ -4,7 +4,7 @@
 
 本次没有模板产品界面变化，也没有需要呈递的 CDN 页面。当前归档 PRD 已移除真实 CDN oracle；公开 CDN 真实回源与边缘缓存由消费项目部署后自验。本报告不声称真实 CDN 已验证。
 
-Issue：[#59](https://github.com/ZataZhang/zata-codes-template/issues/59)。验证基线代码提交：`5763153a0`；最终树 `63991b771`（两者之间只有 PRD 与证据文档改动，代码树一致）。环境：zata-ops `test-minio`（`http://127.0.0.1:9000`）、隔离测试桶 `object-storage-e2e`。证据不包含服务端密钥或签名 URL query。
+Issue：[#59](https://github.com/ZataZhang/zata-codes-template/issues/59)。本轮交付树：worktree `issue-59`（从 `8959c4048` 恢复未改动的 S3 兼容 overlay，移除了 WIP 检查点误回退的 OSS adapter）。证据包在 `tasks/evidence/P1-FEAT-20261107-093048-reusable-file-storage-delivery/`，RV 脚本位于其 `scripts/` 且不进入代码提交。环境：zata-ops `test-minio`（`http://127.0.0.1:9000`）、隔离测试桶 `object-storage-e2e`。证据不包含服务端密钥或签名 URL query。
 
 ## Realistic Validation 与补充检查
 
@@ -38,7 +38,8 @@ Issue：[#59](https://github.com/ZataZhang/zata-codes-template/issues/59)。验�
 - `OBJECT_STORAGE_E2E_ALLOW_WRITES=1 UV_CACHE_DIR=... uv run --with boto3 python .../check_upload_post_policy_http.py`：PASS，实际运行的负控均被 MinIO 拒绝，合法上传成功，前缀清理完成。
 - 运行后核对测试桶 `object-storage-e2e` 的对象清单为空，本轮未遗留持久对象。
 - `kc evidence check --evidence tasks/evidence/P1-FEAT-20261107-093048-reusable-file-storage-delivery`：3/3 passed。
-- `just test`（含 `just lint --full`）、`uv run python hooks/shared/check_architecture.py`、分发契约测试与 `uv run mkdocs build` 均在本轮通过；本轮没有产品代码变更。
+- 红→绿对照（证明 oracle 不是恒绿）：`run_real_s3_e2e.py rv-1 --mutant` 在测试侧篡改签名表单的 `key` 后合法 POST 变红（403）；`rv-3 --mutant` 用陌生人身份执行授权步骤后变红（403）；两者均非零退出，分别记录于 `rv-1-negative-control.txt` 与 `rv-3-negative-control.txt`。item 2 在同一命令内注入 PUT、超限、错误 Content-Type 与替换 key 五种红控。
+- `just test`（含 `just lint --full`）、`uv run python hooks/shared/check_architecture.py`、分发契约测试在本轮通过；本轮的产品代码变更只有恢复 S3 实现与修正 e2e 入口。
 
 ## 尚未解决
 

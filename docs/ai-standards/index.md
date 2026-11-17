@@ -38,7 +38,6 @@
 ## 模板专用项目能力
 
 根目录 `project-capabilities/` 保存供派生项目初始化时显式选择的组件源码与说明。它不是全局 Skill，也不进入 `skills/`、本机 Skill 安装候选、`just copy` 或模板同步产物。用户明确选择能力后，按目录内 Skill 的指引只复制选定 overlay，并在消费项目自行接入业务授权和 composition；维护约定见[项目能力目录指南](../guides/project-capabilities.md)。
-首个对象存储组件提供阿里云 OSS V4 adapter；直传、CDN 和私有读取的真实行为按该组件的隔离 OSS/CDN 验证清单执行。
 
 用户要求「帮我提 PR」时，读取 [Tooling](tooling.md) 的「对话中的 PR 交付与数据留存」路由，
 先在独立 worktree 中实现，再由当前会话整理原始需求与实际验收状态并使用统一交付入口；没有 `just` 时按 PR 指南

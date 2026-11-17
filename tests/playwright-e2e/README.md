@@ -51,7 +51,7 @@ playwright-e2e/
 
 新增业务测试时，只在 `tests/` 下新增/修改文件，不要改动上层共享基础设施，除非要向上游模板反馈改进。
 
-对象存储真实验证使用本包的 Playwright 依赖；其专用 API、页面、oracle 和配置统一位于 `tasks/evidence/P1-FEAT-20261107-093048-reusable-file-storage-delivery/scripts/`，由 evidence 包提供，不进入代码提交或常规 E2E 集合。通过根目录 `just test-object-storage-e2e rv-1|rv-2|rv-3` 逐项验证隔离的真实 Aliyun OSS Bucket 与 CDN；MinIO、mock、fake 和 TestClient 都不能替代这些验收边界。
+对象存储真实验证使用本包的 Playwright 依赖；其专用 API、页面、oracle 和配置统一位于 `tasks/evidence/P1-FEAT-20261107-093048-reusable-file-storage-delivery/scripts/`，由 evidence 包提供，不进入代码提交或常规 E2E 集合。取得 evidence 包并确认本机 MinIO（zata-ops `test-minio`）可用后，通过根目录 `just test-object-storage-e2e` 逐项运行；测试对象按本轮随机前缀清理。
 
 ## 前置条件
 

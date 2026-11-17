@@ -19,5 +19,4 @@
 - MinIO：`http://127.0.0.1:9000`，测试桶 `object-storage-e2e`，仅 loopback 测试。
 - rv-1/rv-3 使用真实消费 API 与 MinIO；不 mock signer 或 object store。
 - item 2 是补充的真实 API/MinIO 检查。当前 PRD 不要求真实 CDN 域名、回源或边缘缓存，不能据此宣称 CDN 已验证。
-- rv-1 已在最终树（`63991b771`）的 shell 中实际启动 Chromium 并通过；后续重跑仍需能启动浏览器的环境，否则按环境原因记录阻塞。
-- `just test-object-storage-e2e` 依赖 evidence 包（`tasks/evidence/<prd-stem>/scripts/`，不进入代码提交），干净检出需先取回该目录。
+- rv-1 在交付 worktree 的实际 Chromium 会话中通过；`just test-object-storage-e2e` 依赖 evidence 包（`tasks/evidence/<prd-stem>/scripts/`，不进入代码提交），干净检出需先取回该目录。缺少可启动的浏览器或 MinIO 时按环境原因登记阻塞，不改用 mock。

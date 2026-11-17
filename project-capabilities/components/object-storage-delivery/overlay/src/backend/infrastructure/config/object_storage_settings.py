@@ -1,17 +1,16 @@
-"""可选阿里云 OSS 配置加载。"""
+"""可选对象存储配置加载。"""
 
 from __future__ import annotations
 
 import os
-import re
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit
 
-DEFAULT_REGION = "cn-hangzhou"
-SUPPORTED_PROVIDER = "aliyun_oss"
+DEFAULT_REGION = "us-east-1"
+DEFAULT_ADDRESSING_STYLE = "path"
+SUPPORTED_ADDRESSING_STYLES = frozenset({"path", "virtual", "auto"})
 
 
 class ObjectStorageConfigError(RuntimeError):
@@ -20,29 +19,31 @@ class ObjectStorageConfigError(RuntimeError):
 
 @dataclass(frozen=True)
 class ObjectStorageSettings:
-    """阿里云 OSS adapter 所需的服务端配置。"""
+    """S3 兼容对象存储 adapter 所需的运行配置。"""
 
     endpoint: str
     region: str
     bucket: str
-    access_key_id: str = field(repr=False)
+    access_key_id: str
     access_key_secret: str = field(repr=False)
-    cdn_base_url: str | None = None
+    cdn_base_url: str | None
+    addressing_style: str = DEFAULT_ADDRESSING_STYLE
+    allow_insecure_http: bool = False
 
 
 def load_object_storage_settings(
     config_path: str | Path = "config.toml",
 ) -> ObjectStorageSettings | None:
-    """读取可选 OSS 配置并从服务端环境变量解析凭据。
+    """读取可选 ``[object_storage]`` 配置并从环境变量解析服务端密钥。
 
     Args:
         config_path (str | Path): 项目 TOML 配置路径。
 
     Returns:
-        ObjectStorageSettings | None: 已启用的 OSS 设置；缺少配置段或显式关闭时为 None。
+        ObjectStorageSettings | None: 已启用的 S3 设置；缺少配置段或显式关闭时为 ``None``。
 
     Raises:
-        ObjectStorageConfigError: TOML 无法读取、配置非法或密钥环境变量为空。
+        ObjectStorageConfigError: TOML 无法读取、配置字段非法或密钥环境变量为空。
     """
     resolved_config_path = Path(config_path)
     if not resolved_config_path.is_file():
@@ -64,10 +65,8 @@ def load_object_storage_settings(
         return None
 
     provider_name = _required_string(storage_section, "provider")
-    if provider_name != SUPPORTED_PROVIDER:
-        raise ObjectStorageConfigError(
-            f"[object_storage] provider 当前只支持 {SUPPORTED_PROVIDER}"
-        )
+    if provider_name != "s3":
+        raise ObjectStorageConfigError("[object_storage] provider 当前只支持 s3")
 
     access_key_id_env_name = _required_string(storage_section, "access_key_id_env")
     access_key_secret_env_name = _required_string(storage_section, "access_key_secret_env")
@@ -75,37 +74,26 @@ def load_object_storage_settings(
     access_key_secret_value = os.getenv(access_key_secret_env_name, "").strip()
     if not access_key_id_value or not access_key_secret_value:
         missing_environment_names = [
-            environment_name
-            for environment_name, environment_value in (
+            name
+            for name, value in (
                 (access_key_id_env_name, access_key_id_value),
                 (access_key_secret_env_name, access_key_secret_value),
             )
-            if not environment_value
+            if not value
         ]
         raise ObjectStorageConfigError(
-            "对象存储已启用，但服务端环境变量未配置: "
-            + ", ".join(missing_environment_names)
+            "对象存储已启用，但服务端环境变量未配置: " + ", ".join(missing_environment_names)
         )
 
-    endpoint_value = _required_https_authority(
-        _required_string(storage_section, "endpoint"),
-        "endpoint",
-    )
-    cdn_base_url_value = _optional_https_url(storage_section.get("cdn_base_url"))
-    region_setting = storage_section.get("region", DEFAULT_REGION)
-    if not isinstance(region_setting, str) or not region_setting.strip():
-        raise ObjectStorageConfigError("[object_storage] region 必须是非空字符串")
-    region_value = region_setting.strip()
-    if not re.fullmatch(r"[a-z0-9-]+", region_value):
-        raise ObjectStorageConfigError("[object_storage] region 格式无效")
-
     return ObjectStorageSettings(
-        endpoint=endpoint_value,
-        region=region_value,
+        endpoint=_required_string(storage_section, "endpoint").rstrip("/"),
+        region=_optional_string(storage_section.get("region")) or DEFAULT_REGION,
         bucket=_required_string(storage_section, "bucket"),
         access_key_id=access_key_id_value,
         access_key_secret=access_key_secret_value,
-        cdn_base_url=cdn_base_url_value,
+        cdn_base_url=_optional_string(storage_section.get("cdn_base_url")),
+        addressing_style=_addressing_style(storage_section.get("addressing_style")),
+        allow_insecure_http=_optional_bool(storage_section.get("allow_insecure_http"), False),
     )
 
 
@@ -117,58 +105,40 @@ def _required_string(section_dict: dict[str, Any], setting_name: str) -> str:
     return setting_value.strip()
 
 
-def _required_https_authority(endpoint: str, setting_name: str) -> str:
-    """校验 OSS endpoint 只有 HTTPS authority。"""
-    endpoint_parts = urlsplit(endpoint)
-    if (
-        endpoint_parts.scheme != "https"
-        or not endpoint_parts.hostname
-        or endpoint_parts.username
-        or endpoint_parts.password
-        or endpoint_parts.path not in {"", "/"}
-        or endpoint_parts.query
-        or endpoint_parts.fragment
-    ):
-        raise ObjectStorageConfigError(
-            f"[object_storage] {setting_name} 必须是无凭据、无路径的 HTTPS authority"
-        )
-    try:
-        endpoint_parts.port
-    except ValueError as endpoint_error:
-        raise ObjectStorageConfigError(
-            f"[object_storage] {setting_name} 端口无效"
-        ) from endpoint_error
-    return endpoint.rstrip("/")
-
-
-def _optional_https_url(setting_value: Any) -> str | None:
-    """校验可选 CDN HTTPS 地址并移除末尾斜线。"""
+def _optional_string(setting_value: Any) -> str | None:
+    """将可选字符串规范化为空值或已去空白字符串。"""
     if not isinstance(setting_value, str) or not setting_value.strip():
         return None
-    cdn_url = setting_value.strip()
-    cdn_parts = urlsplit(cdn_url)
+    return setting_value.strip().rstrip("/")
+
+
+def _addressing_style(setting_value: Any) -> str:
+    """读取并校验 S3 寻址风格。"""
+    if setting_value is None:
+        return DEFAULT_ADDRESSING_STYLE
     if (
-        cdn_parts.scheme != "https"
-        or not cdn_parts.hostname
-        or cdn_parts.username
-        or cdn_parts.password
-        or cdn_parts.query
-        or cdn_parts.fragment
+        not isinstance(setting_value, str)
+        or setting_value.strip() not in SUPPORTED_ADDRESSING_STYLES
     ):
         raise ObjectStorageConfigError(
-            "[object_storage] cdn_base_url 必须是无凭据、无查询参数的 HTTPS 地址"
+            "[object_storage] addressing_style 必须是 path、virtual 或 auto"
         )
-    try:
-        cdn_parts.port
-    except ValueError as cdn_error:
-        raise ObjectStorageConfigError("[object_storage] cdn_base_url 端口无效") from cdn_error
-    return cdn_url.rstrip("/")
+    return setting_value.strip()
+
+
+def _optional_bool(setting_value: Any, default_value: bool) -> bool:
+    """读取可选布尔设置；未填写时返回默认值。"""
+    if setting_value is None:
+        return default_value
+    if not isinstance(setting_value, bool):
+        raise ObjectStorageConfigError("[object_storage] allow_insecure_http 必须是布尔值")
+    return setting_value
 
 
 __all__ = [
+    "DEFAULT_ADDRESSING_STYLE",
     "DEFAULT_REGION",
     "ObjectStorageConfigError",
     "ObjectStorageSettings",
-    "SUPPORTED_PROVIDER",
     "load_object_storage_settings",
 ]
