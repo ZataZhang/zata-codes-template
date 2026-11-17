@@ -156,7 +156,7 @@
     /** 当前目标是否连接到 Git；普通目录只开放文件视图。 */
     gitAvailable: true,
     ignoredFilePaths: new Set(),
-    includeIgnoredFiles: false,
+    includeIgnoredFiles: true,
     isLoadingIgnoredFiles: false,
     changedSections: [],
     isDisconnected: false,
