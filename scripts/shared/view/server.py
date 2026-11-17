@@ -6,9 +6,10 @@
 
 **写边界**：仓库侧的写操作是显式保存文本文件（``POST /api/file/save``）、从 Markdown 预览
 切换任务项（``POST /api/file/toggle-task``）和暂存（``POST /api/stage``，只做 ``git add``）。
-另有一条不写仓库的写路由 ``POST /api/open``：
-把仓库内的文件交给系统默认应用打开（macOS ``open`` / Windows ``startfile`` / 其它
-``xdg-open``），但在用户机器上有副作用。所有写路由都要求 ``Content-Type: application/json``：
+另有一条不写仓库的写路由 ``POST /api/open``：按文件路径把仓库内文件交给系统默认应用打开，
+或按 ``/api/worktrees`` 返回的标识启动/复用另一个 worktree 的 zview 实例。前一种会在用户机器上
+拉起应用；后一种只在 Git 已登记的 worktree 之间导航，不执行 ``git switch`` 或改写工作区。
+所有写路由都要求 ``Content-Type: application/json``：
 跨站表单式 POST 是「简单请求」，浏览器会直接发出去，而 JSON 类型会强制预检、预检又必然
 失败。查看器首页使用每次请求生成的 CSP 脚本 nonce；仓库原始 HTML/SVG 由 ``/raw/`` 返回时
 禁用脚本，避免仓库内容借同源执行代码触发保存。其余写方法（PUT / DELETE / PATCH）仍一律
@@ -39,6 +40,7 @@ import instance
 import rendering
 import workspace
 import workspace_read
+import worktrees
 
 #: 服务只绑本机回环地址，常量与客户端入口共用同一份定义。
 VIEWER_HOST = instance.LOOPBACK_HOST
@@ -51,6 +53,7 @@ _STATIC_CONTENT_TYPES_BY_FILENAME = {
     "viewer.css": "text/css; charset=utf-8",
     "zview-mark.svg": "image/svg+xml",
     "history-view.js": "application/javascript; charset=utf-8",
+    "worktree-picker.js": "application/javascript; charset=utf-8",
     "viewer.js": "application/javascript; charset=utf-8",
     # 第三方产物（mermaid 的官方压缩包），只在页面真的遇到 mermaid 围栏时才按需取。
     # 版本、来源与校验和见 assets/viewer.js 顶部的说明。
@@ -239,6 +242,13 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
                     repository_root, git_available=self.server.git_available
                 )
             )
+        elif route_path == "/api/worktrees":
+            if not self.server.git_available:
+                self._send_json_payload(
+                    404, {"error": "该目录不在 Git 仓库中，没有 worktree 列表。"}
+                )
+                return
+            self._serve_workspace_payload(worktrees.build_worktree_options_payload(repository_root))
         elif route_path == "/api/tree":
             include_ignored = self._read_query_parameter(query_parameters, "include_ignored") == "1"
             self._serve_workspace_payload(
@@ -358,9 +368,8 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
         写路由都要求是 JSON 对象：``POST /api/file/save`` 保存已有 UTF-8 文本并校验读取版本；
         ``POST /api/file/toggle-task`` 只切换 Markdown 预览中已定位的任务复选框，并校验预览版本；
         ``POST /api/stage`` 的 ``scope`` 取值是封闭枚举（``path`` 或 ``all``）；
-        ``POST /api/open`` 的 ``path`` 是仓库相对路径，越界与不存在都在
-        :func:`workspace.open_path_in_system` 里按拒绝应答处理。路径会先在服务端校验，参数不会被
-        当作任意 ``git`` 选项或 shell 命令执行。
+        ``POST /api/open`` 接受仓库内文件路径，或 ``/api/worktrees`` 返回的工作区标识。路径会先在
+        服务端校验，工作区标识会重新与 Git 登记列表匹配，参数不会作为 shell 命令执行。
         """
         if requested_route_path == _FILE_TOGGLE_TASK_ROUTE_PATH:
             task_toggle_request, failure_payload = self._read_write_request_body()
@@ -475,6 +484,28 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
             open_request, failure_payload = self._read_write_request_body()
             if failure_payload is not None:
                 self._send_json_payload(failure_payload.status_code, failure_payload.payload)
+                return
+
+            worktree_id = open_request.get("worktree_id")
+            if worktree_id is not None:
+                view_name = open_request.get("view")
+                if (
+                    not self.server.git_available
+                    or "path" in open_request
+                    or not isinstance(worktree_id, str)
+                    or not isinstance(view_name, str)
+                ):
+                    self._send_json_payload(
+                        400, {"error": "拒绝：打开 worktree 需要有效的 worktree_id 和 view。"}
+                    )
+                    return
+                self._serve_workspace_payload(
+                    worktrees.open_worktree_viewer_payload(
+                        self.server.repository_root,
+                        worktree_id,
+                        view_name,
+                    )
+                )
                 return
 
             requested_path = open_request.get("path")

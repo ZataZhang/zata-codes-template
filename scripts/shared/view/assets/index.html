@@ -17,6 +17,8 @@
       <span id="repo-name">本仓库</span>
     </span>
     <span class="chip mono" id="branch-chip">…</span>
+    <select class="chip mono branch-picker" id="branch-picker"
+            aria-label="选择工作区分支" title="切换到另一个已检出的 worktree" hidden></select>
 
     <!-- 历史提交的只读浏览：返回入口放在仓库名旁边，和「你在看哪条提交」同一处。 -->
     <button type="button" class="head-action is-commit-return" id="commit-diff-exit" hidden>返回工作区改动</button>
@@ -150,6 +152,7 @@
   </footer>
 </div>
 
+<script nonce="__LOCAL_VIEW_SCRIPT_NONCE__" src="/assets/worktree-picker.js"></script>
 <script nonce="__LOCAL_VIEW_SCRIPT_NONCE__" src="/assets/viewer.js"></script>
 </body>
 </html>

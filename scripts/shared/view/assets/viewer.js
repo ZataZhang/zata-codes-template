@@ -91,6 +91,7 @@
   const elements = {
     repoName: document.getElementById("repo-name"),
     branchChip: document.getElementById("branch-chip"),
+    branchPicker: document.getElementById("branch-picker"),
     tabFiles: document.getElementById("tab-files"),
     tabDiff: document.getElementById("tab-diff"),
     tabHistory: document.getElementById("tab-history"),
@@ -161,6 +162,8 @@
     isDisconnected: false,
     /** 一次手动刷新是否正在进行；用来防止连点发出多份请求。 */
     isRefreshing: false,
+    /** 正在离开当前页面，打开另一个 worktree 的查看器。 */
+    isOpeningWorktree: false,
     /** 一次暂存请求是否正在进行；同样防连点——连点会发出两遍 `git add`。 */
     isStaging: false,
     /** 当前文件是否正在编辑、读取可编辑源码或保存。 */
@@ -206,7 +209,7 @@
   /**
    * 请求一个接口。
    *
-   * GET 读取本机内容；`POST` 用于编辑保存、暂存或在系统中打开，且必须带 JSON 请求体：
+   * GET 读取本机内容；`POST` 用于编辑保存、暂存或打开本地资源，且必须带 JSON 请求体：
    * 服务端用 `Content-Type: application/json` 把跨站表单式 POST 挡在预检外。
    * @param {string} requestUrl 接口地址。
    * @param {{method?: string, body?: object}} [requestOptions] 方法与 JSON 请求体；缺省是 GET。
@@ -226,6 +229,29 @@
     return { status: response.status, body: responseBody };
   }
 
+  const worktreePicker = window.zviewWorktreePicker.create({
+    branchChip: elements.branchChip,
+    branchPicker: elements.branchPicker,
+    statusHint: elements.statusHint,
+    requestJson,
+    isGitAvailable: () => viewState.gitAvailable,
+    getCurrentView: () => (viewState.view === FILES_VIEW ? FILES_VIEW : DIFF_VIEW),
+    getBusyMessage: () => {
+      if (viewState.isTogglingMarkdownTask) {
+        return "正在更新任务，请稍候再切换。";
+      }
+      if (viewState.isLoadingEditableSource) {
+        return "正在读取文件，请稍候再切换工作区。";
+      }
+      return viewState.isSavingFile ? "文件正在保存，完成后再切换。" : "";
+    },
+    hasUnsavedFileEdits,
+    getEditDraftText: () => viewState.editDraftText,
+    setOpeningWorktree: (isOpeningWorktree) => {
+      viewState.isOpeningWorktree = isOpeningWorktree;
+    },
+  });
+
   /**
    * 应用服务端返回的工作区信息，并按是否有 Git 同步可用视图。
    * @param {{repo_name: string, branch: string, git_available?: boolean}} workspaceInfo 工作区信息。
@@ -240,6 +266,11 @@
     applyRepositoryTint(workspaceInfo.repo_name);
     elements.branchChip.textContent = workspaceInfo.branch;
     elements.branchChip.hidden = !viewState.gitAvailable;
+    elements.branchPicker.hidden = true;
+    elements.branchPicker.disabled = false;
+    if (!viewState.gitAvailable) {
+      elements.branchPicker.replaceChildren();
+    }
     document.querySelectorAll("[data-git-shortcut]").forEach((shortcutHint) => {
       shortcutHint.hidden = !viewState.gitAvailable;
     });
@@ -462,6 +493,7 @@
     const didRefresh = await guardAgainstServiceExit(async () => {
       const infoResponse = await requestJson("/api/info");
       applyWorkspaceInfo(infoResponse.body);
+      await worktreePicker.load();
 
       if (viewState.view === HISTORY_VIEW) {
         const historyView = await ensureHistoryViewerLoaded();
@@ -519,6 +551,7 @@
     const didLoad = await guardAgainstServiceExit(async () => {
       const infoResponse = await requestJson("/api/info");
       applyWorkspaceInfo(infoResponse.body);
+      await worktreePicker.load();
 
       await loadFileTree();
     });
@@ -2860,7 +2893,7 @@
     }
   });
   window.addEventListener("beforeunload", (unloadEvent) => {
-    if (hasUnsavedFileEdits()) {
+    if (hasUnsavedFileEdits() && !viewState.isOpeningWorktree) {
       unloadEvent.preventDefault();
       unloadEvent.returnValue = "";
     }
