@@ -277,6 +277,13 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
                 self._send_json_payload(404, {"error": "该目录不在 Git 仓库中，没有改动列表。"})
                 return
             self._serve_workspace_payload(workspace.build_changes_payload(repository_root))
+        elif route_path == "/api/log/sync":
+            if not self.server.git_available:
+                self._send_json_payload(404, {"error": "该目录不在 Git 仓库中，没有远端引用。"})
+                return
+            import remote_sync
+
+            self._send_json_payload(200, remote_sync.read_remote_fetch_status(repository_root))
         elif route_path in {
             "/api/log",
             "/api/log/stats",

@@ -71,6 +71,7 @@ class LaunchRequest(NamedTuple):
         global_mode (bool): 是否按全局目录查看模式解析路径。
         git_available (bool): 目标目录是否位于 Git 仓库中。
         git_prefix (str): 目标目录在所属 Git 仓库中的相对路径前缀。
+        no_fetch (bool): 是否跳过启动时的后台远端引用同步。
     """
 
     requested_path: str
@@ -83,6 +84,7 @@ class LaunchRequest(NamedTuple):
     global_mode: bool = False
     git_available: bool = True
     git_prefix: str = ""
+    no_fetch: bool = False
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -118,6 +120,15 @@ def _run_launch_request(launch_request: LaunchRequest) -> int:
         repository_root = instance.resolve_repository_root()
     if launch_request.stop:
         return _stop_resident_instance(repository_root)
+
+    if launch_request.git_available and not launch_request.no_fetch:
+        import remote_sync
+
+        if not remote_sync.start_background_remote_fetch(repository_root):
+            print(
+                "⚠️ 无法启动远端引用同步，Git Log 将使用本地已有引用。",
+                file=sys.stderr,
+            )
 
     remembered_instance = instance.read_instance_record(repository_root)
     if remembered_instance is not None and not launch_request.no_reuse:
@@ -197,6 +208,11 @@ def _parse_arguments(argv: list[str] | None) -> LaunchRequest:
         help="只打印 URL，不打开浏览器",
     )
     argument_parser.add_argument(
+        "--no-fetch",
+        action="store_true",
+        help="跳过启动时的后台远端引用同步",
+    )
+    argument_parser.add_argument(
         "--stop",
         action="store_true",
         help="回收当前查看目标的常驻查看器实例，不打开界面",
@@ -214,6 +230,7 @@ def _parse_arguments(argv: list[str] | None) -> LaunchRequest:
         ),
         no_reuse=parsed_arguments.no_reuse,
         no_open=parsed_arguments.no_open,
+        no_fetch=parsed_arguments.no_fetch,
         stop=parsed_arguments.stop,
         global_mode=parsed_arguments.global_mode,
     )
