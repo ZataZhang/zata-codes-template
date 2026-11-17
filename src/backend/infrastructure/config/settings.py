@@ -428,6 +428,7 @@ class A2ASettings(BaseSettings):
 
     public_base_url: str = ""
     credential_encryption_key_env: str = "A2A_CREDENTIAL_ENCRYPTION_KEY"
+    credential_bindings: dict[str, dict[str, list[str]]] = Field(default_factory=dict)
     allowed_outbound_hosts: list[str] = Field(default_factory=list)
     allow_loopback_for_dev: bool = False
 

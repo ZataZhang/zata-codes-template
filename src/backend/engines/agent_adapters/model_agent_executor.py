@@ -312,7 +312,7 @@ class OpenAICompatibleAgentExecutor(AgentExecutor):
         """
         content_fragments: list[str] = []
         tool_call_fragments: dict[int, dict[str, object]] = {}
-        finish_reason = "stop"
+        finish_reason = ""
         streamed_any_content = False
         try:
             async with http_client.stream(
@@ -345,6 +345,8 @@ class OpenAICompatibleAgentExecutor(AgentExecutor):
                     streamed_any_content = streamed_any_content or bool(content_fragments)
         except (httpx.HTTPError, ValueError) as model_error:
             raise RuntimeError("model_request_failed") from model_error
+        if not finish_reason:
+            raise RuntimeError("model_stream_incomplete")
         assistant_message: dict[str, object] = {
             "role": "assistant",
             "content": "".join(content_fragments) if content_fragments else None,

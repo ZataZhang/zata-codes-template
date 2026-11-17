@@ -32,7 +32,7 @@ STREAM_FRAGMENTS = ("Hello", " from", " the", " streamed", " reply")
 class _StreamingModelServer:
     """按 OpenAI Chat Completions 协议返回 SSE 或普通 JSON 的本地端点。"""
 
-    def __init__(self, *, streaming: bool) -> None:
+    def __init__(self, *, streaming: bool, truncated: bool = False) -> None:
         self.streaming = streaming
         self.received_requests: list[dict[str, Any]] = []
         server_owner = self
@@ -59,6 +59,8 @@ class _StreamingModelServer:
                     }
                     self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
                     self.wfile.flush()
+                if truncated:
+                    return
                 final_chunk = {
                     "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
                 }
@@ -200,3 +202,27 @@ def test_streamed_deltas_are_batched_into_one_event_chain() -> None:
     assert all(candidate.event_type == "message.delta" for candidate in run_repository.candidates)
     assert "".join(str(delta) for delta in deltas) == "abcdefghijklmnopq"
     assert len(deltas) == 2
+
+
+def test_executor_rejects_truncated_stream(monkeypatch: pytest.MonkeyPatch) -> None:
+    """正常关闭但缺少结束原因的流不能把部分回复当成成功。"""
+    server = _StreamingModelServer(streaming=True, truncated=True)
+    try:
+        executor = _build_executor(server, monkeypatch)
+        received_fragments: list[str] = []
+
+        async def collect(delta_text: str) -> None:
+            received_fragments.append(delta_text)
+
+        with pytest.raises(RuntimeError, match="model_stream_incomplete"):
+            asyncio.run(
+                executor.execute(
+                    snapshot={"organization_id": "org-1"},
+                    message="truncated stream",
+                    peers=(),
+                    on_delta=collect,
+                )
+            )
+        assert received_fragments == list(STREAM_FRAGMENTS)
+    finally:
+        server.close()

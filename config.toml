@@ -35,6 +35,9 @@ allowed_origins = []
 public_base_url = ""
 # 密钥变量名注册在 TOML，密钥值只从 .env / .env.local 读取。
 credential_encryption_key_env = "A2A_CREDENTIAL_ENCRYPTION_KEY"
+# 部署方按组织 ID、完整对端 endpoint URL 授权可用密钥别名；默认拒绝全部引用。
+# credential_bindings = { "org-id" = { "https://peer.example/a2a" = ["ORG_PEER_TOKEN"] } }
+credential_bindings = {}
 # 出站对端必须先经平台批准且主机名命中此精确白名单；默认不允许任何外部主机。
 allowed_outbound_hosts = []
 # 仅本地开发/验证可显式启用回环地址；生产环境必须保持 false。

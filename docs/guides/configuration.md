@@ -280,3 +280,12 @@ allow_loopback_for_dev = false
 
 - 直接使用 `DATABASE_URL`。
 - 在未提供完整 URL 时，通过组件拼接生成连接字符串。
+
+### A2A 出站凭据引用授权
+
+部署方必须在 `config.toml` 的 `a2a.credential_bindings` 中按组织 ID、完整的已登记 endpoint URL
+列出允许的环境变量别名，例如
+`credential_bindings = { "org-id" = { "https://peer.example/a2a" = ["ORG_PEER_TOKEN"] } }`。
+真实 token 仍由环境变量注入；空映射允许应用启动，但拒绝任何带密钥引用的登记或轮换。
+组织管理员不能引用平台模型密钥或其他组织、其他对端的凭据；轮换保留相同授权校验。
+模型 SSE 若未返回结束原因就关闭连接，运行会失败，已收到的部分回复不会标记为成功。

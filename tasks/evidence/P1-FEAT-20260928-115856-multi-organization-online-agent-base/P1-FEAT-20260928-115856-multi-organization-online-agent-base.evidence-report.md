@@ -157,7 +157,7 @@ The comparison checks v1/v2/v3 ordering, v1/v2 comparison text, restored-current
 - `just test`: **543 passed, 1 skipped**; local OIDC package **17 passed** on the current tree, using an isolated temporary PostgreSQL database. The three new cases are `tests/backend/test_agent_streaming_deltas.py`: SSE fragments reach the delta callback in order, a non-streaming endpoint is reported as not streamed, and fragments are batched into `message.delta` events. The changed Vite proxy was exercised by the RV-7 real admin UI flow.
 - Re-execution in this round: `git diff --check`, `uv run mkdocs build --strict`, `just test` (540 passed, 1 skipped plus 17 OIDC) and `SKIP=check-test-flag uv run pre-commit run --all-files` all pass on the same tree, alongside `kc evidence check` 7/7.
 - `just test` re-run after the lint-gate repair (see the PRD Change Log entry on `.pnpm-store`): **543 passed, 1 skipped** and local OIDC package **17 passed** again; `just lint --full` now passes on the current tree instead of failing on the accidentally committed local pnpm cache.
-- Residual, disclosed limitation: `.pnpm-store/` (48,118 local pnpm cache files accidentally committed by the WIP checkpoint) is excluded from pre-commit in this tree but is still present in the Git index. Removing it from the index requires changing the shared `quality_effective_tree` helper, which runs `git add` on every changed path and exits non-zero on ignored deleted paths (reproduced locally); that change is out of this PRD's scope.
+- Historical cache incident resolved by runner checkpoint: current HEAD tracks zero .pnpm-store files (git ls-files .pnpm-store). Earlier residual-cache warning no longer applies.
 - `pnpm build` in `frontend-admin` and `frontend-public`: PASS. The current admin build completed; Vite reports the existing large-chunk advisory.
 - Playwright package `pnpm exec tsc --noEmit`: PASS.
 - `uv run mkdocs build --strict`: PASS on the current tree, with existing informational notices for unlisted pages and unresolved anchors.
@@ -175,3 +175,13 @@ The comparison checks v1/v2/v3 ordering, v1/v2 comparison text, restored-current
 - GitHub-hosted sync fetching failed twice; local-upstream sync behavior is proven instead. No external credential is required to finish the local gates.
 - The production public frontend build fetches Google Fonts (`next/font`) at image-build time; one rv-6 attempt failed on that network call and the successful re-run is what is recorded. A build host without outbound access to `fonts.googleapis.com` will fail rv-6 for environmental reasons.
 - Independent verifier verdict and runner-owned PR/archive gates are pending. Human-Confirmed items remain open by design.
+
+## Pre-PR review repair (2026-11-17)
+
+- SECURITY / high: outbound credential aliases previously accepted arbitrary environment variable names. Registration and rotation now require a deployment grant bound to organization and exact endpoint; empty grants deny all references.
+- BLOCKER / high: SSE previously defaulted finish_reason to stop, allowing a normal EOF after partial text to become successful output. Missing finish_reason now raises model_stream_incomplete and follows the Run failure path.
+- Five focused tests passed: successful SSE, non-streaming fallback, delta batching, truncated SSE rejection, and credential scope rejection/authorized reads.
+- RV-2 repeated the real admin/member browser, API, database, incremental reply, reopened history and trace flow successfully; model transport alone is stubbed. RV-7 repeated real admin UI and official a2a-sdk==1.0.0 interoperability with added HTTP 422 assertions for B referencing platform/A credentials. See each raw file for its captured tree identity. Historical evidence retains its original tree and is not claimed as recaptured on this repair tree.
+- Existing configuration documentation was updated; no new page or navigation entry was added. Runner must apply independent verification and final RV gates to this repair tree; prior verdicts do not cover these edits.
+
+- Repair verification: just test passed (545 passed, 1 skipped; OIDC 17 passed); just lint --full and mkdocs build --strict passed; git diff --check HEAD and manifest naming/reference checks passed. RV-2 and RV-7 both passed on source tree 7255cbdd1bb9168b3deccd7d54002cbb5be1665f. First just test was blocked by the active RV stack; it was rerun after cleanup without overriding the shared-database guard.

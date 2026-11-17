@@ -344,7 +344,11 @@ class AgentCatalogUseCase:
         if credential_env_alias:
             if self._secret_resolver is None:
                 raise ValueError("a2a_secret_resolver_unavailable")
-            credential_value = self._secret_resolver.get_secret(credential_env_alias)
+            credential_value = self._secret_resolver.get_secret(
+                credential_env_alias,
+                organization_id=organization_id,
+                endpoint_url=peer.endpoint_url,
+            )
             if credential_value is None:
                 raise ValueError("a2a_peer_credential_not_configured")
         return self._repository.create_a2a_peer(peer, credential_value)
@@ -378,7 +382,21 @@ class AgentCatalogUseCase:
         """从服务端密钥引用读取凭据并加密轮换当前组织对端密钥。"""
         if self._secret_resolver is None:
             raise ValueError("a2a_secret_resolver_unavailable")
-        credential_value = self._secret_resolver.get_secret(credential_env_alias)
+        peer = next(
+            (
+                peer
+                for peer in self._repository.list_a2a_peers(organization_id)
+                if peer.id == peer_id
+            ),
+            None,
+        )
+        if peer is None:
+            raise LookupError("peer_not_found")
+        credential_value = self._secret_resolver.get_secret(
+            credential_env_alias,
+            organization_id=organization_id,
+            endpoint_url=peer.endpoint_url,
+        )
         if credential_value is None:
             raise ValueError("a2a_peer_credential_not_configured")
         if not self._repository.rotate_a2a_peer_credential(

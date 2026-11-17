@@ -8,7 +8,7 @@ from typing import Protocol
 class SecretResolver(Protocol):
     """按部署方提供的密钥别名读取服务端密钥。"""
 
-    def get_secret(self, alias: str) -> str | None:
+    def get_secret(self, alias: str, *, organization_id: str, endpoint_url: str) -> str | None:
         """按别名返回密钥值；未配置时返回 None。"""
         ...
 
