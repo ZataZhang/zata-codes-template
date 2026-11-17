@@ -69,6 +69,12 @@
       historyDiffErrorMessage: "",
       /** 分支列表是否展开：默认展开，用户收起之后以用户的选择为准。 */
       isBranchListExpanded: true,
+      /** 最近一次点击的分支名与时间：分支单击会重绘列表，双击识别因此由容器代管。 */
+      lastBranchClickName: "",
+      lastBranchClickAt: 0,
+      /** 剪贴板反馈需跨过分支选择请求触发的重绘。 */
+      branchCopyFeedbackMessage: "",
+      branchCopyFeedbackTimer: 0,
       /** 提交信息的完整说明是否展开（默认展开，与旧的常驻信息栏一致）。 */
       isCommitInfoExpanded: true,
       /** 当前挂载的布局尺寸观察器：重挂载时先断开旧的，避免旧节点继续触发重排。 */
@@ -930,11 +936,13 @@
       branchButton.type = "button";
       branchButton.className = `history-branch-button is-${branchRef.kind}`;
       branchButton.dataset.historyBranchHash = branchRef.hash;
+      branchButton.dataset.historyBranchName = branchRef.name;
       branchButton.setAttribute(
         "aria-pressed",
         String(historyState.selectedHistoryCommitHash === branchRef.hash)
       );
-      branchButton.title = `查看 ${branchRef.name} 的最新提交`;
+      branchButton.setAttribute("aria-keyshortcuts", "Control+C Meta+C");
+      branchButton.title = `单击查看 ${branchRef.name} 的最新提交；双击分支名或聚焦后按 ⌘/Ctrl+C 复制`;
       if (isBranchAlreadyMerged(branchRef)) {
         branchButton.classList.add("is-already-merged");
       }
@@ -944,6 +952,74 @@
         branchButton.append(mergeBadge);
       }
       return branchButton;
+    }
+
+    /**
+     * 把分支名复制到系统剪贴板，并显示浮动反馈。
+     * @param {string} branchName 要复制的完整分支名。
+     */
+    async function copyHistoryBranchName(branchName) {
+      if (!navigator.clipboard) {
+        setHistoryCopyFeedback("当前环境不支持剪贴板写入，请手动复制分支名", true);
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(branchName);
+      } catch (copyError) {
+        setHistoryCopyFeedback(`复制分支名失败：${
+          copyError instanceof Error ? copyError.message : copyError
+        }，请检查浏览器剪贴板权限`, true);
+        return;
+      }
+      setHistoryCopyFeedback(`已复制分支名：${branchName}`);
+    }
+
+    /**
+     * 生成 Git Log 状态栏的默认说明。
+     * @returns {string} 当前已加载提交数量对应的说明。
+     */
+    function buildHistoryStatusHint() {
+      return historyState.branchCopyFeedbackMessage ||
+        (historyState.historyOffset
+          ? `Git Log · ${historyState.historyOffset} 条提交`
+          : "Git Log");
+    }
+
+    /**
+     * 显示剪贴板结果浮动提示，并短暂保留在后续的视图重绘中。
+     * @param {string} feedbackMessage 剪贴板操作反馈文案。
+     * @param {boolean} [isFailure] 是否按错误状态显示。
+     */
+    function setHistoryCopyFeedback(feedbackMessage, isFailure = false) {
+      window.clearTimeout(historyState.branchCopyFeedbackTimer);
+      historyState.branchCopyFeedbackMessage = feedbackMessage;
+      elements.statusHint.textContent = feedbackMessage;
+      elements.copyToast.hidden = false;
+      elements.copyToast.textContent = feedbackMessage;
+      elements.copyToast.classList.toggle("is-error", isFailure);
+      elements.copyToast.dataset.visible = "true";
+      historyState.branchCopyFeedbackTimer = window.setTimeout(() => {
+        historyState.branchCopyFeedbackMessage = "";
+        historyState.branchCopyFeedbackTimer = 0;
+        elements.copyToast.hidden = true;
+        elements.copyToast.textContent = "";
+        elements.copyToast.classList.remove("is-error");
+        delete elements.copyToast.dataset.visible;
+        if (isActive()) {
+          elements.statusHint.textContent = buildHistoryStatusHint();
+        }
+      }, 1800);
+    }
+
+    /** 清除旧剪贴板反馈，避免后续操作沿用过期消息。 */
+    function clearHistoryCopyFeedback() {
+      window.clearTimeout(historyState.branchCopyFeedbackTimer);
+      historyState.branchCopyFeedbackTimer = 0;
+      historyState.branchCopyFeedbackMessage = "";
+      elements.copyToast.hidden = true;
+      elements.copyToast.textContent = "";
+      elements.copyToast.classList.remove("is-error");
+      delete elements.copyToast.dataset.visible;
     }
 
     /**
@@ -1446,6 +1522,14 @@
       if (!isActive()) {
         return;
       }
+      clearHistoryCopyFeedback();
+      const clickedBranchNameNode = clickEvent.target.closest(
+        ".history-branch-button .history-ref"
+      );
+      if (!clickedBranchNameNode) {
+        historyState.lastBranchClickName = "";
+        historyState.lastBranchClickAt = 0;
+      }
       const selectedCommitButton = clickEvent.target.closest("[data-history-commit-hash]");
       if (selectedCommitButton) {
         void selectHistoryCommit(selectedCommitButton.dataset.historyCommitHash);
@@ -1453,6 +1537,22 @@
       }
       const selectedBranchButton = clickEvent.target.closest("[data-history-branch-hash]");
       if (selectedBranchButton) {
+        const branchName = selectedBranchButton.dataset.historyBranchName;
+        const currentBranchClickAt = Date.now();
+        const historyBranchDoubleClickWindowMs = 500;
+        const isBranchNameDoubleClick =
+          clickedBranchNameNode &&
+          historyState.lastBranchClickName === branchName &&
+          currentBranchClickAt - historyState.lastBranchClickAt <= historyBranchDoubleClickWindowMs;
+        if (isBranchNameDoubleClick) {
+          historyState.lastBranchClickName = "";
+          historyState.lastBranchClickAt = 0;
+          clickEvent.preventDefault();
+          void copyHistoryBranchName(branchName);
+          return;
+        }
+        historyState.lastBranchClickName = clickedBranchNameNode ? branchName : "";
+        historyState.lastBranchClickAt = clickedBranchNameNode ? currentBranchClickAt : 0;
         void selectHistoryCommit(selectedBranchButton.dataset.historyBranchHash);
         return;
       }
@@ -1473,6 +1573,25 @@
           void loadGitHistory();
         }
       }
+    });
+
+    elements.viewerBody.addEventListener("keydown", (keyboardEvent) => {
+      historyState.lastBranchClickName = "";
+      historyState.lastBranchClickAt = 0;
+      clearHistoryCopyFeedback();
+      if (
+        !isActive() ||
+        !(keyboardEvent.metaKey || keyboardEvent.ctrlKey) ||
+        keyboardEvent.key.toLowerCase() !== "c"
+      ) {
+        return;
+      }
+      const focusedBranchButton = keyboardEvent.target.closest("[data-history-branch-name]");
+      if (!focusedBranchButton) {
+        return;
+      }
+      keyboardEvent.preventDefault();
+      void copyHistoryBranchName(focusedBranchButton.dataset.historyBranchName);
     });
 
     return {
