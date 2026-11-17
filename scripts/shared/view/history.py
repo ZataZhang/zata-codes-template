@@ -435,7 +435,7 @@ def _read_branch_refs(
     raw_ref_output = workspace._run_git(
         repository_root,
         "for-each-ref",
-        "--format=%(objectname)%00%(refname:short)%00%(refname)%00%(objecttype)",
+        "--format=%(objectname)%00%(refname:short)%00%(refname)%00%(objecttype)%00%(symref)",
         "refs/heads",
         "refs/remotes",
     )
@@ -444,12 +444,15 @@ def _read_branch_refs(
         if not raw_ref_line:
             continue
         ref_fields = raw_ref_line.split("\x00")
-        if len(ref_fields) != 4:
+        if len(ref_fields) != 5:
             continue
-        commit_hash, short_name, full_name, object_type = ref_fields
+        commit_hash, short_name, full_name, object_type, symbolic_target = ref_fields
         if object_type != "commit":
             continue
         ref_kind = "remote" if full_name.startswith("refs/remotes/") else "local"
+        if ref_kind == "remote" and symbolic_target:
+            # 远端 HEAD 是默认分支的符号别名，不作为独立分支重复显示。
+            continue
         branch_refs.append({"name": short_name, "kind": ref_kind, "hash": commit_hash})
 
     if include_merge_states:
