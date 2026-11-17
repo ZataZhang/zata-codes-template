@@ -196,3 +196,8 @@ The comparison checks v1/v2/v3 ordering, v1/v2 comparison text, restored-current
 - Documentation: README, `docs/index.md`, `docs/guides/deployment.md`, `docs/architecture/multi-org-agent.md` and the English/Chinese UI copy now describe the organization-scoped Agent workspace instead of claiming the template ships no business domain.
 - Validation on this tree: `git diff --check`, `uv run mkdocs build`, `just test` (warm flag valid for tree `f8950ab7`), `just lint --full`, focused A2A contract tests and the public frontend typecheck all pass.
 - Evidence scope limitation: the RV-2 and RV-7 raw evidence files still carry the tree identity captured before this repair. They are not re-collected or re-signed here; the runner-owned final-tree gate must repeat RV-2 and RV-7 (including the cancel action and the streaming artifact shape) before this repair can be treated as verified.
+
+
+### 当前树预 PR 复核（2026-11-17）
+
+按 code-reviewer 技能聚焦上一轮修复：RV-2 与 RV-7 已在 HEAD cfe8313362559d32e7c9e435ea1fd97825e99275、源码树 a24a2597190b811b952602c369326585615e963d 重新执行，均退出 0，原始记录已刷新。模型仍使用本地替身。git diff --check 通过。独立 verifier-response.txt 仍绑定 82d484ae7，不能作为当前树的独立 PASS；需要 runner 对当前树重新独立验证。未勾选人工项，未移动 PRD。
