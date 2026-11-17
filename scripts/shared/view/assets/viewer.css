@@ -346,7 +346,10 @@ button, input, select { font: inherit; color: inherit; }
   margin-left: auto; display: inline-flex; flex: none; align-items: center; gap: 8px;
   color: var(--muted-foreground); font-size: 11.5px;
 }
-.viewer-body { min-height: 0; flex: 1; overflow: auto; background: var(--code-bg); }
+.viewer-body {
+  min-height: 0; flex: 1; overflow: auto; background: var(--code-bg);
+  container: viewer-body / inline-size;
+}
 
 .file-editor {
   display: flex; min-width: 0; min-height: 100%; flex-direction: column; gap: 8px; padding: 12px;
@@ -580,13 +583,14 @@ body.is-resizing-history, body.is-resizing-history * { cursor: col-resize !impor
 .history-ref.is-remote { background: color-mix(in oklab, oklch(0.6 0.16 250) 13%, var(--card)); color: oklch(0.48 0.14 250); }
 .history-ref.is-head { background: var(--primary); color: var(--primary-foreground); }
 .history-ref.is-tag { background: color-mix(in oklab, oklch(0.7 0.15 80) 24%, var(--card)); color: oklch(0.48 0.12 70); }
-/**
- * 详情区纵向排：摘要行 → 可展开的提交信息 → 文件胶囊条 → 占满剩余空间的 diff。
- * 不再与提交信息平分宽度：窄窗口下那一刀会把 diff 压到只有 400 多像素。
- */
-.history-detail-pane {
-  display: flex; min-width: 0; min-height: 0; flex-direction: column;
-  overflow: hidden; background: var(--card);
+/* 宽窗口把提交信息与文件列表、逐行 diff 分栏；窄窗口再由断点改成上下堆叠。 */
+.history-detail-pane { min-width: 0; min-height: 0; overflow: hidden; background: var(--card); }
+.history-detail-split {
+  display: grid; width: 100%; height: 100%; min-height: 0;
+  grid-template-columns: minmax(0, var(--history-info-width, 33.3333%)) 7px minmax(0, 1fr);
+}
+.history-info-pane {
+  min-width: 0; min-height: 0; overflow: auto; background: var(--card); padding: 14px 16px 24px;
 }
 .history-detail-summary { flex: none; border-bottom: 1px solid var(--border); padding: 9px 16px 8px; }
 .history-detail-title-row { display: flex; min-width: 0; align-items: baseline; gap: 9px; }
@@ -611,19 +615,18 @@ body.is-resizing-history, body.is-resizing-history * { cursor: col-resize !impor
   flex: none; max-height: min(30vh, 260px); overflow: auto;
   border-bottom: 1px solid var(--border); padding: 10px 16px 12px;
 }
-/* 改动文件排成一条可横滚的胶囊条：高度固定，不再随文件数长成一面墙。 */
+/* 每个改动文件独占一行；文件较多时由信息栏纵向滚动。 */
 .history-files-strip {
-  display: flex; min-width: 0; flex: none; align-items: center; gap: 8px;
+  display: flex; min-width: 0; flex: none; flex-direction: column; align-items: stretch; gap: 6px;
   border-bottom: 1px solid var(--border); background: var(--card);
-  padding: 6px 12px; overflow-x: auto;
+  padding: 8px 0 12px;
 }
 .history-files-label {
-  flex: none; color: var(--muted-foreground); font-size: 10.5px; font-weight: 650;
-  white-space: nowrap;
+  color: var(--muted-foreground); font-size: 10.5px; font-weight: 650;
 }
 .history-code-pane {
-  min-width: 0; min-height: 0; flex: 1 1 auto; overflow: auto;
-  border-top: 1px solid var(--border); background: var(--code-bg); padding: 6px 0 24px;
+  min-width: 0; min-height: 0; overflow: auto;
+  border-left: 1px solid var(--border); background: var(--code-bg); padding: 6px 0 24px;
 }
 .history-code-pane > .history-change-heading,
 .history-code-pane > .history-message { margin-right: 16px; margin-left: 16px; }
@@ -633,11 +636,13 @@ body.is-resizing-history, body.is-resizing-history * { cursor: col-resize !impor
   white-space: pre-wrap; overflow-wrap: anywhere;
 }
 .history-change-heading { margin: 14px 0 7px; font-size: 12px; font-weight: 650; }
-.history-changed-files { display: flex; min-width: 0; flex: none; gap: 4px; }
+.history-changed-files {
+  display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr); gap: 4px;
+}
 .history-changed-file {
-  display: inline-flex; min-width: 0; max-width: 340px; flex: 0 0 auto; align-items: center;
-  gap: 6px; border: 1px solid var(--border); border-radius: 999px; background: var(--card);
-  padding: 1px 8px 1px 4px; text-align: left; cursor: pointer;
+  display: flex; width: 100%; min-width: 0; align-items: center; gap: 7px;
+  border: 1px solid transparent; border-radius: 6px; background: transparent;
+  padding: 4px 6px; text-align: left; cursor: pointer;
 }
 .history-changed-file:hover { background: var(--secondary); }
 .history-changed-file[aria-pressed='true'] {
@@ -655,7 +660,7 @@ body.is-resizing-history, body.is-resizing-history * { cursor: col-resize !impor
 .history-file-status.is-m, .history-file-status.is-d { background: var(--del); color: var(--del-mark); }
 .history-file-status.is-r, .history-file-status.is-c { background: var(--rename); color: var(--rename-mark); }
 .history-file-path {
-  min-width: 0; overflow: hidden; font-family: var(--mono); font-size: 10.5px;
+  min-width: 0; flex: 1 1 auto; overflow: hidden; font-family: var(--mono); font-size: 10.5px;
   text-overflow: ellipsis; white-space: nowrap;
 }
 /* diff 在独立代码栏里随栏滚动，不再限制自身高度。 */
@@ -676,26 +681,24 @@ body.is-resizing-history, body.is-resizing-history * { cursor: col-resize !impor
 }
 .history-code-pane > .code .row.add .src { color: var(--add-mark); }
 .history-code-pane > .code .row.del .src { color: var(--del-mark); }
-.history-detail-summary .history-message,
-.history-detail-info .history-message,
+.history-info-pane .history-message,
 .history-code-pane .history-message { margin: 12px 0; padding: 6px 0; }
 .history-message { margin: 16px 4px; color: var(--muted-foreground); }
 .history-message.is-error { color: var(--destructive); }
 .history-load-more { display: flex; margin: 12px auto; }
-.history-detail-summary > .history-message,
-.history-detail-info > .history-message,
+.history-info-pane > .history-message,
 .history-code-pane > .history-message { overflow-wrap: anywhere; }
 .history-branch-list .history-message { margin: 0; white-space: nowrap; }
 .history-graph-list > .history-message { padding: 12px; text-align: center; }
 .history-graph-list > .history-load-more { margin-top: 12px; }
 .history-branch-items { max-width: 100%; }
-.history-branch-groups, .history-graph-list, .history-files-strip,
+.history-branch-groups, .history-graph-list, .history-info-pane,
 .history-detail-info, .history-code-pane { scrollbar-width: thin; }
 .history-branch-groups::-webkit-scrollbar, .history-graph-list::-webkit-scrollbar,
-.history-files-strip::-webkit-scrollbar, .history-detail-info::-webkit-scrollbar,
+.history-info-pane::-webkit-scrollbar, .history-detail-info::-webkit-scrollbar,
 .history-code-pane::-webkit-scrollbar { width: 8px; height: 8px; }
 .history-branch-groups::-webkit-scrollbar-thumb, .history-graph-list::-webkit-scrollbar-thumb,
-.history-files-strip::-webkit-scrollbar-thumb, .history-detail-info::-webkit-scrollbar-thumb,
+.history-info-pane::-webkit-scrollbar-thumb, .history-detail-info::-webkit-scrollbar-thumb,
 .history-code-pane::-webkit-scrollbar-thumb {
   border-radius: 8px; background: color-mix(in oklab, var(--muted-foreground) 22%, transparent);
 }
@@ -900,8 +903,19 @@ body.is-resizing-history, body.is-resizing-history * { cursor: col-resize !impor
 @media (max-width: 860px) {
   .body-grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: 216px minmax(0, 1fr); }
   .body-grid.is-history { grid-template-rows: minmax(0, 1fr); }
-  .history-layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(220px, 42%) minmax(0, 1fr); }
-  /* 上下堆叠时拖拽左右分栏没有意义，隐藏分隔条并交回固定行高。 */
+  .history-branch-items { max-width: 72vw; }
+  /* 窄窗口下左树本来就占满整屏宽（文件名放得下），栏宽开关既不显示，也不该留下加宽态。 */
+  .body-grid.is-tree-wide { grid-template-columns: minmax(0, 1fr); }
+  .body-grid.is-tree-wide .tree { min-width: 0; }
+  .tree-width-toggle { display: none; }
+}
+
+@container viewer-body (max-width: 1200px) {
+  .history-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(220px, 42%) minmax(0, 1fr);
+  }
+  /* 实际可用宽度不足以舒展三栏时上下堆叠，并保留窄屏时的像素宽度偏好。 */
   .history-splitter { display: none; }
   .history-detail-pane { border-top: 1px solid var(--border); }
   .history-detail-split {
@@ -909,9 +923,4 @@ body.is-resizing-history, body.is-resizing-history * { cursor: col-resize !impor
     grid-template-rows: minmax(200px, 45%) minmax(0, 1fr);
   }
   .history-code-pane { border-top: 1px solid var(--border); border-left: 0; }
-  .history-branch-items { max-width: 72vw; }
-  /* 窄窗口下左树本来就占满整屏宽（文件名放得下），栏宽开关既不显示，也不该留下加宽态。 */
-  .body-grid.is-tree-wide { grid-template-columns: minmax(0, 1fr); }
-  .body-grid.is-tree-wide .tree { min-width: 0; }
-  .tree-width-toggle { display: none; }
 }
