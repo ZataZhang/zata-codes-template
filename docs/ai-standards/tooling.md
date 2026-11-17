@@ -40,7 +40,7 @@
 | `just copy <new-dir>` | 派生新项目；生成英文 `README.md` 和简体中文版 `README.zh.md`，随机分配三个互不重叠的端口避免多副本端口冲突，并根据新项目名自动生成独立 PostgreSQL 数据库 |
 | `just worktree <branch>` | 仅能从 Git primary worktree 创建；自动分配端口、创建专用 PostgreSQL 空库并执行迁移，开发与 E2E 共用该 Worktree 的数据库 |
 | `just worktree -o <worktree-name>` | 打开已有 worktree；名称接受分支全名、分支最后一段、PRD slug、PRD 文件名（可带 `.md`）与 `tasks/pending/....md` 路径，歧义时报错列候选、未命中时列可用 worktree |
-| `just worktree --prune [--dry-run\|--yes\|--force] [--base <branch>]` | 批量删除已并入 base 的本地分支及其 worktree；默认列计划并确认一次，gone 但有独有提交的分支需 `--force` |
+| `just worktree --prune [--dry-run\|--yes\|--force] [--base <branch>]` | 清理已并入 base 的分支及 worktree，也清理提交可从远端跟踪引用到达的本地别名；默认列计划并确认一次，gone 且无远端副本的独有提交需 `--force` |
 | `just test` | 运行本地测试；根 `justfile` 默认带 `--core-tier`，只跑核心档（名单 ∪ 改动与映射到的测试），全量用 `just test all` |
 | `just test all` | 全量测试（`-m ''`，含 slow / real_api / redis） |
 | `just test-changed` | 只跑与当前工作区改动相关的测试（不设预算、不写提交标记）；用于验掉 `just test` 结尾点名没跑的相关文件 |
@@ -71,9 +71,11 @@
 
 完成分支任务或工作收尾时，主动检查并及时清理已合并或过期且不再包含待保留工作的本地分支。先刷新远端引用，并确认目标默认分支及关联 worktree 状态。
 
-- 优先用 `just worktree --prune --dry-run --base <默认分支>` 预览已并入默认分支的候选，再检查并执行清理；该命令会同时处理关联的 worktree。
+- 先运行 `git fetch --all --prune` 刷新远端引用，再用 `just worktree --prune --dry-run --base <默认分支>` 预览已并入默认分支的分支，以及本地 tip 可从 remote-tracking ref 到达的本地别名；确认后执行清理。
+- 远端保留组只删除本地分支引用，不删除远端分支。为避免触碰仍在使用的工作，分支必须没有活动 upstream，且不能在任何 worktree 中检出；输出会列出包含本地 tip 的远端跟踪引用。
+- 没有 upstream 且 tip 没有远端跟踪副本的本地独有分支会显示为待人工核验，不纳入自动删除或 `--force` 组。
 - 上游分支仍存在时，默认清理命令可能看不到通过 squash/rebase merge 合并的本地分支。核验对应 PR/MR 已合并且改动已在默认分支后，若该分支有 worktree，先确认干净并移除，再用 `git branch -D <branch>` 删除本地分支；不要因此删除远端分支。
-- `just worktree --prune` 会保留 upstream 已删除但仍有独有提交的分支，因为仅凭 Git 提交图无法区分 squash merge 与未合并关闭。对这类分支，检查权威 PR/MR 状态，并确认改动已进入默认分支；已合并才删除，未合并或状态不明则保留。
+- `just worktree --prune` 会保留 upstream 已删除、仍有独有提交、且没有其他远端跟踪引用包含本地 tip 的分支，因为仅凭 Git 提交图无法区分 squash merge 与未合并关闭。检查权威 PR/MR 状态并确认改动已进入默认分支后才可清理；未合并或状态不明则保留。
 - `--force` 会影响所有 upstream 已删除且仍有独有提交的候选。只有这些候选都已确认合并时才使用；否则逐个清理已确认的分支，并确保关联 worktree 干净且未检出该分支。
 - 不删除当前检出的分支、有未提交改动的 worktree 分支或仍有待保留提交的分支。删除远端分支必须有用户明确要求。
 

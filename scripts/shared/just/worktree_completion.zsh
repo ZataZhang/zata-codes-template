@@ -35,7 +35,7 @@ if (( CURRENT == 3 )) && [[ "${words[2]:-}" == worktree ]] && [[ "${PREFIX:-}" =
     '-m:merge a worktree'
     '-r:rebase-merge a worktree (linear history)'
     '--doctor:check and clean worktree state'
-    '--prune:prune merged branches and their worktrees'
+    '--prune:prune merged or remotely retained local branches'
   )
   _describe 'worktree option' option_candidates
   return

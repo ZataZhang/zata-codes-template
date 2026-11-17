@@ -7,11 +7,14 @@ Guard Tests 小节。
 
 被测对象：``scripts/shared/worktree/merge.sh`` 的 ``--prune`` 模式。核心不变量：
 
-1. **默认只删「已经并进 base」的分支。** squash merge 之后远端分支被删、本地提交又不在
-   base 的祖先链上，git 无法区分「合过了」和「PR 关掉没合」。这类分支（upstream 为
-   ``[gone]`` 且仍有独有提交）默认只能列出来，必须显式 ``--force`` 才允许删除——
-   判据一旦放宽成「远端没了就删」，一次误判就丢掉未合并的工作。
+1. **默认只删已确认可回收的本地引用。** 已并入 base 的分支可以连同干净 worktree 删除。
+   分支未并入 base 时，只有其所有提交均可从 remote-tracking ref 到达，且本地分支
+   没有活动 upstream、未在任何 worktree 检出，才可仅删除本地分支引用；远端引用不动。
+   upstream 为 ``[gone]`` 且本地仍有独有提交、又没有远端 ref 包含本地 tip 的分支，默认只能列出，
+   必须显式 ``--force`` 才允许删除——不能把「上游没了」当成已合并。
+   没有 upstream 且本地 tip 没有远端副本的独有分支只列为待人工核验，不自动删除。
 2. **受保护的分支永不触碰。** base 分支与当前检出分支必须在任何 flag 组合下存活；
+   有远端副本但仍在其他 worktree 检出的分支也必须保留。
    删掉当前检出分支会让所在 worktree 直接失去 HEAD。
 3. **``--dry-run`` 零副作用。** 预览路径必须与执行路径彻底分离，否则「先看一眼」本身
    就成了破坏性操作。
@@ -35,6 +38,9 @@ _MERGED_BRANCH = "feat/merged"
 _GONE_BRANCH = "feat/gone"
 _ACTIVE_BRANCH = "feat/active"
 _IN_USE_BRANCH = "feat/in-use"
+_REMOTE_COPY_BRANCH = "evidence/local-copy"
+_REMOTE_COPY_REF = "origin/published-evidence"
+_LOCAL_ONLY_BRANCH = "local/private"
 
 
 def _run_git(repo_path: Path, *git_args: str) -> subprocess.CompletedProcess[str]:
@@ -96,6 +102,28 @@ def _commit_on_new_branch(repo_path: Path, branch_name: str, file_name: str) -> 
     _run_git(repo_path, "commit", "-m", f"work on {branch_name}")
 
 
+def _add_remote_copy_branch(repo_path: Path) -> None:
+    """创建未设置 upstream、且提交由另一个远端跟踪引用包含的本地分支。"""
+    _commit_on_new_branch(repo_path, _REMOTE_COPY_BRANCH, "published-evidence.txt")
+    _run_git(repo_path, "push", "origin", f"{_REMOTE_COPY_BRANCH}:refs/heads/published-evidence")
+    local_tip_oid = _run_git(repo_path, "rev-parse", _REMOTE_COPY_BRANCH).stdout.strip()
+    local_tree_oid = _run_git(repo_path, "rev-parse", f"{local_tip_oid}^{{tree}}").stdout.strip()
+    remote_tip_oid = _run_git(
+        repo_path,
+        "commit-tree",
+        local_tree_oid,
+        "-p",
+        local_tip_oid,
+        "-m",
+        "advance published evidence ref",
+    ).stdout.strip()
+    _run_git(repo_path, "push", "origin", f"{remote_tip_oid}:refs/heads/published-evidence")
+    if _upstream_name_of(repo_path, _REMOTE_COPY_BRANCH):
+        _run_git(repo_path, "branch", "--unset-upstream", _REMOTE_COPY_BRANCH)
+    _run_git(repo_path, "checkout", "main")
+    _run_git(repo_path, "fetch", "origin")
+
+
 def _local_branch_names(repo_path: Path) -> set[str]:
     """列出本地分支名。"""
     git_result = _run_git(repo_path, "for-each-ref", "--format=%(refname:short)", "refs/heads")
@@ -117,6 +145,17 @@ def _upstream_track_of(repo_path: Path, branch_name: str) -> str:
         repo_path,
         "for-each-ref",
         "--format=%(upstream:track)",
+        f"refs/heads/{branch_name}",
+    )
+    return git_result.stdout.strip()
+
+
+def _upstream_name_of(repo_path: Path, branch_name: str) -> str:
+    """读取本地分支配置的 upstream 名称。"""
+    git_result = _run_git(
+        repo_path,
+        "for-each-ref",
+        "--format=%(upstream:short)",
         f"refs/heads/{branch_name}",
     )
     return git_result.stdout.strip()
@@ -257,6 +296,86 @@ def test_gone_branch_with_unique_commits_needs_force(tmp_path: Path) -> None:
 
     assert forced_result.returncode == 0, forced_result.stdout + forced_result.stderr
     assert _GONE_BRANCH not in _local_branch_names(repo_path)
+
+
+def test_local_only_unique_branch_is_reported_for_manual_review(tmp_path: Path) -> None:
+    """无 upstream 且无远端副本的本地独有提交只列出，不自动删除。"""
+    repo_path = _init_fixture_repo(tmp_path)
+    _commit_on_new_branch(repo_path, _LOCAL_ONLY_BRANCH, "local-only.txt")
+    _run_git(repo_path, "checkout", "main")
+
+    prune_result = _run_prune(repo_path, "--yes")
+
+    assert prune_result.returncode == 0, prune_result.stdout + prune_result.stderr
+    assert _LOCAL_ONLY_BRANCH in _local_branch_names(repo_path)
+    assert f"{_LOCAL_ONLY_BRANCH}  (无 upstream 且无远端副本，需人工核验)" in prune_result.stdout
+
+
+def test_remote_copy_branch_is_listed_without_mutation(tmp_path: Path) -> None:
+    """dry-run 应列出由远端 tip 包含的本地别名，同时不改任何引用。"""
+    repo_path = _init_fixture_repo(tmp_path)
+    _add_remote_copy_branch(repo_path)
+    branches_before = _local_branch_names(repo_path)
+    worktrees_before = _registered_worktree_paths(repo_path)
+    local_tip_before = _run_git(repo_path, "rev-parse", _REMOTE_COPY_BRANCH).stdout.strip()
+    assert _upstream_name_of(repo_path, _REMOTE_COPY_BRANCH) == ""
+    remote_tip_before = _run_git(
+        repo_path, "rev-parse", f"refs/remotes/{_REMOTE_COPY_REF}"
+    ).stdout.strip()
+    assert remote_tip_before != local_tip_before
+    _run_git(repo_path, "merge-base", "--is-ancestor", local_tip_before, remote_tip_before)
+
+    prune_result = _run_prune(repo_path, "--dry-run")
+
+    assert prune_result.returncode == 0, prune_result.stdout + prune_result.stderr
+    assert "本地提交可由远端跟踪引用到达" in prune_result.stdout
+    expected_candidate = (
+        f"{_REMOTE_COPY_BRANCH}  (远端保留: {_REMOTE_COPY_REF} 包含提交 {local_tip_before[:8]})"
+    )
+    assert expected_candidate in prune_result.stdout
+    assert _local_branch_names(repo_path) == branches_before
+    assert _registered_worktree_paths(repo_path) == worktrees_before
+    assert (
+        _run_git(repo_path, "rev-parse", f"refs/remotes/{_REMOTE_COPY_REF}").stdout.strip()
+        == remote_tip_before
+    )
+
+
+def test_remote_copy_branch_deletes_only_local_ref(tmp_path: Path) -> None:
+    """执行时只删除本地重复引用，远端分支及提交必须保留。"""
+    repo_path = _init_fixture_repo(tmp_path)
+    _add_remote_copy_branch(repo_path)
+    local_tip_before = _run_git(repo_path, "rev-parse", _REMOTE_COPY_BRANCH).stdout.strip()
+    remote_tip_before = _run_git(
+        repo_path, "rev-parse", f"refs/remotes/{_REMOTE_COPY_REF}"
+    ).stdout.strip()
+    remote_repo_path = repo_path.parent / "remote.git"
+
+    prune_result = _run_prune(repo_path, "--yes")
+
+    assert prune_result.returncode == 0, prune_result.stdout + prune_result.stderr
+    assert _REMOTE_COPY_BRANCH not in _local_branch_names(repo_path)
+    assert (
+        _run_git(remote_repo_path, "rev-parse", "refs/heads/published-evidence").stdout.strip()
+        == remote_tip_before
+    )
+    _run_git(repo_path, "merge-base", "--is-ancestor", local_tip_before, remote_tip_before)
+    assert "远端引用 origin/published-evidence 保留" in prune_result.stdout
+
+
+def test_remote_copy_branch_checked_out_in_worktree_is_protected(tmp_path: Path) -> None:
+    """带远端副本的分支若仍在 linked worktree 检出，不得自动清理。"""
+    repo_path = _init_fixture_repo(tmp_path)
+    _add_remote_copy_branch(repo_path)
+    worktree_path = _add_worktree(repo_path, _REMOTE_COPY_BRANCH)
+
+    prune_result = _run_prune(repo_path, "--yes")
+
+    assert prune_result.returncode == 0, prune_result.stdout + prune_result.stderr
+    assert _REMOTE_COPY_BRANCH in _local_branch_names(repo_path)
+    assert worktree_path.exists()
+    assert str(worktree_path) in _registered_worktree_paths(repo_path)
+    assert f"{_REMOTE_COPY_BRANCH}  (仍由 worktree 检出)" in prune_result.stdout
 
 
 def test_active_branch_is_never_a_candidate(tmp_path: Path) -> None:

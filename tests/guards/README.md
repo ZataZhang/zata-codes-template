@@ -68,6 +68,7 @@ AI 代理默认不会设置该变量，因此会被 hook 拦下——这是"指�
 | `shared/test_migration_foreign_key_index_drop_order.py` | 迁移文件里"索引/唯一约束删除先于同表外键约束删除"的顺序缺陷（MySQL 1553 风险，仅 MySQL 方言适用，`docs/ai-standards/alembic.md`），静态 AST 检查，只覆盖表存活（列级手术）场景；仓库尚无任何迁移时跳过 |
 | `shared/test_view_history_merge_state.py` | zview 分支合并状态（`scripts/shared/view/history.py`）：历史首屏不执行 shortstat 或补丁比对；squash 合入必须与未合并区分（逐补丁 + 整体补丁双重判据）、必须能指出合入到默认分支的哪个提交、`rev-list --left-right` 的领先/落后方向不得读反、无默认分支时不猜基准、提交行上的引用标签也要带状态 |
 | `shared/test_open_worktree.py` | `just worktree -o` 的名称解析（`scripts/shared/worktree/open.sh`）：PRD slug / 文件名 / `tasks/pending` 路径与分支末段等价、精确分支优先、歧义报错列候选、不回退旧约定目录、未命中列可用 worktree |
+| `shared/test_prune_worktree_branches.py` | `just worktree --prune` 清理规则（`scripts/shared/worktree/merge.sh`）：已并入 base 的分支及干净 worktree、远端跟踪 ref 包含本地 tip 时只删本地别名、活动 upstream / 已检出 worktree 保护、无 upstream 且无远端副本的独有分支待人工核验、upstream gone 且无远端副本时需 `--force`、dry-run 零副作用与交互确认 |
 | `shared/test_prd_impact_tree.py` | 影响树触达进度（`scripts/shared/just/prd_impact_tree.py` 与看板 FILES 列）：触达判据必须是「本次分支改动过」而非「文件存在」、未提交与未 `git add` 的改动都要计入、目录节点下任一文件被改即算触达、可判定性只认 git 真实路径（大小写严格、不吃 gitignore 残留）、无法判定的节点排除出分母并用 `?n` 披露、裸文件名不得回退仓库根、FILES 列永不转绿 |
 | `shared/test_prd_lock.py` | PRD 执行锁脚本（`scripts/shared/just/prd_lock.py`）：锁落主仓库、并发领锁唯一、过期接管留档、worktree 活性佐证的存活判定 |
 | `shared/prd_status_fixtures.py` | **测试辅助模块，非测试文件**（pytest 不收集）：看板两份守卫测试共用的真实 git 仓库 fixture 构造（主仓库、linked worktree、锁、归档 PRD、回拨提交时间）与单元格渲染辅助，只在此维护一份 |

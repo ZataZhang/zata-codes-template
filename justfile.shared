@@ -337,7 +337,7 @@ staged_changes:
 #   just worktree -r [<feature>] [base=main] [flags]  # rebase-merge（线性历史，无 merge commit）
 #   just worktree --doctor [branch] [--gc] [--yes]    # doctor / 孤儿库盘点与回收
 #   just worktree --prune [--dry-run] [--yes] [--force] [--base <branch>]
-#                                                     # 批量清理已并入 base 的分支及其 worktree
+#                                                     # 清理已并入 base 或本地提交仍由远端保留的分支
 worktree arg1 arg2="" arg3="" arg4="" arg5="":
     #!/usr/bin/env bash
     set -euo pipefail
@@ -458,8 +458,8 @@ worktree arg1 arg2="" arg3="" arg4="" arg5="":
         exit 0
     fi
 
-    # --prune: 批量清理已并入 base 的分支及其 worktree
-    #          （--dry-run 只列计划，--yes 跳过确认，--force 纳入远端已删但有独有提交的分支）
+    # --prune: 清理已并入 base 或本地提交仍由远端保留的分支
+    #          （--dry-run 只列计划，--yes 跳过确认，--force 纳入上游已删且仍有独有提交的分支）
     if [ "{{arg1}}" = "--prune" ]; then
         prune_args=(./scripts/shared/worktree/merge.sh --prune)
         for raw_arg in "{{arg2}}" "{{arg3}}" "{{arg4}}" "{{arg5}}"; do
