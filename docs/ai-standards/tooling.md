@@ -38,7 +38,7 @@
 | `just frontend-public dev` | 委托 `just run frontend-public`，读取当前 run-state 端口 |
 | `just down` | 按当前 Git worktree 保存的端口停止本地开发服务 |
 | `just copy <new-dir>` | 派生新项目；生成英文 `README.md` 和简体中文版 `README.zh.md`，随机分配三个互不重叠的端口避免多副本端口冲突，并根据新项目名自动生成独立 PostgreSQL 数据库 |
-| `just worktree <branch>` | 仅能从 Git primary worktree 创建；自动分配端口、创建专用 PostgreSQL 空库并执行迁移，开发与 E2E 共用该 Worktree 的数据库 |
+| `just worktree <branch>` | 仅能从 Git primary worktree 创建；自动分配端口、创建专用 PostgreSQL 空库并执行迁移，开发与 E2E 共用该 Worktree 的数据库；没有 `just` 时按[PR 交付指南](../guides/ai-pr.md)使用 `git worktree add` |
 | `just worktree -o <worktree-name>` | 打开已有 worktree；名称接受分支全名、分支最后一段、PRD slug、PRD 文件名（可带 `.md`）与 `tasks/pending/....md` 路径，歧义时报错列候选、未命中时列可用 worktree |
 | `just worktree --prune [--dry-run\|--yes\|--force] [--base <branch>]` | 清理已并入 base 的分支及 worktree，也清理提交可从远端跟踪引用到达的本地别名；默认列计划并确认一次，gone 且无远端副本的独有提交需 `--force` |
 | `just test` | 运行本地测试；根 `justfile` 默认带 `--core-tier`，只跑核心档（名单 ∪ 改动与映射到的测试），全量用 `just test all` |
@@ -58,7 +58,7 @@
 | `just ai fix [claude\|kimi]` | 用 AI 解决当前 git 冲突（rebase/merge/cherry-pick 等） |
 | `just ai commit [claude\|kimi]` | 先跑 `just test`，再由 AI 暂存相关文件并直接提交；只修复本次改动引起的测试失败 |
 | `just ai implement <prd-file> [claude\|kimi]` | 按 PRD 实现功能 |
-| `just ai pr <context.json> [auto\|only\|confirm] [wait-seconds]` | 当前对话提供原话/任务/验收上下文，创建或复用 Issue/PR；检测规则后合并并返回默认分支，待真实验证时保留 Draft |
+| `just ai pr <context.json> [auto\|only\|confirm] [wait-seconds]` | 当前对话提供原话/任务/验收上下文，创建或复用 Issue/PR；检测规则后合并，primary worktree 调用时返回默认分支，隔离 worktree 调用时留在工作分支 |
 | `just prd status [all\|pending\|archive] [--detail] [--table]` | PRD 状态看板：已归档且横幅为 `🧍 待人工验收` 的记录（含分支里已归档、尚待合并的）汇总成 `AWAITING HUMAN` 段并附等待时长，`tasks/pending` 里的记录列为 `PENDING` 逐条列出、其余归档记录按月折叠，展示验收清单勾选进度、影响树触达进度（FILES 列）、证据包状态与运行态（ACTIVITY 列）；默认逐条输出英文字段块（`PRIORITY` / `FILE` / `TITLE` / `ACCEPTANCE` 等），`--table` 切横行一条的宽表格，`--detail` 追加描述摘要行 |
 | `just prd start <prd-file> [--tool <名称>] [--branch <名称>]` | 领取 PRD 执行锁：他人新鲜锁拒绝开工（退出 1）并输出持锁者信息；过期锁自动接管并留档；同归属重复领锁幂等刷新 |
 | `just prd heartbeat <prd-file>` | 续期当前会话持有的执行锁；锁丢失或归属不符时警告并非零退出 |
@@ -82,7 +82,10 @@
 ### 对话中的 PR 交付与数据留存
 
 用户在当前 Agent 对话里要求「帮我提 PR」时，先读[对话中的 PR 交付](../guides/ai-pr.md)，
-由当前 Agent 准备上下文文件再调用 `just ai pr`。相关原话与 AI 整理分开，需求来源和真实验收状态必须如实填写。
+实现改动的工作应从独立 worktree 开始，避免切换用户当前分支或覆盖其工作区；由当前 Agent 准备上下文文件，
+再从该 worktree 调用 `just ai pr`。相关原话与 AI 整理分开，需求来源和真实验收状态必须如实填写。
+没有 `just` 时，按 PR 指南用原生 `git worktree` 建立隔离目录；自动 PR 脚本仍要求 `just test`，不能把直接运行
+Python 脚本当作免除该依赖的方式。
 默认 `auto`，用户可选择仅创建或合并前确认；不因有权限就忽略未完成的真实验证。
 多轮修复复用同一 Issue/PR 并追加观察，合并后才发现失败则创建关联修复 PR。长期数据整理约定见
 [Agent 数据集构建](../guides/agent-dataset.md)。

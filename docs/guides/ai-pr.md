@@ -1,12 +1,14 @@
 # 对话中的 PR 交付
 
-在当前 Agent 对话里说「帮我提 PR」，Agent 整理本次需求，调用 `just ai pr` 创建或复用 Issue/PR。
-命令默认检测合并条件；实际验收已通过且仓库允许时合并，再返回更新后的默认分支。
-它不调用第二个模型，不猜测当前会话，不自动改代码，也不绕过分支保护。
+在当前 Agent 对话里说「帮我提 PR」，涉及实现时先在独立 worktree 中改动，再整理本次需求并调用 `just ai pr`
+创建或复用 Issue/PR。命令默认检测合并条件；实际验收已通过且仓库允许时合并。若从隔离 worktree 运行，
+合并后保留该 worktree 和工作分支，不切换或更新主 worktree。
+交付脚本不调用第二个模型、不猜测当前会话、不自动改代码，也不绕过分支保护。
 
 ## 当前 Agent 的操作约定
 
-1. 先读当前仓库规范并确认本次交付范围。用户授权提 PR 时包含这次范围内的暂存、提交、推送、
+1. 先读当前仓库规范并确认本次交付范围。包含实现的任务先创建专用 worktree，再开始代码或文档修改；
+   用户只要求发布已有改动时，也不得为了提 PR 切换或覆盖当前工作区。用户授权提 PR 时包含这次范围内的暂存、提交、推送、
    创建 Issue/PR 与按默认策略合并；用户说「仅建 PR」或「合并前让我看」时覆盖默认策略。
 2. 从当前对话选取相关用户原话，**逐字保留**初始要求、补充和纠正，另写 AI 整理的独立任务说明。
    「好，帮我修」必须带上它所确认的前文背景。AI 建议属于整理部分，不冒充用户原话。
@@ -18,12 +20,54 @@
 5. 调用命令并报告 Issue/PR 链接、真实验收状态、是否已合并、当前分支及停止原因。
    不把「PR 已创建」「GitHub 检查通过」「已合并」表述成「用户问题已解决」。
 
+## 隔离工作区
+
+实现 PR 改动时，应在开始修改前创建独立 worktree。不要先在主 worktree 改完代码，再靠切换分支来隔离。
+在当前仓库里，优先从 Git primary worktree 创建：
+
+```bash
+just worktree ai-pr-example --new --base main enter_shell=false
+```
+
+把分支名和 `--base` 替换成唯一任务名和仓库默认分支。记录命令输出的 worktree 路径；后续读取、编辑、验证和
+`just ai pr` 都要以该路径作为工作目录。`just worktree`
+会准备本仓库所需的本地环境、端口和专用数据库。交付脚本从非 primary worktree 合并 PR 后会留在该工作分支，
+只刷新远端默认分支引用，不切换或 fast-forward 用户的 primary worktree，也不自动删除 worktree 或分支。
+
+如果改动已经存在于 primary worktree，不要运行 `git stash`、`reset` 或直接切换分支。先创建隔离 worktree，
+只把本次 `files` 范围内的已有差异和未跟踪文件复制过去；原工作区内容保留。若工作区包含必须继承的本地提交，
+以当前 `HEAD` 作为新 worktree 的起点，避免从远端默认分支创建后遗漏这些提交。
+
+没有 `just` 时，可用原生 Git 建立 worktree。先把下面的示例值替换成当前仓库匹配 GitHub 的 remote、默认分支和唯一任务标识：
+
+```bash
+repo_root="$(git rev-parse --show-toplevel)"
+repo_parent="$(dirname "$repo_root")"
+repo_name="$(basename "$repo_root")"
+remote_name="zata" # 替换成实际 remote；不要假定名称一定是 origin
+default_branch="main" # 替换成 GitHub 仓库默认分支
+branch_name="ai-pr-example"
+worktree_dir_name="ai-pr-example"
+worktree_path="$repo_parent/${repo_name}-worktrees/$worktree_dir_name"
+
+git fetch "$remote_name" "$default_branch"
+git worktree add -b "$branch_name" "$worktree_path" "$remote_name/$default_branch"
+```
+
+之后让所有工作命令都以 `$worktree_path` 为工作目录。原生 `git worktree add` 不会复制 `.env`、安装依赖、分配端口
+或准备隔离数据库；按项目文档手工完成这些步骤，尤其要确认验证不会连接主 worktree 共用的可写数据库。
+如果要保留 primary worktree 中尚未提交的改动，基于远端默认分支创建后不会自动带入，须只复制已确认的交付范围。
+
+上述 Git 命令只替代 worktree 创建，不替代 `just ai pr` 的自动交付。当前交付脚本无论通过 `just ai pr` 还是直接运行
+Python 文件，都会调用 `just test`；完全没有 `just` 的仓库应使用该项目自己的验证入口，并按本指南的 GitHub、验证轴和合并条件
+手动完成发布，不得把直接运行 Python 脚本当成绕过测试依赖的方式。
+
 发布前由当前 Agent 检查原话和证据是否包含密钥、个人信息或不应公开的业务内容。必要脱敏须明确标注，
 不能把脱敏或 AI 改写后的内容声称为逐字原文。不要把完整会话、环境变量或凭据文件直接发布。
 
 ## 命令与上下文
 
-需要 Python 3.9+、Git、just，以及已登录且支持以下 JSON 字段和 `--match-head-commit` 的 GitHub CLI
+自动交付需要 Python 3.9+、Git、just，以及已登录且支持以下 JSON 字段和 `--match-head-commit` 的 GitHub CLI
 （开发时以 gh 2.92.0 的本机帮助及真实只读响应核对）。
 退出码 0 表示已发布或明确停留待审/待验证，不承诺已合并；退出码 1 表示交付失败。以输出和实际 PR 状态为准。
 
@@ -95,9 +139,9 @@ just ai pr /path/to/context.json auto 300   # 等待检查最多 300 秒，默�
   为 `origin`、`zata` 等，不硬编码。当前版本要求可向该仓库工作分支推送；不会自动创建 fork。
   推送地址按 Git 解析后的有效地址校验；`pushurl`、`pushInsteadOf` 或多推送地址不能把代码发往所选仓库之外。
   已有跨仓库 PR 或非默认目标分支的 PR 保留原状并报错，不擅自改换目标。
-- 在默认分支上创建 `ai/pr-<随机标识>` 承接现有改动和未推送提交；在工作分支上沿用当前分支。
-  detached HEAD、冲突、未选中的暂存/未暂存/未跟踪文件会阻止交付。不会自动 stash、reset、amend
-  或强推。先隔离无关改动再调用。
+- 从隔离 worktree 的工作分支调用时沿用当前分支。兼容路径仍允许从默认分支创建 `ai/pr-<随机标识>`，
+  但会在调用所在 worktree 切换分支；遵循本指南时不要用该路径操作 primary worktree。detached HEAD、冲突、
+  未选中的暂存/未暂存/未跟踪文件会阻止交付。不会自动 stash、reset、amend 或强推。先隔离无关改动再调用。
 - 提交时保留已暂存变更，只补充暂存未暂存改动与未跟踪文件；重试时已暂存的删除路径不会重复传给 `git add`。
 - `just test` 必须实际返回成功才允许提交和推送；失败只保留现场，不自动扩大修复范围。
   用户提供的 `commit_message` 应遵守英文 Conventional Commits。
@@ -111,8 +155,9 @@ just ai pr /path/to/context.json auto 300   # 等待检查最多 300 秒，默�
 - 优先 merge commit 保留提交链；仓库不允许时依次用 squash、rebase。使用
   [`--match-head-commit`](https://cli.github.com/manual/gh_pr_merge) 绑定已验证提交；不传 `--admin`，
   也不启用无人值守的 `--auto`。合并队列只接受排队但尚未合并时，报告状态并留在工作分支。
-- 仅确认 GitHub PR 状态为 `MERGED` 后返回默认分支，再 fast-forward 更新。本地默认分支分叉、
-  新改动出现、默认分支被其他 worktree 占用时保留现场，绝不强制切换或覆盖。工作分支不自动删除。
+- 仅确认 GitHub PR 状态为 `MERGED` 后才做本地分支收尾。从 primary worktree 调用时，快进更新本地默认分支；
+  从隔离 worktree 调用时留在当前工作分支，只更新远端 tracking ref，不切换或改动 primary worktree。
+  primary 路径遇到默认分支分叉、新改动或其他 worktree 占用时保留现场，绝不强制切换或覆盖。工作分支不自动删除。
 
 首次发现问题通常不需要改仓库策略。不能自行合并的项目自然停在待审 PR；自己的项目能正常合并就自动收尾。
 权限不代表验收完成，因此 `pending` / `failed` 即便在自己的仓库也不自动合并。
