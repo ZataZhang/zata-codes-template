@@ -66,6 +66,8 @@
       hasMoreHistory: true,
       historyLimitReached: false,
       historyErrorMessage: "",
+      remoteSyncState: "idle",
+      remoteSyncWarningMessage: "",
       selectedHistoryCommitHash: "",
       selectedHistoryCommit: null,
       isLoadingHistoryCommit: false,
@@ -136,6 +138,8 @@
         historyState.hasMoreHistory = true;
         historyState.historyLimitReached = false;
         historyState.historyErrorMessage = "";
+        historyState.remoteSyncState = "checking";
+        historyState.remoteSyncWarningMessage = "";
         historyState.selectedHistoryCommitHash = "";
         historyState.selectedHistoryCommit = null;
         historyState.historyCommitErrorMessage = "";
@@ -150,12 +154,19 @@
         return;
       }
 
+      if (historyState.historyOffset === 0) {
+        historyState.remoteSyncState = "checking";
+        historyState.remoteSyncWarningMessage = "";
+      }
       historyState.isLoadingHistory = true;
       historyState.historyErrorMessage = "";
       if (isActive()) {
         renderHistoryView();
       }
       const didLoad = await guardAgainstServiceExit(async () => {
+        if (historyState.historyOffset === 0) {
+          await waitForRemoteFetch();
+        }
         const historyResponse = await requestJson(
           `/api/log?offset=${historyState.historyOffset}&limit=${HISTORY_PAGE_SIZE}`
         );
@@ -187,6 +198,48 @@
         if (!historyState.selectedHistoryCommitHash && firstCommitRow) {
           await selectHistoryCommit(firstCommitRow.hash);
         }
+      }
+    }
+
+    /**
+     * 首次读取历史前等待启动时的后台 fetch；旧版服务或状态接口不可用时继续读取本地引用。
+     * @returns {Promise<void>} 同步完成或状态接口不可用时继续加载历史。
+     */
+    async function waitForRemoteFetch() {
+      while (true) {
+        let syncResponse;
+        try {
+          syncResponse = await requestJson("/api/log/sync");
+        } catch {
+          historyState.remoteSyncState = "idle";
+          return;
+        }
+        if (syncResponse.status !== 200) {
+          historyState.remoteSyncState = "idle";
+          return;
+        }
+
+        const remoteSyncState = syncResponse.body.state;
+        if (remoteSyncState === "running") {
+          historyState.remoteSyncState = "running";
+          if (isActive()) {
+            renderHistoryView();
+          }
+          await new Promise((resolve) => window.setTimeout(resolve, 500));
+          continue;
+        }
+
+        historyState.remoteSyncState = remoteSyncState || "idle";
+        if (remoteSyncState === "failed") {
+          historyState.remoteSyncWarningMessage =
+            syncResponse.body.reason === "timeout"
+              ? "⚠️ 远端同步超时，以下分支信息来自本地已有引用。"
+              : "⚠️ 远端同步失败，以下分支信息来自本地已有引用。";
+        }
+        if (isActive()) {
+          renderHistoryView();
+        }
+        return;
       }
     }
 
@@ -463,13 +516,25 @@
       if (historyState.isLoadingHistory && !historyState.historyPages.length) {
         const loadingMessage = document.createElement("p");
         loadingMessage.className = "history-message";
-        loadingMessage.textContent = "正在读取 Git 历史…";
+        loadingMessage.textContent =
+          historyState.remoteSyncState === "checking"
+            ? "正在检查远端同步状态…"
+            : historyState.remoteSyncState === "running"
+              ? "正在同步远端分支…"
+              : "正在读取 Git 历史…";
         graphList.append(loadingMessage);
       } else if (historyState.historyIsLoaded && !historyState.historyOffset) {
         const emptyMessage = document.createElement("p");
         emptyMessage.className = "history-message";
         emptyMessage.textContent = "仓库还没有可显示的提交。";
         graphList.append(emptyMessage);
+      }
+
+      if (historyState.remoteSyncWarningMessage) {
+        const syncWarningMessage = document.createElement("p");
+        syncWarningMessage.className = "history-message";
+        syncWarningMessage.textContent = historyState.remoteSyncWarningMessage;
+        graphList.append(syncWarningMessage);
       }
 
       if (historyState.historyErrorMessage) {

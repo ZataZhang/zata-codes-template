@@ -181,6 +181,10 @@ view *args:
 用全局 `zview` 一份即可，不必各带一份必须分别维护的副本。这里只记与工具链
 约定相关的部分。
 
+每次启动或复用 Git 查看器时，入口会异步执行 `git fetch --all --prune`，同一实例目录 5 分钟内
+最多一次；`zview --no-fetch` / `just view --no-fetch` 可跳过。默认视图不等待网络；进入 Git Log
+会等正在进行的 fetch 完成，失败时明确提示并显示本地引用。
+
 `just view-install` 会把 `scripts/shared/view/zview` 链接到 `~/.local/bin/zview`。全局入口以
 目标目录作为工作区根：Git 子目录中的 Git 命令按该子树过滤；非 Git 目录走文件系统扫描，
 不在目标目录写入登记或日志。
