@@ -536,7 +536,7 @@ rv-3 真实实现（`real user flow`，1440×1200）：
 
 - [x] `rv-2` 与 `rv-3` 的真实页面流程通过；`rv-2-real-user-flow.txt` 与 `rv-3-real-user-flow.txt` 证明正式 API 请求，截图标注 `real user flow`，并与相同状态的目标原型并排呈递。
 - [x] 管理界面能查看 Agent 的 A2A 发布状态、卡片地址和本组织获授权对端；`rv-3-skill-version.png` 的真实管理页面操作与 `rv-7-a2a-bidirectional.txt` 的后续 A2A 入站/出站结果一致。
-- [x] 运行状态、事件、Skill 版本和历史在新会话/新请求中仍一致；证据报告列出关键 ID 来源、事务边界、禁止旁路、独立读取和最终 Git tree `36e39234368a8876fa58589615793905277d14df`。
+- [x] 运行状态、事件、Skill 版本和历史在新会话/新请求中仍一致；证据报告列出关键 ID 来源、事务边界、禁止旁路、独立读取和最终 Git tree `afe83d98ac0026fd15794ccd9794b5385a9bd20c`。
 
 ### Dependency And Documentation Acceptance
 
@@ -607,7 +607,7 @@ rv-3 真实实现（`real user flow`，1440×1200）：
   - 新增 Skill 幂等重试迁移与 Run 冻结版本展示，属于 FR-4/FR-5 的明确实现，不改变用户可见需求。
   - Run 资产仅从 Canonical Event 投影，不增加资产表；A2A Task 不增加状态表。
   - Next.js 后端代理改为构建期配置，嵌套模板复制不触碰父仓库，均为原部署/分发契约的必要修复。
-  - 当前最终验证树为 `94f1e11857184941a1f007a3e7d1ec65db17c267`（delivery records、生成的 Playwright 文件和本机包缓存均排除）。RV-1 至 RV-7 均由 `kc evidence check` 在该树重跑并通过；RV-2 主演示按五步脚本单独录制并附字幕轨迹与逐步检查结果。该结果只证明登记命令可复跑，不替代独立 verifier verdict。
+  - 当前最终验证树为 `afe83d98ac0026fd15794ccd9794b5385a9bd20c`（delivery records、生成的 Playwright 文件和本机包缓存均排除）。RV-1 至 RV-7 均由 `kc evidence check` 在该树重跑并通过；RV-2 主演示也在同一树按五步脚本独立录制，时长 75.52 秒，附字幕轨迹与逐步检查结果。该结果只证明登记命令可复跑，不替代独立 verifier verdict。
   - 成员可见的增量回复改为真实 SSE 流式写入 `message.delta` 并由成员页轮询事件端点渲染；独立 verifier 在上一棵树上标记的 BLOCKER 由此闭环，RV-2 的增量断言会让旧实现变红。
 - Validation blocker: 独立 verifier 在 `e7b3d5d60` 上返回 RED 的唯一 BLOCKER 是成员界面缺少增量回复，本轮已按 finding 修复并在 `94f1e118` 重采 RV-2 证据；此前还有一次 `REVIEW_INCIDENT / INCONCLUSIVE`（executor 故障，无有效 verdict）记录在 Issue #58 的失败记录（https://github.com/ZataZhang/zata-codes-template/issues/58#issuecomment-6897865207）显示独立 verifier 对 codex、kimi、claude 的调用均未返回可解析 verdict，最终诊断为 Claude 个人额度耗尽；没有产品层面的 verifier finding，也不得记作 `PASS`。
 - Validation follow-up: 在 Issue #58（https://github.com/ZataZhang/zata-codes-template/issues/58）上通过正常 KedaCode 验证流程重跑独立 verifier；PR #62（https://github.com/ZataZhang/zata-codes-template/pull/62）保持 Draft，直到有效 verifier `PASS` 且最终 head/tree 证据一致后再请求人工审阅。
@@ -725,3 +725,11 @@ rv-3 真实实现（`real user flow`，1440×1200）：
 - Reason: FR-2/FR-11 要求凭据按组织与对端隔离，FR-4/FR-6 要求失败不能产生伪成功。
 - Impact: 增强既有安全边界，带凭据的部署需增加显式绑定；无凭据配置仍能启动。未降低验收标准，Human-Confirmed 保持未勾选。
 - Review: 本轮预 PR 代码审查发现并修复；验证结果与剩余门禁见证据报告本轮记录，独立 verifier 仍由 runner 对最终树执行。
+
+### 在最终源码树重跑 RV 与主演示
+- Type: validation
+- Before: Final Reconciliation 与证据报告引用的最终验证树早于凭据引用范围修复和 RV 临时工作流清理；主演示也尚未绑定后续源码树。
+- After: 当前树 `afe83d98ac0026fd15794ccd9794b5385a9bd20c` 上逐项执行 RV-1 至 RV-7 负控并记录预期失败，再按顺序重新执行 manifest 的 `kc evidence check`，7 项全部通过；RV-2 五步主演示在同一树独立重录，六段真实浏览器片段总长 75.52 秒，结果画面停留至少 3.5 秒。
+- Reason: 交付证据必须对应最终实现树，并且单独主演示要呈现当前用户界面。
+- Impact: 只刷新证据与来源树记录；不改变产品行为、范围、安全边界或验收 oracle，不勾选 Human-Confirmed 项。
+- Review: 当前树的七项负控均产生预期红色结果，随后 `kc evidence check` 7/7 通过；`UV_CACHE_DIR=/tmp/uv-cache-issue58 just test` 通过（540 passed、1 skipped；OIDC 17 passed）。Human-Confirmed 项保持未勾选，独立 verifier 与 runner-owned 门禁仍由 runner 处理。
