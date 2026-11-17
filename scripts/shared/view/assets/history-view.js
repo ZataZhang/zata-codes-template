@@ -15,11 +15,17 @@
    * 横屏调好的比例（或反过来）会直接把另一侧挤到不可用，而像素宽度换尺寸后仍是同一个「手宽」。
    */
   const HISTORY_GRAPH_WIDTH_STORAGE_KEY = "viewer.historyGraphWidthPx";
+  const HISTORY_INFO_WIDTH_STORAGE_KEY = "viewer.historyInfoWidthPx";
   const HISTORY_GRAPH_WIDTH_DEFAULT_PERCENT = 100 / 3;
+  const HISTORY_INFO_WIDTH_DEFAULT_PERCENT = 100 / 3;
   /** 方向键调整分栏宽度时的步长（像素）。 */
   const HISTORY_SPLITTER_STEP_PX = 24;
   /** 分隔条自身占的宽度（像素）：按最小栏宽约束时要从可用宽度里扣掉。 */
   const HISTORY_SPLITTER_WIDTH_PX = 7;
+  const HISTORY_INFO_MIN_WIDTH_PX = 260;
+  const HISTORY_CODE_MIN_WIDTH_PX = 320;
+  const HISTORY_DETAIL_MIN_WIDTH_PX =
+    HISTORY_INFO_MIN_WIDTH_PX + HISTORY_SPLITTER_WIDTH_PX + HISTORY_CODE_MIN_WIDTH_PX;
   /** 提交图栏低于这个像素宽度时，提交行把日期让给标题（只留短哈希）。 */
   const HISTORY_COMPACT_ROWS_MAX_WIDTH_PX = 620;
 
@@ -87,8 +93,30 @@
       defaultPercent: HISTORY_GRAPH_WIDTH_DEFAULT_PERCENT,
       ariaLabel: "调整提交图与提交详情的宽度",
       leftMinWidthPx: 320,
-      rightMinWidthPx: 360,
+      rightMinWidthPx: HISTORY_DETAIL_MIN_WIDTH_PX,
     });
+    const infoSplitter = createHistorySplitter({
+      storageKey: HISTORY_INFO_WIDTH_STORAGE_KEY,
+      cssVariable: "--history-info-width",
+      defaultPercent: HISTORY_INFO_WIDTH_DEFAULT_PERCENT,
+      ariaLabel: "调整提交信息与代码改动的宽度",
+      leftMinWidthPx: HISTORY_INFO_MIN_WIDTH_PX,
+      rightMinWidthPx: HISTORY_CODE_MIN_WIDTH_PX,
+    });
+
+    /**
+     * 只调整当前可见的分隔条，窄屏上下布局时保留桌面分栏的像素偏好。
+     * @param {HTMLElement} historyLayout 提交图与详情容器。
+     * @param {HTMLElement} detailSplit 提交信息与代码 diff 的分栏容器。
+     */
+    function applyVisibleHistorySplitterWidths(historyLayout, detailSplit) {
+      if (graphSplitter.element.getClientRects().length) {
+        graphSplitter.apply(historyLayout);
+      }
+      if (infoSplitter.element.getClientRects().length) {
+        infoSplitter.apply(detailSplit);
+      }
+    }
 
     /**
      * 按需读取下一页 Git 提交图；每页单独绘制，因此只请求并追加尚未显示的提交。
@@ -326,6 +354,8 @@
     function renderHistoryView() {
       const previousGraphScrollTop =
         elements.viewerBody.querySelector(".history-graph-list")?.scrollTop || 0;
+      const previousInfoPaneScrollTop =
+        elements.viewerBody.querySelector(".history-info-pane")?.scrollTop || 0;
       const previousInfoScrollTop =
         elements.viewerBody.querySelector(".history-detail-info")?.scrollTop || 0;
       const previousCodeScrollTop =
@@ -470,32 +500,39 @@
         graphList.append(endMessage);
       }
 
-      // 详情区自己纵向排：标题行 → 可展开的提交信息 → 改动文件条 → 占满剩余宽高的 diff。
-      // 不再在右侧劈成「信息 / 代码」两栏：窄窗口下那一刀会把 diff 压到 400 多像素。
+      // 宽窗口的详情区分成「提交信息 / 代码 diff」两栏；窄窗口由 CSS 将二者上下堆叠。
       const detailPane = document.createElement("aside");
       detailPane.className = "history-detail-pane";
       detailPane.setAttribute("aria-label", "提交详情");
+      const detailSplit = document.createElement("div");
+      detailSplit.className = "history-detail-split";
+      const infoPane = document.createElement("section");
+      infoPane.className = "history-info-pane";
+      infoPane.setAttribute("aria-label", "提交信息与改动文件");
       const codePane = document.createElement("section");
       codePane.className = "history-code-pane";
       codePane.setAttribute("aria-label", "文件改动");
-      renderHistoryCommitDetails(detailPane, codePane);
-      detailPane.append(codePane);
+      renderHistoryCommitDetails(infoPane, codePane);
+      detailSplit.append(infoPane, infoSplitter.element, codePane);
+      detailPane.append(detailSplit);
       graphPane.append(branchList, graphList);
       historyLayout.append(graphPane, graphSplitter.element, detailPane);
       elements.viewerBody.replaceChildren(historyLayout);
-      // 挂载后才有真实宽度，此时按最小栏宽约束一次，避免窄窗口沿用过大占比。
-      graphSplitter.apply(historyLayout);
+      // 挂载后才有真实宽度；窄屏分隔条隐藏时不收窄像素偏好，回到宽屏仍能恢复原宽度。
+      applyVisibleHistorySplitterWidths(historyLayout, detailSplit);
       syncGraphPaneMode(graphPane, branchList);
-      watchHistoryLayout(historyLayout, graphPane, branchList);
+      watchHistoryLayout(historyLayout, graphPane, branchList, detailSplit);
       elements.viewerBody.querySelector(".history-graph-list").scrollTop = previousGraphScrollTop;
-      const detailInfoPane = elements.viewerBody.querySelector(".history-detail-info");
-      if (detailInfoPane) {
-        detailInfoPane.scrollTop = previousInfoScrollTop;
+      const historyInfoPane = elements.viewerBody.querySelector(".history-info-pane");
+      if (historyInfoPane) {
+        historyInfoPane.scrollTop = previousInfoPaneScrollTop;
+      }
+      const commitMessagePane = elements.viewerBody.querySelector(".history-detail-info");
+      if (commitMessagePane) {
+        commitMessagePane.scrollTop = previousInfoScrollTop;
       }
       elements.viewerBody.querySelector(".history-code-pane").scrollTop = previousCodeScrollTop;
-      elements.statusHint.textContent = historyState.historyOffset
-        ? `Git Log · ${historyState.historyOffset} 条提交`
-        : "Git Log";
+      elements.statusHint.textContent = buildHistoryStatusHint();
     }
 
     /**
@@ -1163,20 +1200,22 @@
 
     /**
      * 观察布局尺寸：窗口缩放后重新按最小栏宽约束分栏，并重算分支列表的默认展开状态。
-     * @param {HTMLElement} historyLayout 提交图与详情两栏的容器。
+     * @param {HTMLElement} historyLayout 提交图与详情容器。
      * @param {HTMLElement} graphPane 提交图栏。
      * @param {HTMLElement} branchList 分支列表容器。
+     * @param {HTMLElement} detailSplit 提交信息与代码 diff 的分栏容器。
      */
-    function watchHistoryLayout(historyLayout, graphPane, branchList) {
+    function watchHistoryLayout(historyLayout, graphPane, branchList, detailSplit) {
       historyState.layoutObserver?.disconnect();
       if (typeof global.ResizeObserver !== "function") {
         return;
       }
       const layoutObserver = new global.ResizeObserver(() => {
-        graphSplitter.apply(historyLayout);
+        applyVisibleHistorySplitterWidths(historyLayout, detailSplit);
         syncGraphPaneMode(graphPane, branchList);
       });
       layoutObserver.observe(historyLayout);
+      layoutObserver.observe(detailSplit);
       historyState.layoutObserver = layoutObserver;
     }
 
@@ -1257,10 +1296,10 @@
     }
 
     /**
-     * 构建改动文件胶囊条：一行横向滚动，点任意文件切换下方 diff。
+     * 构建改动文件竖向列表：每个文件单独占一行，点选后切换下方 diff。
      * @param {object} selectedCommit 选中的提交。
      * @param {object[]} matchingChangedFiles 通过筛选的改动文件。
-     * @returns {HTMLElement} 文件条。
+     * @returns {HTMLElement} 改动文件列表。
      */
     function buildChangedFilesStrip(selectedCommit, matchingChangedFiles) {
       const filesStrip = document.createElement("div");
@@ -1300,27 +1339,27 @@
 
     /**
      * 渲染所选提交的信息、文件列表与逐行 diff。
-     * @param {HTMLElement} detailPane 提交详情容器（摘要、提交信息与文件条都挂在这里）。
+     * @param {HTMLElement} infoPane 信息栏（摘要、提交说明与改动文件列表都挂在这里）。
      * @param {HTMLElement} codePane 代码 diff 栏。
      */
-    function renderHistoryCommitDetails(detailPane, codePane) {
+    function renderHistoryCommitDetails(infoPane, codePane) {
       if (historyState.isLoadingHistoryCommit) {
-        detailPane.append(buildHistoryMessage("正在读取提交详情…"));
+        infoPane.append(buildHistoryMessage("正在读取提交详情…"));
         return;
       }
       if (historyState.historyCommitErrorMessage) {
-        detailPane.append(buildHistoryMessage(historyState.historyCommitErrorMessage, true));
+        infoPane.append(buildHistoryMessage(historyState.historyCommitErrorMessage, true));
         return;
       }
       const selectedCommit = historyState.selectedHistoryCommit;
       if (!selectedCommit) {
-        detailPane.append(buildHistoryMessage("点击左侧任一提交查看提交说明和文件改动。"));
+        infoPane.append(buildHistoryMessage("点击左侧任一提交查看提交说明和文件改动。"));
         return;
       }
 
       // 摘要行常驻：即使收起提交信息，标题与「谁在什么时候基于哪个父提交」也看得到。
       const detailSummary = buildCommitDetailSummary(selectedCommit);
-      detailPane.append(detailSummary);
+      infoPane.append(detailSummary);
       // 只有「标题之外还有正文」时才给一个展开入口：单行提交说明没必要再重复一遍。
       const commitMessageBody = readCommitMessageBody(selectedCommit);
       if (commitMessageBody) {
@@ -1333,7 +1372,7 @@
             messagePane.hidden = !historyState.isCommitInfoExpanded;
             syncDetailToggle(clickEvent.currentTarget, historyState.isCommitInfoExpanded);
           });
-        detailPane.append(messagePane);
+        infoPane.append(messagePane);
       } else {
         detailSummary.querySelector(".history-detail-toggle").hidden = true;
       }
@@ -1351,8 +1390,8 @@
         codePane.append(buildHistoryMessage("该提交相对首个父提交没有文件差异。"));
         return;
       }
-      // 改动文件排成一条可横滚的胶囊条：高度固定，不再随文件数量长成一面墙。
-      detailPane.append(buildChangedFilesStrip(selectedCommit, matchingChangedFiles));
+      // 改动文件按行展示；文件较多时由信息栏纵向滚动。
+      infoPane.append(buildChangedFilesStrip(selectedCommit, matchingChangedFiles));
       if (!matchingChangedFiles.length) {
         codePane.append(buildHistoryMessage("没有匹配的改动文件。"));
         return;
