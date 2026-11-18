@@ -247,3 +247,32 @@ Final source tree for this re-execution: `137e5c9f66335f4b01cad1aaff8b0b53397cad
 - RV-7’s ignored browser workflow now checks admin-session readiness every 250 ms, reuses one page across sequential roles, and waits for the actual approval API response plus the visible toast. These changes remove renderer/navigation timing flakiness without changing product code or relaxing an assertion.
 - `git diff --check` passes, and `scripts/shared/just/scan_evidence_secrets.sh` reports no credential-shaped strings in the evidence package. Earlier `just lint --repo` on this same source tree passed, including `just test` (540 passed, 1 skipped), local OIDC tests (17 passed), frontend checks, and strict MkDocs build; no product source changed after that run.
 - No Acceptance Checklist or Human-Confirmed item was changed. The independent verifier and runner-owned final review gates remain outstanding.
+
+
+## 2026-11-19 verifier blocker repair (recovery attempt 2)
+
+### Finding and repair
+
+The independent verifier reproduced a BLOCKER in the member Run page: if `run.started` and a terminal event arrived in one event batch, applying the active status changed the `activeRun` object and re-ran the polling effect. The old poll was cancelled after its event cursor had advanced, so the API held the terminal state while the page stayed on `running`.
+
+`frontend-public/app/(app)/app/agents/page.tsx` now keys the polling lifecycle to the Run ID and whether the Run remains pollable. It fetches the terminal Run before applying a batch or advancing its cursor; a failed terminal read retries the same events. The architecture page and navigation now describe this live Run behavior.
+
+### Current-tree red/green evidence
+
+Source tree: `e8e09ccf2a19c8dc7f0b6645c8cb323ba8c88903`; HEAD: `75459f4e64127183fd1ebf410903fe07873dcd72`.
+
+- `rv-2-negative-control.txt` and `rv-2-negative-terminal-probe.txt`: a temporary production build restores the old cursor/update ordering and full-object effect dependency. The real production page remains `Status: running` after a fresh API read reports `succeeded`; the required UI assertion fails and the script records `EXPECTED_FAIL`. The temporary source mutation is restored after the build.
+- `rv-2-real-user-flow.txt` and `rv-2-fast-terminal-states.txt`: the repaired real public page passes the slow SSE incremental reply, immediate success and immediate failure paths; each fast terminal status matches a fresh same-origin API read. Cancellation, fresh-session history reopen, and low-sensitivity admin trace also pass (2/2 Playwright tests).
+- `kc evidence check --evidence tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base --worktree . --json`: **7/7 passed**, 0 failed, 0 timed out, 0 manifest errors, after the current-tree negative controls were recorded.
+- The separate five-step real-browser primary demo was recaptured on this tree. `rv-2-demo-multi-organization-agent.mp4` is 169.12 seconds; the caption trace and clip inspection show six clips and each result step held at least 3.5 seconds. Model interactions are labelled mock and do not claim live-model validation.
+
+### Final checks and limits
+
+- `UV_CACHE_DIR=/tmp/uv-cache-issue58 just lint --reuse`: PASS.
+- `UV_CACHE_DIR=/tmp/uv-cache-issue58 just test`: 540 passed, 1 skipped; local OIDC package 17 passed.
+- `UV_CACHE_DIR=/tmp/uv-cache-issue58 just lint --full`: PASS after refreshing the stale test flag.
+- `UV_CACHE_DIR=/tmp/uv-cache-issue58 uv run --no-sync mkdocs build --strict`: PASS with the repository's existing informational unlisted-page/anchor notices.
+- `scripts/shared/just/scan_evidence_secrets.sh tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base`: no credential-shaped strings found.
+- The local macOS Chromium checklist smoke could not start because the sandbox denies `bootstrap_check_in org.chromium.Chromium.MachPortRendezvousServer`; it exited before loading the page. The same updated HTML passed `human_review_checklist_remote_smoke.py` in isolated Linux Chromium: zero page errors, visible first decision and demo video, and navigation through all five decisions.
+
+The archived PRD was not edited or moved. Human-Confirmed items remain unchecked. This recovery proves the prior BLOCKER is fixed and the registered oracles are green; the runner must still obtain a fresh independent verifier verdict on this tree before presenting acceptance.

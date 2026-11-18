@@ -22,7 +22,7 @@ Run 创建事务写入唯一 Canonical `Run` 和初始 `RunEvent`。执行器使
 
 执行器以 `stream: true` 请求端点，边读取 SSE 分片边把文本交给 Run 用例；片段按小批次写入同一条 Canonical `message.delta` 事件链，不另建流式缓存或第二套消息存储。端点忽略 `stream` 时，执行器把完整回复作为同一事件链的增量补写，前端只有一条展示路径。
 
-成员页面按 `GET /api/agent-runs/{run_id}/events?after_seq=` 轮询新增事件：`message.delta` 直接拼接到正在增长的回复，`run.started` / `run.cancelling` 更新展示状态，`run.completed` / `run.failed` / `run.cancelled` 到达后重新读取持久化 Run 并刷新历史；运行中可从前台取消当前 Run。状态更新按单调顺序合并，迟到的轮询响应不能让终态回退为活动状态。同一时刻只允许一个轮询请求在飞，避免重复消费同一批事件。管理轨迹与 A2A 入站复用同一条事件链：诊断投影把 `message.delta` 归入 Run 根节点，不向管理员泄露消息正文；A2A 流式响应把每个增量映射为 `artifactUpdate` 追加片段，并在完成时发送完整最终 Artifact。
+成员页面按 `GET /api/agent-runs/{run_id}/events?after_seq=` 轮询新增事件：`message.delta` 直接拼接到正在增长的回复，`run.started` / `run.cancelling` 更新展示状态，`run.completed` / `run.failed` / `run.cancelled` 到达后重新读取持久化 Run 并刷新历史；运行中可从前台取消当前 Run。轮询生命周期绑定 Run ID 和“是否仍可轮询”的状态，不因 `run.started` 等活动状态更新重建轮询；终态详情读取成功后才推进事件游标，刷新失败时会重试同一批事件。状态更新按单调顺序合并，迟到的轮询响应不能让终态回退为活动状态。同一时刻只允许一个轮询请求在飞，避免重复消费同一批事件。管理轨迹与 A2A 入站复用同一条事件链：诊断投影把 `message.delta` 归入 Run 根节点，不向管理员泄露消息正文；A2A 流式响应把每个增量映射为 `artifactUpdate` 追加片段，并在完成时发送完整最终 Artifact。
 
 ## Skill 版本
 

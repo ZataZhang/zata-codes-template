@@ -1,6 +1,6 @@
 # 人工审查清单 · 多组织通用在线 Agent 底座
 
-共 5 项决定。请按顺序回答“同意”或“不同意并列出差异”。答案应回填 PRD §9.2 Human-Confirmed；此清单只是审查呈现面，不是第二事实源。入口：`just prd review tasks/pending/P1-FEAT-20260928-115856-multi-organization-online-agent-base.md`。
+共 5 项决定。请按顺序回答“同意”或“不同意并列出差异”。答案应回填 PRD §9.2 Human-Confirmed；此清单只是审查呈现面，不是第二事实源。PRD 已由 runner 归档：`tasks/archive/P1-FEAT-20260928-115856-multi-organization-online-agent-base.md`。
 
 已交叉核对：所有 rv-1–rv-7 真实入口证据通过，独立 verifier 与 runner 交付门禁另行处理。真实模型与公网外部 Agent 未验证；模型使用本地传输替身，A2A 使用官方 1.0 SDK 本地独立实现。
 
@@ -28,11 +28,11 @@ PRD §9.2 Human-Confirmed 第 2 条原文：
 
 白话：管理员发布 Agent，成员看到增量状态、最终回复，关闭页面后仍能重开同一 Run；不可运行时不创建成功记录。
 
-证据：`rv-2-real-user-flow.txt`（2 tests passed）、`rv-2-incremental-reply.txt` 与 `rv-2-streaming-reply.png`（运行未结束时回复已在增长）、单独录制的 `rv-2-demo-multi-organization-agent.mp4` 和 `rv-2-agent-run.png`。`rv-7-a2a-bidirectional.txt` 中未审核工具、未登记对端、停用组织/Agent、无模型均失败闭合。
+证据：`rv-2-real-user-flow.txt`（2 tests passed）、`rv-2-incremental-reply.txt` 与 `rv-2-streaming-reply.png`（运行未结束时回复已在增长）、`rv-2-fast-terminal-states.txt`（快速成功/失败均由页面与新 API 读取确认）和 `rv-2-negative-terminal-probe.txt`（旧轮询变体下 API 为 succeeded、页面仍 running）；另有单独录制的 `rv-2-demo-multi-organization-agent.mp4` 和 `rv-2-agent-run.png`。`rv-7-a2a-bidirectional.txt` 中未审核工具、未登记对端、停用组织/Agent、无模型均失败闭合。
 
 <video controls preload="metadata" width="100%" src="rv-2-demo-multi-organization-agent.mp4">主演示录像：rv-2-demo-multi-organization-agent.mp4</video>
 
-本地录像（71 秒），按 PRD 五步脚本：发布 Agent → 运行中可见增量回复 → 重开历史与管理轨迹 → Skill 更新/比较/恢复为 v3 → 恢复后再运行冻结 v3、旧运行仍为 v1；每步中文字幕可见 ≥5 秒，模型步骤注明 mock、未验证真实模型。字幕原文见 `rv-2-caption-trace.txt`：`open "tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/rv-2-demo-multi-organization-agent.mp4"`
+本地录像（169 秒），按 PRD 五步脚本：发布 Agent → 运行中可见增量回复 → 重开历史与管理轨迹 → Skill 更新/比较/恢复为 v3 → 恢复后再运行冻结 v3、旧运行仍为 v1；每步中文字幕可见 ≥5 秒，模型步骤注明 mock、未验证真实模型。字幕原文见 `rv-2-caption-trace.txt`：`open "tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/rv-2-demo-multi-organization-agent.mp4"`
 
 ![rv-2 真实 Agent Run](rv-2-agent-run.png)
 

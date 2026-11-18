@@ -28,6 +28,7 @@ const ACTIVE_RUN_STATUS_ORDER: Record<string, number> = {
   running: 1,
   cancelling: 2,
 }
+const POLLABLE_RUN_STATUSES = new Set(["queued", "running", "cancelling"])
 const TERMINAL_RUN_STATUSES = new Set(["succeeded", "failed", "cancelled"])
 
 /** 合并同一 Run 的状态时，阻止迟到事件覆盖终态或回退活动状态。 */
@@ -69,6 +70,9 @@ export default function AgentsPage() {
   const [error, setError] = useState("")
   const [liveReply, setLiveReply] = useState("")
   const eventCursorRef = useRef(0)
+  const activeRunId = activeRun?.id ?? null
+  const shouldPollActiveRun =
+    activeRun !== null && POLLABLE_RUN_STATUSES.has(activeRun.status)
 
   const selectedAgent = useMemo(
     () => agents.find((agent) => agent.id === selectedAgentId) ?? null,
@@ -101,12 +105,8 @@ export default function AgentsPage() {
   }, [t])
 
   useEffect(() => {
-    if (
-      !activeRun ||
-      !["queued", "running", "cancelling"].includes(activeRun.status)
-    )
-      return
-    const runId = activeRun.id
+    if (!activeRunId || !shouldPollActiveRun) return
+    const runId = activeRunId
     let cancelled = false
     let pollInFlight = false
     /**
@@ -122,6 +122,15 @@ export default function AgentsPage() {
           runId,
           eventCursorRef.current
         )
+        if (cancelled) return
+        const reachedTerminalState = items.some((runEvent) =>
+          ["run.completed", "run.failed", "run.cancelled"].includes(
+            runEvent.event_type
+          )
+        )
+        const refreshed = reachedTerminalState
+          ? await getAgentRun(runId)
+          : null
         if (cancelled) return
         eventCursorRef.current = nextAfterSeq
         const streamedText = items
@@ -148,14 +157,7 @@ export default function AgentsPage() {
             })
           })
         }
-        const reachedTerminalState = items.some((runEvent) =>
-          ["run.completed", "run.failed", "run.cancelled"].includes(
-            runEvent.event_type
-          )
-        )
-        if (reachedTerminalState) {
-          const refreshed = await getAgentRun(runId)
-          if (cancelled) return
+        if (refreshed) {
           setActiveRun((previous) => {
             if (!previous || previous.id !== runId) return previous
             return mergeRunStateWithoutRegression(previous, refreshed)
@@ -175,7 +177,7 @@ export default function AgentsPage() {
       cancelled = true
       window.clearInterval(timer)
     }
-  }, [activeRun, reloadHistory, t])
+  }, [activeRunId, shouldPollActiveRun, reloadHistory, t])
 
   /** Submit a message through the same-origin API and reuse its persisted conversation. */
   const submitMessage = async (event: React.FormEvent<HTMLFormElement>) => {

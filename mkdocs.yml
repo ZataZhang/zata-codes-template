@@ -94,6 +94,6 @@ nav:
       - 架构设计: architecture/system-design.md
       - 认证与会话: architecture/authentication.md
       - 前端架构: architecture/frontend-architecture.md
-      - 多组织 Agent 底座: architecture/multi-org-agent.md
+      - 多组织 Agent 与实时运行: architecture/multi-org-agent.md
   - 开发者:
       - 评测与测试: dev/evaluation.md
