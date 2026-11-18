@@ -192,6 +192,7 @@ def test_outbound_task_id_is_allowed_as_low_sensitivity_trace_metadata() -> None
         "result": {"status": "completed"},
         "result_checksum": "c" * 64,
         "remote_task_id": "remote-123",
+        "result_length": 12,
     }
 
     assert (

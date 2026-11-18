@@ -11,7 +11,11 @@ from typing import Sequence
 
 from backend.core.agent.catalog import AgentNotFoundError, AgentUnavailableError
 from backend.core.agent.helpers import _checksum
-from backend.core.shared.interfaces.agent_executor import AgentExecutor
+from backend.core.shared.interfaces.agent_executor import (
+    AgentExecutionCallbacks,
+    AgentExecutor,
+    AgentExternalCallEvent,
+)
 from backend.core.shared.interfaces.agent_repository import AgentRepository
 from backend.core.shared.interfaces.agent_types import (
     A2APeer,
@@ -135,6 +139,7 @@ class AgentRunUseCase:
             skill_version_id=skill_revision.id if skill_revision else None,
             skill_version=skill_revision.version if skill_revision else None,
             skill_body=skill_revision.body if skill_revision else None,
+            allowed_peer_ids=agent.allowed_peer_ids,
         )
         snapshot_document: dict[str, object] = asdict(execution_snapshot)
         run_id = uuid.uuid4().hex
@@ -275,47 +280,60 @@ class AgentRunUseCase:
                 trace_id=run_trace_id,
                 span_id=root_span_id,
             )
-            execution_result = await self._executor.execute(
-                snapshot={**snapshot_document, "run_id": run.id},
-                message=input_message,
-                peers=peers,
-                on_delta=streamed_deltas.append,
-            )
-            streamed_deltas.flush()
-            for external_call in execution_result.external_calls:
-                tool_call_id = uuid.uuid4().hex
-                tool_span_id = derive_span_id(run.id, "tool", tool_call_id)
-                self._run_repository.append_event(
-                    run.id,
-                    RunEventCandidate(
+
+            def append_external_call_event(call_event: AgentExternalCallEvent) -> None:
+                """将 A2A 对端调用的当前阶段立即写入 Canonical Run。"""
+                tool_span_id = derive_span_id(run.id, "tool", call_event.tool_call_id)
+                if call_event.phase == "started":
+                    event_candidate = RunEventCandidate(
                         "tool.call.started",
                         {
-                            "tool_call_id": tool_call_id,
+                            "tool_call_id": call_event.tool_call_id,
                             "tool_name": "a2a.call",
                             "arguments": {
-                                "peer_id": external_call.peer_id,
-                                "input_length": external_call.input_length,
+                                "peer_id": call_event.peer_id,
+                                "input_length": call_event.input_length,
                             },
                             "parent_model_call_id": model_call_id,
                         },
                         trace_id=run_trace_id,
                         span_id=tool_span_id,
-                    ),
-                )
-                self._run_repository.append_event(
-                    run.id,
-                    RunEventCandidate(
+                    )
+                elif call_event.phase == "completed":
+                    event_candidate = RunEventCandidate(
                         "tool.call.completed",
                         {
-                            "tool_call_id": tool_call_id,
+                            "tool_call_id": call_event.tool_call_id,
                             "result": {"status": "completed"},
-                            "result_checksum": external_call.result_checksum,
-                            "remote_task_id": external_call.remote_task_id,
+                            "result_checksum": call_event.result_checksum or "",
+                            "remote_task_id": call_event.remote_task_id or "",
+                            "result_length": call_event.result_length or 0,
                         },
                         trace_id=run_trace_id,
                         span_id=tool_span_id,
-                    ),
-                )
+                    )
+                else:
+                    event_candidate = RunEventCandidate(
+                        "tool.call.failed",
+                        {
+                            "tool_call_id": call_event.tool_call_id,
+                            "error": {"code": call_event.error_code or "a2a_call_failed"},
+                        },
+                        trace_id=run_trace_id,
+                        span_id=tool_span_id,
+                    )
+                self._run_repository.append_event(run.id, event_candidate)
+
+            execution_result = await self._executor.execute(
+                snapshot={**snapshot_document, "run_id": run.id},
+                message=input_message,
+                peers=peers,
+                callbacks=AgentExecutionCallbacks(
+                    on_delta=streamed_deltas.append,
+                    on_external_call=append_external_call_event,
+                ),
+            )
+            streamed_deltas.flush()
             self._run_repository.append_event(
                 run.id,
                 RunEventCandidate(
@@ -595,10 +613,20 @@ class AgentRunUseCase:
     def _approved_peers_for_run(self, run: Run) -> Sequence[A2APeer]:
         """按 Run 冻结的 Agent 绑定读取已批准对端，空绑定表示不授权出站调用。"""
         organization_id = run.organization_id or DEFAULT_ORGANIZATION_ID
+        if run.execution_snapshot is None:
+            return ()
+        snapshot_peer_ids = run.execution_snapshot.get("allowed_peer_ids")
+        if not isinstance(snapshot_peer_ids, (list, tuple)):
+            return ()
+        frozen_peer_ids = {peer_id for peer_id in snapshot_peer_ids if isinstance(peer_id, str)}
+        if not frozen_peer_ids:
+            return ()
         bound_agent = self._agent_repository.get_agent(organization_id, run.subject_id)
         if bound_agent is None or not bound_agent.allowed_peer_ids:
             return ()
-        allowed_peer_ids = set(bound_agent.allowed_peer_ids)
+        allowed_peer_ids = frozen_peer_ids & set(bound_agent.allowed_peer_ids)
+        if not allowed_peer_ids:
+            return ()
         return tuple(
             peer
             for peer in self._agent_repository.list_a2a_peers(organization_id)

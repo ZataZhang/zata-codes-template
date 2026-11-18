@@ -9,15 +9,22 @@ HTTP 服务，不使用 httpx 传输层替身。
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import threading
+from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
 import pytest
 
 from backend.core.agent.runs import _StreamedDeltas
-from backend.core.shared.interfaces.agent_executor import A2AResponse
+from backend.core.shared.interfaces.agent_executor import (
+    A2AResponse,
+    AgentExecutionCallbacks,
+    AgentExternalCallEvent,
+)
+from backend.core.shared.interfaces.agent_types import A2APeer
 from backend.core.shared.models.run import RunEventCandidate
 from backend.engines.agent_adapters.model_agent_executor import OpenAICompatibleAgentExecutor
 from backend.infrastructure.config.settings import (
@@ -142,7 +149,7 @@ def test_executor_streams_text_fragments_to_callback(monkeypatch: pytest.MonkeyP
                 snapshot={"organization_id": "org-1", "instructions": "be brief"},
                 message="stream please",
                 peers=(),
-                on_delta=collect,
+                callbacks=AgentExecutionCallbacks(on_delta=collect),
             )
         )
     finally:
@@ -169,7 +176,7 @@ def test_executor_reports_non_streamed_response(monkeypatch: pytest.MonkeyPatch)
                 snapshot={"organization_id": "org-1"},
                 message="no stream",
                 peers=(),
-                on_delta=collect,
+                callbacks=AgentExecutionCallbacks(on_delta=collect),
             )
         )
     finally:
@@ -220,9 +227,97 @@ def test_executor_rejects_truncated_stream(monkeypatch: pytest.MonkeyPatch) -> N
                     snapshot={"organization_id": "org-1"},
                     message="truncated stream",
                     peers=(),
-                    on_delta=collect,
+                    callbacks=AgentExecutionCallbacks(on_delta=collect),
                 )
             )
         assert received_fragments == list(STREAM_FRAGMENTS)
     finally:
         server.close()
+
+
+def test_external_call_is_reported_before_followup_model_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """成功的远端 Task 在第二轮模型失败前已交给 Run 事件回调。"""
+    server = _StreamingModelServer(streaming=False)
+
+    class SuccessfulA2AClient:
+        async def send_message(
+            self, *, organization_id: str, peer_id: str, message: str, idempotency_key: str
+        ) -> A2AResponse:
+            assert (organization_id, peer_id, message) == ("org-1", "peer-1", "remote prompt")
+            assert idempotency_key.endswith(":a2a:0")
+            return A2AResponse(task_id="remote-task-1", content="remote answer")
+
+    try:
+        executor = _build_executor(server, monkeypatch)
+        executor._a2a_client = SuccessfulA2AClient()
+        completion_count = 0
+
+        async def scripted_completion(**_kwargs: object) -> tuple[dict[str, object], bool]:
+            nonlocal completion_count
+            completion_count += 1
+            if completion_count == 1:
+                return (
+                    {
+                        "choices": [
+                            {
+                                "message": {
+                                    "role": "assistant",
+                                    "tool_calls": [
+                                        {
+                                            "id": "model-tool-call-1",
+                                            "function": {
+                                                "name": "call_a2a_peer",
+                                                "arguments": json.dumps(
+                                                    {
+                                                        "peer_id": "peer-1",
+                                                        "message": "remote prompt",
+                                                    }
+                                                ),
+                                            },
+                                        }
+                                    ],
+                                }
+                            }
+                        ]
+                    },
+                    False,
+                )
+            raise RuntimeError("model_request_failed")
+
+        monkeypatch.setattr(executor, "_create_completion", scripted_completion)
+        now = datetime.now(UTC)
+        peer = A2APeer(
+            id="peer-1",
+            organization_id="org-1",
+            created_by="admin-1",
+            name="Remote Agent",
+            card_url="https://peer.example/card",
+            endpoint_url="https://peer.example/a2a",
+            is_approved=True,
+            is_enabled=True,
+            approved_by="platform-admin-1",
+            created_at=now,
+            updated_at=now,
+        )
+        external_call_events: list[AgentExternalCallEvent] = []
+
+        with pytest.raises(RuntimeError, match="model_request_failed"):
+            asyncio.run(
+                executor.execute(
+                    snapshot={"organization_id": "org-1", "run_id": "run-1"},
+                    message="delegate this",
+                    peers=(peer,),
+                    callbacks=AgentExecutionCallbacks(on_external_call=external_call_events.append),
+                )
+            )
+    finally:
+        server.close()
+
+    assert completion_count == 2
+    assert [call_event.phase for call_event in external_call_events] == ["started", "completed"]
+    completed_call = external_call_events[1]
+    assert completed_call.remote_task_id == "remote-task-1"
+    assert completed_call.result_checksum == hashlib.sha256(b"remote answer").hexdigest()
+    assert completed_call.result_length == len("remote answer")

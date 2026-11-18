@@ -563,9 +563,17 @@ def _apply_tool_event(
         if builder.mark_terminal(RunTraceSpanStatus.COMPLETED, event.occurred_at):
             result_checksum = event.payload.get("result_checksum")
             raw_result = event.payload.get("result")
+            reported_result_length = event.payload.get("result_length")
             builder.update(
                 result_checksum=str(result_checksum) if result_checksum else None,
-                result_length=len(raw_result) if isinstance(raw_result, str) else None,
+                result_length=(
+                    reported_result_length
+                    if isinstance(reported_result_length, int)
+                    and not isinstance(reported_result_length, bool)
+                    else len(raw_result)
+                    if isinstance(raw_result, str)
+                    else None
+                ),
             )
         return
     if builder.mark_terminal(RunTraceSpanStatus.FAILED, event.occurred_at):

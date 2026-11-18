@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Awaitable, Callable, Protocol, Sequence
+from typing import Awaitable, Callable, Literal, Protocol, Sequence
 
 from backend.core.shared.interfaces.agent_types import A2APeer
 
@@ -17,29 +17,42 @@ class A2AResponse:
 
 
 @dataclass(frozen=True)
-class AgentExternalCall:
-    """模型请求期间完成的一次受控 A2A 调用摘要。"""
-
-    peer_id: str
-    peer_name: str
-    remote_task_id: str
-    input_length: int
-    result_checksum: str
-    result_length: int
-
-
-@dataclass(frozen=True)
 class AgentExecutionResult:
-    """模型最终回复和低敏执行元数据。"""
+    """模型最终回复。"""
 
     content: str
     model_name: str
-    external_calls: tuple[AgentExternalCall, ...] = ()
     content_streamed: bool = False
 
 
 #: 模型流式返回文本片段时的回调；调用方负责把片段写入唯一 Run/Event 事实源。
 DeltaCallback = Callable[[str], Awaitable[None]]
+ExternalCallPhase = Literal["started", "completed", "failed"]
+
+
+@dataclass(frozen=True)
+class AgentExternalCallEvent:
+    """受控 A2A 调用的单个低敏生命周期事件。"""
+
+    phase: ExternalCallPhase
+    tool_call_id: str
+    peer_id: str
+    input_length: int
+    remote_task_id: str | None = None
+    result_checksum: str | None = None
+    result_length: int | None = None
+    error_code: str | None = None
+
+
+ExternalCallCallback = Callable[[AgentExternalCallEvent], None]
+
+
+@dataclass(frozen=True)
+class AgentExecutionCallbacks:
+    """Run 用例为一次执行提供的持久化回调。"""
+
+    on_delta: DeltaCallback | None = None
+    on_external_call: ExternalCallCallback | None = None
 
 
 class AgentExecutor(Protocol):
@@ -66,7 +79,7 @@ class AgentExecutor(Protocol):
         snapshot: dict[str, object],
         message: str,
         peers: Sequence[A2APeer],
-        on_delta: DeltaCallback | None = None,
+        callbacks: AgentExecutionCallbacks | None = None,
     ) -> AgentExecutionResult:
         """调用已配置模型及允许的 A2A 对端。
 
@@ -74,8 +87,8 @@ class AgentExecutor(Protocol):
             snapshot (dict[str, object]): Run 创建时冻结的 Agent 配置。
             message (str): 当前用户消息。
             peers (Sequence[A2APeer]): 当前组织已批准的 A2A 对端。
-            on_delta (DeltaCallback | None): 收到流式文本片段时的回调；为 ``None``
-                时执行器可以一次性返回完整回复。
+            callbacks (AgentExecutionCallbacks | None): 流式文本和受控对端调用事件的
+                持久化回调；为空时执行器可以一次性返回完整回复。
         """
         ...
 
@@ -93,8 +106,10 @@ class A2AClient(Protocol):
 __all__ = [
     "A2AClient",
     "A2AResponse",
+    "AgentExecutionCallbacks",
     "AgentExecutionResult",
     "AgentExecutor",
-    "AgentExternalCall",
+    "AgentExternalCallEvent",
     "DeltaCallback",
+    "ExternalCallCallback",
 ]

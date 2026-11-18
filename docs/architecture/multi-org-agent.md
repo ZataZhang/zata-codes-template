@@ -52,9 +52,9 @@ A2A 只用于独立 Agent 之间通信。它不代替内部模型接口或受控
 
 ### 出站
 
-组织管理员登记 A2A 对端，平台管理员审查并批准地址策略后，组织管理员还需在创建 Agent 时选择它允许调用的已批准对端；模型工具列表只包含该 Agent 绑定且仍启用的对端。空绑定表示该 Agent 不允许出站 A2A 调用。调用方不能在用户消息中提供 URL。目录按组织保存 Card URL、REST URL 与密钥别名；Bearer token 使用服务端 AES-GCM 密钥加密，密钥只从 `.env` / `.env.local` 注入。
+组织管理员登记 A2A 对端，平台管理员审查并批准地址策略后，组织管理员还需在创建 Agent 时选择它允许调用的已批准对端；Run 创建时冻结这份对端 ID 清单。执行开始时，允许列表与当前 Agent 绑定和对端启用/审批状态取交集，排队 Run 不会继承创建后新增的授权；A2A 客户端发请求前还会再次校验对端状态。空绑定表示该 Agent 不允许出站 A2A 调用。调用方不能在用户消息中提供 URL。目录按组织保存 Card URL、REST URL 与密钥别名；Bearer token 使用服务端 AES-GCM 密钥加密，密钥只从 `.env` / `.env.local` 注入。
 
-客户端验证 A2A 版本、HTTP+JSON REST binding、Card 与 endpoint 同源、精确主机 allowlist、DNS 公网地址和无重定向策略。凭据只发送到登记对端，不转发到 Card 宣告的其他 host。远端 Task ID、peer ID、结果 checksum 与字符长度进入 Canonical Run 的低敏 tracing 事件，不保存远端消息正文或凭据。
+客户端验证 A2A 版本、HTTP+JSON REST binding、Card 与 endpoint 同源、精确主机 allowlist、DNS 公网地址和无重定向策略。凭据只发送到登记对端，不转发到 Card 宣告的其他 host。出站调用开始、成功或失败时立即写入 Canonical Run 工具事件；成功事件包含远端 Task ID、peer ID、结果 checksum 与字符长度。这样后续模型调用失败时，已完成的远端 Task 仍留在父 Run 轨迹中；事件不保存远端消息正文或凭据。
 
 卡片 origin 必须由部署配置 `A2A_PUBLIC_BASE_URL` 明确声明。该值只允许一个 `http(s)` origin，不读取未验证的请求 `Host`。生产应使用 HTTPS 公网域名；本地 HTTP 仅在显式打开 `A2A_ALLOW_LOOPBACK_FOR_DEV=true` 时可用。
 

@@ -2,17 +2,20 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
+import uuid
 from typing import Sequence
 
 import httpx
 
 from backend.core.shared.interfaces.agent_executor import (
     A2AClient,
+    AgentExecutionCallbacks,
     AgentExecutionResult,
     AgentExecutor,
-    AgentExternalCall,
+    AgentExternalCallEvent,
     DeltaCallback,
 )
 from backend.core.shared.interfaces.agent_types import A2APeer
@@ -63,7 +66,7 @@ class OpenAICompatibleAgentExecutor(AgentExecutor):
         snapshot: dict[str, object],
         message: str,
         peers: Sequence[A2APeer],
-        on_delta: DeltaCallback | None = None,
+        callbacks: AgentExecutionCallbacks | None = None,
     ) -> AgentExecutionResult:
         """调用默认 OpenAI-compatible 端点并执行模型选择的已批准对端。
 
@@ -71,11 +74,10 @@ class OpenAICompatibleAgentExecutor(AgentExecutor):
             snapshot (dict[str, object]): Run 创建时冻结的 Agent 配置。
             message (str): 当前用户消息。
             peers (Sequence[A2APeer]): 当前组织已批准的 A2A 对端。
-            on_delta (DeltaCallback | None): 流式文本片段回调；传入时向端点要求
-                ``stream`` 并把每个片段交给调用方持久化。
+            callbacks (AgentExecutionCallbacks | None): 流式文本和 A2A 调用事件回调。
 
         Returns:
-            AgentExecutionResult: 最终回复和低敏调用摘要。
+            AgentExecutionResult: 模型最终回复。
 
         Raises:
             RuntimeError: 模型未配置、响应无效或对端调用失败时抛出。
@@ -83,6 +85,8 @@ class OpenAICompatibleAgentExecutor(AgentExecutor):
         settings = self._model_settings
         if settings is None:
             raise RuntimeError(self.unavailable_reason or "model_not_configured")
+        on_delta = callbacks.on_delta if callbacks else None
+        on_external_call = callbacks.on_external_call if callbacks else None
         organization_id = str(snapshot["organization_id"])
         model_name = str(snapshot.get("model_name") or settings.model_name)
         system_prompt = self._build_system_prompt(snapshot)
@@ -108,7 +112,6 @@ class OpenAICompatibleAgentExecutor(AgentExecutor):
             on_delta=on_delta,
         )
         assistant_message = self._read_assistant_message(completion_response)
-        external_calls: list[AgentExternalCall] = []
         tool_calls = assistant_message.get("tool_calls", [])
         if tool_calls:
             if not isinstance(tool_calls, list):
@@ -135,24 +138,60 @@ class OpenAICompatibleAgentExecutor(AgentExecutor):
                 peer_message = str(tool_arguments.get("message", "")).strip()
                 if peer is None or not peer_message or len(peer_message) > 8_000:
                     raise RuntimeError("model_requested_unapproved_peer")
-                peer_response = await self._a2a_client.send_message(
-                    organization_id=organization_id,
-                    peer_id=peer.id,
-                    message=peer_message,
-                    idempotency_key=(f"{snapshot.get('run_id', 'run')}:a2a:{tool_call_index}"),
-                )
-                external_calls.append(
-                    AgentExternalCall(
-                        peer_id=peer.id,
-                        peer_name=peer.name,
-                        input_length=len(peer_message),
-                        remote_task_id=peer_response.task_id,
-                        result_checksum=hashlib.sha256(
-                            peer_response.content.encode("utf-8")
-                        ).hexdigest(),
-                        result_length=len(peer_response.content),
+                tool_call_id = uuid.uuid4().hex
+                if on_external_call is not None:
+                    on_external_call(
+                        AgentExternalCallEvent(
+                            phase="started",
+                            tool_call_id=tool_call_id,
+                            peer_id=peer.id,
+                            input_length=len(peer_message),
+                        )
                     )
-                )
+                try:
+                    peer_response = await self._a2a_client.send_message(
+                        organization_id=organization_id,
+                        peer_id=peer.id,
+                        message=peer_message,
+                        idempotency_key=(f"{snapshot.get('run_id', 'run')}:a2a:{tool_call_index}"),
+                    )
+                except asyncio.CancelledError:
+                    if on_external_call is not None:
+                        on_external_call(
+                            AgentExternalCallEvent(
+                                phase="failed",
+                                tool_call_id=tool_call_id,
+                                peer_id=peer.id,
+                                input_length=len(peer_message),
+                                error_code="a2a_call_cancelled",
+                            )
+                        )
+                    raise
+                except Exception:
+                    if on_external_call is not None:
+                        on_external_call(
+                            AgentExternalCallEvent(
+                                phase="failed",
+                                tool_call_id=tool_call_id,
+                                peer_id=peer.id,
+                                input_length=len(peer_message),
+                                error_code="a2a_call_failed",
+                            )
+                        )
+                    raise
+                result_checksum = hashlib.sha256(peer_response.content.encode("utf-8")).hexdigest()
+                if on_external_call is not None:
+                    on_external_call(
+                        AgentExternalCallEvent(
+                            phase="completed",
+                            tool_call_id=tool_call_id,
+                            peer_id=peer.id,
+                            input_length=len(peer_message),
+                            remote_task_id=peer_response.task_id,
+                            result_checksum=result_checksum,
+                            result_length=len(peer_response.content),
+                        )
+                    )
                 message_history.append(
                     {
                         "role": "tool",
@@ -174,7 +213,6 @@ class OpenAICompatibleAgentExecutor(AgentExecutor):
         return AgentExecutionResult(
             content=final_content,
             model_name=model_name,
-            external_calls=tuple(external_calls),
             content_streamed=content_streamed,
         )
 

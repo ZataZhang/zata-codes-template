@@ -112,7 +112,7 @@ class A2APeerTarget:
 
 @dataclass(frozen=True)
 class AgentExecutionSnapshot:
-    """创建 Run 时冻结的 Agent、模型和 Skill 版本。"""
+    """创建 Run 时冻结的 Agent、模型、Skill 版本与 A2A 对端授权。"""
 
     agent_id: str
     organization_id: str
@@ -123,6 +123,7 @@ class AgentExecutionSnapshot:
     skill_version_id: str | None
     skill_version: int | None
     skill_body: str | None
+    allowed_peer_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
