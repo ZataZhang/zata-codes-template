@@ -59,6 +59,7 @@ def create_agent(
                 instructions=request.instructions,
                 model_name=request.model_name,
                 skill_id=request.skill_id,
+                peer_ids=tuple(request.peer_ids),
             )
         )
         return _agent_response(
@@ -93,6 +94,7 @@ def update_agent(
                 model_name=request.model_name,
                 skill_id=request.skill_id,
                 is_enabled=request.is_enabled,
+                peer_ids=tuple(request.peer_ids),
             )
         )
         entry = next(

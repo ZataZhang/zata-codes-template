@@ -22,6 +22,7 @@ class AgentDefinition:
     is_published: bool
     created_at: datetime
     updated_at: datetime
+    allowed_peer_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

@@ -33,6 +33,7 @@ def _agent_response(entry: AgentCatalogEntry, *, public_base_url: str = "") -> A
         skill_id=agent.skill_id,
         is_enabled=agent.is_enabled,
         is_published=agent.is_published,
+        allowed_peer_ids=list(agent.allowed_peer_ids),
         is_runnable=entry.is_runnable,
         unavailable_reason=entry.unavailable_reason,
         a2a_card_url=(

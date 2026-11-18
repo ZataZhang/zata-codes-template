@@ -31,6 +31,7 @@ class CreateAgentCommand:
     instructions: str
     model_name: str | None = None
     skill_id: str | None = None
+    peer_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -45,6 +46,7 @@ class UpdateAgentCommand:
     model_name: str | None
     skill_id: str | None
     is_enabled: bool
+    peer_ids: tuple[str, ...] = ()
 
 
 class AgentUnavailableError(ValueError):
@@ -125,6 +127,9 @@ class AgentCatalogUseCase:
                 is_published=False,
                 created_at=now,
                 updated_at=now,
+                allowed_peer_ids=self._validated_peer_ids(
+                    command.organization_id, command.peer_ids
+                ),
             )
         )
 
@@ -167,8 +172,38 @@ class AgentCatalogUseCase:
                 is_published=existing_agent.is_published,
                 created_at=existing_agent.created_at,
                 updated_at=datetime.now(UTC),
+                allowed_peer_ids=self._validated_peer_ids(
+                    command.organization_id, command.peer_ids
+                ),
             )
         )
+
+    def _validated_peer_ids(
+        self, organization_id: str, peer_ids: tuple[str, ...]
+    ) -> tuple[str, ...]:
+        """校验 Agent 绑定的 A2A 对端属于本组织且已批准启用。
+
+        Args:
+            organization_id (str): 服务端会话解析的组织 ID。
+            peer_ids (tuple[str, ...]): 请求绑定的对端 ID 集合。
+
+        Returns:
+            tuple[str, ...]: 去重并保持请求顺序的对端 ID；空表示不授权出站调用。
+
+        Raises:
+            ValueError: 存在不属于本组织、未批准或已停用的对端时抛出。
+        """
+        requested_peer_ids = tuple(dict.fromkeys(peer_id for peer_id in peer_ids if peer_id))
+        if not requested_peer_ids:
+            return ()
+        approved_peer_ids = {
+            peer.id
+            for peer in self._repository.list_a2a_peers(organization_id)
+            if peer.is_approved and peer.is_enabled
+        }
+        if any(peer_id not in approved_peer_ids for peer_id in requested_peer_ids):
+            raise ValueError("agent_peer_not_approved")
+        return requested_peer_ids
 
     def set_published(
         self, organization_id: str, agent_id: str, is_published: bool

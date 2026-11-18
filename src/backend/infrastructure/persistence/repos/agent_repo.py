@@ -51,6 +51,7 @@ def _to_agent(agent_model: AgentModel) -> AgentDefinition:
         is_published=agent_model.is_published,
         created_at=agent_model.created_at,
         updated_at=agent_model.updated_at,
+        allowed_peer_ids=tuple(agent_model.allowed_peer_ids or ()),
     )
 
 
@@ -136,6 +137,7 @@ class SqlAlchemyAgentRepository(AgentRepository):
             skill_id=agent.skill_id,
             is_enabled=agent.is_enabled,
             is_published=agent.is_published,
+            allowed_peer_ids=list(agent.allowed_peer_ids),
             created_at=agent.created_at,
             updated_at=agent.updated_at,
         )
@@ -185,6 +187,7 @@ class SqlAlchemyAgentRepository(AgentRepository):
                 agent_model.skill_id = agent.skill_id
                 agent_model.is_enabled = agent.is_enabled
                 agent_model.is_published = agent.is_published
+                agent_model.allowed_peer_ids = list(agent.allowed_peer_ids)
                 agent_model.updated_at = agent.updated_at
         except IntegrityError as integrity_error:
             raise ValueError("agent_name_conflict_or_invalid_skill") from integrity_error

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.infrastructure.persistence.database import Base
@@ -47,6 +47,12 @@ class AgentModel(Base, TimestampMixin):
     )
     is_published: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, comment="是否对本组织成员发布。"
+    )
+    allowed_peer_ids: Mapped[list[str]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=list,
+        comment="本 Agent 可调用的已批准 A2A 对端 ID；空列表表示不授权任何出站对端。",
     )
 
 

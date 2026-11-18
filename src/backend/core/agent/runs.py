@@ -593,12 +593,16 @@ class AgentRunUseCase:
         )
 
     def _approved_peers_for_run(self, run: Run) -> Sequence[A2APeer]:
-        """按 Run 创建时组织读取已批准对端。"""
+        """按 Run 冻结的 Agent 绑定读取已批准对端，空绑定表示不授权出站调用。"""
         organization_id = run.organization_id or DEFAULT_ORGANIZATION_ID
+        bound_agent = self._agent_repository.get_agent(organization_id, run.subject_id)
+        if bound_agent is None or not bound_agent.allowed_peer_ids:
+            return ()
+        allowed_peer_ids = set(bound_agent.allowed_peer_ids)
         return tuple(
             peer
             for peer in self._agent_repository.list_a2a_peers(organization_id)
-            if peer.is_approved and peer.is_enabled
+            if peer.is_approved and peer.is_enabled and peer.id in allowed_peer_ids
         )
 
     def _conversation_history(self, prior_runs: Sequence[Run]) -> list[dict[str, str]]:

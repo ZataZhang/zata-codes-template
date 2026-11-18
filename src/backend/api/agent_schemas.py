@@ -13,6 +13,11 @@ class AgentCreateRequest(BaseModel):
     instructions: str = Field(min_length=1, max_length=32_000)
     model_name: str | None = Field(default=None, max_length=255)
     skill_id: str | None = Field(default=None, max_length=64)
+    peer_ids: list[str] = Field(
+        default_factory=list,
+        max_length=50,
+        description="本 Agent 可调用的已批准出站 A2A 对端 ID；空列表表示不授权出站调用。",
+    )
 
 
 class AgentUpdateRequest(AgentCreateRequest):
@@ -32,6 +37,7 @@ class AgentResponse(BaseModel):
     skill_id: str | None
     is_enabled: bool
     is_published: bool
+    allowed_peer_ids: list[str] = Field(default_factory=list)
     is_runnable: bool
     unavailable_reason: str | None
     a2a_card_url: str | None = None
