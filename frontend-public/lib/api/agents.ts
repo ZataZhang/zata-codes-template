@@ -1,4 +1,4 @@
-import { apiClient } from "@/lib/api/client"
+import { ApiRequestError, apiClient } from "@/lib/api/client"
 
 export interface MemberAgent {
   id: string
@@ -71,6 +71,65 @@ export async function getAgentRunEvents(
   return {
     items: response.data.items,
     nextAfterSeq: response.data.next_after_seq,
+  }
+}
+
+/** Keep one same-origin event stream open and deliver each persisted Run event. */
+export async function streamAgentRunEvents(
+  runId: string,
+  afterSeq: number,
+  onEvent: (agentRunEvent: AgentRunEvent) => void,
+  signal: AbortSignal
+): Promise<number> {
+  const streamPath = `/api/agent-runs/${encodeURIComponent(runId)}/events/stream`
+  const streamUrl = `${streamPath}?after_seq=${afterSeq}`
+  const streamResponse = await fetch(streamUrl, {
+    method: "GET",
+    credentials: "same-origin",
+    cache: "no-store",
+    headers: { Accept: "text/event-stream" },
+    signal,
+  })
+  if (!streamResponse.ok) {
+    if (streamResponse.status === 401) window.location.href = "/login"
+    const errorDocument = await streamResponse.json().catch(() => null)
+    const detail =
+      errorDocument && typeof errorDocument.detail === "string"
+        ? errorDocument.detail
+        : streamResponse.statusText
+    throw new ApiRequestError(detail || "Could not read Run events", streamResponse.status)
+  }
+  if (!streamResponse.body) {
+    throw new ApiRequestError("Run event stream is unavailable", streamResponse.status)
+  }
+
+  const streamReader = streamResponse.body.getReader()
+  const utf8Decoder = new TextDecoder()
+  let bufferedText = ""
+  let newestSequence = afterSeq
+  try {
+    while (true) {
+      const { done, value } = await streamReader.read()
+      bufferedText += utf8Decoder.decode(value, { stream: !done })
+      const eventFrames = bufferedText.split(/\r?\n\r?\n/)
+      const unfinishedFrame = eventFrames.pop() ?? ""
+      bufferedText = done ? "" : unfinishedFrame
+      if (done && unfinishedFrame) eventFrames.push(unfinishedFrame)
+      for (const eventFrame of eventFrames) {
+        const eventPayload = eventFrame
+          .split(/\r?\n/)
+          .filter((eventLine) => eventLine.startsWith("data:"))
+          .map((eventLine) => eventLine.slice(5).trimStart())
+          .join("\n")
+        if (!eventPayload) continue
+        const agentRunEvent = JSON.parse(eventPayload) as AgentRunEvent
+        newestSequence = Math.max(newestSequence, agentRunEvent.seq)
+        onEvent(agentRunEvent)
+      }
+      if (done) return newestSequence
+    }
+  } finally {
+    streamReader.releaseLock()
   }
 }
 

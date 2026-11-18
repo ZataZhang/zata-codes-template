@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+import unicodedata
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -128,16 +129,17 @@ class SkillUseCase:
         )
         if selected_revision is None:
             raise SkillNotFoundError("Skill version 不存在")
+        restored_body = validate_skill_body(selected_revision.body)
         return self._repository.append_skill_revision(
             SkillRevisionDraft(
                 organization_id=command.organization_id,
                 skill_id=command.skill_id,
                 created_by=command.actor_id,
-                body=selected_revision.body,
+                body=restored_body,
                 idempotency=_skill_write_idempotency(
                     scope=f"{command.organization_id}:{command.skill_id}:{command.actor_id}",
                     idempotency_key=command.idempotency_key,
-                    request_document={"body": selected_revision.body},
+                    request_document={"body": restored_body},
                 ),
             )
         )
@@ -177,8 +179,24 @@ def _skill_write_idempotency(
     )
 
 
-_EXECUTABLE_SKILL_LANGUAGE_PATTERN = re.compile(
-    r"(?im)^```(?:python|py|bash|sh|shell|javascript|js|typescript|ts|powershell|ps1)\b"
+_CODE_FENCE_LINE_PATTERN = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
+_SAFE_REFERENCE_FENCE_LANGUAGES = frozenset(
+    {
+        "text",
+        "plaintext",
+        "txt",
+        "markdown",
+        "md",
+        "json",
+        "jsonc",
+        "yaml",
+        "yml",
+        "toml",
+        "ini",
+        "csv",
+        "diff",
+        "mermaid",
+    }
 )
 
 _SHEBANG_PATTERN = re.compile(r"(?m)^\s*#!")
@@ -203,12 +221,34 @@ def validate_skill_body(body: str) -> str:
         raise ValueError("skill_body_required")
     if len(normalized_body) > 100_000:
         raise ValueError("skill_body_too_large")
-    if any(
-        pattern.search(normalized_body)
-        for pattern in (
-            _EXECUTABLE_SKILL_LANGUAGE_PATTERN,
-            _SHEBANG_PATTERN,
-            _RUNNABLE_COMMAND_PATTERN,
+    open_code_fence: tuple[str, int] | None = None
+    for body_line in normalized_body.splitlines():
+        fence_match = _CODE_FENCE_LINE_PATTERN.match(body_line)
+        if fence_match is None:
+            continue
+        fence_marker, fence_info = fence_match.groups()
+        if open_code_fence is None:
+            if fence_marker.startswith("`") and "`" in fence_info:
+                raise ValueError("skill_executable_content_not_allowed")
+            language = fence_info.strip().split(maxsplit=1)[0].lower() if fence_info.strip() else ""
+            if language not in _SAFE_REFERENCE_FENCE_LANGUAGES:
+                raise ValueError("skill_executable_content_not_allowed")
+            open_code_fence = (fence_marker[0], len(fence_marker))
+        elif (
+            fence_marker[0] == open_code_fence[0]
+            and len(fence_marker) >= open_code_fence[1]
+            and not fence_info.strip()
+        ):
+            open_code_fence = None
+    if (
+        open_code_fence is not None
+        or any(
+            unicodedata.category(character) in {"Cc", "Cs"} and character not in "\t\n\r"
+            for character in normalized_body
+        )
+        or any(
+            pattern.search(normalized_body)
+            for pattern in (_SHEBANG_PATTERN, _RUNNABLE_COMMAND_PATTERN)
         )
     ):
         raise ValueError("skill_executable_content_not_allowed")

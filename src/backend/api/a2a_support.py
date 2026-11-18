@@ -248,11 +248,13 @@ def _task_events(
             "run.completed",
             "run.failed",
             "run.cancelled",
+            "run.interrupted",
         }:
             current_run_state = {
                 "run.completed": "TASK_STATE_COMPLETED",
                 "run.failed": "TASK_STATE_FAILED",
                 "run.cancelled": "TASK_STATE_CANCELED",
+                "run.interrupted": "TASK_STATE_FAILED",
             }.get(run_event.event_type, "TASK_STATE_WORKING")
             task_events.append(
                 {

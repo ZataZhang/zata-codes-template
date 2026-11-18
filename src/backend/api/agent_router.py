@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+import asyncio
+import json
+import time
+from collections.abc import AsyncIterator
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
+from fastapi.responses import StreamingResponse
 
 from backend.api.agent_schemas import (
     AgentRunAssetListResponse,
@@ -17,9 +23,11 @@ from backend.api.agent_schemas import (
     MemberAgentResponse,
 )
 from backend.api.dependencies import (
+    PUBLIC_SESSION_COOKIE_NAME,
     get_agent_catalog_use_case,
     get_agent_run_use_case,
     get_current_public_user,
+    get_public_auth_service,
 )
 from backend.core.agent import (
     AgentCatalogUseCase,
@@ -29,7 +37,8 @@ from backend.core.agent import (
     CreateAgentRunCommand,
 )
 from backend.core.auth.models import AuthenticatedPrincipal
-from backend.core.shared.models.run import Run, RunEvent
+from backend.core.auth.service import AuthService
+from backend.core.shared.models.run import TERMINAL_RUN_STATUSES, Run, RunEvent
 
 router = APIRouter(tags=["agents"])
 
@@ -307,6 +316,89 @@ def get_agent_run_events(
             for run_event in run_events
         ],
         next_after_seq=run_events[-1].seq if run_events else after_seq,
+    )
+
+
+@router.get("/agent-runs/{run_id}/events/stream")
+def stream_agent_run_events(
+    request: Request,
+    run_id: str,
+    after_seq: int = Query(default=0, ge=0),
+    principal: AuthenticatedPrincipal = Depends(get_current_public_user),
+    auth_service: AuthService = Depends(get_public_auth_service),
+    run_use_case: AgentRunUseCase = Depends(get_agent_run_use_case),
+) -> StreamingResponse:
+    """通过单个同源 SSE 请求持续读取当前成员的 Canonical Run Events。"""
+    organization_id = _require_public_organization(principal)
+    session_token = request.cookies.get(PUBLIC_SESSION_COOKIE_NAME)
+    if not session_token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="unauthorized")
+    try:
+        run_use_case.get_scoped_run(
+            run_id=run_id,
+            organization_id=organization_id,
+            owner_id=principal.user_id,
+        )
+    except AgentNotFoundError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found") from None
+
+    async def event_stream() -> AsyncIterator[str]:
+        """按事件序号发送增量，并在会话、组织或 Run 终止时关闭流。"""
+        last_sequence = after_seq
+        last_keepalive_at = time.monotonic()
+        while True:
+            current_time = time.monotonic()
+            current_principal = await asyncio.to_thread(auth_service.resolve_session, session_token)
+            if (
+                current_principal is None
+                or current_principal.user_id != principal.user_id
+                or current_principal.organization_id != organization_id
+            ):
+                return
+            try:
+                current_run = await asyncio.to_thread(
+                    run_use_case.get_scoped_run,
+                    run_id=run_id,
+                    organization_id=organization_id,
+                    owner_id=principal.user_id,
+                )
+                new_events = await asyncio.to_thread(
+                    run_use_case.list_scoped_events,
+                    run_id=run_id,
+                    organization_id=organization_id,
+                    owner_id=principal.user_id,
+                    after_seq=last_sequence,
+                )
+            except AgentNotFoundError:
+                return
+            for run_event in new_events:
+                event_document = AgentRunEventResponse(
+                    seq=run_event.seq,
+                    event_type=run_event.event_type,
+                    occurred_at=run_event.occurred_at.isoformat(),
+                    payload=run_event.payload,
+                ).model_dump()
+                yield (
+                    "data: "
+                    + json.dumps(event_document, ensure_ascii=False, separators=(",", ":"))
+                    + "\n\n"
+                )
+                last_sequence = run_event.seq
+            if current_run.status in TERMINAL_RUN_STATUSES:
+                return
+            if not new_events and current_time - last_keepalive_at >= 15:
+                yield ": keep-alive\n\n"
+                last_keepalive_at = current_time
+            await asyncio.sleep(1)
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
     )
 
 

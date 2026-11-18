@@ -7,9 +7,9 @@ import {
   cancelAgentRun,
   createAgentRun,
   getAgentRun,
-  getAgentRunEvents,
   getAgentRuns,
   getMemberAgents,
+  streamAgentRunEvents,
   type AgentRunDetail,
   type AgentRunSummary,
   type MemberAgent,
@@ -29,7 +29,12 @@ const ACTIVE_RUN_STATUS_ORDER: Record<string, number> = {
   cancelling: 2,
 }
 const POLLABLE_RUN_STATUSES = new Set(["queued", "running", "cancelling"])
-const TERMINAL_RUN_STATUSES = new Set(["succeeded", "failed", "cancelled"])
+const TERMINAL_RUN_STATUSES = new Set([
+  "succeeded",
+  "failed",
+  "cancelled",
+  "interrupted",
+])
 
 /** 合并同一 Run 的状态时，阻止迟到事件覆盖终态或回退活动状态。 */
 function mergeRunStateWithoutRegression(
@@ -108,74 +113,77 @@ export default function AgentsPage() {
     if (!activeRunId || !shouldPollActiveRun) return
     const runId = activeRunId
     let cancelled = false
-    let pollInFlight = false
+    let activeStreamController: AbortController | null = null
     /**
      * 读取新增的 Canonical Event：`message.delta` 立即拼接到实时回复，
-     * 终态事件到达后重新读取持久化 Run 并刷新历史。同一时刻只允许一个
-     * 请求在飞，避免慢响应下重复消费同一批事件。
+     * 流关闭后重新读取持久化 Run 并刷新历史。断线后从最后处理的事件序号
+     * 重连，避免重复消费或漏掉已提交事件。
      */
-    const poll = async () => {
-      if (pollInFlight) return
-      pollInFlight = true
-      try {
-        const { items, nextAfterSeq } = await getAgentRunEvents(
-          runId,
-          eventCursorRef.current
-        )
-        if (cancelled) return
-        const reachedTerminalState = items.some((runEvent) =>
-          ["run.completed", "run.failed", "run.cancelled"].includes(
-            runEvent.event_type
+    const consumeEvents = async () => {
+      while (!cancelled) {
+        const streamController = new AbortController()
+        activeStreamController = streamController
+        try {
+          await streamAgentRunEvents(
+            runId,
+            eventCursorRef.current,
+            (runEvent) => {
+              if (cancelled) return
+              eventCursorRef.current = Math.max(eventCursorRef.current, runEvent.seq)
+              if (
+                runEvent.event_type === "message.delta" &&
+                typeof runEvent.payload.delta === "string"
+              ) {
+                setLiveReply((previous) => previous + runEvent.payload.delta)
+              }
+              if (Object.hasOwn(RUN_STATUS_BY_EVENT, runEvent.event_type)) {
+                const nextStatus = RUN_STATUS_BY_EVENT[runEvent.event_type]
+                setActiveRun((previous) => {
+                  if (!previous || previous.id !== runId) return previous
+                  return mergeRunStateWithoutRegression(previous, {
+                    ...previous,
+                    status: nextStatus,
+                  })
+                })
+              }
+            },
+            streamController.signal
           )
-        )
-        const refreshed = reachedTerminalState
-          ? await getAgentRun(runId)
-          : null
-        if (cancelled) return
-        eventCursorRef.current = nextAfterSeq
-        const streamedText = items
-          .filter((runEvent) => runEvent.event_type === "message.delta")
-          .map((runEvent) =>
-            typeof runEvent.payload.delta === "string"
-              ? runEvent.payload.delta
-              : ""
-          )
-          .join("")
-        if (streamedText) setLiveReply((previous) => previous + streamedText)
-        const progressedStatus = items
-          .filter((runEvent) =>
-            Object.keys(RUN_STATUS_BY_EVENT).includes(runEvent.event_type)
-          )
-          .at(-1)
-        if (progressedStatus) {
-          const nextStatus = RUN_STATUS_BY_EVENT[progressedStatus.event_type]
+          if (cancelled) return
+          const refreshedRun = await getAgentRun(runId)
+          if (cancelled) return
           setActiveRun((previous) => {
             if (!previous || previous.id !== runId) return previous
-            return mergeRunStateWithoutRegression(previous, {
-              ...previous,
-              status: nextStatus,
-            })
+            return mergeRunStateWithoutRegression(previous, refreshedRun)
           })
+          if (!POLLABLE_RUN_STATUSES.has(refreshedRun.status)) {
+            setLiveReply("")
+            await reloadHistory()
+            return
+          }
+        } catch (streamError) {
+          if (cancelled) return
+          if (
+            streamError instanceof Error &&
+            "status" in streamError &&
+            [401, 404].includes(Number(streamError.status))
+          ) {
+            setError(t("historyFailed"))
+            return
+          }
+          setError(t("refreshFailed"))
+        } finally {
+          if (activeStreamController === streamController) {
+            activeStreamController = null
+          }
         }
-        if (refreshed) {
-          setActiveRun((previous) => {
-            if (!previous || previous.id !== runId) return previous
-            return mergeRunStateWithoutRegression(previous, refreshed)
-          })
-          setLiveReply("")
-          await reloadHistory()
-        }
-      } catch {
-        if (!cancelled) setError(t("refreshFailed"))
-      } finally {
-        pollInFlight = false
+        await new Promise<void>((resolve) => window.setTimeout(resolve, 1000))
       }
     }
-    const timer = window.setInterval(() => void poll(), 400)
-    void poll()
+    void consumeEvents()
     return () => {
       cancelled = true
-      window.clearInterval(timer)
+      activeStreamController?.abort()
     }
   }, [activeRunId, shouldPollActiveRun, reloadHistory, t])
 
