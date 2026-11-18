@@ -23,6 +23,36 @@ const RUN_STATUS_BY_EVENT: Record<string, string> = {
   "run.started": "running",
   "run.cancelling": "cancelling",
 }
+const ACTIVE_RUN_STATUS_ORDER: Record<string, number> = {
+  queued: 0,
+  running: 1,
+  cancelling: 2,
+}
+const TERMINAL_RUN_STATUSES = new Set(["succeeded", "failed", "cancelled"])
+
+/** 合并同一 Run 的状态时，阻止迟到事件覆盖终态或回退活动状态。 */
+function mergeRunStateWithoutRegression(
+  currentRun: AgentRunDetail | null,
+  incomingRun: AgentRunDetail
+): AgentRunDetail {
+  if (!currentRun || currentRun.id !== incomingRun.id) return incomingRun
+  if (
+    TERMINAL_RUN_STATUSES.has(currentRun.status) &&
+    currentRun.status !== incomingRun.status
+  ) {
+    return currentRun
+  }
+  const currentStatusOrder = ACTIVE_RUN_STATUS_ORDER[currentRun.status]
+  const incomingStatusOrder = ACTIVE_RUN_STATUS_ORDER[incomingRun.status]
+  if (
+    currentStatusOrder !== undefined &&
+    incomingStatusOrder !== undefined &&
+    incomingStatusOrder < currentStatusOrder
+  ) {
+    return { ...incomingRun, status: currentRun.status }
+  }
+  return incomingRun
+}
 
 /** Show the organization Agent directory and persisted run history. */
 export default function AgentsPage() {
@@ -110,11 +140,13 @@ export default function AgentsPage() {
           .at(-1)
         if (progressedStatus) {
           const nextStatus = RUN_STATUS_BY_EVENT[progressedStatus.event_type]
-          setActiveRun((previous) =>
-            previous && previous.status !== nextStatus
-              ? { ...previous, status: nextStatus }
-              : previous
-          )
+          setActiveRun((previous) => {
+            if (!previous || previous.id !== runId) return previous
+            return mergeRunStateWithoutRegression(previous, {
+              ...previous,
+              status: nextStatus,
+            })
+          })
         }
         const reachedTerminalState = items.some((runEvent) =>
           ["run.completed", "run.failed", "run.cancelled"].includes(
@@ -124,7 +156,10 @@ export default function AgentsPage() {
         if (reachedTerminalState) {
           const refreshed = await getAgentRun(runId)
           if (cancelled) return
-          setActiveRun(refreshed)
+          setActiveRun((previous) => {
+            if (!previous || previous.id !== runId) return previous
+            return mergeRunStateWithoutRegression(previous, refreshed)
+          })
           setLiveReply("")
           await reloadHistory()
         }
@@ -200,9 +235,11 @@ export default function AgentsPage() {
     setError("")
     try {
       const cancelledRun = await cancelAgentRun(activeRun.id)
-      setActiveRun(cancelledRun)
+      setActiveRun((previous) => {
+        if (!previous || previous.id !== cancelledRun.id) return previous
+        return mergeRunStateWithoutRegression(previous, cancelledRun)
+      })
       setLiveReply("")
-      eventCursorRef.current = 0
       await reloadHistory()
     } catch {
       setError(t("cancelFailed"))

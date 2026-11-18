@@ -31,6 +31,7 @@ RUN apt-get update \
 # Copy dependency manifests first (maximises Docker layer caching).
 # config.toml is read at runtime by backend.infrastructure.config.settings
 # (provider registry) so it must land in the image too.
+ARG UV_LOCK_FILE=uv.lock
 COPY pyproject.toml uv.lock config.toml ./
 
 # Copy the host and local OIDC package before `uv sync`; the root dependency
@@ -40,7 +41,10 @@ COPY packages ./packages
 
 # Create a virtual environment and install production dependencies, including
 # the Nacos client used when NACOS_SERVER_ADDR is configured.
-RUN uv sync --frozen --no-dev
+RUN --mount=type=bind,source=${UV_LOCK_FILE},target=/tmp/uv.lock,readonly \
+    --mount=type=cache,id=zata-codes-template-uv,target=/root/.cache/uv,sharing=locked \
+    if [ "$UV_LOCK_FILE" != "uv.lock" ]; then cp /tmp/uv.lock ./uv.lock; fi \
+    && UV_CONCURRENT_DOWNLOADS=4 uv sync --frozen --no-dev
 
 # Create a non-root user for security
 RUN groupadd -r appgroup && useradd -r -g appgroup appuser

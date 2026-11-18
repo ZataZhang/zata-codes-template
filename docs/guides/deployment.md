@@ -79,6 +79,8 @@ just ops-dashboard --mock     # 终端状态看板
 - `<slug>-admin`：管理平台前端（`frontend-admin/`），Nginx 监听 80 端口，通过 `admin.${DOMAIN}` 访问。
 - `<slug>-public`：前台官网（`frontend-public/`），Next.js standalone 监听 3000 端口，通过 `${DOMAIN}` 访问。
 
+后端镜像使用 BuildKit 缓存 `uv` 下载的 Python 包，并把同时下载数限制为 4，降低网络受限构建环境的并发压力。默认使用根目录 `uv.lock`；网络受限环境可通过构建参数 `UV_LOCK_FILE` 指向构建上下文内、使用可达镜像的等价锁文件。替代锁必须保持原锁中的包版本和分发文件哈希不变。首次构建仍需访问依赖源；同一构建器上的重试和后续构建会复用已下载的包。
+
 两个前端都直接面向最终用户：public 站点负责营销首页和登录/注册，admin 站点负责登录后的管理入口。浏览器 API 经同源 `/api/*` 代理到 Compose 项目名对应的专属后端别名；A2A 客户端使用公开的 `/a2a/*` 路径，由前端容器直接转发后端，避免与浏览器 `/api` baseURL 重复加前缀。Traefik 只对 `/api/` 路由应用速率、并发和 1 MiB 请求体上限，页面与静态资源使用普通站点路由。模板不再包含 `<slug>-backup` 服务——备份能力由独立的 `zata-ops` CLI 提供，通过 Dokploy Scheduled Job 调用即可。
 
 > **网络边界**：`just copy <slug>` 会把 Compose 服务和卷的占位前缀替换为项目名。生产栈只让 admin/public 前端接入共享的 `dokploy-network` 或 `traefik` 网络；后端只加入项目私有 `backend-app` 网络。前端通过 `${COMPOSE_PROJECT_NAME}-backend` 别名访问后端，后端不发布宿主机端口，也不直接暴露给共享入口网络。
