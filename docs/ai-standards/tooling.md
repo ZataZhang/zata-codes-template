@@ -250,6 +250,10 @@ view *args:
 
 ## Docker Local Run
 
+> 本节仅适用于仍保留 `docker-compose.yml` / `just run docker` 的项目。派生项目若删除
+> 整套容器部署（例如只提供本机面板的产品），应同时删除本节与 `justfile` 里的 docker
+> 分支，避免文档继续承诺一个不存在的部署路径。
+
 `just run docker` **强制要求当前目录存在 `.env.local`**（缺失时直接报错退出），并按 `settings.py` 的方式分层加载环境：**先 `.env`、后 `.env.local` 覆盖**。
 
 - 实际命令是 `docker compose --env-file .env --env-file .env.local up --build`（`.env` 不存在时自动省略）。多个 `--env-file` 后者优先，所以 `.env.local` 覆盖 `.env` 中的同名键，并让 compose 的 `${VAR}` 替换读到最终值。
