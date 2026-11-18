@@ -318,7 +318,7 @@ If no external validation was needed:
   - none
 - Gate type: none
 - Sequence: via-main
-- Notes: [Use tool-neutral dependency names. Do not put tool-specific hidden markers here.]
+- Notes: [For an upstream dependency, state why you chose the sequence, when work starts, which branch to use, and the merge and revalidation order. For stack, also name what can start early and what upstream changes would require rework or revalidation. Use tool-neutral instructions.]
 
 ---
 
