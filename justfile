@@ -1117,4 +1117,4 @@ test-object-storage-e2e oracle='all':
         echo "该脚本随 PRD evidence 包分发、不进入代码提交。请先取回 tasks/evidence/P1-FEAT-20261107-093048-reusable-file-storage-delivery/ 后重试。" >&2
         exit 2
     fi
-    UV_CACHE_DIR="{{justfile_directory()}}/tasks/evidence/P1-FEAT-20261107-093048-reusable-file-storage-delivery/.uv-cache" uv run python "$rv_runner_path" {{oracle}}
+    UV_CACHE_DIR="{{justfile_directory()}}/tasks/evidence/P1-FEAT-20261107-093048-reusable-file-storage-delivery/.uv-cache" uv run --with 'boto3>=1.35' python "$rv_runner_path" {{oracle}}
