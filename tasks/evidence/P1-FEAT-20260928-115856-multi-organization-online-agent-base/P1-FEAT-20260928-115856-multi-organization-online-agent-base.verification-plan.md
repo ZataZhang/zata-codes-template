@@ -19,7 +19,7 @@
 | rv-4 | `uv run --no-sync python tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts/rv4_distribution_audit.py` |
 | rv-5 | `uv run --no-sync python tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts/rv5_copy_template.py`; the real copy/sync/startup path uses a local upstream URL because two GitHub fetches truncated. |
 | rv-6 | `uv run --no-sync python tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts/rv6_compose.py` |
-| rv-7 | `UV_CACHE_DIR=/tmp/uv-cache-issue58 UV_TOOL_DIR=/tmp/uv-tool-issue58 UV_TOOL_BIN_DIR=/tmp/uv-tool-bin-issue58 uv run --no-sync python tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts/rv7_a2a.py`; real management pages publish the Agent and approve the peer before official 1.0 HTTP+JSON client/server checks. Negative control adds `--negative-control --mutant`. |
+| rv-7 | `UV_CACHE_DIR=/tmp/uv-cache-issue58 UV_TOOL_DIR=/tmp/uv-tool-issue58 UV_TOOL_BIN_DIR=/tmp/uv-tool-bin-issue58 uv run --no-sync python tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts/rv7_a2a.py`; real management pages register and approve a peer, then create an Agent with that peer selected before official 1.0 HTTP+JSON client/server checks. It verifies the persisted Agent allowlist and rejects a second approved but unbound peer before HTTP. Negative control adds `--negative-control --mutant`. |
 
 ## Repository gates
 

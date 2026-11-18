@@ -24,6 +24,7 @@
 - 迁移代码默认保持 PostgreSQL / MySQL 兼容：优先使用 Alembic 与 SQLAlchemy API，避免裸写某一数据库专属语法。
 - 确需使用方言专属 SQL 时，按 `op.get_bind().dialect.name` 分支实现等价行为，并在两种数据库上执行迁移验证。
 - 新迁移应在 PostgreSQL 与 MySQL 上验证 `upgrade head`、关键回填结果及可支持的 downgrade；CI 矩阵是最终兼容性证据。
+- SQLite 只用于快速迁移逻辑测试，不是生产兼容性证明。SQLite 不支持常规 `ALTER COLUMN`；若迁移先回填数据再收紧列约束，应使用 `op.batch_alter_table()`，让 SQLite 通过整表重建完成变更。
 
 ### PostgreSQL / MySQL 兼容性检查
 

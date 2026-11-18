@@ -9,6 +9,7 @@ export type AgentDefinition = {
   skill_id: string | null
   is_enabled: boolean
   is_published: boolean
+  allowed_peer_ids: string[]
   is_runnable: boolean
   unavailable_reason: string | null
   a2a_card_url: string | null
@@ -69,6 +70,7 @@ export async function createAgent(input: {
   instructions: string
   model_name: string | null
   skill_id: string | null
+  peer_ids: string[]
 }): Promise<AgentDefinition> {
   return apiPost<AgentDefinition>('/admin/agents', input)
 }
@@ -225,6 +227,7 @@ export async function updateAgent(agent: AgentDefinition, enabled: boolean) {
       instructions: agent.instructions,
       model_name: agent.model_name,
       skill_id: agent.skill_id,
+      peer_ids: agent.allowed_peer_ids,
       is_enabled: enabled,
     }
   )

@@ -26,6 +26,7 @@ import {
 } from '@/api/agents'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Header } from '@/components/layout/header'
@@ -54,6 +55,7 @@ export function Agents() {
     instructions: '',
     model_name: '',
     skill_id: '',
+    peer_ids: [] as string[],
   })
   const [skillForm, setSkillForm] = useState({
     name: '',
@@ -68,6 +70,7 @@ export function Agents() {
     credential_env_alias: '',
   })
   const [credentialResult, setCredentialResult] = useState('')
+  const approvedPeers = peers.filter((peer) => peer.is_approved && peer.is_enabled)
 
   /** 从 API 刷新当前组织的 Agent、Skill、A2A 目标和运行记录。 */
   const refresh = async () => {
@@ -134,6 +137,7 @@ export function Agents() {
         ...agentForm,
         model_name: agentForm.model_name || null,
         skill_id: agentForm.skill_id || null,
+        peer_ids: agentForm.peer_ids,
       })
       setAgentForm({
         name: '',
@@ -141,6 +145,7 @@ export function Agents() {
         instructions: '',
         model_name: '',
         skill_id: '',
+        peer_ids: [],
       })
       await refresh()
       toast.success(t('agents.agentCreated'))
@@ -389,6 +394,49 @@ export function Agents() {
                     })
                   }
                 />
+                <fieldset className='grid gap-2 rounded-md border p-3'>
+                  <legend className='px-1 text-sm font-medium'>
+                    {t('agents.outboundPeers')}
+                  </legend>
+                  <p
+                    id='agent-peer-selection-help'
+                    className='text-xs text-muted-foreground'
+                  >
+                    {t('agents.peerBindingHelp')}
+                  </p>
+                  {approvedPeers.length > 0 ? (
+                    approvedPeers.map((peer) => (
+                      <label
+                        key={peer.id}
+                        htmlFor={`agent-peer-${peer.id}`}
+                        className='flex items-center gap-2 text-sm'
+                      >
+                        <Checkbox
+                          id={`agent-peer-${peer.id}`}
+                          data-testid={`agent-peer-${peer.id}`}
+                          aria-describedby='agent-peer-selection-help'
+                          checked={agentForm.peer_ids.includes(peer.id)}
+                          onCheckedChange={(checked) =>
+                            setAgentForm((currentForm) => ({
+                              ...currentForm,
+                              peer_ids:
+                                checked === true
+                                  ? [...new Set([...currentForm.peer_ids, peer.id])]
+                                  : currentForm.peer_ids.filter(
+                                      (peerId) => peerId !== peer.id
+                                    ),
+                            }))
+                          }
+                        />
+                        <span>{peer.name}</span>
+                      </label>
+                    ))
+                  ) : (
+                    <p className='text-sm text-muted-foreground'>
+                      {t('agents.noApprovedPeers')}
+                    </p>
+                  )}
+                </fieldset>
                 <Button type='submit'>{t('agents.createAgent')}</Button>
               </form>
               <div className='space-y-3'>
@@ -408,6 +456,18 @@ export function Agents() {
                         {agent.is_runnable
                           ? t('agents.ready')
                           : agent.unavailable_reason}
+                      </p>
+                      <p className='text-xs text-muted-foreground'>
+                        {t('agents.allowedPeers')}:{' '}
+                        {agent.allowed_peer_ids.length > 0
+                          ? agent.allowed_peer_ids
+                              .map(
+                                (peerId) =>
+                                  peers.find((peer) => peer.id === peerId)?.name ??
+                                  peerId
+                              )
+                              .join(', ')
+                          : t('agents.none')}
                       </p>
                       <p className='font-mono text-[10px] break-all text-muted-foreground'>
                         {agent.id}

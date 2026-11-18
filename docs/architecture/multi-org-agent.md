@@ -52,7 +52,7 @@ A2A 只用于独立 Agent 之间通信。它不代替内部模型接口或受控
 
 ### 出站
 
-组织管理员登记 A2A 对端，平台管理员审查并批准地址策略后，模型工具列表才会包含该对端。调用方不能在用户消息中提供 URL。目录按组织保存 Card URL、REST URL 与密钥别名；Bearer token 使用服务端 AES-GCM 密钥加密，密钥只从 `.env` / `.env.local` 注入。
+组织管理员登记 A2A 对端，平台管理员审查并批准地址策略后，组织管理员还需在创建 Agent 时选择它允许调用的已批准对端；模型工具列表只包含该 Agent 绑定且仍启用的对端。空绑定表示该 Agent 不允许出站 A2A 调用。调用方不能在用户消息中提供 URL。目录按组织保存 Card URL、REST URL 与密钥别名；Bearer token 使用服务端 AES-GCM 密钥加密，密钥只从 `.env` / `.env.local` 注入。
 
 客户端验证 A2A 版本、HTTP+JSON REST binding、Card 与 endpoint 同源、精确主机 allowlist、DNS 公网地址和无重定向策略。凭据只发送到登记对端，不转发到 Card 宣告的其他 host。远端 Task ID、peer ID、结果 checksum 与字符长度进入 Canonical Run 的低敏 tracing 事件，不保存远端消息正文或凭据。
 
