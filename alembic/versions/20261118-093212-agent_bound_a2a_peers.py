@@ -8,6 +8,7 @@ Create Date: 2026-11-18 09:32:12.000000
 
 设计要点：``agent.allowed_peer_ids`` 以 JSON 数组保存对端 ID，空数组表示不授权任何出站调用；存量 Agent 回填空数组后设为非空，避免旧数据被隐式授权。
 """
+
 from typing import Sequence, Union
 
 import sqlalchemy as sa
