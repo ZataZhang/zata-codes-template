@@ -276,3 +276,14 @@ Source tree: `e8e09ccf2a19c8dc7f0b6645c8cb323ba8c88903`; HEAD: `75459f4e64127183
 - The local macOS Chromium checklist smoke could not start because the sandbox denies `bootstrap_check_in org.chromium.Chromium.MachPortRendezvousServer`; it exited before loading the page. The same updated HTML passed `human_review_checklist_remote_smoke.py` in isolated Linux Chromium: zero page errors, visible first decision and demo video, and navigation through all five decisions.
 
 The archived PRD was not edited or moved. Human-Confirmed items remain unchecked. This recovery proves the prior BLOCKER is fixed and the registered oracles are green; the runner must still obtain a fresh independent verifier verdict on this tree before presenting acceptance.
+
+
+## 2026-11-19 pre-PR review repair
+
+Source tree for this review repair: `17229bc4e836efa304b7cba997a0c84e94d136eb`; HEAD: `c34b821676f6b5c166ff087c6f91f0e9ad7c62a2`.
+
+- Review found that peer registration persisted credential-bearing or cross-origin URLs before the outbound client rejected them. Registration now rejects userinfo, query/fragment values, malformed/non-HTTP URLs, and Card/REST origin mismatches before persistence; outbound calls apply the same check to legacy records before DNS/network access. Regression tests cover registration and the outbound fail-closed boundary.
+- Same-tree RV-7 positive flow passed with the official `a2a-sdk[all]==1.0.0` client and actual organization/platform admin UI. The organization B credential received 404 for organization A's task, outbound A2A completed through the independent official server and remained associated with the parent Run, and unsafe/unbound destinations failed closed. Raw output: `rv-7-a2a-bidirectional.txt`.
+- Same-tree RV-7 negative control detected the expected cross-organization task disclosure after a temporary mutant bypassed the access checks (`EXPECTED_FAIL`). Raw output: `rv-7-negative-control.txt`.
+- `UV_CACHE_DIR=/tmp/uv-cache-issue58 just test`: 570 passed, 1 skipped; local OIDC package: 17 passed. `just lint --reuse`, `just lint --full`, `uv run mkdocs build`, and `git diff --check` passed on the repaired tree.
+- These results cover the A2A repair tree; the runner-owned independent verifier and final review gates still require a fresh verdict. No PRD acceptance checkbox or Human-Confirmed item was changed.

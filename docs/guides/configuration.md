@@ -197,7 +197,7 @@ allow_loopback_for_dev = false
 
 生产环境使用 HTTPS。卡片 endpoint 从此配置生成，不采信请求的 Host。未填写或格式不符时，Agent Card 返回不可用；普通服务启动不受影响。本地协议验证可设置 `A2A_PUBLIC_BASE_URL=http://localhost:8000` 并显式设 `A2A_ALLOW_LOOPBACK_FOR_DEV=true`，该开关不得用于生产。
 
-出站对端需先经组织管理员登记，再由平台管理员审批；`allowed_outbound_hosts` 只列精确 DNS 主机名。客户端拒绝非公网 DNS 结果、重定向和 Card / REST 端点跨 origin。对端 Bearer 值只通过环境别名 `credential_env_alias` 解析，浏览器保存的是别名，数据库密文使用 `A2A_CREDENTIAL_ENCRYPTION_KEY` 加密。该密钥在 `.env.example` 中留空，不进入 `config.toml`、前端构建或运行轨迹。
+出站对端需先经组织管理员登记，再由平台管理员审批；登记时拒绝 URL 内嵌凭据、查询参数和跨 origin 的 Card/REST 地址；`allowed_outbound_hosts` 只列精确 DNS 主机名。客户端拒绝非公网 DNS 结果、重定向和 Card / REST 端点跨 origin。对端 Bearer 值只通过环境别名 `credential_env_alias` 解析，浏览器保存的是别名，数据库密文使用 `A2A_CREDENTIAL_ENCRYPTION_KEY` 加密。该密钥在 `.env.example` 中留空，不进入 `config.toml`、前端构建或运行轨迹。
 
 ## Worktree 相关环境变量
 

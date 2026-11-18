@@ -13,6 +13,10 @@ from httpcore._backends.auto import AutoBackend
 
 from backend.core.shared.interfaces.agent_executor import A2AClient, A2AResponse
 from backend.core.shared.interfaces.agent_repository import AgentRepository
+from backend.core.shared.models.a2a_peer_policy import (
+    A2APeerUrlValidationError,
+    validate_a2a_peer_urls,
+)
 from backend.infrastructure.config.settings import config
 
 
@@ -99,16 +103,21 @@ class HttpA2AClient(A2AClient):
         peer_target = self._agent_repository.get_a2a_peer_target(organization_id, peer_id)
         if peer_target is None:
             raise OutboundA2APolicyError("a2a_peer_not_authorized")
-        if not self._same_origin(peer_target.peer.card_url, peer_target.peer.endpoint_url):
-            raise OutboundA2APolicyError("a2a_card_and_endpoint_origin_mismatch")
-        pinned_addresses = self._validate_url(peer_target.peer.card_url)
-        registered_endpoint_addresses = self._validate_url(peer_target.peer.endpoint_url)
+        try:
+            card_url, endpoint_url = validate_a2a_peer_urls(
+                card_url=peer_target.peer.card_url,
+                endpoint_url=peer_target.peer.endpoint_url,
+            )
+        except A2APeerUrlValidationError as url_error:
+            raise OutboundA2APolicyError(str(url_error)) from url_error
+        pinned_addresses = self._validate_url(card_url)
+        registered_endpoint_addresses = self._validate_url(endpoint_url)
         if registered_endpoint_addresses != pinned_addresses:
             raise OutboundA2APolicyError("a2a_card_and_endpoint_resolution_mismatch")
         transport = httpx.AsyncHTTPTransport(retries=0)
         transport._pool._network_backend = _PinnedNetworkBackend(  # pyright: ignore[reportPrivateUsage]
             {
-                self._url_network_key(peer_target.peer.card_url): tuple(
+                self._url_network_key(card_url): tuple(
                     str(address) for address in sorted(pinned_addresses)
                 )
             }
@@ -124,14 +133,14 @@ class HttpA2AClient(A2AClient):
         ) as http_client:
             try:
                 card_response = await http_client.get(
-                    peer_target.peer.card_url,
+                    card_url,
                     headers=authorization_headers,
                 )
                 card_response.raise_for_status()
                 card_document = card_response.json()
                 endpoint_url = self._validated_rest_endpoint(
                     card_document,
-                    peer_target.peer.endpoint_url,
+                    endpoint_url,
                 )
                 endpoint_addresses = self._validate_url(endpoint_url)
                 if endpoint_addresses != pinned_addresses:
@@ -180,20 +189,6 @@ class HttpA2AClient(A2AClient):
             ):
                 return registered_endpoint
         raise OutboundA2APolicyError("a2a_peer_card_contract_mismatch")
-
-    @staticmethod
-    def _same_origin(first_url: str, second_url: str) -> bool:
-        """要求 Card 与 A2A REST 端点属于同一 scheme、host 和 port。"""
-        first_parts = urlsplit(first_url)
-        second_parts = urlsplit(second_url)
-        first_port = first_parts.port or (443 if first_parts.scheme == "https" else 80)
-        second_port = second_parts.port or (443 if second_parts.scheme == "https" else 80)
-        return (
-            first_parts.scheme.lower() == second_parts.scheme.lower()
-            and (first_parts.hostname or "").lower().rstrip(".")
-            == (second_parts.hostname or "").lower().rstrip(".")
-            and first_port == second_port
-        )
 
     @staticmethod
     def _url_network_key(url: str) -> tuple[str, int]:

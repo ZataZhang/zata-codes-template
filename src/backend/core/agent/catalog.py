@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import uuid
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from typing import Sequence
 
@@ -18,6 +18,7 @@ from backend.core.shared.interfaces.agent_types import (
 )
 from backend.core.shared.interfaces.organization_repository import OrganizationRepository
 from backend.core.shared.interfaces.secret_resolver import SecretResolver
+from backend.core.shared.models.a2a_peer_policy import validate_a2a_peer_urls
 
 
 @dataclass(frozen=True)
@@ -375,6 +376,15 @@ class AgentCatalogUseCase:
         )
         if not peer.name or not peer.card_url or not peer.endpoint_url:
             raise ValueError("peer_name_and_urls_required")
+        validated_card_url, validated_endpoint_url = validate_a2a_peer_urls(
+            card_url=peer.card_url,
+            endpoint_url=peer.endpoint_url,
+        )
+        peer = replace(
+            peer,
+            card_url=validated_card_url,
+            endpoint_url=validated_endpoint_url,
+        )
         credential_value = None
         if credential_env_alias:
             if self._secret_resolver is None:
