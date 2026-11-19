@@ -13,6 +13,7 @@ from fastapi import FastAPI
 from mcp.server.transport_security import TransportSecuritySettings
 from zata_oidc import HttpOidcClient, OidcAuthenticationError, OidcClientSettings
 
+from backend.api.a2a_errors import register_a2a_error_handlers
 from backend.api.a2a_router import router as a2a_router
 from backend.api.admin import (
     admin_auth_router,
@@ -145,6 +146,7 @@ def create_app(
         version=project_version,
         lifespan=lifespan,
     )
+    register_a2a_error_handlers(fastapi_app)
     fastapi_app.state.runtime_config = {}
     fastapi_app.state.auth_cookie_secure = config.auth.cookie_secure
     session_factory = SessionLocal

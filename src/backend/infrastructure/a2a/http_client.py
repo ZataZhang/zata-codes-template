@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import ipaddress
 import socket
@@ -110,17 +111,13 @@ class HttpA2AClient(A2AClient):
             )
         except A2APeerUrlValidationError as url_error:
             raise OutboundA2APolicyError(str(url_error)) from url_error
-        pinned_addresses = self._validate_url(card_url)
-        registered_endpoint_addresses = self._validate_url(endpoint_url)
+        pinned_addresses = await asyncio.to_thread(self._validate_url, card_url)
+        registered_endpoint_addresses = await asyncio.to_thread(self._validate_url, endpoint_url)
         if registered_endpoint_addresses != pinned_addresses:
             raise OutboundA2APolicyError("a2a_card_and_endpoint_resolution_mismatch")
         transport = httpx.AsyncHTTPTransport(retries=0)
         transport._pool._network_backend = _PinnedNetworkBackend(  # pyright: ignore[reportPrivateUsage]
-            {
-                self._url_network_key(card_url): tuple(
-                    str(address) for address in sorted(pinned_addresses)
-                )
-            }
+            {self._url_network_key(card_url): self._pinned_address_strings(pinned_addresses)}
         )
         authorization_headers = {"A2A-Version": "1.0"}
         if peer_target.bearer_token:
@@ -142,7 +139,7 @@ class HttpA2AClient(A2AClient):
                     card_document,
                     endpoint_url,
                 )
-                endpoint_addresses = self._validate_url(endpoint_url)
+                endpoint_addresses = await asyncio.to_thread(self._validate_url, endpoint_url)
                 if endpoint_addresses != pinned_addresses:
                     raise OutboundA2APolicyError("a2a_card_and_endpoint_resolution_mismatch")
                 message_response = await http_client.post(
@@ -163,6 +160,9 @@ class HttpA2AClient(A2AClient):
                 )
                 message_response.raise_for_status()
                 response_document = message_response.json()
+            except OutboundA2APolicyError:
+                # 策略拒绝是显式失败闭合，不能被下面的网络异常兜底改写成请求失败。
+                raise
             except (httpx.HTTPError, ValueError, KeyError, TypeError) as request_error:
                 raise RuntimeError("a2a_peer_request_failed") from request_error
         response_task_id = self._extract_task_id(response_document)
@@ -189,6 +189,19 @@ class HttpA2AClient(A2AClient):
             ):
                 return registered_endpoint
         raise OutboundA2APolicyError("a2a_peer_card_contract_mismatch")
+
+    @staticmethod
+    def _pinned_address_strings(
+        resolved_addresses: frozenset[ipaddress.IPv4Address | ipaddress.IPv6Address],
+    ) -> tuple[str, ...]:
+        """按地址族与数值稳定排序，双栈主机混排 A/AAAA 记录时仍可比对。"""
+        return tuple(
+            str(address)
+            for address in sorted(
+                resolved_addresses,
+                key=lambda address: (address.version, int(address)),
+            )
+        )
 
     @staticmethod
     def _url_network_key(url: str) -> tuple[str, int]:

@@ -27,6 +27,9 @@ _TERMINAL_STATES = {
     RunStatus.CANCELLED,
     RunStatus.INTERRUPTED,
 }
+# SendMessage 同步等待的上限：超时后按 A2A 语义返回非终态 Task，由对端改用轮询或订阅。
+_WAIT_FOR_RUN_TIMEOUT_SECONDS = 120.0
+_WAIT_FOR_RUN_POLL_INTERVAL_SECONDS = 0.25
 
 
 def _require_version(a2a_version: str | None) -> None:
@@ -321,10 +324,18 @@ async def _wait_for_run(
     credential: A2ACredential,
     run_use_case: AgentRunUseCase,
 ) -> Run | None:
-    """按 SendMessage 的 returnImmediately=false 语义等待任务终态。"""
+    """按 SendMessage 的 returnImmediately=false 语义等待任务终态。
+
+    等待有上限：超时时返回仍在进行中的 Run，由调用方映射成非终态 Task，让对端按
+    A2A 语义改为轮询或订阅，而不是永久占住这条连接。数据库读取是同步实现，
+    必须离开事件循环线程，否则每次轮询都会阻塞同进程的其他请求。
+    """
+    deadline = asyncio.get_running_loop().time() + _WAIT_FOR_RUN_TIMEOUT_SECONDS
+    current_run: Run | None = None
     while True:
         try:
-            current_run = run_use_case.get_a2a_run(
+            current_run = await asyncio.to_thread(
+                run_use_case.get_a2a_run,
                 run_id=run_id,
                 organization_id=credential.organization_id,
                 agent_id=credential.agent_id,
@@ -334,7 +345,9 @@ async def _wait_for_run(
             return None
         if current_run is None or current_run.status in _TERMINAL_STATES:
             return current_run
-        await asyncio.sleep(0.1)
+        if asyncio.get_running_loop().time() >= deadline:
+            return current_run
+        await asyncio.sleep(_WAIT_FOR_RUN_POLL_INTERVAL_SECONDS)
 
 
 async def _create_task(

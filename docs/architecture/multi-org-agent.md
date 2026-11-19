@@ -50,6 +50,8 @@ A2A 只用于独立 Agent 之间通信。它不代替内部模型接口或受控
 
 入站 Task ID 就是 Canonical Run ID。`messageId` 形成组织和凭据范围的稳定幂等键；重复发送相同请求返回已有 Run，不另建状态库。任务列表、读取、取消与订阅都按组织、Agent 和服务凭据 owner 过滤。
 
+A2A 路径上的 HTTP 错误使用 A2A 1.0 REST binding 的 `google.rpc.Status` JSON 结构（`error.code`、`error.status`、`error.message`、`error.details`）。A2A 专属错误在 `details` 中返回 `google.rpc.ErrorInfo`；输入校验返回不含原始输入值的 `google.rpc.BadRequest` 字段说明。认证与资源不可见响应保持通用措辞，不泄露组织、Agent 或任务是否存在。非 A2A API 继续使用原有错误格式。
+
 ### 出站
 
 组织管理员登记 A2A 对端，平台管理员审查并批准地址策略后，组织管理员还需在创建 Agent 时选择它允许调用的已批准对端；Run 创建时冻结这份对端 ID 清单。登记时拒绝 URL 内嵌凭据、查询参数和跨源 Card/REST 地址，防止审批接口把凭据回显到浏览器；出站调用前会对已有记录再次执行同一校验。执行开始时，允许列表与当前 Agent 绑定和对端启用/审批状态取交集，排队 Run 不会继承创建后新增的授权；A2A 客户端发请求前还会再次校验对端状态。空绑定表示该 Agent 不允许出站 A2A 调用。调用方不能在用户消息中提供 URL。目录按组织保存 Card URL、REST URL 与密钥别名；Bearer token 使用服务端 AES-GCM 密钥加密，密钥只从 `.env` / `.env.local` 注入。

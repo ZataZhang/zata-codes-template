@@ -7,9 +7,12 @@ import json
 from datetime import UTC, datetime
 
 import pytest
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.testclient import TestClient
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from backend.api import a2a_support
+from backend.api.a2a_errors import register_a2a_error_handlers
 from backend.api.a2a_support import _read_text_message, _task_document, _task_events
 from backend.core.shared.models.run import (
     Run,
@@ -74,6 +77,51 @@ def test_a2a_message_accepts_official_role_and_plain_text_part() -> None:
                 "parts": [{"text": "hello"}],
             }
         )
+
+
+def test_a2a_rest_errors_use_google_rpc_status_without_leaking_details() -> None:
+    """A2A REST 错误返回规范结构，同时保留资源不可见语义。"""
+    app = FastAPI()
+    register_a2a_error_handlers(app)
+
+    @app.get("/a2a/agents/agent-1/tasks/missing")
+    def get_missing_task() -> None:
+        raise HTTPException(status_code=404, detail="task_not_found")
+
+    @app.get("/a2a/agents/agent-1/tasks")
+    def list_tasks(status: str = Query(pattern="^supported$")) -> dict[str, str]:
+        return {"status": status}
+
+    @app.get("/api/missing")
+    def get_missing_non_a2a_resource() -> None:
+        raise StarletteHTTPException(status_code=404, detail="internal_resource_name")
+
+    test_client = TestClient(app)
+    missing_task_response = test_client.get("/a2a/agents/agent-1/tasks/missing")
+    validation_response = test_client.get("/a2a/agents/agent-1/tasks?status=private-value")
+    non_a2a_response = test_client.get("/api/missing")
+
+    assert missing_task_response.status_code == 404
+    assert missing_task_response.json() == {
+        "error": {
+            "code": 404,
+            "status": "NOT_FOUND",
+            "message": "The requested resource does not exist or is not accessible.",
+            "details": [
+                {
+                    "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+                    "reason": "TASK_NOT_FOUND",
+                    "domain": "a2a-protocol.org",
+                }
+            ],
+        }
+    }
+    assert validation_response.status_code == 422
+    assert validation_response.json()["error"]["details"][0]["@type"] == (
+        "type.googleapis.com/google.rpc.BadRequest"
+    )
+    assert "private-value" not in validation_response.text
+    assert non_a2a_response.json() == {"detail": "internal_resource_name"}
 
 
 def test_task_document_uses_task_states_artifacts_and_history_length() -> None:
