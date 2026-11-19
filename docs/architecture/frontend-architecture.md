@@ -230,7 +230,7 @@ flowchart LR
 ## 部署与代理
 
 - `frontend-admin/` 生产镜像使用 Nginx 托管静态产物，`/api/*` 代理到后端服务。
-- `frontend-public/` 生产镜像使用 Next.js standalone 模式，`API_BASE_URL` 指向后端服务。
+- `frontend-public/` 生产镜像使用 Next.js standalone 模式，构建时通过 Docker build arg `API_BASE_URL` 固化后端代理地址；运行时修改同名环境变量不会改写既有 standalone 产物。
 - 本地 `docker compose up` 会同时启动 `zata-codes-template-admin`（端口 5173）和 `zata-codes-template-public`（端口 3000）。
 - Dokploy / VPS 生产环境通过不同 Host rule 路由：
   - `${DOMAIN}` → public

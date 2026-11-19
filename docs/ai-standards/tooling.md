@@ -138,9 +138,9 @@ gh api repos/<owner>/<repo>/check-runs/<job-id>/annotations --jq '.[].message'
 - `import` 是 just 1.19+ 原生命名空间合并；私有 `justfile` 使用 `set allow-duplicate-recipes` 允许本地同名 recipe 覆盖共享版本。需要本地化某条共享命令时，直接在 `justfile` 中重写同名 recipe 即可，不要去改 `justfile.shared`。
 - 裸 `just` 默认运行 `default` recipe；根 `justfile` 需要保留本地 `default`，并委托执行 `just --list`。
 - `just sync-template` 的默认跳过名单（`scripts/shared/template/sync_template.sh` 的 `_is_skipped_by_default`）已包含 `justfile`；`justfile.shared` 仍按常规规则进入 NEW/CHANGED 候选清单。
-- `just copy <dir>` 通过定位 `justfile` 中的 `# Copy template to a new directory` 段落标记，把 `copy` recipe 及其之后的内容从 destination 的 `justfile` 中 trim 掉；destination 仍保留 `set allow-duplicate-recipes`、`import 'justfile.shared'` 与 `default`/`run`/`down`/`frontend` 起始版本。该 marker 是 contract，调整 `copy` 上方注释时需保持 marker 文本不变。
+- `just copy <dir>` 通过定位 `justfile` 中的 `# Copy template to a new directory` 段落标记，把 `copy` recipe 及其之后的内容从 destination 的 `justfile` 中 trim 掉；destination 仍保留 `set allow-duplicate-recipes`、`import 'justfile.shared'` 与 `default`/`run`/`down`/`frontend` 起始版本。该 marker 是 contract，调整 `copy` 上方注释时需保持 marker 文本不变。复制目标位于另一个 Git 仓库内部时，不安装父仓库 hooks、不暂存或提交父仓库内容，也不为副本强行创建初始提交；独立副本仍按原流程初始化 Git 并创建初始提交。
 - `just copy <dir>` 的 rsync 排除名单分两类：构建产物与本地依赖（`.git`、`.venv`、`node_modules`、`dist`、缓存与日志等），以及模板维护者专属内容（`/skills`、`/prompt`、`.iar.toml`、`.kedacode.toml`、`zata_code_template.zip`）；内容目录均以 `/` 锚定根目录，避免误伤 `src/backend/engines/skills/` 这类同名子目录。
-- 模板维护者的本机工具状态同样排除：`.kedacode/`（KedaCode（kc）runner 会话记忆，`.kedacode.toml` 显式指向的新目录）、`.iar/` 与 `.iar-worktrees/`（改名前旧目录，残留防漏）、`.workbuddy-ai/`（AI 工具笔记）。它们在 `.gitignore` 里，但 rsync 不读 `.gitignore`，不显式排除就会随 copy 落进派生项目。与之相对，`.env.local` 保留在拷贝范围，由 `setup_copied_database.py` 改写其中的 `DATABASE_URL`。
+- 模板维护者的本机工具状态同样排除：`.kedacode/`（KedaCode（kc）runner 会话记忆，`.kedacode.toml` 显式指向的新目录）、`.iar/` 与 `.iar-worktrees/`（改名前旧目录，残留防漏）、`.workbuddy-ai/`（AI 工具笔记）、`.agent-runner/`（自动化 runner 本地状态）与 `.env.view-state`（本机查看器端口）。它们在 `.gitignore` 里，但 rsync 不读 `.gitignore`，不显式排除就会随 copy 落进派生项目。`.env.local` 与其他非示例 dotenv 文件不进入派生项目；`just copy` 只在隔离数据库迁移期间临时使用来源 `.env.local`，完成后移除，并在 `--force` 情况下恢复目标项目原有文件。`.pnpm-store/`、Next `.next/` 输出、Playwright 报告/结果、覆盖率与类型检查缓存、`tasks/evidence/` 都是本机产物，复制时一并排除。
 - 从单文件旧版升级时，建议手工把本地 `justfile` 重写为最小私有版（`import 'justfile.shared'` + 项目特有 recipe），避免与 import 进来的共享 recipe 重复定义。
 
 ### 从 Justfile 调用模板共享脚本
@@ -180,7 +180,7 @@ view *args:
 ## Local File Viewer
 
 `just view`（仅本模板仓库提供）与安装后的全局 `zview` 起一个只绑 `127.0.0.1` 的查看器（文件树 + 文件内容与文本编辑 + Markdown 任务清单直点切换 + 改动视图 + 按需加载的本地/远程 Git Log 图与提交 diff + 暂存 + 在系统中打开），
-逻辑在 `scripts/shared/view/`，该目录**不随 `just sync-template` 下发**：派生项目（如 freshai）
+逻辑在 `scripts/shared/view/`，该目录**不随 `just sync-template` 下发**：派生项目
 用全局 `zview` 一份即可，不必各带一份必须分别维护的副本。这里只记与工具链
 约定相关的部分。
 
@@ -229,7 +229,7 @@ view *args:
 
 ## Project Database Isolation
 
-`just copy <name>` 派生新项目时，会读取目标目录 `.env.local` 中的 `DATABASE_URL`。如果该 URL 使用 PostgreSQL，脚本会基于新项目名称派生一个唯一的数据库名（小写、下划线连接、不超过 63 字节），替换 URL 中的数据库名部分，并尝试连接 `postgres` 维护数据库自动创建该数据库；数据库创建后会立即执行 `uv run alembic upgrade head`。这样多个派生项目不会共享同一个数据库，且复制完成后已有完整迁移结构，避免迁移版本冲突或数据串扰。
+`just copy <name>` 派生新项目时，会临时使用来源 `.env.local` 的 `DATABASE_URL` 为新项目名派生隔离数据库（小写、下划线连接、不超过 63 字节），连接 `postgres` 维护数据库创建目标数据库并执行 `uv run alembic upgrade head`。迁移完成后，干净的新目录不会保留来源 `.env.local` 或其他非示例 dotenv 文件；部署者需要在派生项目按 `.env.example` 配置自己的连接与密钥。使用 `--force` 更新已有目录时，原目标 `.env.local` 会恢复，不会被来源覆盖。
 
 - 自动创建依赖当前环境已安装的 `psycopg2`；若不可用或连接失败，会打印手动建库命令。
 - 若 `.env.local` 不存在、未配置 `DATABASE_URL` 或使用非 PostgreSQL 数据库，则跳过 PostgreSQL 建库步骤，但复制流程仍会执行 Alembic 迁移。

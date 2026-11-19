@@ -1,7 +1,7 @@
 # 管理平台前端
 
-本目录是 `zata-codes-template` 的管理平台前端（Admin Dashboard），基于
-[satnaing/shadcn-admin](https://github.com/satnaing/shadcn-admin) 二次开发。
+本目录提供 Agent Platform 的管理界面。项目使用 Vite、React、TanStack Router、Tailwind CSS 和 shadcn/ui。
+第三方代码的许可与版权声明见 [LICENSE](LICENSE)。
 
 ## 技术栈
 

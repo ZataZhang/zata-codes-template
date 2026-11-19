@@ -10,35 +10,21 @@ import {
   Wrench,
   UserCog,
   Users,
-  Command,
-  GalleryVerticalEnd,
   Briefcase,
   Activity,
   Building2,
   UserRoundCog,
+  Bot,
+  ShieldCheck,
 } from 'lucide-react'
 import type { AdminRole } from '@/api/auth'
-import { type NavGroup, type Team, type User } from '../types'
+import { type NavGroup, type User } from '../types'
 
 /** 侧边栏占位用户：会话尚未建立或接口未返回时使用。 */
 export const sidebarUser: User = {
   name: 'User',
   email: 'user@example.com',
 }
-
-/** 侧边栏团队列表（演示数据，不随语言变化）。 */
-export const sidebarTeams: Team[] = [
-  {
-    name: 'Zata Admin',
-    logo: Command,
-    plan: 'Vite + ShadcnUI',
-  },
-  {
-    name: 'Acme Inc',
-    logo: GalleryVerticalEnd,
-    plan: 'Enterprise',
-  },
-]
 
 /**
  * 构造随语言变化的侧边栏导航分组。
@@ -58,7 +44,10 @@ export function createNavGroups(
     return [
       {
         title: t('nav.general'),
-        items: [{ title: t('nav.users'), url: '/users', icon: Users }],
+        items: [
+          { title: t('nav.agents'), url: '/agents', icon: Bot },
+          { title: t('nav.users'), url: '/users', icon: Users },
+        ],
       },
     ]
   }
@@ -106,6 +95,11 @@ export function createNavGroups(
           title: t('nav.runTracing'),
           url: '/run-tracing',
           icon: Activity,
+        },
+        {
+          title: t('nav.a2aApprovals'),
+          url: '/a2a-approvals',
+          icon: ShieldCheck,
         },
       ],
     },

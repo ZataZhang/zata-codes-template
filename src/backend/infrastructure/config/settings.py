@@ -5,9 +5,9 @@
 2. Nacos JSON 启动配置（配置了地址时）
 3. config.toml 与代码中的默认值
 
-需要调用大模型的派生项目，用 ``.env`` 的 ``MODEL_BASE_URL`` / ``MODEL_API_KEY`` /
-``MODEL_NAME`` 三件套声明端点，经 :func:`load_primary_model_settings` 读取。模板
-只做这层解析，不内置 LLM 客户端，也不维护 provider 目录。
+需要调用大模型的项目，用 ``.env`` 的 ``MODEL_BASE_URL`` / ``MODEL_API_KEY`` /
+``MODEL_NAME`` 三件套声明端点，经 :func:`load_primary_model_settings` 读取。模板内置
+轻量 OpenAI 兼容 HTTP 执行适配，但不维护 provider 目录。
 
 新增配置项约定：
 - 非敏感默认值放到 ``config.toml`` 对应 section。
@@ -416,6 +416,36 @@ class MCPSettings(BaseSettings):
         return (env_settings, toml_source, init_settings)
 
 
+class A2ASettings(BaseSettings):
+    """A2A 公共入口、出站网络策略与凭据密钥别名。"""
+
+    model_config = SettingsConfigDict(
+        env_prefix="A2A_",
+        env_file=(_PROJECT_ROOT_PATH / ".env", _PROJECT_ROOT_PATH / ".env.local"),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    public_base_url: str = ""
+    credential_encryption_key_env: str = "A2A_CREDENTIAL_ENCRYPTION_KEY"
+    credential_bindings: dict[str, dict[str, list[str]]] = Field(default_factory=dict)
+    allowed_outbound_hosts: list[str] = Field(default_factory=list)
+    allow_loopback_for_dev: bool = False
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,  # noqa: ARG003
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """按环境、dotenv、TOML 与初始化参数加载 A2A 设置。"""
+        toml_source = _TomlSectionSource(settings_cls, "a2a")
+        return (env_settings, dotenv_settings, toml_source, init_settings)
+
+
 class SecuritySettings(BaseSettings):
     """HTTP 请求资源与调用频率保护配置。"""
 
@@ -471,6 +501,7 @@ class AppSettings(BaseSettings):
 
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     mcp: MCPSettings = Field(default_factory=MCPSettings)
+    a2a: A2ASettings = Field(default_factory=A2ASettings)
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
     security: SecuritySettings = Field(default_factory=SecuritySettings)
     redis: RedisSettings = Field(default_factory=RedisSettings)

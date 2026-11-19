@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { getCurrentSession, type UserSession } from "@/lib/api/auth"
-import { Settings } from "lucide-react"
+import { Bot } from "lucide-react"
 
 /** Render the dashboard page. */
 export default function DashboardPage() {
@@ -42,7 +42,7 @@ export default function DashboardPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Settings className="size-5 text-primary" />
+            <Bot className="size-5 text-primary" />
             {t("gettingStartedTitle")}
           </CardTitle>
         </CardHeader>

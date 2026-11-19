@@ -29,6 +29,10 @@ COPY frontend-public/package.json frontend-public/
 COPY frontend-admin/package.json frontend-admin/
 RUN pnpm install --frozen-lockfile --filter ./frontend-public...
 
+# Next.js standalone 会把 rewrites 的目标固化到构建产物，构建时必须显式提供后端地址。
+ARG API_BASE_URL=http://zata-codes-template-backend:8000
+ENV API_BASE_URL=${API_BASE_URL}
+
 # Copy source and build
 COPY frontend-public/ frontend-public/
 WORKDIR /app/frontend-public

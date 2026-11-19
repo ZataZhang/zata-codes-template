@@ -6,7 +6,7 @@
   <img src="skills/zata-writer/assets/brand/zata-signature-blue-z-black-ata.png" width="180" alt="Zata 品牌签名字标">
 </p>
 
-面向 Python Web 项目的可演进工程模板：后端采用 **FastAPI + 四层模块化单体**，并配有独立的管理后台和用户端前端。模板提供可运行的认证、数据库迁移、运行轨迹诊断和可选沙箱基础设施；具体业务域由派生项目添加。
+面向 Python Web 项目的可演进工程模板：后端采用 **FastAPI + 四层模块化单体**，并配有独立的管理后台和用户端前端。模板提供多组织 Agent 工作区、认证、数据库迁移、运行轨迹诊断和可选沙箱基础设施；派生项目可继续添加产品专属流程。
 
 ## 项目特点
 
@@ -14,9 +14,10 @@
 - **两套前端**：管理后台使用 Vite、React 和 TanStack Router；用户端使用 Next.js 16、React 19 和 Tailwind CSS 4。
 - **认证与会话**：用户注册和登录、独立的管理后台认证、HTTP-only Cookie 会话及 Redis 会话存储。
 - **可选运行能力**：运行轨迹查询、健康探针、Prometheus 指标，以及 filesystem、Docker、E2B 沙箱适配器。
+- **多组织 Agent 工作台**：组织隔离的 Agent、持久化 Run、不可变 Skill 版本，以及经授权的 A2A 1.0 HTTP+JSON 双向互通。
 - **MCP server**：通过官方 Python SDK v2 在 `/api/mcp` 提供当前无状态 Streamable HTTP 协议，并附带应用信息示例工具。
 - **工程工作流**：通过 `uv` 管理 Python 依赖、`just` 运行开发任务，并提供 Alembic 迁移、pre-commit、测试和 MkDocs 文档站点。
-- **不绑定模型供应商**：模板不内置 LLM 客户端或 provider 目录；派生项目按需读取 OpenAI 兼容端点配置并选择 SDK。
+- **不绑定模型供应商**：内置轻量 OpenAI 兼容 HTTP 适配器，沿用三项模型配置；不维护 provider 目录，也不执行租户代码。
 
 ## 架构概览
 
@@ -145,14 +146,6 @@ just run
 - 需要接入大模型时，在 `.env.local` 配置 `MODEL_BASE_URL`、`MODEL_API_KEY`、`MODEL_NAME`；三项必须同时填写，模板不负责创建模型客户端。
 - 沙箱配置是可选的，支持仅文件操作的 filesystem 模式、隔离容器 Docker 模式和 E2B 沙箱模式。
 - 应用默认提供 `/health`、`/ready`、`/live` 健康探针；启用指标时还提供 `/metrics`。
-
-## 加入 QQ 群
-
-QQ群号：**1126828125**。扫码加入项目交流群：
-
-<p align="center">
-  <img src="docs/assets/community/qq-group-qr.png" width="360" alt="Zata 项目 QQ 群二维码，群号 1126828125">
-</p>
 
 ## 文档
 

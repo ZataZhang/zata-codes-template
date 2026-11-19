@@ -137,4 +137,14 @@ def test_local_host_entrypoints_consume_runtime_port_state() -> None:
     # 模板栈的 frontend-public 是 Next.js；派生项目改用 Vite 时无此文件，跳过。
     next_config_path = _PROJECT_ROOT_PATH / "frontend-public" / "next.config.ts"
     if next_config_path.exists():
-        assert "process.env.API_BASE_URL" in next_config_path.read_text(encoding="utf-8")
+        next_config_text = next_config_path.read_text(encoding="utf-8")
+        backend_url_path = _PROJECT_ROOT_PATH / "frontend-public" / "lib" / "backend-url.ts"
+        if backend_url_path.exists():
+            # SSE Route Handler 与 Next rewrites 共用 URL helper，代理目标仍需
+            # 消费运行时传入的 API_BASE_URL。
+            backend_url_text = backend_url_path.read_text(encoding="utf-8")
+            assert "backendBaseUrl" in next_config_text
+            assert "process.env.API_BASE_URL" in backend_url_text
+        else:
+            # 兼容未抽取 helper 的派生 Next.js 前端。
+            assert "process.env.API_BASE_URL" in next_config_text

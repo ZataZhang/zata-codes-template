@@ -33,6 +33,8 @@
 
 `docker-compose.dokploy.yml` 与 `deploy/vps-traefik/docker-compose.yml` 都会把后端放在独立的 `backend-app` 网络中；前端同时连接 `backend-app` 和入口网络，后端没有公网端口映射，也不加入共享 Traefik 网络。Dokploy Compose 默认将 `FORWARDED_ALLOW_IPS` 设为 `*`，仅在这个边界内使用，使 Uvicorn 能读取前端代理传来的客户端 IP；可按网络结构收窄该值。不要将后端端口发布到公网，也不要把不受信任的容器接入 `backend-app`。
 
+Public Agent 的增量回复使用单个同源 SSE 请求，不会按每个事件反复消耗每分钟请求额度；活动流会持续占用一个 `InFlightReq` 并发名额，连接在 Run 终态或会话失效时关闭。
+
 若 CDN 或负载均衡位于 Traefik 前方，应先在宿主机 Traefik 配置中只信任该供应商公布的转发来源地址，再把 `TRAEFIK_CLIENT_IP_DEPTH` 设为清洗后 `X-Forwarded-For` 链中的正确位置。直连 Traefik 时保持 `0`，使用连接来源地址。不要直接信任任意客户端提供的 `X-Forwarded-For`。
 
 前端代理禁止公开访问 `/api/metrics`。Prometheus 只能从私有监控网络访问后端 `/metrics`；指标默认关闭。启用时设置 `OBSERVABILITY_METRICS_ENABLED=true`，并确保采集器只连接私有后端网络。MCP HTTP endpoint 默认关闭；启用前应为对应工具接入身份认证、授权和独立入口策略。

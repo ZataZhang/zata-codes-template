@@ -62,9 +62,13 @@ class RunRepository(Protocol):
         ...
 
     def heartbeat(self, run_id: str, instance_id: str, lease_expires_at: datetime) -> bool:
-        """续租当前执行实例。"""
+        """续租当前执行实例；Run 进入 cancelling 或终态后返回 False。"""
         ...
 
     def list_expired(self, now: datetime) -> Sequence[Run]:
         """列出已过期的非终态 Run。"""
+        ...
+
+    def interrupt_expired(self, run_id: str, now: datetime) -> bool:
+        """在同一事务确认租约过期并终止失去执行者的 Run。"""
         ...

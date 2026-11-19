@@ -1,7 +1,7 @@
 {
   "html": {
     "title": "My App - 项目模板",
-    "description": "四层后端骨架 + 双认证域 + 双前端 + 可观测性的 Python 项目模板，不内置业务域。"
+    "description": "包含组织范围 Agent 工作区、双认证域、双前端和可观测能力的 Python 项目模板。"
   },
   "common": {
     "appName": "My App",
@@ -15,6 +15,7 @@
     "pricing": "授权",
     "about": "关于",
     "dashboard": "仪表盘",
+    "agents": "智能体",
     "settings": "设置",
     "signIn": "登录",
     "getStarted": "免费试用"
@@ -24,10 +25,10 @@
       "badge": "面向长期演进的项目模板",
       "titleLine1": "干净的骨架，",
       "titleAccent": "只留工程化",
-      "subtitle": "四层模块化单体 + 双认证域 + 可观测性。不内置业务域，让每个派生项目从零开始搭建自己的业务。",
+      "subtitle": "四层应用底座，提供组织隔离的 Agent、持久化运行、双认证域和可观测能力。",
       "ctaPrimary": "免费开始",
       "ctaSecondary": "了解骨架",
-      "highlightNoDomain": "无业务域残留",
+      "highlightNoDomain": "组织范围 Agent 工作区",
       "highlightAuth": "认证开箱即用",
       "highlightTooling": "工程化完整"
     },
@@ -69,7 +70,7 @@
       "sectionSubtitle": "复制模板、配置环境、启动服务",
       "copy": {
         "title": "复制模板",
-        "description": "just copy <name> 创建新项目，不包含依赖与构建产物。"
+        "description": "运行 just copy 并提供项目名称，即可创建不包含依赖与构建产物的新项目。"
       },
       "configure": {
         "title": "配置环境",
@@ -89,11 +90,11 @@
       },
       "businessCode": {
         "question": "模板内置业务代码吗？",
-        "answer": "不内置任何业务域。认证、配置、可观测性与持久化是唯一骨架，业务模块由派生项目自行添加。"
+        "answer": "包含组织隔离的 Agent、持久化运行、版本化 Skill 和经授权的 A2A 互通，也提供可复用的工程基础。"
       },
       "createProject": {
         "question": "如何用模板创建新项目？",
-        "answer": "使用 just copy <name> 复制为独立项目，再按 README 配置环境变量与数据库即可启动。"
+        "answer": "运行 just copy 并提供项目名称，将模板复制为独立项目，再按 README 配置环境变量与数据库即可启动。"
       }
     },
     "cta": {
@@ -103,7 +104,7 @@
     },
     "aboutPage": {
       "title": "关于本模板",
-      "description": "这是一个用于启动新项目的 Python 模板：提供四层后端骨架、双认证域与完整工程化设施，同时刻意不内置任何业务域，让每个派生项目从干净的起点开始搭建自己的业务。",
+      "description": "这是一个用于启动新项目的 Python 模板：提供组织范围 Agent、持久化运行、版本化 Skill、双认证域和四层后端，便于继续扩展项目能力。",
       "principles": {
         "simple": {
           "title": "简洁至上",
@@ -121,7 +122,7 @@
     },
     "featuresPage": {
       "title": "模板能力",
-      "subtitle": "只提供工程化骨架，不内置任何业务域",
+      "subtitle": "提供组织范围 Agent 工作区和可复用的工程底座",
       "items": {
         "architecture": {
           "title": "四层架构",
@@ -198,14 +199,46 @@
   "dashboard": {
     "title": "工作区",
     "signedIn": "已登录",
-    "gettingStartedTitle": "开始搭建你的业务",
-    "gettingStartedBody": "本模板仅保留认证与基础设施骨架，不内置任何业务域。请根据你的项目在四层架构上添加业务模块，例如在 src/backend/core/ 定义用例与领域契约、在 src/backend/engines/ 实现平台能力、在 src/backend/api/ 暴露 HTTP 入口。",
+    "gettingStartedTitle": "你的 Agent 工作区",
+    "gettingStartedBody": "选择组织发布的 Agent，开始对话，并从历史列表重新打开已保存的运行。",
     "accountSettings": "账户设置"
+  },
+  "agents": {
+    "eyebrow": "组织工作区",
+    "title": "智能体",
+    "subtitle": "使用组织发布的智能体，并从历史记录继续对话。",
+    "chooseAgent": "选择智能体",
+    "emptyAgents": "组织还没有发布智能体。",
+    "available": "可运行",
+    "unavailable": "不可运行",
+    "unavailableReason": "原因：{reason}",
+    "noDescription": "暂无说明。",
+    "conversation": "对话",
+    "you": "你",
+    "agentReply": "智能体回复",
+    "runStatus": "状态：{status}",
+    "thinking": "智能体正在运行…",
+    "streamingReply": "正在接收流式回复…",
+    "cancelRun": "取消运行",
+    "cancelling": "正在取消…",
+    "cancelFailed": "无法取消本次运行。",
+    "noReply": "没有记录回复。",
+    "runId": "运行 ID：{id}",
+    "skillVersion": "冻结的 Skill 版本：v{version}",
+    "emptyConversation": "选择一个智能体并发送消息即可开始。",
+    "messagePlaceholder": "输入消息…",
+    "send": "发送消息",
+    "history": "最近历史",
+    "emptyHistory": "运行记录会显示在这里。",
+    "loadFailed": "无法加载智能体目录。",
+    "refreshFailed": "无法刷新本次运行。",
+    "historyFailed": "无法重新打开本次运行。",
+    "submitFailed": "无法启动 Agent 运行。"
   },
   "settings": {
     "title": "设置",
     "aboutTitle": "关于本模板",
-    "aboutBody": "本模板仅保留认证与基础设施骨架，不内置任何业务域。请在此基础上搭建你自己的业务。",
+    "aboutBody": "面向多组织的 Agent 基础底座，隔离 Agent、Skill 与运行历史。",
     "signOut": "退出登录"
   },
   "footer": {

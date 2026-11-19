@@ -11,15 +11,11 @@
 3. 原型页面应提供最小交互（例如 Start / Next / Reset）和可见状态变化。
 4. 资源命名使用通用约定，优先引用 `assets/prototype.css` 与 `assets/prototype.js`。
 
-## 示例入口
+## 入口
 
 - [可点击原型中心](prototype-hub.html)
-- [后台用户管理交互原型](admin-users-interactive.md)
-- [AI 生成图片热点原型](admin-users-ai-image-hotspot.md)
-- [PRD Demo 可交互原型](prd-demo.html)
-- [登录页交互原型](login-demo.md)
-- [只读文件与改动查看器交互原型](file-viewer-interactive.md)
-- [Run 执行轨迹交互原型](run-tracing.md)
+- [多组织 Agent 在线底座](agent-online.md)
+- 其他原型请从 [Prototype Hub](prototype-hub.html) 浏览；清单以 `prototype-registry.js` 为唯一事实源。
 - [Assets 命名规范](assets/README.md)
 
 ## 设计约束

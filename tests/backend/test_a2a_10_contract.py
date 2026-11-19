@@ -1,0 +1,306 @@
+"""A2A 1.0 REST Task 投影契约测试。"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+from dataclasses import replace
+from datetime import UTC, datetime
+
+import pytest
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.testclient import TestClient
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from backend.api import a2a_support
+from backend.api.a2a_errors import register_a2a_error_handlers
+from backend.api.a2a_router import (
+    _decode_task_page_token,
+    _encode_task_page_token,
+    _task_status_filter,
+)
+from backend.api.a2a_support import _read_text_message, _task_document, _task_events
+from backend.core.shared.models.run import (
+    Run,
+    RunEvent,
+    RunEventCandidate,
+    RunStatus,
+    RunSubjectSnapshot,
+)
+from backend.core.shared.models.run_policy import decide_projection_transition
+
+
+def _run(status: RunStatus = RunStatus.SUCCEEDED) -> Run:
+    """构造不连接数据库的 Canonical Run 夹具。"""
+    now = datetime.now(UTC)
+    return Run(
+        id="run-123",
+        owner_id="a2a:credential-1",
+        subject_id="agent-1",
+        subject_type="agent",
+        subject_snapshot=RunSubjectSnapshot("agent", "agent-1", "Helper", "a" * 64),
+        subject_snapshot_checksum="a" * 64,
+        status=status,
+        last_event_seq=2,
+        created_at=now,
+        organization_id="org-a",
+        conversation_id="context-1",
+    )
+
+
+def _event(seq: int, event_type: str, payload: dict[str, object]) -> RunEvent:
+    """构造 Run Event 视图。"""
+    now = datetime.now(UTC)
+    return RunEvent(
+        run_id="run-123",
+        seq=seq,
+        event_type=event_type,
+        occurred_at=now,
+        recorded_at=now,
+        subject_id="agent-1",
+        subject_snapshot_checksum="a" * 64,
+        payload=payload,
+        payload_checksum="b" * 64,
+    )
+
+
+def test_a2a_message_accepts_official_role_and_plain_text_part() -> None:
+    """A2A 1.0 使用 ROLE_USER 和无 kind 判别字段的纯文本 Part。"""
+    message_id, message_text = _read_text_message(
+        {
+            "messageId": "message-1",
+            "role": "ROLE_USER",
+            "parts": [{"text": "hello"}],
+        }
+    )
+
+    assert (message_id, message_text) == ("message-1", "hello")
+    with pytest.raises(HTTPException, match="user_message_required"):
+        _read_text_message(
+            {
+                "messageId": "message-2",
+                "role": "user",
+                "parts": [{"text": "hello"}],
+            }
+        )
+
+
+def test_a2a_rest_errors_use_google_rpc_status_without_leaking_details() -> None:
+    """A2A REST 错误返回规范结构，同时保留资源不可见语义。"""
+    app = FastAPI()
+    register_a2a_error_handlers(app)
+
+    @app.get("/a2a/agents/agent-1/tasks/missing")
+    def get_missing_task() -> None:
+        raise HTTPException(status_code=404, detail="task_not_found")
+
+    @app.get("/a2a/agents/agent-1/tasks")
+    def list_tasks(status: str = Query(pattern="^supported$")) -> dict[str, str]:
+        return {"status": status}
+
+    @app.get("/api/missing")
+    def get_missing_non_a2a_resource() -> None:
+        raise StarletteHTTPException(status_code=404, detail="internal_resource_name")
+
+    test_client = TestClient(app)
+    missing_task_response = test_client.get("/a2a/agents/agent-1/tasks/missing")
+    validation_response = test_client.get("/a2a/agents/agent-1/tasks?status=private-value")
+    non_a2a_response = test_client.get("/api/missing")
+
+    assert missing_task_response.status_code == 404
+    assert missing_task_response.json() == {
+        "error": {
+            "code": 404,
+            "status": "NOT_FOUND",
+            "message": "The requested resource does not exist or is not accessible.",
+            "details": [
+                {
+                    "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+                    "reason": "TASK_NOT_FOUND",
+                    "domain": "a2a-protocol.org",
+                }
+            ],
+        }
+    }
+    assert validation_response.status_code == 422
+    assert validation_response.json()["error"]["details"][0]["@type"] == (
+        "type.googleapis.com/google.rpc.BadRequest"
+    )
+    assert "private-value" not in validation_response.text
+    assert non_a2a_response.json() == {"detail": "internal_resource_name"}
+
+
+def test_task_document_uses_task_states_artifacts_and_history_length() -> None:
+    """Task 使用规范状态、Artifact 与 historyLength 省略规则。"""
+    events = [
+        _event(1, "input.accepted", {"content": [{"type": "text", "text": "hello"}]}),
+        _event(2, "message.completed", {"content": "world"}),
+    ]
+
+    full_task = _task_document(_run(), events)
+    compact_task = _task_document(_run(), events, include_artifacts=False, history_length=0)
+
+    assert full_task["id"] == "run-123"
+    assert full_task["status"]["state"] == "TASK_STATE_COMPLETED"
+    assert full_task["artifacts"][0]["parts"] == [{"text": "world"}]
+    assert len(full_task["history"]) == 2
+    assert "artifacts" not in compact_task
+    assert "history" not in compact_task
+
+
+def test_task_and_stream_timestamps_use_utc_z_suffix() -> None:
+    """Task 与状态事件都序列化为 UTC Z 时间戳，并规范数据库的无时区值。"""
+    completed_run = _run()
+    completed_run.finished_at = datetime.fromisoformat("2026-11-19T11:30:00+08:00")
+    task_document = _task_document(completed_run, [])
+
+    naive_recorded_at = datetime.fromisoformat("2026-11-19T03:30:00")
+    started_event = replace(
+        _event(1, "run.started", {"started_at": "2026-11-19T03:30:00Z"}),
+        recorded_at=naive_recorded_at,
+    )
+    stream_event = _task_events(_run(RunStatus.RUNNING), [started_event])[0]
+
+    assert task_document["status"]["timestamp"] == "2026-11-19T03:30:00.000Z"
+    assert stream_event["statusUpdate"]["status"]["timestamp"] == ("2026-11-19T03:30:00.000Z")
+
+
+def test_task_page_token_round_trips_opaque_utc_cursor() -> None:
+    """续页 token 保留微秒精度并规范没有时区的数据库时间。"""
+    queued_run = _run(RunStatus.QUEUED)
+    queued_run.created_at = datetime.fromisoformat("2026-11-19T03:30:00.123456")
+
+    page_token = _encode_task_page_token(queued_run)
+    cursor_timestamp, cursor_run_id = _decode_task_page_token(page_token)
+
+    assert not page_token.isdigit()
+    assert cursor_timestamp == datetime.fromisoformat("2026-11-19T03:30:00.123456+00:00")
+    assert cursor_run_id == queued_run.id
+    with pytest.raises(HTTPException, match="invalid_page_token"):
+        _decode_task_page_token("2")
+
+
+def test_task_status_filter_covers_all_run_states_mapped_to_task_states() -> None:
+    """A2A 状态过滤包含被合并映射的 Run 状态。"""
+    assert _task_status_filter("TASK_STATE_WORKING") == (
+        RunStatus.RUNNING,
+        RunStatus.CANCELLING,
+    )
+    assert _task_status_filter("TASK_STATE_FAILED") == (
+        RunStatus.FAILED,
+        RunStatus.INTERRUPTED,
+    )
+
+
+def test_running_task_snapshot_contains_already_streamed_artifact_text() -> None:
+    """订阅已运行的 Task 时，首个快照包含此前已落库的部分回复。"""
+    running_task = _run(RunStatus.RUNNING)
+    events = [
+        _event(1, "input.accepted", {"content": [{"type": "text", "text": "hello"}]}),
+        _event(2, "message.delta", {"delta": "partial "}),
+        _event(3, "message.delta", {"delta": "reply"}),
+    ]
+
+    task_document = _task_document(running_task, events)
+
+    assert task_document["status"]["state"] == "TASK_STATE_WORKING"
+    assert task_document["artifacts"][0]["parts"] == [{"text": "partial reply"}]
+
+
+def test_stream_events_are_a2a_streamresponse_variants() -> None:
+    """每个流消息只含一个 statusUpdate 或 artifactUpdate 变体。"""
+    task_events = _task_events(
+        _run(),
+        [
+            _event(1, "run.started", {"started_at": "2026-11-13T00:00:00Z"}),
+            _event(2, "message.delta", {"delta": "world"}),
+            _event(3, "message.completed", {"content": "world"}),
+            _event(4, "run.completed", {"message_id": "assistant_run-123"}),
+        ],
+    )
+
+    assert all(len(event) == 1 for event in task_events)
+    assert task_events[0]["statusUpdate"]["status"]["state"] == "TASK_STATE_WORKING"
+    assert task_events[1]["artifactUpdate"]["append"] is True
+    assert task_events[2]["artifactUpdate"]["append"] is False
+    assert task_events[2]["artifactUpdate"]["lastChunk"] is True
+    assert task_events[2]["artifactUpdate"]["artifact"]["parts"] == [{"text": "world"}]
+    assert task_events[3]["statusUpdate"]["status"]["state"] == "TASK_STATE_COMPLETED"
+
+
+def test_completion_after_a_separate_delta_batch_still_emits_final_artifact() -> None:
+    """最终内容独立于 delta 批次到达时也会发送带 lastChunk 的完整 Artifact。"""
+    initial_events = _task_events(
+        _run(RunStatus.RUNNING),
+        [_event(1, "message.delta", {"delta": "partial"})],
+    )
+    completion_events = _task_events(
+        _run(),
+        [_event(2, "message.completed", {"content": "complete reply"})],
+    )
+
+    assert initial_events[0]["artifactUpdate"]["append"] is True
+    final_update = completion_events[0]["artifactUpdate"]
+    assert final_update["append"] is False
+    assert final_update["lastChunk"] is True
+    assert final_update["artifact"]["parts"] == [{"text": "complete reply"}]
+
+
+def test_initial_task_snapshot_advances_cursor_past_included_events(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """初始 Task 快照已包含的并发事件不会在后续流中重复发送。"""
+    running_run = _run(RunStatus.RUNNING)
+    running_run.last_event_seq = 1
+    completed_run = _run(RunStatus.SUCCEEDED)
+    completed_run.last_event_seq = 2
+    snapshot_events = [_event(2, "message.delta", {"delta": "partial"})]
+    requested_cursors: list[int] = []
+
+    def read_task(*, after_seq: int, **_: object) -> tuple[Run, list[RunEvent]]:
+        requested_cursors.append(after_seq)
+        if len(requested_cursors) == 1:
+            return running_run, snapshot_events
+        return completed_run, []
+
+    monkeypatch.setattr(a2a_support, "_read_task", read_task)
+
+    async def collect_events() -> list[str]:
+        return [
+            event
+            async for event in a2a_support._stream_task_events(
+                credential=None,  # type: ignore[arg-type]
+                run_id="run-123",
+                run_use_case=None,  # type: ignore[arg-type]
+            )
+        ]
+
+    stream_events = asyncio.run(collect_events())
+
+    assert requested_cursors == [0, 2]
+    assert len(stream_events) == 1
+    initial_document = json.loads(stream_events[0].removeprefix("data: ").strip())
+    assert initial_document["task"]["artifacts"][0]["parts"] == [{"text": "partial"}]
+
+
+def test_outbound_task_id_is_allowed_as_low_sensitivity_trace_metadata() -> None:
+    """远端 Task ID 可加入工具事件，但凭据仍由敏感字段校验拒绝。"""
+    candidate = {
+        "tool_call_id": "call-1",
+        "result": {"status": "completed"},
+        "result_checksum": "c" * 64,
+        "remote_task_id": "remote-123",
+        "result_length": 12,
+    }
+
+    assert (
+        decide_projection_transition(
+            RunStatus.RUNNING, RunEventCandidate("tool.call.completed", candidate)
+        ).next_status
+        is RunStatus.RUNNING
+    )
+    candidate["result"] = {"status": "completed", "api_key": "never-log-this"}
+    with pytest.raises(ValueError, match="禁止"):
+        decide_projection_transition(
+            RunStatus.RUNNING, RunEventCandidate("tool.call.completed", candidate)
+        )

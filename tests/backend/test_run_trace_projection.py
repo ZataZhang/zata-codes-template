@@ -44,7 +44,7 @@ def _build_run(status: RunStatus, *, finished_at: datetime | None = None) -> Run
         subject_snapshot=RunSubjectSnapshot(
             subject_type="internal",
             subject_id="subject_1",
-            subject_name="freight-agent",
+            subject_name="example-agent",
             snapshot_checksum="c" * 64,
         ),
         subject_snapshot_checksum="c" * 64,
@@ -117,7 +117,12 @@ def test_two_model_turns_and_one_parented_tool_build_a_stable_tree() -> None:
         _event(
             4,
             "tool.call.completed",
-            {"tool_call_id": "tool_1", "result": "ok", "result_checksum": "e" * 64},
+            {
+                "tool_call_id": "tool_1",
+                "result": {"status": "completed"},
+                "result_checksum": "e" * 64,
+                "result_length": 2,
+            },
             span_id=derive_span_id(_RUN_ID, "tool", "source_tool_1"),
             offset_seconds=2,
         ),

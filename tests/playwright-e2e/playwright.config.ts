@@ -15,12 +15,17 @@ const adminAuthStorageStatePath = resolve(
 const testResultOutputDirectory = process.env.PLAYWRIGHT_TEST_RESULTS_DIR ?? './test-results'
 const htmlReportOutputDirectory = process.env.PLAYWRIGHT_HTML_OUTPUT_DIR ?? 'playwright-report'
 const oidcTestsEnabled = process.env.PLAYWRIGHT_OIDC_TESTS === '1'
+const remoteBrowserWebSocketEndpoint = process.env.PLAYWRIGHT_REMOTE_BROWSER_WS?.trim()
 const junitOutputFilePath =
   process.env.PLAYWRIGHT_JUNIT_OUTPUT_FILE ?? `${testResultOutputDirectory}/junit.xml`
 // 本地录全程视频用于 demo 与验收证据；CI 只保留失败用例的视频，否则每次失败都会
 // 把全部用例的 video.webm 打进 playwright-report-* 制品，很快吃满 Actions 存储配额。
 // 与上面的 retries/workers 一样按 CI 分支，调用方无需额外传参。
-const videoMode = process.env.CI ? 'retain-on-failure' : 'on'
+const videoMode = process.env.PLAYWRIGHT_RECORD_VIDEO === '0'
+  ? 'off'
+  : process.env.CI
+    ? 'retain-on-failure'
+    : 'on'
 
 export default defineConfig({
   testDir: './tests',
@@ -43,6 +48,9 @@ export default defineConfig({
     ['junit', { outputFile: junitOutputFilePath }],
   ],
   use: {
+    ...(remoteBrowserWebSocketEndpoint
+      ? { connectOptions: { wsEndpoint: remoteBrowserWebSocketEndpoint } }
+      : {}),
     baseURL,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',

@@ -11,6 +11,7 @@ requires-python = ">=3.11"
 dependencies = [
     "alembic>=1.18.4",
     "bcrypt>=4.1.0",
+    "cryptography>=44.0.0",
     "fastapi>=0.115.0",
     # 沙箱执行后端的云沙箱档（e2b_provider / e2b_control_plane /
     # e2b_execution_channel）在模块级 import httpx。它是运行期依赖，不是测试依赖：

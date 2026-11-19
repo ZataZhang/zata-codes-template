@@ -14,7 +14,9 @@
 
 
 # 排除生成的文档或特定目录不检查 (可选)
-exclude: '^docs/|/migrations/'
+# `.pnpm-store/` 是本机 pnpm 内容寻址缓存；它是被 WIP checkpoint 误提交的本机状态，
+# 文件卫生钩子去改写它只会让 `just lint --full` 每次都以「自动修好了」的形态失败。
+exclude: '^docs/|/migrations/|^\.pnpm-store/'
 
 repos:
   # ==========================================

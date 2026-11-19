@@ -27,6 +27,7 @@
 - **认证配置**：初始管理员种子、会话窗口，以及可选的 admin/public OIDC 客户端。
 - **HTTP 安全配置**：请求体上限、API 限流、生产 Cookie 安全属性。
 - **主模型配置**：调用大模型所需的端点三件套（见下节，按需启用）。
+- **A2A 配置**：Agent Card 对外 origin、经批准的出站主机名单与可选加密密钥别名。
 - **基础设施配置**：Redis 等（派生项目按需扩展）。
 
 ## 常用实践
@@ -179,9 +180,24 @@ if primary_model_settings is not None:
   静默回退会让调用方在真正发请求时才收到含义不明的 401 或 404。
 - 三项都留空时返回 `None`，表示本项目不使用模型；这是模板的默认状态，不影响启动。
 - `api_key` 是 `SecretStr`，取值要显式 `.get_secret_value()`，避免误打进日志。
-- **模板不内置 LLM 客户端，也不维护 provider 目录**（见归档 PRD
-  `tasks/archive/20260518-164340-prd-decouple-template-from-business.md`）。需要同时接多个端点的
-  项目，在这三个值之上自建注册表。
+- **模板只提供轻量 OpenAI 兼容 HTTP 执行适配，不维护 provider 目录**。在线 Agent 经
+  `OpenAICompatibleAgentExecutor` 复用这三项配置；需要其他 SDK 或多个端点的项目可在既有执行端口
+  替换实现或自建注册表。
+
+## A2A 对外入口与出站对端
+
+对外发布 Agent Card 时，在 `config.toml` 的 `[a2a]` 或部署环境设置 `A2A_PUBLIC_BASE_URL`，填写公开 origin，不带路径。例如：
+
+```toml
+[a2a]
+public_base_url = "https://app.example.com"
+allowed_outbound_hosts = ["approved-agent.example.net"]
+allow_loopback_for_dev = false
+```
+
+生产环境使用 HTTPS。卡片 endpoint 从此配置生成，不采信请求的 Host。未填写或格式不符时，Agent Card 返回不可用；普通服务启动不受影响。本地协议验证可设置 `A2A_PUBLIC_BASE_URL=http://localhost:8000` 并显式设 `A2A_ALLOW_LOOPBACK_FOR_DEV=true`，该开关不得用于生产。
+
+出站对端需先经组织管理员登记，再由平台管理员审批；登记时拒绝 URL 内嵌凭据、查询参数和跨 origin 的 Card/REST 地址；`allowed_outbound_hosts` 只列精确 DNS 主机名。客户端拒绝非公网 DNS 结果、重定向和 Card / REST 端点跨 origin。对端 Bearer 值只通过环境别名 `credential_env_alias` 解析，浏览器保存的是别名，数据库密文使用 `A2A_CREDENTIAL_ENCRYPTION_KEY` 加密。该密钥在 `.env.example` 中留空，不进入 `config.toml`、前端构建或运行轨迹。
 
 ## Worktree 相关环境变量
 
@@ -264,3 +280,12 @@ if primary_model_settings is not None:
 
 - 直接使用 `DATABASE_URL`。
 - 在未提供完整 URL 时，通过组件拼接生成连接字符串。
+
+### A2A 出站凭据引用授权
+
+部署方必须在 `config.toml` 的 `a2a.credential_bindings` 中按组织 ID、完整的已登记 endpoint URL
+列出允许的环境变量别名，例如
+`credential_bindings = { "org-id" = { "https://peer.example/a2a" = ["ORG_PEER_TOKEN"] } }`。
+真实 token 仍由环境变量注入；空映射允许应用启动，但拒绝任何带密钥引用的登记或轮换。
+组织管理员不能引用平台模型密钥或其他组织、其他对端的凭据；轮换保留相同授权校验。
+模型 SSE 若未返回结束原因就关闭连接，运行会失败，已收到的部分回复不会标记为成功。

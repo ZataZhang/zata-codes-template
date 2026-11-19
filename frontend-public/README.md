@@ -2,7 +2,7 @@
 
 本目录是 `zata-codes-template` 的前台官网与应用骨架（Public Website + App Shell），基于 Next.js 16 + React 19 + Tailwind CSS v4 + shadcn/ui 构建。
 
-模板不内置业务域，应用区只保留极简的 Dashboard / Settings 骨架，派生项目在此之上搭建自己的业务。
+应用区提供组织范围的 Agent 目录、Run 对话与历史，也保留 Dashboard / Settings 页面供项目继续扩展。
 
 ## 技术栈
 
@@ -25,7 +25,7 @@ pnpm dev
 
 开发服务器启动后访问 `http://localhost:3000`。
 
-直接运行 `pnpm dev` 时，后端默认在 `http://localhost:8000`，前端通过 Next.js rewrites 代理 `/api/*` 到后端。通过根目录 `just run` 启动时，会注入当前 `.env.run-state` 中的后端端口。
+直接运行 `pnpm dev` 时，后端默认在 `http://localhost:8000`，前端通过 Next.js rewrites 将普通 `/api/*` 请求转发到后端。Agent Run 的 `/api/agent-runs/{runId}/events/stream` 由 App Router Route Handler 同源转发 SSE 响应流，避免通用 rewrite 缓冲增量事件。通过根目录 `just run` 启动时，会注入当前 `.env.run-state` 中的后端端口。
 
 ## 构建生产产物
 

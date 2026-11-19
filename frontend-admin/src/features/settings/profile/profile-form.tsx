@@ -47,16 +47,16 @@ const profileFormSchema = z.object({
 
 type ProfileFormValues = z.infer<typeof profileFormSchema>
 
-// This can come from your database or API.
+// 默认资料值由调用方接入数据库或 API 后提供。
 const defaultValues: Partial<ProfileFormValues> = {
-  bio: 'I own a computer.',
+  bio: 'Tell others about your role.',
   urls: [
-    { value: 'https://shadcn.com' },
-    { value: 'http://twitter.com/shadcn' },
+    { value: 'https://example.com/profile' },
+    { value: 'https://social.example.com/user' },
   ],
 }
 
-/** Render the ProfileForm component. */
+/** 渲染个人资料表单。 */
 export function ProfileForm() {
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
@@ -82,7 +82,7 @@ export function ProfileForm() {
             <FormItem>
               <FormLabel>Username</FormLabel>
               <FormControl>
-                <Input placeholder='shadcn' {...field} />
+                <Input placeholder='username' {...field} />
               </FormControl>
               <FormDescription>
                 This is your public display name. It can be your real name or a

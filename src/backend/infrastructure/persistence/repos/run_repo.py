@@ -14,6 +14,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, Sequence
 
 from sqlalchemy import and_, func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from backend.core.shared.models.run import (
@@ -58,6 +59,9 @@ def _to_run(run_model: RunModel, database_session: Session) -> Run:
     return Run(
         id=run_model.id,
         owner_id=run_model.owner_id,
+        organization_id=run_model.organization_id,
+        conversation_id=run_model.conversation_id,
+        execution_snapshot=run_model.execution_snapshot,
         subject_id=run_model.subject_id,
         subject_type=run_model.subject_type,
         subject_snapshot=RunSubjectSnapshot(**run_model.subject_snapshot),
@@ -104,7 +108,31 @@ class SqlAlchemyRunRepository:
     def create_run(
         self, run: Run, *, idempotency_key_hash: str, request_checksum: str, input_text: str
     ) -> Run:
+        """处理并发幂等键冲突，避免客户端重试创建第二个 Canonical Run。"""
+        try:
+            return self._create_run_transaction(
+                run,
+                idempotency_key_hash=idempotency_key_hash,
+                request_checksum=request_checksum,
+                input_text=input_text,
+            )
+        except IntegrityError as integrity_error:
+            existing_record = self.get_by_idempotency(run.owner_id, idempotency_key_hash)
+            if existing_record is None:
+                raise integrity_error
+            existing_run, existing_checksum = existing_record
+            if existing_checksum != request_checksum:
+                raise ValueError("idempotency_key_reused_with_different_request") from None
+            return existing_run
+
+    def _create_run_transaction(
+        self, run: Run, *, idempotency_key_hash: str, request_checksum: str, input_text: str
+    ) -> Run:
         """在一个事务创建 Run 与前两条事件。"""
+        if not run.organization_id:
+            # 归属为空的 Run 无法归因；写成默认组织会让它对默认组织管理员可见，
+            # 违反「归属为空 = 对任何人不可见」的约定，因此在这里拒绝落库。
+            raise ValueError("run_organization_required")
         with self._session_factory.begin() as database_session:
             run_model = RunModel(
                 id=run.id,
@@ -114,6 +142,9 @@ class SqlAlchemyRunRepository:
                 subject_snapshot=asdict(run.subject_snapshot),
                 subject_snapshot_checksum=run.subject_snapshot_checksum,
                 owner_id=run.owner_id,
+                organization_id=run.organization_id,
+                conversation_id=run.conversation_id,
+                execution_snapshot=run.execution_snapshot,
                 status=run.status.value,
                 last_event_seq=0,
                 idempotency_key_hash=idempotency_key_hash,
@@ -235,6 +266,8 @@ class SqlAlchemyRunRepository:
             run_model.final_message_id = candidate.payload["message_id"]
         if candidate.event_type == "run.failed":
             run_model.error = candidate.payload["error"]
+        if candidate.event_type == "run.interrupted":
+            run_model.error = {"code": candidate.payload["reason_code"]}
         database_session.flush()
         return event_model
 
@@ -247,24 +280,59 @@ class SqlAlchemyRunRepository:
         filter_conditions = []
         if query.run_id:
             filter_conditions.append(RunModel.id == query.run_id)
+        # None 表示调用方（平台级诊断）刻意不限定该维度；空串表示没有有效归属，
+        # 必须匹配不到任何行，而不是放开成全组织/全 owner 查询。
+        if query.organization_id is not None:
+            filter_conditions.append(RunModel.organization_id == query.organization_id)
+        if query.owner_id is not None:
+            filter_conditions.append(RunModel.owner_id == query.owner_id)
+        if query.conversation_id:
+            filter_conditions.append(RunModel.conversation_id == query.conversation_id)
         if query.subject_id:
             filter_conditions.append(RunModel.subject_id == query.subject_id)
+        if query.excluded_subject_type:
+            filter_conditions.append(RunModel.subject_type != query.excluded_subject_type)
         if query.status is not None:
             filter_conditions.append(RunModel.status == query.status.value)
+        if query.statuses is not None:
+            filter_conditions.append(
+                RunModel.status.in_([status.value for status in query.statuses])
+            )
         if query.created_after is not None:
             filter_conditions.append(RunModel.created_at >= query.created_after)
         if query.created_before is not None:
             filter_conditions.append(RunModel.created_at <= query.created_before)
+        status_timestamp = func.coalesce(
+            RunModel.finished_at, RunModel.started_at, RunModel.created_at
+        )
+        if query.status_timestamp_after is not None:
+            filter_conditions.append(status_timestamp >= query.status_timestamp_after)
+        page_conditions = list(filter_conditions)
+        if query.status_timestamp_cursor is not None:
+            if not query.status_timestamp_cursor_run_id:
+                raise ValueError("status_timestamp_cursor_run_id_required")
+            page_conditions.append(
+                or_(
+                    status_timestamp < query.status_timestamp_cursor,
+                    and_(
+                        status_timestamp == query.status_timestamp_cursor,
+                        RunModel.id < query.status_timestamp_cursor_run_id,
+                    ),
+                )
+            )
         with self._session_factory() as database_session:
             total_count = database_session.scalar(
                 select(func.count()).select_from(RunModel).where(*filter_conditions)
             )
+            ordered_query = select(RunModel).where(*page_conditions)
+            if query.order_by_status_timestamp:
+                ordered_query = ordered_query.order_by(status_timestamp.desc(), RunModel.id.desc())
+            else:
+                ordered_query = ordered_query.order_by(
+                    RunModel.created_at.desc(), RunModel.id.desc()
+                )
             run_models = database_session.scalars(
-                select(RunModel)
-                .where(*filter_conditions)
-                .order_by(RunModel.created_at.desc(), RunModel.id.desc())
-                .offset(query.offset)
-                .limit(query.limit)
+                ordered_query.offset(query.offset).limit(query.limit)
             ).all()
             return RunPage(
                 runs=tuple(_to_run(run_model, database_session) for run_model in run_models),
@@ -332,14 +400,45 @@ class SqlAlchemyRunRepository:
             run_model = database_session.scalar(
                 select(RunModel).where(RunModel.id == run_id).with_for_update()
             )
-            if run_model is None or run_model.status != RunStatus.QUEUED.value:
+            now = datetime.now(UTC)
+            if (
+                run_model is None
+                or run_model.status != RunStatus.QUEUED.value
+                or (run_model.lease_expires_at is not None and run_model.lease_expires_at > now)
+            ):
                 return False
             run_model.executor_instance_id = instance_id
             run_model.lease_expires_at = lease_expires_at
             return True
 
+    def interrupt_expired(self, run_id: str, now: datetime) -> bool:
+        """事务确认租约仍过期后追加终态中断事件。"""
+        with self._session_factory.begin() as database_session:
+            run_model = database_session.scalar(
+                select(RunModel).where(RunModel.id == run_id).with_for_update()
+            )
+            if (
+                run_model is None
+                or RunStatus(run_model.status) in TERMINAL_RUN_STATUSES
+                or run_model.lease_expires_at is None
+                or run_model.lease_expires_at >= now
+            ):
+                return False
+            self._append_locked(
+                database_session,
+                run_model,
+                RunEventCandidate(
+                    "run.interrupted",
+                    {
+                        "reason_code": "execution_lease_expired",
+                        "lease_expired_at": run_model.lease_expires_at.isoformat(),
+                    },
+                ),
+            )
+            return True
+
     def heartbeat(self, run_id: str, instance_id: str, lease_expires_at: datetime) -> bool:
-        """续租当前执行实例。
+        """续租当前执行实例；Run 进入 cancelling 或终态后停止续租。
 
         读取必须和 ``append_event`` 抢同一把行锁。不加锁时这里读到的可能是终态提交
         前的旧版本：判定"还没终态"之后再把租约写回去，就会覆盖掉终态写清空的
@@ -352,7 +451,7 @@ class SqlAlchemyRunRepository:
             if (
                 run_model is None
                 or run_model.executor_instance_id != instance_id
-                or RunStatus(run_model.status) in TERMINAL_RUN_STATUSES
+                or RunStatus(run_model.status) in (TERMINAL_RUN_STATUSES | {RunStatus.CANCELLING})
             ):
                 return False
             run_model.lease_expires_at = lease_expires_at

@@ -1,6 +1,6 @@
 # 项目文档
 
-本项目是一个面向通用 Python 工程实践的模板仓库，演进方向不是“松散工具集合”，而是 **DDD 边界意识 + Clean Architecture 依赖方向 + 模块化单体** 的四层架构骨架。模板刻意不内置业务域，业务模块由派生项目自行添加。
+本项目是一个面向 Python Web 项目的模板仓库，提供多组织 Agent 工作区，以及 **DDD 边界意识 + Clean Architecture 依赖方向 + 模块化单体** 的四层后端骨架。派生项目可在通用 Agent 能力上继续添加产品专属流程。
 
 ## 项目定位
 
@@ -19,7 +19,7 @@
 
 ### 双前端
 
-- **`frontend-admin/`**: 管理平台前端（Admin Dashboard），Vite + React + TanStack Router + shadcn-admin。
+- **`frontend-admin/`**: 管理平台前端（Admin Dashboard），Vite + React + TanStack Router + shadcn/ui。
 - **`frontend-public/`**: 前台官网（Marketing + App Shell），Next.js + React + Tailwind CSS v4 + shadcn/ui。
 
 两个前端都通过 `/api/*` HTTP 接口调用后端，使用同一份 HTTP-only `session_id` cookie 会话。

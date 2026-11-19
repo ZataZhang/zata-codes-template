@@ -118,6 +118,8 @@ just e2e-report
 
 `just e2e` 会把每次运行的 artifacts（视频、截图、trace、junit.xml）写入按时间戳命名的目录，例如 `tests/playwright-e2e/test-results/2026-07-02T11-31-08/`。HTML 报告仍固定在 `playwright-report/`，方便 `just e2e-report` 打开。
 
+受限环境可设置 `PLAYWRIGHT_REMOTE_BROWSER_WS`，让 Playwright 连接隔离运行的 Chromium 浏览器服务；服务端与客户端必须使用同一 Playwright 版本。应用仍通过本机真实 HTTP 入口访问，认证、API、数据库和页面流程不变；管理端开发服务仅在此模式下允许 `host.docker.internal`。设置 `PLAYWRIGHT_RECORD_VIDEO=0` 可关闭 Playwright 用例视频录制，默认本地录像与 CI 失败录像策略保持不变。
+
 ### 凭据
 
 `no-auth` 测试不需要凭据。

@@ -26,11 +26,18 @@ export default defineConfig({
   },
   server: {
     port: frontendPort,
+    allowedHosts: process.env.PLAYWRIGHT_REMOTE_BROWSER_WS?.trim()
+      ? ['host.docker.internal']
+      : undefined,
     proxy: {
       '/api': {
         target: `http://localhost:${backendPort}`,
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
+      },
+      '^/a2a/': {
+        target: `http://localhost:${backendPort}`,
+        changeOrigin: true,
       },
     },
   },

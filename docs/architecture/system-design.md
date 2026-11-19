@@ -1,6 +1,6 @@
 # 系统架构
 
-本仓库遵循 **DDD 边界意识 + Clean Architecture 依赖方向 + 模块化单体** 的设计理念，目标是把模板演进为一个可长期维护的四层项目骨架，而不是把所有能力堆在一个扁平工具目录里。模板刻意不内置业务域，业务模块由派生项目自行添加。
+本仓库遵循 **DDD 边界意识 + Clean Architecture 依赖方向 + 模块化单体** 的设计理念，目标是把模板演进为一个可长期维护的四层项目骨架，而不是把所有能力堆在一个扁平工具目录里。在线 Agent、Run、Skill 与 A2A 是模板提供的通用多组织能力；货运、办公套件、市场等产品业务仍由派生项目自行添加。
 
 ## 架构原则
 
@@ -47,6 +47,8 @@
 - `src/backend/infrastructure/config/providers/`：承接平台无关的运行时配置 provider 契约，以及本地 TOML、Nacos 等适配器。
 - `src/backend/infrastructure/logging/`：承接日志实现。
 - `src/backend/infrastructure/persistence/`：承接数据库与持久化实现。
+- `src/backend/core/agent/`：组织范围 Agent、Canonical Run、Skill 版本与 A2A 授权用例。
+- `src/backend/infrastructure/a2a/`：实现受控 A2A 1.0 客户端、Agent Card 校验与出站地址策略。
 - `src/backend/infrastructure/helpers.py`：承接通用无状态辅助函数。
 - `packages/oidc-client/`：与四层 backend 边界分离的可安装 `zata-oidc` Python 包，只提供 OIDC 协议客户端与协议契约，不依赖 `src/backend/`。
 - `src/backend/engines/`：承接项目特定的平台能力（如爬虫、OCR 等）和 MCP server（由派生项目扩展）。
@@ -61,7 +63,7 @@ flowchart TD
     subgraph FE["前端层"]
         direction TB
         subgraph FE_ADMIN["frontend-admin/ 管理平台"]
-            FE_ADMIN_PAGES["src/pages/\nLoginPage · DashboardPage"]
+            FE_ADMIN_PAGES["src/routes/\n登录 · Agent 与 Skill 治理 · 运行轨迹"]
             FE_ADMIN_LAYOUT["src/components/\nAppSidebar · SiteHeader · shadcn/ui"]
             FE_ADMIN_AUTH["src/auth/\nSessionProvider · RequireSession"]
             FE_ADMIN_API["src/api/\nclient · auth"]
@@ -73,7 +75,7 @@ flowchart TD
 
         subgraph FE_PUBLIC["frontend-public/ 前台官网"]
             FE_PUBLIC_MARKETING["app/(marketing)/\nHome · Pricing · Features"]
-            FE_PUBLIC_APP["app/(app)/\nDashboard · Settings"]
+            FE_PUBLIC_APP["app/(app)/\nAgent 目录 · 运行会话 · 历史 · Settings"]
             FE_PUBLIC_AUTH["lib/auth.tsx"]
             FE_PUBLIC_API["lib/api.ts"]
             FE_PUBLIC_MARKETING --> FE_PUBLIC_AUTH
@@ -83,8 +85,9 @@ flowchart TD
         end
     end
 
-    FE_ADMIN_API -->|"HTTP /api/*\n(nginx 反代)"| Apps
-    FE_PUBLIC_API -->|"HTTP /api/*\n(直接调用)"| Apps
+FE_ADMIN_API -->|"同源 /api/*\n(Nginx 反代)"| Apps
+FE_PUBLIC_API -->|"同源 /api/*\n(Next Route Handler 流转发 + fallback rewrite)"| Apps
+ExternalA2A["外部 A2A 1.0 客户端"] -->|"/a2a/*\n独立协议入口"| Apps
 
     subgraph Backend["Python 后端"]
         direction TB
@@ -135,7 +138,7 @@ flowchart TD
 
 | 层 | 路径 | 职责 |
 |---|---|---|
-| 页面层 | `src/pages/` | 路由级页面组件（登录、Dashboard） |
+| 页面层 | `src/routes/`、`src/features/` | 路由级页面组件（登录、Agent/Skill 治理、A2A 审批、Run 诊断） |
 | 布局层 | `src/components/` | Sidebar、Header、shadcn/ui 基础组件 |
 | 认证层 | `src/auth/` | SessionProvider 上下文、RequireSession 路由守卫 |
 | API 层 | `src/api/` | API 客户端封装、会话缓存，与后端唯一通信入口 |
@@ -145,14 +148,15 @@ flowchart TD
 | 层 | 路径 | 职责 |
 |---|---|---|
 | 营销页面 | `app/(marketing)/` | 首页、功能、授权、关于等落地页 |
-| 应用页面 | `app/(app)/` | 登录后的 Dashboard、Settings（仅认证骨架，无业务域） |
+| 应用页面 | `app/(app)/` | 登录后的 Agent 目录、消息运行与历史、Settings |
 | 认证层 | `lib/auth.tsx` | 会话状态、受保护布局 |
 | API 层 | `lib/api.ts` | axios/fetch 封装、环境基址、错误处理 |
 
 前端与后端之间**仅通过 `/api/*` HTTP 接口通信**：
 
-- `frontend-admin/` 开发时由 Vite 代理转发，生产时由 Nginx `/api/*` 反代到后端。
-- `frontend-public/` 开发时直接请求 `http://localhost:8000`，生产时通过 `API_BASE_URL` 指向后端。
+- `frontend-admin/` 开发时由 Vite 将 `/api/*` 重写一次后转发；生产时由 Nginx 代理。Vite 的 A2A 代理只匹配 `^/a2a/` 协议路径，避免拦截管理页 `/a2a-approvals/`。
+- `frontend-public/` 普通 `/api/*` 请求由 Next fallback rewrite 转发；Agent Run SSE 由 App Router Route Handler 透传响应流，确保增量事件及时到达浏览器。
+- 两个前端将独立的 `/a2a/*` 路径转发到后端，供协议客户端使用；浏览器 API 客户端仍使用单一 `/api` baseURL。
 
 两侧无任何代码直接依赖。
 
@@ -206,17 +210,19 @@ Nacos 顶层 JSON 使用大写环境变量名，可选的 `runtime_config` 对�
 | 会话存储 | Redis，key 前缀 `public:session:` | Redis，key 前缀 `admin:session:` |
 | 鉴权依赖 | `get_current_public_user` | `get_current_admin_user` |
 | 权限 | 用户由所属组织归类 | `platform` 管理全局；`org` 只能访问白名单中的本组织用户接口 |
-| 主要 API | `/auth/*`（无内置业务资源） | 平台管理员管理组织、管理员和 public 用户 |
+| 主要 API | `/auth/*`、组织范围 `/agents` 与 `/agent-runs` | 组织管理员管理 Agent、Skill、A2A 对端；平台管理员管理组织、管理员与对端审批 |
 | 前端 | `frontend-public` | `frontend-admin` |
 
 ### 隔离保证
 
 - 两域各自独立的用户表、Cookie 与 Redis 命名空间；一个域的会话 token 在另一域命名空间中查不到，因此 public 会话无法通过 admin 守卫（反之亦然），均返回 401。
 - admin 专属路由集中在 `src/backend/api/admin/`；仅平台管理员可用的入口经 `get_current_platform_admin` 守卫，组织管理员仅由明确白名单放行。
-- 模板不内置业务资源，业务模块由派生项目添加；admin 域仅用于管理，不拥有业务资源。
+- Agent、Skill、Run/Event 和 A2A 凭据按创建时组织归属过滤；admin 域只提供明确授权的管理入口，不因平台角色自动开放 Run 正文。
 - 被本地禁用（`is_active=false`）的 public/admin 账户，其既有会话在下次请求解析时立即失效；管理员密码与 OIDC 新登录同时拒绝。组织停用会阻止其普通用户和组织管理员登录，并令已有会话下次请求失效，平台管理员不受影响。
 
 ### 共享编排（避免重复）
+
+在线 Agent 的跨层契约与组织边界见[多组织 Agent 底座](multi-org-agent.md)。
 
 密码登录 / 登出 / 会话解析 / 注册的编排集中在 `core/auth/AuthService`；OIDC 登录由 `core/auth/OidcLoginService` 复用协议网关和一次性事务流程，并注入不同认证域的账户匹配规则。注册策略由宿主应用保存到系统设置，缺少策略记录时使用 `both` 与空域名白名单；记录损坏或存储故障时拒绝创建账户。`UserAccount` 领域模型位于 `core/shared/models/`，作为跨层契约被基础设施层仓库实现引用。
 

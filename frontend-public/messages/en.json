@@ -1,7 +1,7 @@
 {
   "html": {
     "title": "My App - Project Template",
-    "description": "A Python project template with a four-layer backend skeleton, dual auth domains, two frontends, and observability. Ships with no business domain."
+    "description": "A Python project template with an organization-scoped Agent workspace, dual auth domains, two frontends, and observability."
   },
   "common": {
     "appName": "My App",
@@ -15,6 +15,7 @@
     "pricing": "Pricing",
     "about": "About",
     "dashboard": "Dashboard",
+    "agents": "Agents",
     "settings": "Settings",
     "signIn": "Sign in",
     "getStarted": "Start free"
@@ -24,10 +25,10 @@
       "badge": "A project template built for long-term evolution",
       "titleLine1": "A clean skeleton,",
       "titleAccent": "engineering only",
-      "subtitle": "A four-layer modular monolith with dual auth domains and observability. No business domain inside, so every derived project starts its own from scratch.",
+      "subtitle": "A four-layer application base with organization-scoped Agents, persistent runs, dual auth domains, and observability.",
       "ctaPrimary": "Start for free",
       "ctaSecondary": "Explore the skeleton",
-      "highlightNoDomain": "No business domain residue",
+      "highlightNoDomain": "Organization-scoped Agent workspace",
       "highlightAuth": "Auth works out of the box",
       "highlightTooling": "Complete engineering setup"
     },
@@ -69,7 +70,7 @@
       "sectionSubtitle": "Copy the template, configure the environment, start the services",
       "copy": {
         "title": "Copy the template",
-        "description": "Run just copy <name> to create a new project without dependencies or build artifacts."
+        "description": "Run just copy with a project name to create a new project without dependencies or build artifacts."
       },
       "configure": {
         "title": "Configure the environment",
@@ -89,11 +90,11 @@
       },
       "businessCode": {
         "question": "Does the template ship business code?",
-        "answer": "No business domain is included. Auth, configuration, observability, and persistence are the only skeleton; derived projects add their own business modules."
+        "answer": "Yes. It includes organization-scoped Agents, persistent runs, versioned Skills, and authorized A2A interoperability, alongside reusable engineering foundations."
       },
       "createProject": {
         "question": "How do I create a new project from the template?",
-        "answer": "Use just copy <name> to copy it into a standalone project, then configure environment variables and the database as described in the README."
+        "answer": "Run just copy with a project name to create a standalone project, then configure environment variables and the database as described in the README."
       }
     },
     "cta": {
@@ -103,7 +104,7 @@
     },
     "aboutPage": {
       "title": "About this template",
-      "description": "A Python template for starting new projects: a four-layer backend skeleton, dual auth domains, and complete engineering facilities. It deliberately ships no business domain, so every derived project builds its own from a clean starting point.",
+      "description": "A Python template with organization-scoped Agents, persistent runs, versioned Skills, dual auth domains, and a four-layer backend for project-specific extensions.",
       "principles": {
         "simple": {
           "title": "Simplicity first",
@@ -121,7 +122,7 @@
     },
     "featuresPage": {
       "title": "Template capabilities",
-      "subtitle": "Engineering skeleton only — no business domain included",
+      "subtitle": "A reusable engineering base with an organization-scoped Agent workspace",
       "items": {
         "architecture": {
           "title": "Four-layer architecture",
@@ -198,14 +199,46 @@
   "dashboard": {
     "title": "Workspace",
     "signedIn": "Signed in",
-    "gettingStartedTitle": "Start building your business",
-    "gettingStartedBody": "This template keeps only auth and infrastructure, with no business domain included. Add your own modules on the four-layer architecture: define use cases and domain contracts under src/backend/core/, implement platform capabilities under src/backend/engines/, and expose HTTP entrypoints under src/backend/api/.",
+    "gettingStartedTitle": "Your Agent workspace",
+    "gettingStartedBody": "Choose an Agent from your organization, start a conversation, and reopen saved runs from the history list.",
     "accountSettings": "Account settings"
+  },
+  "agents": {
+    "eyebrow": "Organization workspace",
+    "title": "Agents",
+    "subtitle": "Use the Agents published for your organization and continue from saved history.",
+    "chooseAgent": "Choose an Agent",
+    "emptyAgents": "No Agents have been published for your organization yet.",
+    "available": "Ready",
+    "unavailable": "Unavailable",
+    "unavailableReason": "Reason: {reason}",
+    "noDescription": "No description provided.",
+    "conversation": "Conversation",
+    "you": "You",
+    "agentReply": "Agent reply",
+    "runStatus": "Status: {status}",
+    "thinking": "The Agent is working…",
+    "streamingReply": "Streaming reply…",
+    "cancelRun": "Cancel run",
+    "cancelling": "Cancelling…",
+    "cancelFailed": "Could not cancel this run.",
+    "noReply": "No reply was recorded.",
+    "runId": "Run ID: {id}",
+    "skillVersion": "Frozen Skill version: v{version}",
+    "emptyConversation": "Choose an Agent and send a message to begin.",
+    "messagePlaceholder": "Write a message…",
+    "send": "Send message",
+    "history": "Recent history",
+    "emptyHistory": "Your runs will appear here.",
+    "loadFailed": "Could not load the Agent directory.",
+    "refreshFailed": "Could not refresh this run.",
+    "historyFailed": "Could not reopen this run.",
+    "submitFailed": "Could not start the Agent run."
   },
   "settings": {
     "title": "Settings",
     "aboutTitle": "About this template",
-    "aboutBody": "This template keeps only auth and infrastructure, with no business domain included. Build your own business on top of it.",
+    "aboutBody": "A shared multi-organization Agent foundation with isolated Agent, Skill, and run history.",
     "signOut": "Sign out"
   },
   "footer": {

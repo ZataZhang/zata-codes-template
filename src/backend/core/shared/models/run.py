@@ -26,6 +26,9 @@ class RunStatus(str, Enum):
     INTERRUPTED = "interrupted"
 
 
+# 组织 Agent Run 的 subject_type；其事件含成员消息正文，只能经组织范围入口读取。
+ORGANIZATION_AGENT_SUBJECT_TYPE = "agent"
+
 TERMINAL_RUN_STATUSES = frozenset(
     {
         RunStatus.SUCCEEDED,
@@ -70,6 +73,9 @@ class Run:
     status: RunStatus
     last_event_seq: int
     created_at: datetime
+    organization_id: str | None = None
+    conversation_id: str | None = None
+    execution_snapshot: dict[str, object] | None = None
     input_content: tuple[dict[str, object], ...] = ()
     started_at: datetime | None = None
     finished_at: datetime | None = None
@@ -352,11 +358,20 @@ class RunQuery:
 
     run_id: str | None = None
     subject_id: str | None = None
+    excluded_subject_type: str | None = None
     status: RunStatus | None = None
     created_after: datetime | None = None
     created_before: datetime | None = None
+    organization_id: str | None = None
+    owner_id: str | None = None
+    conversation_id: str | None = None
     offset: int = 0
     limit: int = 50
+    statuses: tuple[RunStatus, ...] | None = None
+    order_by_status_timestamp: bool = False
+    status_timestamp_after: datetime | None = None
+    status_timestamp_cursor: datetime | None = None
+    status_timestamp_cursor_run_id: str | None = None
 
 
 @dataclass(frozen=True)

@@ -21,9 +21,12 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 
 from backend.core.run_tracing import trace_use_cases
+from backend.core.shared.models.organization import DEFAULT_ORGANIZATION_ID
 from backend.core.shared.models.run import (
+    ORGANIZATION_AGENT_SUBJECT_TYPE,
     Run,
     RunEventCandidate,
+    RunQuery,
     RunStatus,
     RunSubjectSnapshot,
     derive_root_span_id,
@@ -104,6 +107,7 @@ def _seed_run_with_tracing_events(
             status=RunStatus.QUEUED,
             last_event_seq=0,
             created_at=_BASE_TIME,
+            organization_id=DEFAULT_ORGANIZATION_ID,
         ),
         idempotency_key_hash=uuid4().hex,
         request_checksum="r" * 64,
@@ -310,6 +314,51 @@ def test_admin_trace_api_projects_seeded_run_without_leaking_content(
     assert audit_count == 1
 
 
+def test_platform_trace_api_hides_organization_agent_run(
+    build_client: Callable[[], TestClient],
+    seed_admin: Callable[[str, str], str],
+    entity_registry: TrackedEntityRegistry,
+) -> None:
+    """平台级诊断列表、详情和导出不读取组织 Agent 业务 Run。"""
+    repository = SqlAlchemyRunRepository(SessionLocal)
+    run_id = f"run_{uuid4().hex}"
+    private_agent_name = "org-a-private-agent"
+    private_owner_id = "org-a-private-member"
+    created_run = repository.create_run(
+        Run(
+            id=run_id,
+            owner_id=private_owner_id,
+            subject_id="org-a-private-agent-id",
+            subject_type=ORGANIZATION_AGENT_SUBJECT_TYPE,
+            subject_snapshot=RunSubjectSnapshot(
+                subject_type=ORGANIZATION_AGENT_SUBJECT_TYPE,
+                subject_id="org-a-private-agent-id",
+                subject_name=private_agent_name,
+                snapshot_checksum="c" * 64,
+            ),
+            subject_snapshot_checksum="c" * 64,
+            status=RunStatus.QUEUED,
+            last_event_seq=0,
+            created_at=_BASE_TIME,
+            organization_id="default",
+        ),
+        idempotency_key_hash=uuid4().hex,
+        request_checksum="r" * 64,
+        input_text="org-a-private-member-message",
+    )
+    entity_registry.run_ids.append(created_run.id)
+    admin_client, _admin_id = _login_admin(build_client, seed_admin)
+
+    list_response = admin_client.get("/admin/run-traces", params={"run_id": run_id})
+    assert list_response.status_code == 200
+    assert list_response.json()["items"] == []
+    assert list_response.json()["total"] == 0
+    assert private_agent_name not in list_response.text
+    assert private_owner_id not in list_response.text
+    assert admin_client.get(f"/admin/run-traces/{run_id}").status_code == 404
+    assert admin_client.get(f"/admin/run-traces/{run_id}/export").status_code == 404
+
+
 def _assert_admin_trace_contract(
     admin_client: TestClient,
     public_client: TestClient,
@@ -401,3 +450,176 @@ def _assert_admin_trace_contract(
     assert public_client.get("/admin/run-traces", params={"run_id": run_id}).status_code == 401
     assert public_client.get(f"/admin/run-traces/{run_id}").status_code == 401
     assert admin_client.get("/admin/run-traces/run_missing").status_code == 404
+
+
+def _build_scope_validation_run(organization_id: str | None) -> Run:
+    """构造仅用于组织归属边界校验的最小 Run 聚合。"""
+    subject_id = f"subject_scope_{uuid4().hex}"
+    return Run(
+        id=f"run_{uuid4().hex}",
+        owner_id=f"owner_scope_{uuid4().hex}",
+        subject_id=subject_id,
+        subject_type="internal",
+        subject_snapshot=RunSubjectSnapshot(
+            subject_type="internal",
+            subject_id=subject_id,
+            subject_name="Scope Validation Subject",
+            snapshot_checksum="c" * 64,
+        ),
+        subject_snapshot_checksum="c" * 64,
+        status=RunStatus.QUEUED,
+        last_event_seq=0,
+        created_at=_BASE_TIME,
+        organization_id=organization_id,
+    )
+
+
+def test_repository_refuses_run_without_organization() -> None:
+    """无归属 Run 不得被静默写成默认组织记录。"""
+    repository = SqlAlchemyRunRepository(SessionLocal)
+    unattributed_run = _build_scope_validation_run(None)
+
+    with pytest.raises(ValueError, match="run_organization_required"):
+        repository.create_run(
+            unattributed_run,
+            idempotency_key_hash=uuid4().hex,
+            request_checksum="r" * 64,
+            input_text="must not be persisted",
+        )
+    assert repository.get_by_id(unattributed_run.id) is None
+
+
+def test_blank_organization_scope_matches_no_runs(
+    entity_registry: TrackedEntityRegistry,
+) -> None:
+    """空组织是无效 scope：必须查不到任何行，而不是放开成全组织查询。"""
+    repository = SqlAlchemyRunRepository(SessionLocal)
+    attributed_run = _build_scope_validation_run(DEFAULT_ORGANIZATION_ID)
+    created_run = repository.create_run(
+        attributed_run,
+        idempotency_key_hash=uuid4().hex,
+        request_checksum="r" * 64,
+        input_text="org scoped run",
+    )
+    entity_registry.run_ids.append(created_run.id)
+
+    valid_scope_page = repository.query_runs_page(
+        RunQuery(run_id=created_run.id, organization_id=DEFAULT_ORGANIZATION_ID)
+    )
+    blank_scope_page = repository.query_runs_page(
+        RunQuery(run_id=created_run.id, organization_id="")
+    )
+    assert valid_scope_page.total == 1
+    assert blank_scope_page.total == 0
+
+
+def test_a2a_task_pages_use_status_timestamp_keyset(
+    entity_registry: TrackedEntityRegistry,
+) -> None:
+    """A2A Task 列表按状态时间倒序，并可使用复合游标连续读取。"""
+    repository = SqlAlchemyRunRepository(SessionLocal)
+    owner_id = f"a2a:{uuid4().hex}"
+    agent_id = f"agent_{uuid4().hex}"
+    candidate_runs: list[Run] = []
+    for _ in range(2):
+        run_id = f"run_{uuid4().hex}"
+        created_run = repository.create_run(
+            Run(
+                id=run_id,
+                owner_id=owner_id,
+                subject_id=agent_id,
+                subject_type=ORGANIZATION_AGENT_SUBJECT_TYPE,
+                subject_snapshot=RunSubjectSnapshot(
+                    subject_type=ORGANIZATION_AGENT_SUBJECT_TYPE,
+                    subject_id=agent_id,
+                    subject_name="A2A Pagination Agent",
+                    snapshot_checksum="c" * 64,
+                ),
+                subject_snapshot_checksum="c" * 64,
+                status=RunStatus.QUEUED,
+                last_event_seq=0,
+                created_at=_BASE_TIME,
+                organization_id=DEFAULT_ORGANIZATION_ID,
+                conversation_id="context-pagination",
+            ),
+            idempotency_key_hash=uuid4().hex,
+            request_checksum="r" * 64,
+            input_text="pagination fixture",
+        )
+        entity_registry.run_ids.append(created_run.id)
+        candidate_runs.append(created_run)
+
+    started_run = repository.append_event(
+        candidate_runs[0].id,
+        RunEventCandidate("run.started", {"started_at": _BASE_TIME.isoformat()}),
+    )
+    started_projection = repository.get_by_id(candidate_runs[0].id)
+    assert started_projection is not None and started_projection.started_at is not None
+
+    page_conditions = {
+        "organization_id": DEFAULT_ORGANIZATION_ID,
+        "owner_id": owner_id,
+        "subject_id": agent_id,
+        "conversation_id": "context-pagination",
+        "limit": 1,
+        "order_by_status_timestamp": True,
+    }
+    first_page = repository.query_runs_page(RunQuery(**page_conditions))
+    second_page = repository.query_runs_page(
+        RunQuery(
+            **page_conditions,
+            status_timestamp_cursor=started_projection.started_at,
+            status_timestamp_cursor_run_id=candidate_runs[0].id,
+        )
+    )
+    filtered_page = repository.query_runs_page(
+        RunQuery(
+            **page_conditions,
+            status_timestamp_after=started_projection.started_at,
+        )
+    )
+
+    assert first_page.total == second_page.total == 2
+    assert first_page.runs[0].id == candidate_runs[0].id
+    assert second_page.runs[0].id == candidate_runs[1].id
+    assert filtered_page.total == 1
+    assert filtered_page.runs[0].id == candidate_runs[0].id
+    assert started_run.event_type == "run.started"
+
+    failed_run_ids: list[str] = []
+    for terminal_event, payload in (
+        ("run.failed", {"error": {"code": "fixture_failure"}}),
+        (
+            "run.interrupted",
+            {"reason_code": "fixture_interrupted", "lease_expired_at": _BASE_TIME.isoformat()},
+        ),
+    ):
+        failed_run = _build_scope_validation_run(DEFAULT_ORGANIZATION_ID)
+        failed_run.owner_id = owner_id
+        failed_run.subject_id = agent_id
+        failed_run.subject_type = ORGANIZATION_AGENT_SUBJECT_TYPE
+        failed_run.subject_snapshot = RunSubjectSnapshot(
+            subject_type=ORGANIZATION_AGENT_SUBJECT_TYPE,
+            subject_id=agent_id,
+            subject_name="A2A Pagination Agent",
+            snapshot_checksum="c" * 64,
+        )
+        failed_run.conversation_id = "context-pagination"
+        created_failed_run = repository.create_run(
+            failed_run,
+            idempotency_key_hash=uuid4().hex,
+            request_checksum="r" * 64,
+            input_text="pagination fixture",
+        )
+        entity_registry.run_ids.append(created_failed_run.id)
+        repository.append_event(created_failed_run.id, RunEventCandidate(terminal_event, payload))
+        failed_run_ids.append(created_failed_run.id)
+
+    failed_status_page = repository.query_runs_page(
+        RunQuery(
+            **{**page_conditions, "limit": 10},
+            statuses=(RunStatus.FAILED, RunStatus.INTERRUPTED),
+        )
+    )
+    assert failed_status_page.total == 2
+    assert {run.id for run in failed_status_page.runs} == set(failed_run_ids)

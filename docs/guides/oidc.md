@@ -2,7 +2,7 @@
 
 本仓库在 public 和 admin 两个认证域提供可选的 OpenID Connect 登录入口。OIDC 只证明身份；账户匹配、注册策略、权限、组织归属和本地会话仍由宿主应用控制。成功登录后继续使用现有 Redis Session 与 HttpOnly Cookie，不向浏览器发放 ID Token 或 access token。
 
-身份提供方需支持 OIDC 授权码流程、confidential client、RS256 ID Token 和 PKCE S256。Keycloak 是可选的身份提供方实现；应用不依赖 Keycloak SDK、FreshAI 或 zata-ops 运行。FreshAI 代码与 zata-ops 的身份中心运维资料只是实现/运维参考，不是本仓库的运行依赖，也不会由本仓库启动身份中心。
+身份提供方需支持 OIDC 授权码流程、confidential client、RS256 ID Token 和 PKCE S256。Keycloak 是可选的身份提供方实现；应用不依赖 Keycloak SDK 或 zata-ops 运行。早期实现参考的外部项目代码与 zata-ops 的身份中心运维资料只是实现/运维参考，不是本仓库的运行依赖，也不会由本仓库启动身份中心。
 
 ## 独立协议包与宿主边界
 

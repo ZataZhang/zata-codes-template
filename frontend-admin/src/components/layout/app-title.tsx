@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { Menu, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Logo } from '@/assets/logo'
 import {
   SidebarMenu,
   SidebarMenuButton,
@@ -9,7 +10,7 @@ import {
 } from '@/components/ui/sidebar'
 import { Button } from '../ui/button'
 
-/** Render the AppTitle component. */
+/** 渲染管理后台的通用名称与标识。 */
 export function AppTitle() {
   const { setOpenMobile } = useSidebar()
   return (
@@ -24,10 +25,13 @@ export function AppTitle() {
             <Link
               to='/'
               onClick={() => setOpenMobile(false)}
-              className='grid flex-1 text-start text-sm leading-tight'
+              className='flex flex-1 items-center gap-2 text-start text-sm leading-tight'
             >
-              <span className='truncate font-bold'>Shadcn-Admin</span>
-              <span className='truncate text-xs'>Vite + ShadcnUI</span>
+              <Logo className='size-7 shrink-0' />
+              <span className='grid min-w-0'>
+                <span className='truncate font-bold'>Agent Platform</span>
+                <span className='truncate text-xs'>Administration</span>
+              </span>
             </Link>
             <ToggleSidebar />
           </div>
@@ -37,7 +41,7 @@ export function AppTitle() {
   )
 }
 
-/** Render the ToggleSidebar component. */
+/** 渲染侧边栏展开与收起按钮。 */
 function ToggleSidebar({
   className,
   onClick,

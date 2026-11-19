@@ -114,13 +114,10 @@ services:
       # pnpm-workspace.yaml 与 pnpm-lock.yaml 都在根目录。
       context: .
       dockerfile: frontend-public/Dockerfile
+      args:
+        API_BASE_URL: ${API_BASE_URL:-http://zata-codes-template-backend:8000}
     ports:
       - "${FRONTEND_PUBLIC_PORT:-3000}:3000"
-    env_file:
-      - path: .env
-        required: false
-      - path: ${COMPOSE_LOCAL_ENV_FILE:-.env.local}
-        required: false
     environment:
       - API_BASE_URL=${API_BASE_URL:-http://zata-codes-template-backend:8000}
     depends_on:

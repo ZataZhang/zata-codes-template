@@ -62,8 +62,8 @@ const ISO_START = '2026-09-21T08:42:08.000Z'
 function makeSummary(overrides: Partial<TraceSummary> = {}): TraceSummary {
   return {
     run_id: 'run_8f31c2',
-    subject_id: 'subject-freight',
-    subject_name: 'freight-agent',
+    subject_id: 'subject-support',
+    subject_name: 'support-agent',
     owner_id: 'owner-chen',
     status: 'succeeded',
     created_at: ISO_START,

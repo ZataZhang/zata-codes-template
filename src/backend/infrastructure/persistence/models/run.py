@@ -44,6 +44,19 @@ class RunModel(Base):
     owner_id: Mapped[str] = mapped_column(
         String(64), nullable=False, index=True, comment="所属用户 ID。"
     )
+    organization_id: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("organization.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+        comment="Run 创建时所属组织；不随成员调动改变。",
+    )
+    conversation_id: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, index=True, comment="所属会话 ID；历史 Run 为空。"
+    )
+    execution_snapshot: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON, nullable=True, comment="创建时冻结的 Agent、模型与 Skill 版本快照。"
+    )
     status: Mapped[str] = mapped_column(String(32), nullable=False, comment="Run 状态。")
     last_event_seq: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, comment="最后事件序号。"

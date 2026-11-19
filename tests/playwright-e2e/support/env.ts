@@ -88,7 +88,8 @@ export function getBaseUrl(): string {
   const stackMode = getStackMode()
   const publicPort = runState.FRONTEND_PUBLIC_PORT ?? '3000'
   const fallback = stackMode === 'docker' ? 'http://127.0.0.1:8080' : `http://127.0.0.1:${publicPort}`
-  return trimTrailingSlash(process.env.PLAYWRIGHT_BASE_URL ?? fallback)
+  const configured = process.env.PLAYWRIGHT_REMOTE_BASE_URL ?? process.env.PLAYWRIGHT_BASE_URL ?? fallback
+  return trimTrailingSlash(configured)
 }
 
 /**
@@ -165,7 +166,8 @@ export function getAdminBaseUrl(): string {
   const stackMode = getStackMode()
   const adminPort = runState.FRONTEND_ADMIN_PORT ?? runState.FRONTEND_PORT ?? '5173'
   const fallback = stackMode === 'docker' ? 'http://127.0.0.1:8081' : `http://localhost:${adminPort}`
-  return trimTrailingSlash(process.env.PLAYWRIGHT_ADMIN_BASE_URL ?? fallback)
+  const configured = process.env.PLAYWRIGHT_REMOTE_ADMIN_BASE_URL ?? process.env.PLAYWRIGHT_ADMIN_BASE_URL ?? fallback
+  return trimTrailingSlash(configured)
 }
 
 /**

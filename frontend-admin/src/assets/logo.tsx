@@ -1,11 +1,10 @@
 import { type SVGProps } from 'react'
 import { cn } from '@/lib/utils'
 
-/** Render the Logo component. */
+/** 渲染平台通用标识。 */
 export function Logo({ className, ...props }: SVGProps<SVGSVGElement>) {
   return (
     <svg
-      id='shadcn-admin-logo'
       viewBox='0 0 24 24'
       xmlns='http://www.w3.org/2000/svg'
       height='24'
@@ -18,8 +17,11 @@ export function Logo({ className, ...props }: SVGProps<SVGSVGElement>) {
       className={cn('size-6', className)}
       {...props}
     >
-      <title>Shadcn-Admin</title>
-      <path d='M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3' />
+      <title>Agent Platform</title>
+      <circle cx='12' cy='5.5' r='2.5' />
+      <circle cx='5.5' cy='18' r='2.5' />
+      <circle cx='18.5' cy='18' r='2.5' />
+      <path d='m10.5 7.5-3.7 8M13.5 7.5l3.7 8M8 18h8' />
     </svg>
   )
 }

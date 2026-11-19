@@ -15,6 +15,7 @@ from uuid import uuid4
 
 from backend.core.shared.interfaces.run_repository import RunRepository
 from backend.core.shared.models.run import (
+    ORGANIZATION_AGENT_SUBJECT_TYPE,
     Run,
     RunEvent,
     RunExportAudit,
@@ -232,7 +233,11 @@ class RunTraceUseCase:
         Returns:
             tuple[list[RunTraceSummary], int]: 当前页摘要与命中总数。
         """
-        page = self._repository.query_runs_page(query)
+        platform_diagnostic_query = replace(
+            query,
+            excluded_subject_type=ORGANIZATION_AGENT_SUBJECT_TYPE,
+        )
+        page = self._repository.query_runs_page(platform_diagnostic_query)
         activity_by_run_id = self._repository.summarize_trace_activity(
             [run.id for run in page.runs]
         )
@@ -258,7 +263,7 @@ class RunTraceUseCase:
             LookupError: Run 不存在时抛出。
         """
         run = self._repository.get_by_id(run_id)
-        if run is None:
+        if run is None or run.subject_type == ORGANIZATION_AGENT_SUBJECT_TYPE:
             raise LookupError("Run 不存在")
         events = self._repository.list_events(run_id, 0)
         return project_run_trace(run, events)
@@ -278,7 +283,8 @@ class RunTraceUseCase:
             RunExportError: Run 未终结、事件不完整或超过大小上限。
         """
         run = self._repository.get_by_id(run_id)
-        if run is None:
+        # 组织 Agent Run 含成员消息正文；平台诊断入口不因平台身份获得原文，按不存在处理。
+        if run is None or run.subject_type == ORGANIZATION_AGENT_SUBJECT_TYPE:
             raise LookupError("Run 不存在")
         if run.status not in _TERMINAL_RUN_STATUSES:
             raise RunExportError(409, "Run 尚未终结，请稍后下载")
@@ -557,9 +563,17 @@ def _apply_tool_event(
         if builder.mark_terminal(RunTraceSpanStatus.COMPLETED, event.occurred_at):
             result_checksum = event.payload.get("result_checksum")
             raw_result = event.payload.get("result")
+            reported_result_length = event.payload.get("result_length")
             builder.update(
                 result_checksum=str(result_checksum) if result_checksum else None,
-                result_length=len(raw_result) if isinstance(raw_result, str) else None,
+                result_length=(
+                    reported_result_length
+                    if isinstance(reported_result_length, int)
+                    and not isinstance(reported_result_length, bool)
+                    else len(raw_result)
+                    if isinstance(raw_result, str)
+                    else None
+                ),
             )
         return
     if builder.mark_terminal(RunTraceSpanStatus.FAILED, event.occurred_at):
