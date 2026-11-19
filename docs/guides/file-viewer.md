@@ -46,7 +46,7 @@ Changes」两段列出有改动的文件，右边是逐行 diff，顶部可以�
 | `just view --no-reuse` | 强制新起一个实例，不复用既有实例。旧实例不会自动收掉，需要时用 `just view --stop`，或等它自己闲置回收 |
 | `just view --no-open` | 只打印 URL，不打开浏览器 |
 | `just view --no-fetch` / `zview --no-fetch` | 跳过启动时的后台远端引用同步 |
-| `just view-install` | 安装全局 `zview` 命令（macOS/Linux，目标为 `~/.local/bin/zview`） |
+| `just view-install` | 安装全局 `zview` 命令（macOS/Linux 目标为 `~/.local/bin/zview`，Windows 目标为 `~/.local/bin/zview.cmd`） |
 | `zview` | 查看当前目录；Git 仓库中默认看改动，普通目录只显示文件 |
 | `zview <相对路径>` | 查看当前目录下的目标文件夹；路径相对当前 shell 目录解析 |
 | `zview <绝对路径>` | 查看指定文件夹 |
@@ -61,7 +61,8 @@ Changes」两段列出有改动的文件，右边是逐行 diff，顶部可以�
 显示本地已有引用，并明确提示远端状态可能过期。fetch 只更新远端跟踪引用，不会切换或更新当前工作分支。
 
 首次使用全局命令前，在项目里运行 `just view-install`。安装脚本只会在 `~/.local/bin`
-创建一个指向本仓库入口的符号链接；如果该位置已有其他 `zview`，安装会拒绝覆盖。确保
+创建一个指向本仓库入口的符号链接（Windows 上是一份转发到本仓库入口的 `zview.cmd`）；
+如果该位置已有其他 `zview`，安装会拒绝覆盖。确保
 `~/.local/bin` 已加入 `PATH`，之后就能从任意目录调用。全局命令接受相对路径和绝对路径，
 路径必须指向一个存在的文件夹。
 

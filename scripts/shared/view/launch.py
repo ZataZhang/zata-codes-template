@@ -344,6 +344,8 @@ def _is_process_alive(process_id: int) -> bool:
     Returns:
         bool: 进程存活且属于当前用户时为 ``True``。
     """
+    if sys.platform == "win32":
+        return _is_windows_process_alive(process_id)
     try:
         os.kill(process_id, 0)
     except ProcessLookupError:
@@ -352,6 +354,40 @@ def _is_process_alive(process_id: int) -> bool:
         # 进程存在但不属于当前用户：不可能是我们起出来的服务，按不新鲜处理。
         return False
     return True
+
+
+def _is_windows_process_alive(process_id: int) -> bool:
+    """在 Windows 上判断进程号是否仍存活。
+
+    Windows 的 ``os.kill(pid, 0)`` 不是探测：除控制台事件外的信号值都会落到
+    ``TerminateProcess``，等于把被探测的服务直接杀掉。这里改为打开进程句柄后做一次
+    零超时等待；``ctypes`` 按需 import，不落在其他平台的复用命中预算上。
+
+    Args:
+        process_id (int): 待探测的进程号。
+
+    Returns:
+        bool: 进程存活且当前用户可访问时为 ``True``。
+    """
+    import ctypes
+
+    synchronize_access = 0x00100000
+    wait_timeout = 0x00000102
+    kernel32 = ctypes.WinDLL("kernel32")  # type: ignore[attr-defined,unused-ignore]
+    kernel32.OpenProcess.restype = ctypes.c_void_p
+    kernel32.OpenProcess.argtypes = (ctypes.c_uint32, ctypes.c_int, ctypes.c_uint32)
+    kernel32.WaitForSingleObject.restype = ctypes.c_uint32
+    kernel32.WaitForSingleObject.argtypes = (ctypes.c_void_p, ctypes.c_uint32)
+    kernel32.CloseHandle.argtypes = (ctypes.c_void_p,)
+
+    process_handle = kernel32.OpenProcess(synchronize_access, 0, process_id)
+    if not process_handle:
+        # 进程不存在，或存在但不属于当前用户：两种情况都按不新鲜处理。
+        return False
+    try:
+        return bool(kernel32.WaitForSingleObject(process_handle, 0) == wait_timeout)
+    finally:
+        kernel32.CloseHandle(process_handle)
 
 
 def _is_port_connectable(port: int) -> bool:
@@ -584,7 +620,8 @@ def _spawn_server_process(
     """以新会话拉起服务进程。
 
     新会话让服务脱离当前终端的进程组：关掉终端或按下 Ctrl-C 都不会顺手带走常驻实例，
-    回收只走空闲时限或 ``--stop`` 这两条明确路径。
+    回收只走空闲时限或 ``--stop`` 这两条明确路径。Windows 没有会话概念，改用独立进程组
+    加隐藏控制台达到同样效果；隐藏控制台会被服务拉起的 ``git`` 子进程继承，不会弹窗。
 
     Args:
         repository_root (Path): 仓库根绝对路径。
@@ -616,12 +653,16 @@ def _spawn_server_process(
         server_environment[instance.GIT_PREFIX_ENVIRONMENT_VARIABLE] = (
             f"{launch_request.git_prefix.rstrip('/')}/"
         )
+    windows_creation_flags = 0
+    if sys.platform == "win32":
+        windows_creation_flags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
     service_process = subprocess.Popen(
         server_arguments,
         stdin=subprocess.DEVNULL,
         stdout=service_log_handle,
         stderr=service_log_handle,
         start_new_session=True,
+        creationflags=windows_creation_flags,
         close_fds=True,
         env=server_environment,
     )
