@@ -2881,6 +2881,32 @@
       }
       return;
     }
+    // 改动条目选中后，空格直接执行头部「查看文件」的同一跳转。仅在正文/当前改动行上接管，
+    // 输入区域与其它按钮仍保留各自的空格行为；文件树行本身是按钮，原生空格激活已能打开文件。
+    if (
+      keyboardEvent.key === " " &&
+      !keyboardEvent.altKey &&
+      !keyboardEvent.ctrlKey &&
+      !keyboardEvent.metaKey &&
+      !keyboardEvent.shiftKey &&
+      viewState.view === DIFF_VIEW &&
+      viewState.selectedPath &&
+      !elements.openFileButton.hidden
+    ) {
+      const eventTargetElement =
+        keyboardEvent.target instanceof Element ? keyboardEvent.target : null;
+      const focusedButton = eventTargetElement?.closest("button");
+      const focusedInput = eventTargetElement?.closest(
+        "input, textarea, select, [contenteditable='true']"
+      );
+      const isSelectedChangeRow =
+        focusedButton?.matches(".node[aria-selected='true']") ?? false;
+      if (!focusedInput && (!focusedButton || isSelectedChangeRow)) {
+        keyboardEvent.preventDefault();
+        void switchView(FILES_VIEW, viewState.selectedPath);
+        return;
+      }
+    }
     if (keyboardEvent.key === "f") {
       void switchView(FILES_VIEW);
     } else if (keyboardEvent.key === "d") {
