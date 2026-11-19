@@ -114,6 +114,11 @@ test("rv-2 publishes, runs, reopens history, and inspects the same Run", async (
     });
     markProgress("member Run completed with an observed incremental reply");
 
+    if (process.env.RV2_FORCE_STREAM_FAILURE === "1") {
+      await memberPage.route("**/api/agent-runs/*/events/stream**", (route) =>
+        route.abort(),
+      );
+    }
     const fastSuccessRunId = await runAgentThroughUi(memberPage, {
       agentName,
       message: "RV2_FAST_SUCCESS: return a brief reply",

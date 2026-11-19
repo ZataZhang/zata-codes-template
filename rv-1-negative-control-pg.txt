@@ -1,5 +1,5 @@
-# rv-1 organization isolation (pg-mutant) at 2026-11-18T17:50:56.748399+00:00
-identity: {"head": "75459f4e64127183fd1ebf410903fe07873dcd72", "working_tree_excluding_delivery_records": "e8e09ccf2a19c8dc7f0b6645c8cb323ba8c88903"}
+# rv-1 organization isolation (pg-mutant) at 2026-11-19T05:02:57.583152+00:00
+identity: {"head": "1f0e635a47c8abdab1ed010226f128f3ea3317fa", "working_tree_excluding_delivery_records": "33a6ed4205fae48c94da25940609fedc564e2e86"}
 MUTANT: get_scoped_run organization/owner filter removed in a temp copy of src/
 
 ## migration with pre-existing data
@@ -9,11 +9,11 @@ after upgrade: {'run': 1, 'run_event': 2, 'orphan_events': 0, 'run_by_org': {'de
 after downgrade b93aa5cf0228: {'run': 1, 'run_event': 2, 'orphan_events': 0}
 re-upgraded current revision: ['8b3c6eee34c1 (head)']
 
-## real backend on http://127.0.0.1:53768 (uvicorn backend.main:app)
-organizations created via API: 99121954a17a404fa000e58dd1109de2 099d5801286f45b0b5e17b6c723863da
-org A run: 1f4e0a7df1cb46b0a57f024f6ce50d00 succeeded | mover run: 65e6453d4d174e65b360133791bf02bc succeeded
+## real backend on http://127.0.0.1:60360 (uvicorn backend.main:app)
+organizations created via API: 29cc3a4b7a1047908e34b70bb0e6b38f d0b1f893724d41d1a4830898d29dfefb
+org A run: 772d06b6008c44e993f292f16464a9cf succeeded | mover run: 839e896fa6f546639a5f06cc15c71edd succeeded
 
 ## organization B member -> organization A resources (exact IDs from A responses)
-  [LEAK] GET /agent-runs/{A run}: HTTP 200 leaked=['Agent-A-54fccb', 'ORG-A-PRIVATE-PAYLOAD-7f3c']
+  [LEAK] GET /agent-runs/{A run}: HTTP 200 leaked=['Agent-A-9c2097', 'ORG-A-PRIVATE-PAYLOAD-7f3c']
 
 RV_RESULT: FAIL rv-1 pg-mutant: AssertionError: cross-organization exposure: GET /agent-runs/{A run} -> 200

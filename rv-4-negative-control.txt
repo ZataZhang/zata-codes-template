@@ -1,10 +1,11 @@
-# rv-4 negative control at 2026-11-18T17:53:39.209841+00:00
+# rv-4 negative control at 2026-11-19T05:05:57.739775+00:00
+identity: {'head': '1f0e635a47c8abdab1ed010226f128f3ea3317fa', 'working_tree_excluding_delivery_records': '33a6ed4205fae48c94da25940609fedc564e2e86'}
 command: python tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts/rv4_distribution_audit.py
-injected fault: temporary source-branded image path; `just copy` transfers it into the real output
+injected fault: temporary CargoX text sentinel; `just copy` transfers it into the real output
 audit exit code: 1
-auditor response: forbidden source-product path/text hits: ['frontend-admin/public/images/shadcn-admin-negative-control.png: forbidden source-branded path']
+auditor response: forbidden source-product path/text hits: ['frontend-admin/public/CargoX-negative-control.txt: CargoX']
 RV_RESULT: FAIL AssertionError: forbidden source-product path or text exists in actual distribution output
-expected_fail: the copy auditor reports the source-branded image path and exits non-zero
+expected_fail: the copy auditor reports the injected source-product text and exits non-zero
 
-EXPECTED_FAIL: rv-4 distribution assertion detected the injected branded asset path
+EXPECTED_FAIL: rv-4 distribution assertion detected the injected CargoX sentinel
 RV_RESULT: NEGATIVE CONTROL DETECTED rv-4

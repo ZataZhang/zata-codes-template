@@ -1,5 +1,5 @@
-run_id=c50a7dddf23247b3b9fba67b1b0fcdf8
+run_id=20e4246125324768b743b1547a124b98
 persisted_status=succeeded
 expected_ui_status=Status: succeeded
-ui_before_assertion=YOU RV2_FAST_SUCCESS: return a brief reply Agent reply Status: queued Cancel run The Agent is working… Run ID: c50a7dddf23247b3b9fba67b1b0fcdf8 Frozen Skill version: v1
-ui_after_assertion_timeout=YOU RV2_FAST_SUCCESS: return a brief reply Agent reply Status: running Cancel run stub-reply to: RV2_FAST_SUCCESS: return a brief reply skill=RV2 skill v1: answer with a concise, tra Streaming reply… Run ID: c50a7dddf23247b3b9fba67b1b0fcdf8 Frozen Skill version: v1
+ui_before_assertion=YOU RV2_FAST_SUCCESS: return a brief reply Agent reply Status: queued Cancel run The Agent is working… Run ID: 20e4246125324768b743b1547a124b98 Frozen Skill version: v1
+ui_after_assertion_timeout=YOU RV2_FAST_SUCCESS: return a brief reply Agent reply Status: queued Cancel run The Agent is working… Run ID: 20e4246125324768b743b1547a124b98 Frozen Skill version: v1

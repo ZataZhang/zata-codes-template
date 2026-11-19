@@ -1,10 +1,10 @@
-# rv-7 A2A bidirectional at 2026-11-18T19:14:13.692525+00:00
-identity: {"head": "c34b821676f6b5c166ff087c6f91f0e9ad7c62a2", "working_tree_excluding_delivery_records": "17229bc4e836efa304b7cba997a0c84e94d136eb"}
+# rv-7 A2A bidirectional at 2026-11-19T05:07:30.715853+00:00
+identity: {"head": "1f0e635a47c8abdab1ed010226f128f3ea3317fa", "working_tree_excluding_delivery_records": "33a6ed4205fae48c94da25940609fedc564e2e86"}
 official compatibility: a2a-sdk[all]==1.0.0
 credential reference scope: B cannot read platform or A peer aliases; HTTP 422 before persistence
-admin UI selected peer persisted on Agent: 4f3a9bbf7a164132bab82d46602dafac
+admin UI selected peer persisted on Agent: 06ea9e1a95334b99bf5a33b5df0cada8
 
-## official client inbound {"cancel_state": "TASK_STATE_CANCELED", "cancel_task_id": "c3b930e28e78480eb92ca09f032126e0", "card_interface": "HTTP+JSON", "first_state": "TASK_STATE_COMPLETED", "first_task_id": "a084495310234b08835f54f9bba29184", "fresh_cancel_state": "TASK_STATE_CANCELED", "fresh_state": "TASK_STATE_COMPLETED", "list_count": 1, "retry_same_id": true, "sdk": "a2a-sdk==1.0.0", "subscription_variants": ["status_update"]}
+## official client inbound {"cancel_state": "TASK_STATE_CANCELED", "cancel_task_id": "bd94cebca1804e0c9361882002458095", "card_interface": "HTTP+JSON", "first_state": "TASK_STATE_COMPLETED", "first_task_id": "c19742530a1a45ab95a59ff3c4f7f1a6", "fresh_cancel_state": "TASK_STATE_CANCELED", "fresh_state": "TASK_STATE_COMPLETED", "list_count": 1, "retry_same_id": true, "sdk": "a2a-sdk==1.0.0", "subscription_variants": ["status_update"]}
 organization B credential reads A Task: 200 A task input exposed: True
 fault injection: temporary src copy bypassed credential and A2A Task organization/owner checks
 expected_fail: B credential read A Task and the response exposed A's input

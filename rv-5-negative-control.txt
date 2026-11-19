@@ -1,10 +1,10 @@
-# rv-5 template copy at 2026-11-18T17:53:42.680083+00:00
-identity: {"head": "75459f4e64127183fd1ebf410903fe07873dcd72", "working_tree_excluding_delivery_records": "e8e09ccf2a19c8dc7f0b6645c8cb323ba8c88903"}
+# rv-5 template copy at 2026-11-19T05:06:03.680817+00:00
+identity: {"head": "1f0e635a47c8abdab1ed010226f128f3ea3317fa", "working_tree_excluding_delivery_records": "33a6ed4205fae48c94da25940609fedc564e2e86"}
 copy command: just copy .venv/rv58-copy-issue58
 local dotenv files in clean copy: <none>
 runner/viewer state excluded: True True
 Copying template to .venv/rv58-copy-issue58...
-Picked random ports: backend=8899, admin frontend=5627, public frontend=3869
+Picked random ports: backend=8684, admin frontend=5312, public frontend=3431
 Created bilingual README files for rv58-copy-issue58
 Running database migrations...
 Skipping initial commit for the nested copy.

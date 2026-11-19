@@ -1,19 +1,19 @@
-# rv-7 A2A bidirectional at 2026-11-19T03:04:53.694757+00:00
-identity: {"head": "4e2f1fa186875a7905ba6618a5ab1098a20f9083", "working_tree_excluding_delivery_records": "45cb6326eca10d717636d5758a41b725f9787786"}
+# rv-7 A2A bidirectional at 2026-11-19T05:41:36.794361+00:00
+identity: {"head": "1f0e635a47c8abdab1ed010226f128f3ea3317fa", "working_tree_excluding_delivery_records": "33a6ed4205fae48c94da25940609fedc564e2e86"}
 official compatibility: a2a-sdk[all]==1.0.0
 credential reference scope: B cannot read platform or A peer aliases; HTTP 422 before persistence
-admin UI selected peer persisted on Agent: ebafec229fed40489c861bce89710dfc
+admin UI selected peer persisted on Agent: a75628c24c21473586124ba99d842b58
 
-## official client inbound {"cancel_state": "TASK_STATE_CANCELED", "cancel_task_id": "af86c594d29b4f6a947e5c15779788bb", "card_interface": "HTTP+JSON", "first_state": "TASK_STATE_COMPLETED", "first_task_id": "812bbfaa016741cc8ad834b8694df017", "fresh_cancel_state": "TASK_STATE_CANCELED", "fresh_state": "TASK_STATE_COMPLETED", "list_count": 1, "retry_same_id": true, "sdk": "a2a-sdk==1.0.0", "subscription_variants": ["status_update"]}
+## official client inbound {"cancel_state": "TASK_STATE_CANCELED", "cancel_task_id": "8604728868b74327bedc14c169b21f79", "card_interface": "HTTP+JSON", "first_state": "TASK_STATE_COMPLETED", "first_task_id": "582866659efd4e9fa7ce5c4c76184cc7", "fresh_cancel_state": "TASK_STATE_CANCELED", "fresh_state": "TASK_STATE_COMPLETED", "list_count": 1, "retry_same_id": true, "sdk": "a2a-sdk==1.0.0", "subscription_variants": ["status_update"]}
 organization B credential reads A Task: 404 A task input exposed: False
 
 ## Skill write retry idempotency
-version retry IDs: 8ab2d8147c3a44a490299c373dee5c6a restore retry IDs: cd4a19183bae499d8a4da240a8f57019 history: [1, 2, 3]
+version retry IDs: 68b7cef51a944cdf9b9871c1bf0823be restore retry IDs: 0afbc2e510d7428a9d3af03583319f9f history: [1, 2, 3]
 
 ## outbound through official independent server
-parent Run: 371d4a8d0250469d9e759cb281f634c3 remote Task IDs: ['d44eba7c-7d83-4db9-8dbc-5e397efcfec8'] reply: peer-result: official-remote: remote please echo
-approved but unbound peer rejected before HTTP: de89d0aa7a33415f98ce82763619a6e7 request count unchanged: 3
-unsafe tool and unregistered peer runs failed closed: e143409d9581485f87687ebb057dad3c e4af50ed87604f028a184d47f7de4290
+parent Run: bc44ce1e3db649189211cf9e977df9e0 remote Task IDs: ['9372e3ae-fc18-42f8-840e-4050c10e2a12'] reply: peer-result: official-remote: remote please echo
+approved but unbound peer rejected before HTTP: 0120ca80721145e1886a48f0e47c3ff6 request count unchanged: 3
+unsafe tool and unregistered peer runs failed closed: d761be42f94e4d4d949b7fc7b8cbca76 a8879306ff90422cb62f084ab570a544
 redirect target was not followed; remote request count: 4
 disabled Agent rejected new Run without success: 409
 missing model rejected new Run without persistence: 409

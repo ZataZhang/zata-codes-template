@@ -1,7 +1,7 @@
 {
   "sdk": "a2a-sdk==1.0.0",
   "card_interface": "HTTP+JSON",
-  "first_task_id": "812bbfaa016741cc8ad834b8694df017",
+  "first_task_id": "582866659efd4e9fa7ce5c4c76184cc7",
   "first_state": "TASK_STATE_COMPLETED",
   "retry_same_id": true,
   "fresh_state": "TASK_STATE_COMPLETED",
@@ -9,7 +9,7 @@
   "subscription_variants": [
     "status_update"
   ],
-  "cancel_task_id": "af86c594d29b4f6a947e5c15779788bb",
+  "cancel_task_id": "8604728868b74327bedc14c169b21f79",
   "cancel_state": "TASK_STATE_CANCELED",
   "fresh_cancel_state": "TASK_STATE_CANCELED"
 }

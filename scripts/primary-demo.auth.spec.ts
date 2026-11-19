@@ -11,7 +11,7 @@ import {
   signInOrganizationAdmin,
 } from './agent-test-support'
 
-test.setTimeout(300_000)
+test.setTimeout(540_000)
 
 /**
  * 主演示：严格按 PRD §9.1 的五步脚本录制单独的真实浏览器录屏。

@@ -1,48 +1,48 @@
 0ms test started
-599ms organization and test users prepared
-984ms organization admin session ready
-1258ms organization member session ready
-1304ms organization sessions ready; admin page opened
-2765ms admin Skill page navigation and list response completed
-2977ms admin Skill name field accepted input
-3168ms Skill created through admin UI
-4638ms Agent created and published through admin UI
-6118ms admin publishing context closed before member workflow
-6190ms member Agent page navigation committed
-6307ms member Agent directory response received
-6382ms member selected the published Agent and filled the prompt
-6463ms member Run creation returned from the API
-9824ms member UI displayed an incremental reply while running
-22299ms member Run reached a successful terminal state
-22325ms member Run completed with an observed incremental reply
-22383ms member Agent page navigation committed
-22449ms member Agent directory response received
-22510ms member selected the published Agent and filled the prompt
-22608ms member Run creation returned from the API
-22727ms member Agent page navigation committed
-22773ms member Agent directory response received
-22824ms member selected the published Agent and filled the prompt
-22914ms member Run creation returned from the API
-22987ms fast success and fast failure both reached their visible persisted terminal states
-22994ms second Run prompt ready for cancellation
-23123ms Cancel run button appeared on the active Run
-23199ms Cancel run button passed the pointer actionability check
-23250ms member clicked the cancel control
-23281ms cancel API returned HTTP 200 with status cancelled
-23299ms member Run detail rendered the cancelled state
-23299ms cancel request reached the visible cancelled state
-23307ms second Run cancelled and listed in member history
-24347ms member run screenshots captured before fresh-session verification
-24575ms original member context closed before fresh-session verification
-24887ms fresh member browser context authenticated through the same-origin login
-24974ms fresh member page document loaded
-25260ms fresh UI requests agents=200 history=200 has_run=true
-25270ms fresh page state path=/app/agents session=200 has_run=true rows=4 loading=false page_errors=0
-25302ms fresh member reopened the same Run from persisted history
-25341ms fresh session confirmed the successful Run and frozen Skill v1
-25341ms fresh member session reopened the same successful Run
-26782ms fresh organization admin session ready for trace review
-27293ms admin trace page navigation committed
-28549ms admin trace projection rendered
-28556ms admin trace showed the Run without its message body
-29785ms workflow cleanup started
+569ms organization and test users prepared
+878ms organization admin session ready
+1158ms organization member session ready
+1205ms organization sessions ready; admin page opened
+2620ms admin Skill page navigation and list response completed
+2851ms admin Skill name field accepted input
+3055ms Skill created through admin UI
+4414ms Agent created and published through admin UI
+5873ms admin publishing context closed before member workflow
+5950ms member Agent page navigation committed
+6042ms member Agent directory response received
+6098ms member selected the published Agent and filled the prompt
+6202ms member Run creation returned from the API
+9553ms member UI displayed an incremental reply while running
+22009ms member Run reached a successful terminal state
+22036ms member Run completed with an observed incremental reply
+22074ms member Agent page navigation committed
+22145ms member Agent directory response received
+22199ms member selected the published Agent and filled the prompt
+22281ms member Run creation returned from the API
+22380ms member Agent page navigation committed
+22428ms member Agent directory response received
+22480ms member selected the published Agent and filled the prompt
+22557ms member Run creation returned from the API
+22628ms fast success and fast failure both reached their visible persisted terminal states
+22635ms second Run prompt ready for cancellation
+22778ms Cancel run button appeared on the active Run
+22859ms Cancel run button passed the pointer actionability check
+22910ms member clicked the cancel control
+22938ms cancel API returned HTTP 200 with status cancelled
+22943ms member Run detail rendered the cancelled state
+22943ms cancel request reached the visible cancelled state
+22970ms second Run cancelled and listed in member history
+24042ms member run screenshots captured before fresh-session verification
+24314ms original member context closed before fresh-session verification
+24614ms fresh member browser context authenticated through the same-origin login
+24693ms fresh member page document loaded
+24972ms fresh UI requests agents=200 history=200 has_run=true
+24986ms fresh page state path=/app/agents session=200 has_run=true rows=4 loading=false page_errors=0
+25041ms fresh member reopened the same Run from persisted history
+25083ms fresh session confirmed the successful Run and frozen Skill v1
+25083ms fresh member session reopened the same successful Run
+26519ms fresh organization admin session ready for trace review
+27068ms admin trace page navigation committed
+28213ms admin trace projection rendered
+28221ms admin trace showed the Run without its message body
+28357ms workflow cleanup started

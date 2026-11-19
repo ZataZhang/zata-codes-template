@@ -8,6 +8,7 @@ import os
 import secrets
 import subprocess
 import sys
+import tempfile
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -99,6 +100,64 @@ def compose_up_with_port_retry(
     if completed is None:
         raise RuntimeError("Compose startup did not run")
     return completed, selected_port_by_service
+
+
+def copy_runtime_package(
+    compose: list[str],
+    environment: dict[str, str],
+    service_name: str,
+    container_path: str,
+    destination_root: Path,
+    started_at: float,
+    report: stack.Report,
+) -> Path:
+    """从正在运行的生产容器复制实际交付目录，供密钥探针扫描。"""
+    container_result = subprocess.run(
+        [*compose, "ps", "-q", service_name],
+        cwd=stack.WORKTREE,
+        env=environment,
+        capture_output=True,
+        text=True,
+        errors="replace",
+        check=True,
+        timeout=remaining_timeout(started_at, 8),
+    )
+    container_id = container_result.stdout.strip().splitlines()[0]
+    image_result = subprocess.run(
+        ["docker", "inspect", "--format", "{{.Image}}", container_id],
+        cwd=stack.WORKTREE,
+        capture_output=True,
+        text=True,
+        errors="replace",
+        check=True,
+        timeout=remaining_timeout(started_at, 8),
+    )
+    image_id = image_result.stdout.strip()
+    destination_path = destination_root / service_name
+    copied_package = subprocess.run(
+        ["docker", "cp", f"{container_id}:{container_path}", str(destination_path)],
+        cwd=stack.WORKTREE,
+        capture_output=True,
+        text=True,
+        errors="replace",
+        timeout=remaining_timeout(started_at, 15),
+    )
+    if copied_package.returncode != 0:
+        raise RuntimeError(
+            f"failed to copy {service_name} package from image {image_id}: "
+            f"{copied_package.stderr[-1000:]}"
+        )
+    if not destination_path.is_dir() or not any(destination_path.iterdir()):
+        raise RuntimeError(f"copied package from {service_name} is empty")
+    report(
+        "runtime image package copied:",
+        service_name,
+        "image:",
+        image_id,
+        "path:",
+        container_path,
+    )
+    return destination_path
 
 
 def main() -> None:
@@ -309,23 +368,45 @@ def main() -> None:
         report("duplicate /api/api/agent-runs:", duplicated.status_code, "A2A proxy unauthorized:", a2a_proxy.status_code)
         response_text = login.text + runs.text + admin_login.text + admin_me.text
         assert stack.MODEL_API_KEY_MARKER not in response_text
-        scan = subprocess.run(
-            [
-                "uv",
-                "run",
-                "--no-sync",
-                "python",
-                str(stack.EVIDENCE_DIR / "scripts" / "rv6_secret_scan.py"),
-                f"admin={stack.WORKTREE / 'frontend-admin' / 'dist'}",
-                f"public={stack.WORKTREE / 'frontend-public' / '.next'}",
-            ],
-            cwd=stack.WORKTREE,
-            env={**os.environ, "RV6_MARKER": stack.MODEL_API_KEY_MARKER},
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=remaining_timeout(started_at, 15),
-        )
+        with tempfile.TemporaryDirectory(prefix="rv6-runtime-packages-") as scan_root:
+            scan_directory = Path(scan_root)
+            admin_image_package = copy_runtime_package(
+                compose,
+                environment,
+                "zata-codes-template-admin",
+                "/usr/share/nginx/html",
+                scan_directory,
+                started_at,
+                report,
+            )
+            public_image_package = copy_runtime_package(
+                compose,
+                environment,
+                "zata-codes-template-public",
+                "/app/frontend-public",
+                scan_directory,
+                started_at,
+                report,
+            )
+            scan = subprocess.run(
+                [
+                    "uv",
+                    "run",
+                    "--no-sync",
+                    "python",
+                    str(stack.EVIDENCE_DIR / "scripts" / "rv6_secret_scan.py"),
+                    f"admin_host={stack.WORKTREE / 'frontend-admin' / 'dist'}",
+                    f"public_host={stack.WORKTREE / 'frontend-public' / '.next'}",
+                    f"admin_image={admin_image_package}",
+                    f"public_image={public_image_package}",
+                ],
+                cwd=stack.WORKTREE,
+                env={**os.environ, "RV6_MARKER": stack.MODEL_API_KEY_MARKER},
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=remaining_timeout(started_at, 30),
+            )
         report(scan.stdout)
         report("three production services started; browser-facing responses and static bundles contain no model key marker")
         report("\nRV_RESULT: PASS rv-6")

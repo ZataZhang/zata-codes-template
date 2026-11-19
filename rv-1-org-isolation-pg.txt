@@ -1,5 +1,5 @@
-# rv-1 organization isolation (pg) at 2026-11-19T03:07:54.481707+00:00
-identity: {"head": "4e2f1fa186875a7905ba6618a5ab1098a20f9083", "working_tree_excluding_delivery_records": "8ef2e966ecb6244784a5ec513ea4c88188a2eaf7"}
+# rv-1 organization isolation (pg) at 2026-11-19T05:38:14.106189+00:00
+identity: {"head": "1f0e635a47c8abdab1ed010226f128f3ea3317fa", "working_tree_excluding_delivery_records": "33a6ed4205fae48c94da25940609fedc564e2e86"}
 
 ## migration with pre-existing data
 before upgrade: {'run': 1, 'run_event': 2, 'orphan_events': 0}
@@ -8,9 +8,9 @@ after upgrade: {'run': 1, 'run_event': 2, 'orphan_events': 0, 'run_by_org': {'de
 after downgrade b93aa5cf0228: {'run': 1, 'run_event': 2, 'orphan_events': 0}
 re-upgraded current revision: ['8b3c6eee34c1 (head)']
 
-## real backend on http://127.0.0.1:53465 (uvicorn backend.main:app)
-organizations created via API: ab9a25f55e804b649168493dc198d0c9 28162087dd4e4e6bb747e6875e351818
-org A run: db8430b753c84a5bb968b12ef87da69b succeeded | mover run: 68e64cc30ab34c49a26c2041e34d90a4 succeeded
+## real backend on http://127.0.0.1:58298 (uvicorn backend.main:app)
+organizations created via API: b0ccd60c30aa4a6486a809af0d5cd612 3a3f5ddaf50548d4bbe7f647a917a1f2
+org A run: 95b9ae85927f402baa36541ef0c6f8cb succeeded | mover run: e2d86f5f1a9b4309b7f5ed30f341d07c succeeded
 
 ## organization B member -> organization A resources (exact IDs from A responses)
   [OK] GET /agent-runs/{A run}: HTTP 404 leaked=[]
@@ -21,16 +21,16 @@ org A run: db8430b753c84a5bb968b12ef87da69b succeeded | mover run: 68e64cc30ab34
   [OK] B /agents and /agent-runs lists exclude A ids
 
 ## organization B admin -> organization A resources
-  [OK] PUT /admin/agents/d0df664115d9407d94e905cf3b2d8b1e: HTTP 404 leaked=[]
-  [OK] POST /admin/agents/d0df664115d9407d94e905cf3b2d8b1e/publish: HTTP 404 leaked=[]
-  [OK] POST /admin/agents/d0df664115d9407d94e905cf3b2d8b1e/unpublish: HTTP 404 leaked=[]
-  [OK] GET /admin/agents/d0df664115d9407d94e905cf3b2d8b1e/a2a-credentials: HTTP 404 leaked=[]
-  [OK] DELETE /admin/a2a-credentials/f79776bed03d44b2b721c9ec95246ca9: HTTP 404 leaked=[]
-  [OK] GET /admin/skills/0ca2acca9ddb4870b4f0ca03a907fff1/versions: HTTP 404 leaked=[]
-  [OK] POST /admin/skills/0ca2acca9ddb4870b4f0ca03a907fff1/versions: HTTP 404 leaked=[]
-  [OK] GET /admin/skills/0ca2acca9ddb4870b4f0ca03a907fff1/compare: HTTP 404 leaked=[]
-  [OK] POST /admin/skills/0ca2acca9ddb4870b4f0ca03a907fff1/restore/1: HTTP 404 leaked=[]
-  [OK] GET /admin/agent-runs/db8430b753c84a5bb968b12ef87da69b/events: HTTP 404 leaked=[]
+  [OK] PUT /admin/agents/50b7b194382a4d128ad71a1be9a12620: HTTP 404 leaked=[]
+  [OK] POST /admin/agents/50b7b194382a4d128ad71a1be9a12620/publish: HTTP 404 leaked=[]
+  [OK] POST /admin/agents/50b7b194382a4d128ad71a1be9a12620/unpublish: HTTP 404 leaked=[]
+  [OK] GET /admin/agents/50b7b194382a4d128ad71a1be9a12620/a2a-credentials: HTTP 404 leaked=[]
+  [OK] DELETE /admin/a2a-credentials/3cd4190a421f47b29df2e0c893c82ee4: HTTP 404 leaked=[]
+  [OK] GET /admin/skills/49abf82a74c24012af65fc28c0bd6f76/versions: HTTP 404 leaked=[]
+  [OK] POST /admin/skills/49abf82a74c24012af65fc28c0bd6f76/versions: HTTP 404 leaked=[]
+  [OK] GET /admin/skills/49abf82a74c24012af65fc28c0bd6f76/compare: HTTP 404 leaked=[]
+  [OK] POST /admin/skills/49abf82a74c24012af65fc28c0bd6f76/restore/1: HTTP 404 leaked=[]
+  [OK] GET /admin/agent-runs/95b9ae85927f402baa36541ef0c6f8cb/events: HTTP 404 leaked=[]
   [OK] B admin /admin/agents|skills|agent-runs lists exclude A ids
 
 ## existence oracle: real A id vs random id give identical responses
@@ -45,7 +45,7 @@ org A run: db8430b753c84a5bb968b12ef87da69b succeeded | mover run: 68e64cc30ab34
   [OK] POST /agent-runs with organization_id=A in body: HTTP 404 leaked=[]
 
 ## legacy owner still reads migrated history (fresh login)
-  legacy run: a3b730c3-9fec-4702-a486-ef5386b8043a succeeded 'legacy hello' 'legacy answer'
+  legacy run: c2af1e84-442b-49ab-9b77-867c08aa99cc succeeded 'legacy hello' 'legacy answer'
 
 ## platform admin moves member from A to B; data stays with A
   [OK] moved member GET own A-period run: HTTP 404 leaked=[]
@@ -56,8 +56,8 @@ org A run: db8430b753c84a5bb968b12ef87da69b succeeded | mover run: 68e64cc30ab34
   [OK] A admin still lists moved member A-period run; events=12; low-sensitive (no message body)=True
 
 ## fresh-state probe: new clients and direct SQL
-  member A fresh re-read: db8430b753c84a5bb968b12ef87da69b succeeded reply present: True
-  SQL run rows: [('68e64cc30ab34c49a26c2041e34d90a4', 'ab9a25f55e804b649168493dc198d0c9', 'succeeded'), ('db8430b753c84a5bb968b12ef87da69b', 'ab9a25f55e804b649168493dc198d0c9', 'succeeded')]
-  final counts: {'run': 3, 'run_event': 26, 'orphan_events': 0, 'run_by_org': {'ab9a25f55e804b649168493dc198d0c9': 2, 'default': 1}}
+  member A fresh re-read: 95b9ae85927f402baa36541ef0c6f8cb succeeded reply present: True
+  SQL run rows: [('95b9ae85927f402baa36541ef0c6f8cb', 'b0ccd60c30aa4a6486a809af0d5cd612', 'succeeded'), ('e2d86f5f1a9b4309b7f5ed30f341d07c', 'b0ccd60c30aa4a6486a809af0d5cd612', 'succeeded')]
+  final counts: {'run': 3, 'run_event': 26, 'orphan_events': 0, 'run_by_org': {'b0ccd60c30aa4a6486a809af0d5cd612': 2, 'default': 1}}
 
 RV_RESULT: PASS rv-1 pg

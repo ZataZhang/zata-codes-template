@@ -1,20 +1,24 @@
-# rv-2 primary demo real user flow at 2026-11-18T17:30:43.372699+00:00
-identity: {'head': '75459f4e64127183fd1ebf410903fe07873dcd72', 'working_tree_excluding_delivery_records': 'e8e09ccf2a19c8dc7f0b6645c8cb323ba8c88903'}
+# rv-2 primary demo real user flow at 2026-11-19T05:15:01.460867+00:00
+identity: {'head': '1f0e635a47c8abdab1ed010226f128f3ea3317fa', 'working_tree_excluding_delivery_records': '33a6ed4205fae48c94da25940609fedc564e2e86'}
 model boundary: local OpenAI-compatible transport stub; all UI/API/DB boundaries real
 command: just e2e tests/rv58-workflows/primary-demo.auth.spec.ts
-public/admin browser origins: host.docker.internal mapped through isolated Chromium container on port 60735
+public/admin browser origins: host.docker.internal mapped through isolated Chromium container on port 50670
 public frontend: production Next.js build and start; admin frontend, API, database, and Chromium browser are real
 negative control: none
 exit_code: 0
 E2E artifacts will be written to: [WORKTREE]
 Running 2 tests using 1 worker
-✓  1 [setup] › tests/setup/auth.setup.ts:11:1 › authenticate and persist storage state (1.9s)
+✓  1 [setup] › tests/setup/auth.setup.ts:11:1 › authenticate and persist storage state (1.3s)
 ✓  2 [chromium] › tests/rv58-workflows/primary-demo.auth.spec.ts:25:1 › primary demo follows the five scripted steps (3.0m)
-2 passed (3.1m)
+2 passed (3.0m)
 primary demo: separate real-browser recording, five scripted steps
 clip order: publish Agent, member Run with incremental reply, reopened history,
 admin trace, Skill update/compare/restore, second Run with frozen versions
-six real browser clips (seconds): 78.64, 21.88, 6.36, 11.32, 25.68, 25.24
+six real browser clips (seconds): 69.36, 22.28, 6.32, 16.28, 30.20, 25.04
 each result step holds for at least 3.5 seconds per the recording workflow
-primary demo duration: 169.12 seconds
-primary demo file: rv-2-demo-multi-organization-agent.mp4 (861348 bytes)
+primary demo duration: 169.48 seconds
+primary demo file: rv-2-demo-multi-organization-agent.mp4 (866559 bytes)
+
+inspection command: UV_CACHE_DIR=/tmp/uv-cache-issue58 UV_TOOL_DIR=/tmp/uv-tools-issue58 .venv/bin/python tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts/inspect_primary_demo.py
+inspection result: PRIMARY_DEMO_INSPECTION: PASS; all six caption frames distinct; measured caption stays 12s, 18s, 5s, 7s, 7s, 11s; each above the 3s oracle.
+video SHA256: cbf7b94e858cf79cf0a9445abe9941dbde558acfd54b67fbdd5746b33477b6b8

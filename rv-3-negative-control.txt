@@ -1,19 +1,19 @@
-# rv-3 negative control at 2026-11-18T17:52:29.132063+00:00
-identity: {'head': '75459f4e64127183fd1ebf410903fe07873dcd72', 'working_tree_excluding_delivery_records': 'e8e09ccf2a19c8dc7f0b6645c8cb323ba8c88903'}
+# rv-3 negative control at 2026-11-19T05:05:08.111898+00:00
+identity: {'head': '1f0e635a47c8abdab1ed010226f128f3ea3317fa', 'working_tree_excluding_delivery_records': '33a6ed4205fae48c94da25940609fedc564e2e86'}
 model boundary: local OpenAI-compatible transport stub; all UI/API/DB boundaries real
 command: just e2e tests/rv58-workflows/skill-version.auth.spec.ts
-public/admin browser origins: host.docker.internal mapped through isolated Chromium container on port 54448
+public/admin browser origins: host.docker.internal mapped through isolated Chromium container on port 61741
 public frontend: production Next.js build and start; admin frontend, API, database, and Chromium browser are real
 negative control: test response mutation changes the recorded v1 Skill body
 exit_code: 1
 E2E artifacts will be written to: [WORKTREE]
 Running 2 tests using 1 worker
-✓  1 [setup] › tests/setup/auth.setup.ts:11:1 › authenticate and persist storage state (2.3s)
+✓  1 [setup] › tests/setup/auth.setup.ts:11:1 › authenticate and persist storage state (1.1s)
 Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoEqual[2m([22m[32mexpected[39m[2m) // deep equality[22m
 104 |     expect(revisionHistory.items.map((revision) => revision.version)).toEqual([1, 2, 3])
 > 105 |     expect(revisionHistory.items.map((revision) => revision.body)).toEqual([
 1 failed
-1 passed (22.1s)
-error: recipe `e2e` failed on line 1559 with exit code 1
+1 passed (18.7s)
+error: recipe `e2e` failed on line 1560 with exit code 1
 EXPECTED_FAIL: rv-3 immutable-version assertion detected the altered history response
 RV_RESULT: NEGATIVE CONTROL DETECTED rv-3

@@ -22,7 +22,7 @@ import httpx
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import rv_stack as stack  # noqa: E402
 
-OPERATION_BUDGET_SECONDS = 288
+OPERATION_BUDGET_SECONDS = 588
 
 
 def remaining_timeout(started_at: float, ceiling: int) -> int:
@@ -300,68 +300,20 @@ def summarize_output(stdout: str, stderr: str, sensitive_values: list[str]) -> s
 
 
 def mutate_polling_race(source: str) -> str:
-    """在临时生产构建中重现旧的轮询取消顺序。"""
-    replacements = (
-        (
-            """        const reachedTerminalState = items.some((runEvent) =>
-          [\"run.completed\", \"run.failed\", \"run.cancelled\"].includes(
-            runEvent.event_type
-          )
-        )
-        const refreshed = reachedTerminalState
-          ? await getAgentRun(runId)
-          : null
-        if (cancelled) return
-        eventCursorRef.current = nextAfterSeq
-""",
-            """        eventCursorRef.current = nextAfterSeq
-""",
-        ),
-        (
-            """        if (refreshed) {
-          setActiveRun((previous) => {
-            if (!previous || previous.id !== runId) return previous
-            return mergeRunStateWithoutRegression(previous, refreshed)
-          })
-          setLiveReply(\"\")
-          await reloadHistory()
-        }
-""",
-            """        const reachedTerminalState = items.some((runEvent) =>
-          [\"run.completed\", \"run.failed\", \"run.cancelled\"].includes(
-            runEvent.event_type
-          )
-        )
-        if (reachedTerminalState) {
-          await new Promise<void>((resolve) => window.setTimeout(resolve, 50))
-          if (cancelled) return
-          const refreshed = await getAgentRun(runId)
-          if (cancelled) return
-          setActiveRun((previous) => {
-            if (!previous || previous.id !== runId) return previous
-            return mergeRunStateWithoutRegression(previous, refreshed)
-          })
-          setLiveReply(\"\")
-          await reloadHistory()
-        }
-""",
-        ),
-        (
-            "    const timer = window.setInterval(() => void poll(), 400)",
-            "    const timer = window.setInterval(() => void poll(), 1500)",
-        ),
-        ("    void poll()", "    window.setTimeout(() => void poll(), 1500)"),
-        (
-            "  }, [activeRunId, shouldPollActiveRun, reloadHistory, t])",
-            "  }, [activeRun, activeRunId, shouldPollActiveRun, reloadHistory, t])",
-        ),
+    """在临时生产构建中移除 SSE 失败后的持久化终态回读。"""
+    original = """          try {
+            if (await refreshRunState()) return
+          } catch {
+            // 持久化读取也失败时保留提示，等下一轮重连后重新判断。
+          }
+"""
+    if source.count(original) != 1:
+        raise AssertionError("SSE failure recovery mutation anchor missing or ambiguous")
+    return source.replace(
+        original,
+        "          // RV-2 mutant: SSE failure leaves the persisted terminal state unread.\n",
+        1,
     )
-    mutated_source = source
-    for original, mutated in replacements:
-        if mutated_source.count(original) != 1:
-            raise AssertionError("polling race mutation anchor missing or ambiguous")
-        mutated_source = mutated_source.replace(original, mutated, 1)
-    return mutated_source
 
 
 def wait_for_stack(
@@ -509,6 +461,7 @@ def main() -> None:
             "RV3_MUTATE_OLD_VERSION": "1"
             if arguments.negative_control and arguments.rv == "3"
             else "0",
+            "RV2_FORCE_STREAM_FAILURE": "1" if arguments.mutant else "0",
             "RV2_TERMINAL_MUTANT": "1" if arguments.mutant else "0",
             "PLAYWRIGHT_BASE_URL": f"http://127.0.0.1:{public_port}",
             "PLAYWRIGHT_ADMIN_BASE_URL": f"http://localhost:{admin_port}",
@@ -644,7 +597,7 @@ def main() -> None:
                 text=True,
                 timeout=remaining_timeout(
                     operation_started_at,
-                    250,
+                    560,
                 ),
             )
         except subprocess.TimeoutExpired as timeout_error:
@@ -697,7 +650,7 @@ def main() -> None:
             else "real user flow"
         )
         negative_control_summary = (
-            "temporary production build restores the activeRun polling race"
+            "temporary production build omits persisted-state refresh after an SSE failure"
             if arguments.mutant
             else "test response mutation changes the recorded v1 Skill body"
             if arguments.negative_control and arguments.rv == "3"
@@ -724,7 +677,7 @@ def main() -> None:
             if completed.returncode == 0 or expected_marker not in combined_output:
                 raise AssertionError("negative control did not trigger the expected workflow failure")
             expected_fail_lines = [
-                "EXPECTED_FAIL: rv-2 required terminal-state assertion detected the polling race mutant"
+                "EXPECTED_FAIL: rv-2 terminal-state assertion detected the SSE recovery mutant"
                 if arguments.rv == "2"
                 else "EXPECTED_FAIL: rv-3 immutable-version assertion detected the altered history response",
                 f"RV_RESULT: NEGATIVE CONTROL DETECTED rv-{arguments.rv}",

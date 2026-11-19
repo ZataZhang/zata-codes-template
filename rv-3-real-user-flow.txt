@@ -1,13 +1,13 @@
-# rv-3 real user flow at 2026-11-19T03:09:14.348617+00:00
-identity: {'head': '4e2f1fa186875a7905ba6618a5ab1098a20f9083', 'working_tree_excluding_delivery_records': 'a7a1c85d984b9a80e0629fad29cdf488a22448ba'}
+# rv-3 real user flow at 2026-11-19T05:39:34.729802+00:00
+identity: {'head': '1f0e635a47c8abdab1ed010226f128f3ea3317fa', 'working_tree_excluding_delivery_records': '33a6ed4205fae48c94da25940609fedc564e2e86'}
 model boundary: local OpenAI-compatible transport stub; all UI/API/DB boundaries real
 command: just e2e tests/rv58-workflows/skill-version.auth.spec.ts
-public/admin browser origins: host.docker.internal mapped through isolated Chromium container on port 54201
+public/admin browser origins: host.docker.internal mapped through isolated Chromium container on port 59044
 public frontend: production Next.js build and start; admin frontend, API, database, and Chromium browser are real
 negative control: none
 exit_code: 0
 E2E artifacts will be written to: [WORKTREE]
 Running 2 tests using 1 worker
-✓  1 [setup] › tests/setup/auth.setup.ts:11:1 › authenticate and persist storage state (1.1s)
-✓  2 [chromium] › tests/rv58-workflows/skill-version.auth.spec.ts:21:1 › rv-3 restores old content as a new version and freezes each Run snapshot (29.5s)
-2 passed (31.2s)
+✓  1 [setup] › tests/setup/auth.setup.ts:11:1 › authenticate and persist storage state (1.2s)
+✓  2 [chromium] › tests/rv58-workflows/skill-version.auth.spec.ts:21:1 › rv-3 restores old content as a new version and freezes each Run snapshot (28.7s)
+2 passed (30.4s)

@@ -22,7 +22,7 @@ COPY_RELATIVE_PATH = Path(".venv/rv58-copy-rv4-audit")
 MEDIA_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".woff", ".woff2", ".ttf", ".otf"}
 ARCHIVE_SUFFIXES = {".zip", ".tar", ".gz", ".tgz", ".jar", ".whl"}
 FORBIDDEN_PATTERN = re.compile(
-    r"cargox|outlook|freight|cost\.rate|vendor/|shadcn[- ]admin|satnaing|zata admin|1126828125",
+    r"cargox|outlook|freight|freshai|ai-assistant|cost\.rate|vendor/|shadcn[- ]admin|satnaing|zata admin|1126828125",
     re.IGNORECASE,
 )
 FORBIDDEN_PATH_PATTERNS = (
@@ -55,14 +55,25 @@ COPY_ARTIFACT_DIRECTORY_NAMES = {
     "coverage",
 }
 ALLOWED_NEUTRAL_REFERENCES = {
-    "scripts/shared/template/sync_template.sh": (
-        "cargox",
-        "historical product-specific customization in a sync-policy comment",
-    ),
-    "tests/guards/shared/test_worktree_submodule_init.py": (
-        "vendor/",
-        "generic third-party submodule path in an isolated git fixture",
-    ),
+    "justfile.shared": {
+        "freshai": "historical runner issue reference in a maintenance comment",
+    },
+    "tests/test_prd_contract.py": {
+        "ai-assistant": "historical PRD example used to explain a parser edge case",
+    },
+    "scripts/shared/template/sync_template.sh": {
+        "cargox": "historical product-specific customization in a sync-policy comment",
+        "freshai": "historical product-specific examples in sync-policy comments",
+    },
+    "tests/guards/shared/test_gc_worktree_databases.py": {
+        "freshai": "legacy project-name fixtures for database cleanup parsing",
+    },
+    "tests/guards/shared/test_prd_impact_tree.py": {
+        "ai-assistant": "historical PRD fixtures for impact-tree parsing behavior",
+    },
+    "tests/guards/shared/test_worktree_submodule_init.py": {
+        "vendor/": "generic third-party submodule path in an isolated git fixture",
+    },
 }
 
 
@@ -206,10 +217,11 @@ def main() -> None:
             except (UnicodeDecodeError, OSError):
                 continue
             for match in FORBIDDEN_PATTERN.finditer(file_text):
-                expected_reference = ALLOWED_NEUTRAL_REFERENCES.get(relative_path)
-                if expected_reference and match.group(0).lower() == expected_reference[0]:
+                allowed_text = ALLOWED_NEUTRAL_REFERENCES.get(relative_path, {})
+                expected_reason = allowed_text.get(match.group(0).lower())
+                if expected_reason:
                     allowed_references.append(
-                        f"{relative_path}: {match.group(0)} — {expected_reference[1]}"
+                        f"{relative_path}: {match.group(0)} — {expected_reason}"
                     )
                 else:
                     violations.append(f"{relative_path}: {match.group(0)}")

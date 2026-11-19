@@ -44,7 +44,7 @@ code{background:#e2e8f0;padding:1px 5px;border-radius:4px;font-size:12.5px}
 <body data-review-key="issue-58-multi-org-agent" data-markdown-title="人工审查结果 · 多组织通用在线 Agent 底座（Issue #58）">
 <header>
   <h1>人工审查清单 · 多组织通用在线 Agent 底座<span class="tag">Issue #58</span><span class="tag">PRD P1-FEAT-20260928-115856-multi-organization-online-agent-base</span></h1>
-  <p>共 5 项决定。答案保存在本机浏览器（localStorage），最后一步生成可复制的 Markdown 回复给 agent。静态底稿：同目录 <code>human-review-checklist.md</code>。</p>
+  <p>最终验证树 <code>33a6ed4205fae48c94da25940609fedc564e2e86</code>；RV-1–RV-7、七项负控、独立 verifier（PASS，risk=yellow）和 CI run <code>44462357584</code> 均通过。真实模型、公网第三方 Agent 与公网部署未验证。共 5 项决定；答案保存在本机浏览器（localStorage），最后一步生成可复制的 Markdown 回复给 agent。静态底稿：同目录 <code>human-review-checklist.md</code>。</p>
 </header>
 <main>
   <div class="progress" id="progress"></div>
@@ -66,8 +66,8 @@ code{background:#e2e8f0;padding:1px 5px;border-radius:4px;font-size:12.5px}
     <div class="decide"><b>你在决定什么：</b>是否接受单一 Run 与不可用即拒绝。<b>如果判错：</b>界面与执行分叉，或租户获得命令执行能力。</div>
     <blockquote>确认 §2 的稳定 Agent/单一 Run 事实源与失败闭合决定；证据为 `rv-2` 真实页面、历史和轨迹呈递。（PRD §9.2 Human-Confirmed 第 2 条）</blockquote>
     <figure><img src="rv-2-agent-run.png" alt="rv-2 真实 Agent Run"><figcaption>真实实现 · real user flow；模型传输 mock，未验证真实模型。</figcaption></figure>
-    <p>证据：<code>rv-2-real-user-flow.txt</code>（2 tests passed）、<code>rv-2-incremental-reply.txt</code> 与 <code>rv-2-streaming-reply.png</code>（运行未结束时回复已在增长）、<code>rv-2-fast-terminal-states.txt</code>（快速成功/失败页面状态与新 API 读取一致）、<code>rv-2-negative-terminal-probe.txt</code>（旧轮询变体下 API 为 succeeded、页面仍 running）、单独录制的 <code>rv-2-demo-multi-organization-agent.mp4</code> 和 <code>rv-2-agent-run.png</code>；<code>rv-7-a2a-bidirectional.txt</code> 的停用、无模型和未审核工具负控。</p>
-    <figure><video controls preload="metadata" width="100%" src="rv-2-demo-multi-organization-agent.mp4">主演示录像：rv-2-demo-multi-organization-agent.mp4</video><figcaption>独立真实浏览器录制（169 秒），按 PRD 五步脚本：发布 Agent、运行中可见增量回复、重开历史与管理轨迹、Skill 更新/比较/恢复为 v3、恢复后再运行冻结 v3 且旧运行仍为 v1；每步字幕可见 ≥5 秒，模型步骤注明 mock，未验证真实模型。</figcaption></figure>
+    <p>证据：<code>rv-2-real-user-flow.txt</code>（2 tests passed）、<code>rv-2-incremental-reply.txt</code> 与 <code>rv-2-streaming-reply.png</code>（运行未结束时回复已在增长）、<code>rv-2-fast-terminal-states.txt</code>（快速成功/失败页面状态与新 API 读取一致）、<code>rv-2-negative-terminal-probe.txt</code>（旧轮询变体下 API 为 succeeded、页面仍 queued）、单独录制的 <code>rv-2-demo-multi-organization-agent.mp4</code> 和 <code>rv-2-agent-run.png</code>；<code>rv-7-a2a-bidirectional.txt</code> 的停用、无模型和未审核工具负控。</p>
+    <figure><video controls preload="metadata" width="100%" src="rv-2-demo-multi-organization-agent.mp4">主演示录像：rv-2-demo-multi-organization-agent.mp4</video><figcaption>独立真实浏览器录制（169.48 秒），按 PRD 五步脚本：发布 Agent、运行中可见增量回复、重开历史与管理轨迹、Skill 更新/比较/恢复为 v3、恢复后再运行冻结 v3 且旧运行仍为 v1；六段字幕分别可见 12、18、5、7、7、11 秒，模型步骤注明 mock，未验证真实模型。</figcaption></figure>
     <p>本地录像：<code>open "tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/rv-2-demo-multi-organization-agent.mp4"</code>；字幕原文见 <code>rv-2-caption-trace.txt</code>。</p>
     <div class="opts">
       <label class="opt"><input type="radio" name="q2" value="0"><span>同意：同一 Run 事实源与失败闭合</span></label>

@@ -2,27 +2,27 @@
   "clips": [
     {
       "name": "rv-2-demo-step-1-admin-publish.webm",
-      "duration_seconds": 78.64
+      "duration_seconds": 69.36
     },
     {
       "name": "rv-2-demo-step-2-member-run.webm",
-      "duration_seconds": 21.88
+      "duration_seconds": 22.28
     },
     {
       "name": "rv-2-demo-step-3-history.webm",
-      "duration_seconds": 6.36
+      "duration_seconds": 6.32
     },
     {
       "name": "rv-2-demo-step-4-trace.webm",
-      "duration_seconds": 11.32
+      "duration_seconds": 16.28
     },
     {
       "name": "rv-2-demo-step-5-skill-version.webm",
-      "duration_seconds": 25.68
+      "duration_seconds": 30.2
     },
     {
       "name": "rv-2-demo-step-6-second-run.webm",
-      "duration_seconds": 25.24
+      "duration_seconds": 25.04
     }
   ]
 }

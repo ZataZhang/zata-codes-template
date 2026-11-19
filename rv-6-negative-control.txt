@@ -1,72 +1,70 @@
-# rv-6 production compose at 2026-11-18T17:54:01.637937+00:00
-identity: {"head": "75459f4e64127183fd1ebf410903fe07873dcd72", "working_tree_excluding_delivery_records": "e8e09ccf2a19c8dc7f0b6645c8cb323ba8c88903"}
+# rv-6 production compose at 2026-11-19T05:06:18.964722+00:00
+identity: {"head": "1f0e635a47c8abdab1ed010226f128f3ea3317fa", "working_tree_excluding_delivery_records": "33a6ed4205fae48c94da25940609fedc564e2e86"}
 dependency lock: tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts/uv.lock.rv6-mirror versions and package hashes verified against uv.lock
 isolated Redis container: started with a disposable empty database
 docker compose up exit: 0
-0928-115856-multi-organization-online-agent-base/scripts/uv.lock.rv6-mirror,target=/tmp/uv.lock,readonly     --mount=type=cache,id=zata-codes-template-uv,target=/root/.cache/uv,sharing=locked     if [ "tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts/uv.lock.rv6-mirror" != "uv.lock" ]; then cp /tmp/uv.lock ./uv.lock; fi     && UV_CONCURRENT_DOWNLOADS=4 uv sync --frozen --no-dev
-#33 CACHED
-
-#34 [zata-codes-template-backend stage-0  6/13] COPY src ./src
-#34 CACHED
-
-#35 [zata-codes-template-backend stage-0  7/13] COPY packages ./packages
+ -LsSf https://astral.sh/uv/install.sh | sh     && mv /root/.local/bin/uv /usr/local/bin/uv
 #35 CACHED
 
-#36 [zata-codes-template-backend stage-0  9/13] RUN groupadd -r appgroup && useradd -r -g appgroup appuser
+#36 [zata-codes-template-backend stage-0  5/13] COPY pyproject.toml uv.lock config.toml ./
 #36 CACHED
 
-#37 [zata-codes-template-backend stage-0 12/13] RUN mkdir -p /app/logs /app/data
+#37 [zata-codes-template-backend stage-0 13/13] RUN chown -R appuser:appgroup /app
 #37 CACHED
 
-#38 [zata-codes-template-backend stage-0  3/13] WORKDIR /app
-#38 CACHED
+#24 [zata-codes-template-public internal] load build context
+#24 ...
+
+#38 [zata-codes-template-admin] exporting to image
+#38 exporting layers done
+#38 exporting manifest sha256:7c25e2219d522ded87c93bedf49a1ad2b3d751eb25cba102c28215ad6af64dbb 0.0s done
+#38 exporting config sha256:1b097eff6de6e71aefd3f303f74f8a368113c01ecd12ad383fd3d800a296b0e2 0.0s done
+#38 exporting attestation manifest sha256:0bcc8b84a674e08ac6c9506d9ee908cacf6c86c86768b5691466dfbacf960983 0.0s done
+#38 exporting manifest list sha256:fc4e5744b25a12a42947c9c7b3889d45c0a89558d1171fd7a83207a44d15c03e 0.0s done
+#38 naming to docker.io/library/rv58-48b362-zata-codes-template-admin:latest done
+#38 unpacking to docker.io/library/rv58-48b362-zata-codes-template-admin:latest 0.0s done
+#38 DONE 0.2s
 
 #24 [zata-codes-template-public internal] load build context
 #24 ...
 
-#39 [zata-codes-template-backend stage-0 13/13] RUN chown -R appuser:appgroup /app
-#39 CACHED
-
-#24 [zata-codes-template-public internal] load build context
-#24 ...
+#39 [zata-codes-template-admin] resolving provenance for metadata file
+#39 DONE 0.0s
 
 #40 [zata-codes-template-backend] exporting to image
-#40 exporting layers 0.0s done
-#40 exporting manifest sha256:05a35bbd60e55f95861cfd426c744e2efcfd81acc15165a0656a4a1777f82fce 0.0s done
-#40 exporting config sha256:f7b90a2b0c6afffd138aafdd0ca0e35e2675cb76a6c49d2414fb8e6ffd92e32c 0.0s done
-#40 exporting attestation manifest sha256:4540b49e4d905cb2c306f6df13510765507f3fe22d42db44f7049db63b4b76db 0.1s done
-#40 exporting manifest list sha256:9d0624b9ac13132ca1fb960e3043568f444974bc56cda34cb18c7803207ed567 0.0s done
-#40 naming to docker.io/library/rv58-127f6b-zata-codes-template-backend:latest done
-#40 unpacking to docker.io/library/rv58-127f6b-zata-codes-template-backend:latest 0.0s done
-#40 DONE 0.3s
+#40 exporting layers done
+#40 exporting manifest sha256:9b9a86f1d43b94ca1278bdbfb7b9e3ac0236a1527a26855e16b5bbc7ae2d9bb4 0.0s done
+#40 exporting config sha256:7ee0515904b2fbd48d5e78dda6835710bfb4b7b96aa05508eef6553e074e0aea 0.0s done
+#40 exporting attestation manifest sha256:51922d8f15ccd3fa6eca946645003d1ced5903f2a2b0eee1dbe3d3dcafc45026 0.0s done
+#40 exporting manifest list sha256:905f26c0385223c407065f6c8a943e1e86affc28b8c69baff512b188e32f3f10 0.0s done
+#40 naming to docker.io/library/rv58-48b362-zata-codes-template-backend:latest done
+#40 unpacking to docker.io/library/rv58-48b362-zata-codes-template-backend:latest 0.0s done
+#40 DONE 0.2s
 
 #24 [zata-codes-template-public internal] load build context
-#24 ...
+#24 transferring context: 49.35MB 0.5s done
+#24 DONE 0.5s
 
-#41 [zata-codes-template-backend] resolving provenance for metadata file
-#41 DONE 0.0s
-
-#24 [zata-codes-template-public internal] load build context
-#24 transferring context: 327.67MB 5.6s done
-#24 DONE 5.6s
-
-#42 [zata-codes-template-public builder  6/10] COPY frontend-admin/package.json frontend-admin/
-#42 CACHED
-
-#43 [zata-codes-template-public builder  4/10] COPY pnpm-workspace.yaml pnpm-lock.yaml ./
-#43 CACHED
-
-#44 [zata-codes-template-public builder  5/10] COPY frontend-public/package.json frontend-public/
-#44 CACHED
-
-#14 [zata-codes-template-public builder  2/10] WORKDIR /app
-#14 CACHED
+#41 [zata-codes-template-public builder  6/10] COPY frontend-admin/package.json frontend-admin/
+#41 CACHED
 
 #21 [zata-codes-template-public builder  3/10] RUN npm install -g pnpm
 #21 CACHED
 
-#45 [zata-codes-template-public builder  7/10] RUN pnpm install --frozen-lockfile --filter ./frontend-public...
-#45 CACHED
+#42 [zata-codes-template-public builder  4/10] COPY pnpm-workspace.yaml pnpm-lock.yaml ./
+#42 CACHED
+
+#43 [zata-codes-template-public builder  5/10] COPY frontend-public/package.json frontend-public/
+#43 CACHED
+
+#16 [zata-codes-template-public builder  2/10] WORKDIR /app
+#16 CACHED
+
+#44 [zata-codes-template-public builder  7/10] RUN pnpm install --frozen-lockfile --filter ./frontend-public...
+#44 CACHED
+
+#45 [zata-codes-template-backend] resolving provenance for metadata file
+#45 DONE 0.0s
 
 #46 [zata-codes-template-public builder  8/10] COPY frontend-public/ frontend-public/
 #46 DONE 0.9s
@@ -75,51 +73,52 @@ docker compose up exit: 0
 #47 DONE 0.0s
 
 #48 [zata-codes-template-public builder 10/10] RUN pnpm build
-#48 0.191 [WARN] The following settings in pnpm-workspace.yaml are not recognized by this version of pnpm and were ignored: "confirmModulesPurge" (a pnpm v11 setting).
-#48 0.223 $ next build
-#48 0.698 Attention: Next.js now collects completely anonymous telemetry regarding usage.
-#48 0.698 This information is used to shape Next.js' roadmap and prioritize features.
-#48 0.698 You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
-#48 0.698 https://nextjs.org/telemetry
-#48 0.698 
-#48 0.981 ▲ Next.js 16.2.6 (Turbopack)
-#48 0.981 
-#48 1.030   Creating an optimized production build ...
-#48 5.474 ✓ Compiled successfully in 4.3s
-#48 5.510   Running TypeScript ...
-#48 15.51   Finished TypeScript in 10.0s ...
-#48 15.52   Collecting page data using 9 workers ...
-#48 16.43   Generating static pages using 9 workers (0/12) ...
-#48 16.66   Generating static pages using 9 workers (3/12) 
-#48 16.71   Generating static pages using 9 workers (6/12) 
-#48 16.80   Generating static pages using 9 workers (9/12) 
-#48 16.81 ✓ Generating static pages using 9 workers (12/12) in 381ms
-#48 16.82   Finalizing page optimization ...
-#48 17.03 
-#48 17.04 Route (app)
-#48 17.04 ┌ ƒ /
-#48 17.04 ├ ƒ /_not-found
-#48 17.04 ├ ƒ /about
-#48 17.04 ├ ƒ /app/agents
-#48 17.04 ├ ƒ /app/dashboard
-#48 17.04 ├ ƒ /app/settings
-#48 17.04 ├ ƒ /features
-#48 17.04 ├ ƒ /login
-#48 17.04 ├ ƒ /pricing
-#48 17.04 └ ƒ /register
-#48 17.04 
-#48 17.04 
-#48 17.04 ƒ Proxy (Middleware)
-#48 17.04 
-#48 17.04 ƒ  (Dynamic)  server-rendered on demand
-#48 17.04 
-#48 DONE 17.1s
+#48 0.231 [WARN] The following settings in pnpm-workspace.yaml are not recognized by this version of pnpm and were ignored: "confirmModulesPurge" (a pnpm v11 setting).
+#48 0.267 $ next build
+#48 1.946 Attention: Next.js now collects completely anonymous telemetry regarding usage.
+#48 1.946 This information is used to shape Next.js' roadmap and prioritize features.
+#48 1.946 You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+#48 1.946 https://nextjs.org/telemetry
+#48 1.946 
+#48 2.311 ▲ Next.js 16.2.6 (Turbopack)
+#48 2.311 
+#48 2.362   Creating an optimized production build ...
+#48 11.87 ✓ Compiled successfully in 9.3s
+#48 11.93   Running TypeScript ...
+#48 34.82   Finished TypeScript in 22.9s ...
+#48 34.83   Collecting page data using 9 workers ...
+#48 35.43   Generating static pages using 9 workers (0/12) ...
+#48 35.75   Generating static pages using 9 workers (3/12) 
+#48 35.78   Generating static pages using 9 workers (6/12) 
+#48 35.84   Generating static pages using 9 workers (9/12) 
+#48 35.85 ✓ Generating static pages using 9 workers (12/12) in 423ms
+#48 35.86   Finalizing page optimization ...
+#48 36.07 
+#48 36.07 Route (app)
+#48 36.07 ┌ ƒ /
+#48 36.07 ├ ƒ /_not-found
+#48 36.07 ├ ƒ /about
+#48 36.07 ├ ƒ /api/agent-runs/[runId]/events/stream
+#48 36.07 ├ ƒ /app/agents
+#48 36.07 ├ ƒ /app/dashboard
+#48 36.07 ├ ƒ /app/settings
+#48 36.07 ├ ƒ /features
+#48 36.07 ├ ƒ /login
+#48 36.07 ├ ƒ /pricing
+#48 36.07 └ ƒ /register
+#48 36.07 
+#48 36.07 
+#48 36.07 ƒ Proxy (Middleware)
+#48 36.07 
+#48 36.07 ƒ  (Dynamic)  server-rendered on demand
+#48 36.07 
+#48 DONE 36.2s
 
-#14 [zata-codes-template-public builder  2/10] WORKDIR /app
-#14 CACHED
+#16 [zata-codes-template-public builder  2/10] WORKDIR /app
+#16 CACHED
 
 #49 [zata-codes-template-public runner 3/5] COPY --from=builder /app/frontend-public/.next/standalone ./
-#49 DONE 0.2s
+#49 DONE 0.1s
 
 #50 [zata-codes-template-public runner 4/5] COPY --from=builder /app/frontend-public/.next/static ./frontend-public/.next/static
 #50 DONE 0.0s
@@ -129,52 +128,51 @@ docker compose up exit: 0
 
 #52 [zata-codes-template-public] exporting to image
 #52 exporting layers
-#52 exporting layers 1.3s done
-#52 exporting manifest sha256:152fd8bae113c5ed39451de2af580b116037c43f4f016ed1eaa2d5bf4fa8d433
-#52 exporting manifest sha256:152fd8bae113c5ed39451de2af580b116037c43f4f016ed1eaa2d5bf4fa8d433 done
-#52 exporting config sha256:dae4b8d6132b187963b056b26a1fd0502722b5dd35eb88a55b6d52b3904ac4d6 done
-#52 exporting attestation manifest sha256:fff2d721062c4695f39a0821b486a6b3960afba4e875a990594dfc18c35d1016 done
-#52 exporting manifest list sha256:6e7891f1f1ed736aff4a917944ddfc40c4347fbe1d4821e71d757f53733f2044 done
-#52 naming to docker.io/library/rv58-127f6b-zata-codes-template-public:latest done
-#52 unpacking to docker.io/library/rv58-127f6b-zata-codes-template-public:latest
-#52 unpacking to docker.io/library/rv58-127f6b-zata-codes-template-public:latest 0.3s done
-#52 DONE 1.6s
+#52 exporting layers 1.0s done
+#52 exporting manifest sha256:0a23565b7c6dea2098c3daad01f4d159467138fe44b7312252fbb8da86d4eaa5 done
+#52 exporting config sha256:e08abd4565f812de3bc1ba5662942713c42bc24524de47448d9075ce487804e6 done
+#52 exporting attestation manifest sha256:7eb680a49b448fb04d0bc26906d42faf5710d135610da7d6efde2d41bade3fa5 done
+#52 exporting manifest list sha256:b1b43c4c6b590a245a9ad7c4f5a36714af636240936cd46c1f19fbff6df9e719 done
+#52 naming to docker.io/library/rv58-48b362-zata-codes-template-public:latest done
+#52 unpacking to docker.io/library/rv58-48b362-zata-codes-template-public:latest
+#52 unpacking to docker.io/library/rv58-48b362-zata-codes-template-public:latest 0.3s done
+#52 DONE 1.3s
 
 #53 [zata-codes-template-public] resolving provenance for metadata file
 #53 DONE 0.0s
- Image rv58-127f6b-zata-codes-template-admin Building 
- Image rv58-127f6b-zata-codes-template-public Building 
- Image rv58-127f6b-zata-codes-template-backend Building 
- Image rv58-127f6b-zata-codes-template-backend Built 
- Image rv58-127f6b-zata-codes-template-public Built 
- Image rv58-127f6b-zata-codes-template-admin Built 
- Network rv58-127f6b_default Creating 
- Network rv58-127f6b_default Created 
- Volume rv58-127f6b_zata-codes-template-backend-logs Creating 
- Volume rv58-127f6b_zata-codes-template-backend-logs Created 
- Volume rv58-127f6b_zata-codes-template-backend-data Creating 
- Volume rv58-127f6b_zata-codes-template-backend-data Created 
- Container rv58-127f6b-zata-codes-template-backend-1 Creating 
- Container rv58-127f6b-zata-codes-template-backend-1 Created 
- Container rv58-127f6b-zata-codes-template-public-1 Creating 
- Container rv58-127f6b-zata-codes-template-admin-1 Creating 
- Container rv58-127f6b-zata-codes-template-public-1 Created 
- Container rv58-127f6b-zata-codes-template-admin-1 Created 
- Container rv58-127f6b-zata-codes-template-backend-1 Starting 
- Container rv58-127f6b-zata-codes-template-backend-1 Started 
- Container rv58-127f6b-zata-codes-template-backend-1 Waiting 
- Container rv58-127f6b-zata-codes-template-backend-1 Waiting 
- Container rv58-127f6b-zata-codes-template-backend-1 Healthy 
- Container rv58-127f6b-zata-codes-template-backend-1 Healthy 
- Container rv58-127f6b-zata-codes-template-public-1 Starting 
- Container rv58-127f6b-zata-codes-template-admin-1 Starting 
- Container rv58-127f6b-zata-codes-template-admin-1 Started 
- Container rv58-127f6b-zata-codes-template-public-1 Started 
+ Image rv58-48b362-zata-codes-template-public Building 
+ Image rv58-48b362-zata-codes-template-backend Building 
+ Image rv58-48b362-zata-codes-template-admin Building 
+ Image rv58-48b362-zata-codes-template-backend Built 
+ Image rv58-48b362-zata-codes-template-public Built 
+ Image rv58-48b362-zata-codes-template-admin Built 
+ Network rv58-48b362_default Creating 
+ Network rv58-48b362_default Created 
+ Volume rv58-48b362_zata-codes-template-backend-logs Creating 
+ Volume rv58-48b362_zata-codes-template-backend-logs Created 
+ Volume rv58-48b362_zata-codes-template-backend-data Creating 
+ Volume rv58-48b362_zata-codes-template-backend-data Created 
+ Container rv58-48b362-zata-codes-template-backend-1 Creating 
+ Container rv58-48b362-zata-codes-template-backend-1 Created 
+ Container rv58-48b362-zata-codes-template-public-1 Creating 
+ Container rv58-48b362-zata-codes-template-admin-1 Creating 
+ Container rv58-48b362-zata-codes-template-public-1 Created 
+ Container rv58-48b362-zata-codes-template-admin-1 Created 
+ Container rv58-48b362-zata-codes-template-backend-1 Starting 
+ Container rv58-48b362-zata-codes-template-backend-1 Started 
+ Container rv58-48b362-zata-codes-template-backend-1 Waiting 
+ Container rv58-48b362-zata-codes-template-backend-1 Waiting 
+ Container rv58-48b362-zata-codes-template-backend-1 Healthy 
+ Container rv58-48b362-zata-codes-template-admin-1 Starting 
+ Container rv58-48b362-zata-codes-template-backend-1 Healthy 
+ Container rv58-48b362-zata-codes-template-public-1 Starting 
+ Container rv58-48b362-zata-codes-template-admin-1 Started 
+ Container rv58-48b362-zata-codes-template-public-1 Started 
 
 backend health through production container: {'status': 'ok'}
-frontend entry ready: http://127.0.0.1:55209/login
-frontend entry ready: http://127.0.0.1:55208/sign-in
-direct backend login response: 200 {"user_id":"80d32215cf17457986c71605163f437e","display_name":"rv6-member","email":"rv6-member@example.test"}
+frontend entry ready: http://127.0.0.1:62541/login
+frontend entry ready: http://127.0.0.1:62540/sign-in
+direct backend login response: 200 {"user_id":"7d0905f8473b44b9828550a7e67e2e93","display_name":"rv6-member","email":"rv6-member@example.test"}
 public login response: 404 {"detail":"Not Found"}
 fault injection: production Next rewrite receives a duplicated /api upstream prefix
 expected_fail: public login should survive a single /api proxy pass ; observed 404
@@ -195,26 +193,26 @@ zata-codes-template-backend-1  | INFO  [alembic.runtime.migration] Running upgra
 zata-codes-template-backend-1  | INFO  [alembic.runtime.migration] Running upgrade 26e8967fcd01 -> 8b3c6eee34c1, agent_bound_a2a_peers — 为 agent 增加绑定出站 A2A 对端的 JSON 列。
 zata-codes-template-backend-1  | INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
 zata-codes-template-backend-1  | INFO  [alembic.runtime.migration] Will assume transactional DDL.
-zata-codes-template-backend-1  | 2026-11-18 17:54:37 - my-app - INFO - app_factory.py:212 - auth.oidc outcome=unavailable portal=admin reason=configuration_incomplete
+zata-codes-template-backend-1  | 2026-11-19 05:07:06 - my-app - INFO - app_factory.py:214 - auth.oidc outcome=unavailable portal=admin reason=configuration_incomplete
 zata-codes-template-backend-1  | INFO  [my-app] auth.oidc outcome=unavailable portal=admin reason=configuration_incomplete
+zata-codes-template-backend-1  | 2026-11-19 05:07:06 - my-app - INFO - app_factory.py:235 - auth.oidc outcome=unavailable portal=public reason=configuration_incomplete
 zata-codes-template-backend-1  | INFO  [my-app] auth.oidc outcome=unavailable portal=public reason=configuration_incomplete
-zata-codes-template-backend-1  | 2026-11-18 17:54:37 - my-app - INFO - app_factory.py:233 - auth.oidc outcome=unavailable portal=public reason=configuration_incomplete
+zata-codes-template-backend-1  | 2026-11-19 05:07:07 - my-app - INFO - bootstrap.py:73 - 已创建初始管理员：rv6-platform
 zata-codes-template-backend-1  | INFO  [my-app] 已创建初始管理员：rv6-platform
-zata-codes-template-backend-1  | 2026-11-18 17:54:37 - my-app - INFO - bootstrap.py:73 - 已创建初始管理员：rv6-platform
 zata-codes-template-backend-1  | INFO  [my-app] 已创建初始 public 用户：rv6-member@example.test
-zata-codes-template-backend-1  | 2026-11-18 17:54:38 - my-app - INFO - bootstrap.py:108 - 已创建初始 public 用户：rv6-member@example.test
+zata-codes-template-backend-1  | 2026-11-19 05:07:07 - my-app - INFO - bootstrap.py:108 - 已创建初始 public 用户：rv6-member@example.test
 zata-codes-template-backend-1  | INFO:     Started server process [1]
 zata-codes-template-backend-1  | INFO:     Waiting for application startup.
 zata-codes-template-backend-1  | INFO:     Application startup complete.
 zata-codes-template-backend-1  | INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-zata-codes-template-backend-1  | 2026-11-18 17:54:40 - my-app - INFO - request_context.py:66 - request handled
+zata-codes-template-backend-1  | 2026-11-19 05:07:11 - my-app - INFO - request_context.py:66 - request handled
 zata-codes-template-backend-1  | INFO  [my-app] request handled
 zata-codes-template-backend-1  | INFO  [my-app] request handled
-zata-codes-template-backend-1  | 2026-11-18 17:54:41 - my-app - INFO - request_context.py:66 - request handled
-zata-codes-template-backend-1  | 2026-11-18 17:54:42 - my-app - INFO - request_context.py:66 - request handled
+zata-codes-template-backend-1  | 2026-11-19 05:07:11 - my-app - INFO - request_context.py:66 - request handled
 zata-codes-template-backend-1  | INFO  [my-app] request handled
+zata-codes-template-backend-1  | 2026-11-19 05:07:13 - my-app - INFO - request_context.py:66 - request handled
+zata-codes-template-backend-1  | 2026-11-19 05:07:13 - my-app - INFO - request_context.py:66 - request handled
 zata-codes-template-backend-1  | INFO  [my-app] request handled
-zata-codes-template-backend-1  | 2026-11-18 17:54:43 - my-app - INFO - request_context.py:66 - request handled
 
 zata-codes-template-public logs before shutdown:
 zata-codes-template-public-1  | ▲ Next.js 16.2.6
