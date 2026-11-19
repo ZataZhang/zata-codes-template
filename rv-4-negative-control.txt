@@ -1,0 +1,10 @@
+# rv-4 negative control at 2026-11-18T17:53:39.209841+00:00
+command: python tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts/rv4_distribution_audit.py
+injected fault: temporary source-branded image path; `just copy` transfers it into the real output
+audit exit code: 1
+auditor response: forbidden source-product path/text hits: ['frontend-admin/public/images/shadcn-admin-negative-control.png: forbidden source-branded path']
+RV_RESULT: FAIL AssertionError: forbidden source-product path or text exists in actual distribution output
+expected_fail: the copy auditor reports the source-branded image path and exits non-zero
+
+EXPECTED_FAIL: rv-4 distribution assertion detected the injected branded asset path
+RV_RESULT: NEGATIVE CONTROL DETECTED rv-4

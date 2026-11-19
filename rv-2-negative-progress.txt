@@ -1,0 +1,15 @@
+0ms test started
+1114ms organization and test users prepared
+1758ms organization admin session ready
+2299ms organization member session ready
+2387ms organization sessions ready; admin page opened
+4295ms admin Skill page navigation and list response completed
+10764ms admin Skill name field accepted input
+24764ms Skill created through admin UI
+45277ms Agent created and published through admin UI
+48411ms admin publishing context closed before member workflow
+48613ms member Agent page navigation committed
+48841ms member Agent directory response received
+48999ms member selected the published Agent and filled the prompt
+49172ms member Run creation returned from the API
+61630ms workflow cleanup started

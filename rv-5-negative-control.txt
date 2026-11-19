@@ -1,0 +1,16 @@
+# rv-5 template copy at 2026-11-18T17:53:42.680083+00:00
+identity: {"head": "75459f4e64127183fd1ebf410903fe07873dcd72", "working_tree_excluding_delivery_records": "e8e09ccf2a19c8dc7f0b6645c8cb323ba8c88903"}
+copy command: just copy .venv/rv58-copy-issue58
+local dotenv files in clean copy: <none>
+runner/viewer state excluded: True True
+Copying template to .venv/rv58-copy-issue58...
+Picked random ports: backend=8899, admin frontend=5627, public frontend=3869
+Created bilingual README files for rv58-copy-issue58
+Running database migrations...
+Skipping initial commit for the nested copy.
+fault injection: removed copied src/backend/main.py in isolated destination
+backend startup result: 
+expected_fail: the copied project cannot expose /health after its backend entry point is removed
+
+EXPECTED_FAIL: rv-5 startup assertion detected the missing copied entry point
+RV_RESULT: NEGATIVE CONTROL DETECTED rv-5

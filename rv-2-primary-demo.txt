@@ -1,0 +1,20 @@
+# rv-2 primary demo real user flow at 2026-11-18T17:30:43.372699+00:00
+identity: {'head': '75459f4e64127183fd1ebf410903fe07873dcd72', 'working_tree_excluding_delivery_records': 'e8e09ccf2a19c8dc7f0b6645c8cb323ba8c88903'}
+model boundary: local OpenAI-compatible transport stub; all UI/API/DB boundaries real
+command: just e2e tests/rv58-workflows/primary-demo.auth.spec.ts
+public/admin browser origins: host.docker.internal mapped through isolated Chromium container on port 60735
+public frontend: production Next.js build and start; admin frontend, API, database, and Chromium browser are real
+negative control: none
+exit_code: 0
+E2E artifacts will be written to: [WORKTREE]
+Running 2 tests using 1 worker
+✓  1 [setup] › tests/setup/auth.setup.ts:11:1 › authenticate and persist storage state (1.9s)
+✓  2 [chromium] › tests/rv58-workflows/primary-demo.auth.spec.ts:25:1 › primary demo follows the five scripted steps (3.0m)
+2 passed (3.1m)
+primary demo: separate real-browser recording, five scripted steps
+clip order: publish Agent, member Run with incremental reply, reopened history,
+admin trace, Skill update/compare/restore, second Run with frozen versions
+six real browser clips (seconds): 78.64, 21.88, 6.36, 11.32, 25.68, 25.24
+each result step holds for at least 3.5 seconds per the recording workflow
+primary demo duration: 169.12 seconds
+primary demo file: rv-2-demo-multi-organization-agent.mp4 (861348 bytes)

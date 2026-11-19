@@ -1,0 +1,28 @@
+{
+  "clips": [
+    {
+      "name": "rv-2-demo-step-1-admin-publish.webm",
+      "duration_seconds": 78.64
+    },
+    {
+      "name": "rv-2-demo-step-2-member-run.webm",
+      "duration_seconds": 21.88
+    },
+    {
+      "name": "rv-2-demo-step-3-history.webm",
+      "duration_seconds": 6.36
+    },
+    {
+      "name": "rv-2-demo-step-4-trace.webm",
+      "duration_seconds": 11.32
+    },
+    {
+      "name": "rv-2-demo-step-5-skill-version.webm",
+      "duration_seconds": 25.68
+    },
+    {
+      "name": "rv-2-demo-step-6-second-run.webm",
+      "duration_seconds": 25.24
+    }
+  ]
+}

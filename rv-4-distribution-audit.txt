@@ -1,0 +1,73 @@
+# rv-4 distribution audit at 2026-11-19T03:10:01.534059+00:00
+identity: {'head': '4e2f1fa186875a7905ba6618a5ab1098a20f9083', 'working_tree_excluding_delivery_records': 'a7a1c85d984b9a80e0629fad29cdf488a22448ba'}
+source tracked-file count: 1154
+source local-secret-file history: <none>
+source historical media entries are not exported with `just copy`: 16adc72326aab3f9193bd0168d54216fbfbba11d Realistic Validation evidence for issue #58
+1ab4daedd003c996a103a34f7162f38c2ef7b31e feat(agent): deliver multi-organization online agent base
+6764e0e49cf20f9fc22a2b315aa88f5e8ed784c1 [Agent][WIP] Issue #58 checkpoint (delivery gates not yet satisfied; not for merge)
+03b4b591edaa04ce9037aeb96e9366ed2cfadcdc feat(template): improve onboarding and workspace browsing
+b2e33f76df7cb79c18a910e9a36cdc081538c4c1 feat(zata-writer): add open-source tracking guide and brand visual spec
+e24aedc9f27b9b0089d862a24f65280e3b8179fb feat(run-tracing): port generic run tracing foundation (#13)
+1ee47d5912ad2a5deb15e898db1a986fb4e36977 feat(tooling): file/diff viewer PRD+prototype, diff-report move panel
+bba379529b6f8ed640b3a9fa531d3ad64208e32d feat(prototype): Hub 改为 registry 驱动，新增登录页原型并移除 worktree demo
+731b4a187b1ec5dd1c136362b057e36e285df3aa feat(skills): add reusable prototype system templates
+6f88aedad7027aeffe2d2a80fb4dcafa1ffea3ad feat(prototype): add interactive-ui-prototype skill and admin-users demos
+9cc278562f6c419776ffaefd422f77d63012450c feat: add branch inventory script for rebase-merge workflow
+c49fe183401922fa82f56338637be8f20c5aec75 refactor(repo): rename frontend/ to frontend-admin/
+dda833f83a2d84d4f357c3f19f02eef31a8ad990 refactor(repo): rename frontend/ to frontend-admin/
+cc2205c121d3cf6022040d3b9298541c01a14d9c feat(frontend): add public site and migrate admin to TanStack Router
+29fb7530c8f6924245f068e06ef88d3a91658c58 feat(frontend): add public site and migrate admin to TanStack Router
+119697b09927705d09fb23af8413035883101e72 feat(auth): implement FastAPI auth API with sliding window session
+677417e8dada9b72657d0ef84782bf07340eba8c feat(auth): implement FastAPI auth API with sliding window session
+real copy entry: just copy completed; source .env.local is temporary migration input only
+copy output summary: Copying template to .venv/rv58-copy-rv4-audit...
+docs/database/migrations.md
+tests/guards/test_migrations.py
+Running database migrations...
+Skipping initial commit for the nested copy.
+excluded local build/cache directories in clean copy: <none>
+clean-copy publish file count: 886
+clean-copy suffix inventory: {'.bash': 1, '.cjs': 1, '.conf': 2, '.css': 14, '.e2b-template': 1, '.example': 5, '.html': 11, '.ico': 1, '.ini': 2, '.js': 14, '.json': 20, '.lock': 1, '.log': 1, '.mako': 1, '.md': 77, '.mjs': 11, '.png': 22, '.py': 312, '.run-state': 1, '.sandbox': 1, '.sh': 22, '.shared': 1, '.svg': 3, '.toml': 5, '.ts': 77, '.tsx': 223, '.txt': 12, '.yaml': 8, '.yml': 10, '.zsh': 1, '<no-extension>': 25}
+approved neutral infrastructure/test references: ['scripts/shared/template/sync_template.sh: CargoX — historical product-specific customization in a sync-policy comment', 'tests/guards/shared/test_worktree_submodule_init.py: vendor/ — generic third-party submodule path in an isolated git fixture']
+forbidden source-product path/text hits: <none>
+private dotenv files in clean copy: <none>
+archive/binary packages in clean copy: <none>
+tracked media from source tree: ['docs/prototypes/assets/admin-users-detail-state.png', 'docs/prototypes/assets/admin-users-interactive.png', 'docs/prototypes/assets/agent-online.png', 'docs/prototypes/assets/file-viewer-interactive-diff.png', 'docs/prototypes/assets/file-viewer-interactive-disconnected.png', 'docs/prototypes/assets/file-viewer-interactive.png', 'docs/prototypes/assets/login-demo.png', 'docs/prototypes/assets/prototype-hub.png', 'docs/prototypes/assets/run-tracing.png', 'docs/prototypes/assets/users-confirm-state.png', 'docs/prototypes/assets/users-detail-state.png', 'docs/prototypes/assets/users-image-hotspot.png', 'docs/prototypes/assets/users-list-state.png', 'docs/prototypes/assets/users-success-state.png', 'frontend-admin/public/images/favicon.svg', 'frontend-admin/public/images/favicon_light.svg', 'frontend-public/app/favicon.ico', 'scripts/shared/view/assets/zview-mark.svg', 'skills/interactive-ui-prototype/assets/prototype-hub-catalog-reference.png', 'skills/zata-writer/assets/brand/cover-sketch-reference.png', 'skills/zata-writer/assets/brand/title-tomato-egg-handwritten.png', 'skills/zata-writer/assets/brand/zata-signature-blue-z-black-ata.png', 'skills/zata-writer/assets/brand/人物设定.png', 'skills/zata-writer/assets/brand/开头动画.gif', 'tests/playwright-e2e/screenshots/dashboard-dark-desktop.png', 'tests/playwright-e2e/screenshots/dashboard-light-desktop.png', 'tests/playwright-e2e/screenshots/login-dark-desktop.png', 'tests/playwright-e2e/screenshots/login-dark-mobile.png', 'tests/playwright-e2e/screenshots/login-light-desktop.png', 'tests/playwright-e2e/screenshots/login-light-mobile.png', 'tests/playwright-e2e/screenshots/notfound-dark-desktop.png', 'tests/playwright-e2e/screenshots/notfound-light-desktop.png']
+copy media metadata: docs/prototypes/assets/admin-users-detail-state.png => PNG image data, 1440 x 1003, 8-bit/color RGB, non-interlaced
+copy media metadata: docs/prototypes/assets/admin-users-interactive.png => PNG image data, 1440 x 1003, 8-bit/color RGB, non-interlaced
+copy media metadata: docs/prototypes/assets/agent-online.png => PNG image data, 1440 x 1000, 8-bit/color RGB, non-interlaced
+copy media metadata: docs/prototypes/assets/file-viewer-interactive-diff.png => PNG image data, 2880 x 1800, 8-bit/color RGB, non-interlaced
+copy media metadata: docs/prototypes/assets/file-viewer-interactive-disconnected.png => PNG image data, 2880 x 1800, 8-bit/color RGB, non-interlaced
+copy media metadata: docs/prototypes/assets/file-viewer-interactive.png => PNG image data, 2880 x 1800, 8-bit/color RGB, non-interlaced
+copy media metadata: docs/prototypes/assets/login-demo.png => PNG image data, 1440 x 1000, 8-bit/color RGB, non-interlaced
+copy media metadata: docs/prototypes/assets/prototype-hub.png => PNG image data, 1500 x 1260, 8-bit/color RGB, non-interlaced
+copy media metadata: docs/prototypes/assets/run-tracing.png => PNG image data, 1440 x 900, 8-bit/color RGB, non-interlaced
+copy media metadata: docs/prototypes/assets/users-confirm-state.png => PNG image data, 1536 x 1024, 8-bit/color RGB, non-interlaced
+copy media metadata: docs/prototypes/assets/users-detail-state.png => PNG image data, 1536 x 1024, 8-bit/color RGB, non-interlaced
+copy media metadata: docs/prototypes/assets/users-image-hotspot.png => PNG image data, 1440 x 1071, 8-bit/color RGB, non-interlaced
+copy media metadata: docs/prototypes/assets/users-list-state.png => PNG image data, 1536 x 1024, 8-bit/color RGB, non-interlaced
+copy media metadata: docs/prototypes/assets/users-success-state.png => PNG image data, 1536 x 1024, 8-bit/color RGB, non-interlaced
+copy media metadata: frontend-admin/public/images/favicon.svg => SVG Scalable Vector Graphics image
+copy media metadata: frontend-admin/public/images/favicon_light.svg => SVG Scalable Vector Graphics image
+copy media metadata: frontend-public/app/favicon.ico => MS Windows icon resource - 4 icons, 16x16, 32 bits/pixel, 32x32, 32 bits/pixel
+copy media metadata: scripts/shared/view/assets/zview-mark.svg => SVG Scalable Vector Graphics image
+media excluded by copy policy: skills/interactive-ui-prototype/assets/prototype-hub-catalog-reference.png
+media excluded by copy policy: skills/zata-writer/assets/brand/cover-sketch-reference.png
+media excluded by copy policy: skills/zata-writer/assets/brand/title-tomato-egg-handwritten.png
+media excluded by copy policy: skills/zata-writer/assets/brand/zata-signature-blue-z-black-ata.png
+media excluded by copy policy: skills/zata-writer/assets/brand/人物设定.png
+media excluded by copy policy: skills/zata-writer/assets/brand/开头动画.gif
+copy media metadata: tests/playwright-e2e/screenshots/dashboard-dark-desktop.png => PNG image data, 1440 x 1222, 8-bit/color RGB, non-interlaced
+copy media metadata: tests/playwright-e2e/screenshots/dashboard-light-desktop.png => PNG image data, 1440 x 1222, 8-bit/color RGB, non-interlaced
+copy media metadata: tests/playwright-e2e/screenshots/login-dark-desktop.png => PNG image data, 1280 x 800, 8-bit/color RGB, non-interlaced
+copy media metadata: tests/playwright-e2e/screenshots/login-dark-mobile.png => PNG image data, 390 x 844, 8-bit/color RGB, non-interlaced
+copy media metadata: tests/playwright-e2e/screenshots/login-light-desktop.png => PNG image data, 1280 x 800, 8-bit/color RGB, non-interlaced
+copy media metadata: tests/playwright-e2e/screenshots/login-light-mobile.png => PNG image data, 390 x 844, 8-bit/color RGB, non-interlaced
+copy media metadata: tests/playwright-e2e/screenshots/notfound-dark-desktop.png => PNG image data, 1440 x 900, 8-bit/color RGB, non-interlaced
+copy media metadata: tests/playwright-e2e/screenshots/notfound-light-desktop.png => PNG image data, 1440 x 900, 8-bit/color RGB, non-interlaced
+Git history copied: False
+source import/license inventory: no ai-assistant/freshai source file, migration, dependency lock, font, media, or binary is imported
+history decision: `just copy` output has clean history; public source repository history is not claimed as the distribution artifact
+rights decision: all copied media are target template assets; no source-repository asset needs a new license grant
+
+RV_RESULT: PASS rv-4

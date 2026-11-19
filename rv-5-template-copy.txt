@@ -1,0 +1,17 @@
+# rv-5 template copy at 2026-11-19T03:10:11.758908+00:00
+identity: {"head": "22bdb4adb4f7eb30e7ba27a77394b3b2bb90e964", "working_tree_excluding_delivery_records": "a7a1c85d984b9a80e0629fad29cdf488a22448ba"}
+copy command: just copy .venv/rv58-copy-issue58
+local dotenv files in clean copy: <none>
+runner/viewer state excluded: True True
+Copying template to .venv/rv58-copy-issue58...
+Picked random ports: backend=8498, admin frontend=5653, public frontend=3954
+Created bilingual README files for rv58-copy-issue58
+Running database migrations...
+Skipping initial commit for the nested copy.
+real clone/compare sync-list completed; shared-file candidates are visible
+✨ Everything is up to date with the template.
+copied backend /health: 200 {'status': 'ok'}
+startup uses a separately configured DATABASE_URL; copied local credentials are absent
+copy migration and app configuration are current; model is intentionally unconfigured
+
+RV_RESULT: PASS rv-5

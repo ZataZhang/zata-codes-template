@@ -1,0 +1,13 @@
+# rv-3 real user flow at 2026-11-19T03:09:14.348617+00:00
+identity: {'head': '4e2f1fa186875a7905ba6618a5ab1098a20f9083', 'working_tree_excluding_delivery_records': 'a7a1c85d984b9a80e0629fad29cdf488a22448ba'}
+model boundary: local OpenAI-compatible transport stub; all UI/API/DB boundaries real
+command: just e2e tests/rv58-workflows/skill-version.auth.spec.ts
+public/admin browser origins: host.docker.internal mapped through isolated Chromium container on port 54201
+public frontend: production Next.js build and start; admin frontend, API, database, and Chromium browser are real
+negative control: none
+exit_code: 0
+E2E artifacts will be written to: [WORKTREE]
+Running 2 tests using 1 worker
+✓  1 [setup] › tests/setup/auth.setup.ts:11:1 › authenticate and persist storage state (1.1s)
+✓  2 [chromium] › tests/rv58-workflows/skill-version.auth.spec.ts:21:1 › rv-3 restores old content as a new version and freezes each Run snapshot (29.5s)
+2 passed (31.2s)

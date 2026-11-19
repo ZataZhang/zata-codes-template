@@ -1,0 +1,3 @@
+2026-11-19T01:49:41.062Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-19T01:49:45.433Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-19T01:49:49.216Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent

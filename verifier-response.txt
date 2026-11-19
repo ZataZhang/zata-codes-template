@@ -1,0 +1,272 @@
+# Independent verifier raw response
+# issue: #58
+# verifier agent: claude
+# builder sha: 4ef2121195572d91d247996bdb52a3b370631bc5
+# parsed risk: yellow
+# verdict marker found: yes
+# response chars: 27608
+
+
+[agent tool] Bash: git log --oneline -1 && git status --short | head && ls tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/ | head -80 && ls tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts
+
+[agent tool] Bash: ls -a; ls .env* 2>/dev/null; docker ps --format '{{.Names}} {{.Image}} {{.Ports}}' 2>&1 | head; cat tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/verifier-response.txt | head -50
+
+[agent tool] Bash: E=tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base; sed -n '/^## \|Findings\|finding/,$p' $E/verifier-response.txt | tail -80
+
+[agent tool] Bash: E=tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base; grep -v '^\[agent tool\]' $E/verifier-response.txt | tail -70; git show --stat HEAD | head -40
+
+[agent tool] Bash: git show HEAD -- 'frontend-public/app/(app)/app/agents/page.tsx'; sed -n 90,200p 'frontend-public/app/(app)/app/agents/page.tsx'
+Checking the HEAD fix for the fast-terminal race the previous verifier flagged, then I'll re-run the oracle commands myself.
+[agent tool] Bash: grep -n "eventCursorRef.current = \|setActiveRun(" 'frontend-public/app/(app)/app/agents/page.tsx'; S=tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts; grep -n "argparse\|add_argument" $S/rv_ui.py $S/rv6_compose.py $S/rv7_a2a.py | head -30; grep -n "port" $S/rv_stack.py | head -20
+
+
+[agent tool] Bash: E=tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base; rm -rf /tmp/v58b && mkdir -p /tmp/v58b/out && cp -a $E /tmp/v58b/evidence-backup && git status --short | head; git check-ignore -v $E/rv-1-org-isolation-pg.txt
+
+[agent tool] Bash: S=tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts; export UV_CACHE_DIR=/tmp/uv-cache-issue58; O=/tmp/v58b/out
+( .venv/bin/python $S/rv1_org_isolation.py --db pg --mutant > $O/rv1-neg.out 2>&1; echo "EXIT=$?" >> $O/rv1-neg.out; .venv/bin/python $S/rv1_org_isolation.py --db pg --db mysql > $O/rv1-pos.out 2>&1; echo "EXIT=$?" >> $O/rv1-pos.out )
+
+[agent tool] Bash: S=tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts; export UV_CACHE_DIR=/tmp/uv-cache-issue58 UV_TOOL_DIR=/tmp/uv-tools-issue58; O=/tmp/v58b/out
+( .venv/bin/python $S/rv_ui.py --rv 2 --negative-control --mutant > $O/rv2-neg.out 2>&1; echo "EXIT=$?" >> $O/rv2-neg.out; .venv/bin/python $S/rv_ui.py --rv 2 > $O/rv2-pos.out 2>&1; echo "EXIT=$?" >> $O/rv2-pos.out )
+
+[agent tool] Bash: E=tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base; cat $E/rv-2-fast-terminal-states.txt | head -40; grep -n "fast\|delay\|FAST" $E/scripts/rv_ui.py $E/scripts/rv_stack.py $E/scripts/agent-run.auth.spec.ts | head -40
+
+[agent tool] Bash: E=tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base; grep -n "runAgentThroughUi" -A30 $E/scripts/agent-test-support.ts | head -50; sed -n 110,125p $E/scripts/agent-run.auth.spec.ts
+
+[agent tool] Bash: E=tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base; grep -n "^def \|^class \|    def " $E/scripts/rv_stack.py | head -60; sed -n 1,60p $E/scripts/rv6_compose.py
+Running rv-1 and rv-2 (with their negative controls) in the background; meanwhile reviewing what rv-1 covers so I can add probes it misses.
+[agent tool] Bash: E=tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base; wc -l $E/scripts/rv1_org_isolation.py; grep -n "call(\"\|\.call(" $E/scripts/rv1_org_isolation.py | head -80
+
+
+[agent tool] Bash: E=tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base; sed -n 150,255p $E/scripts/rv1_org_isolation.py; sed -n 360,392p $E/scripts/rv1_org_isolation.py
+
+[agent tool] Bash: ls src/backend/api | head -50; grep -rn "@router\.\(get\|post\|put\|patch\|delete\)" src/backend/api/ | grep -i "agent\|skill\|a2a\|peer" | head -60
+
+[agent tool] Bash: grep -n "class \|: \|Field" src/backend/api/admin/*agent*schema* src/backend/api/admin/schemas*.py 2>/dev/null | grep -i -A12 "class AgentCreate\|class AgentUpdate\|class SkillCreate\|class A2APeerCreate\|class SkillRevisionCreate" | head -70; ls src/backend/api/admin
+
+[agent tool] Bash: grep -n "^class \|^    [a-z_]*:" src/backend/api/agent_schemas.py | head -90
+
+[agent tool] Bash: E=tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base; sed -n 260,345p $E/scripts/rv1_org_isolation.py
+Both rv-1 and rv-2 still running. Writing my own probe script for gaps rv-1 doesn't cover (same-org other member, cross-user conversation reuse, unrunnable Agents, script Skills, private-IP peers).
+[agent tool] Bash: grep -n "class A2APeer.*Request" -A12 src/backend/api/*.py src/backend/api/admin/*.py | head -40; grep -n "header\|Bearer\|X-API\|api_key" src/backend/api/a2a_support.py | head; grep -rn "def .*model\b\|AGENT_MODEL\|model_name" src/backend/core/agent/*.py 2>/dev/null | head -15; ls src/backend/core
+
+[agent tool] Bash: cd /Users/zata/code/zata_code_template/.kc-worktrees/issue-58; O=/tmp/v58b/out; tail -3 $O/rv1-neg.out $O/rv1-pos.out $O/rv2-neg.out $O/rv2-pos.out 2>/dev/null
+
+
+[agent tool] Bash: E=tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base; sed -n 390,470p $E/scripts/rv_stack.py; sed -n 440,460p src/backend/core/agent/catalog.py
+
+[agent tool] Bash: grep -rn "allow_loopback\|ALLOW_LOOPBACK" src/backend --include=*.py | head; grep -rn "ALLOW_LOOPBACK" docker-compose*.yml .env.example deploy 2>/dev/null | head; grep -n "def \|is_private\|is_global\|loopback" src/backend/infrastructure/a2a/*.py | head -40
+
+[agent tool] Bash: sed -n 248,307p src/backend/infrastructure/a2a/http_client.py; grep -rn "allow_loopback_for_dev" src/backend/infrastructure/config* src/backend/*/config* 2>/dev/null | head -5; grep -rln "allow_loopback_for_dev" src | head
+
+[agent tool] Write: /tmp/v58b/probe.py
+
+[agent tool] Bash: grep -n "class Backend" -A12 tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts/rv_stack.py | head -15; UV_CACHE_DIR=/tmp/uv-cache-issue58 timeout 600 .venv/bin/python /tmp/v58b/probe.py 2>&1 | tail -70
+
+[agent tool] Bash: UV_CACHE_DIR=/tmp/uv-cache-issue58 .venv/bin/python /tmp/v58b/probe.py > /tmp/v58b/out/probe.out 2>&1; echo EXIT=$?; tail -75 /tmp/v58b/out/probe.out
+
+[agent tool] Bash: cd /Users/zata/code/zata_code_template/.kc-worktrees/issue-58; grep -n "RV_RESULT\|LEAK\|EXIT" /tmp/v58b/out/rv1-pos.out; grep -c "\[OK\]" /tmp/v58b/out/rv1-pos.out; tail -3 /tmp/v58b/out/rv2-neg.out
+
+[agent tool] Bash: cd /tmp/v58b && python3 - <<'EOF'
+import re
+s=open('probe.py').read()
+s=s.replace('json={"name": "p", "card_url": url', 'json={"name": "p-"+uuid.uuid4().hex[:6], "card_url": url')
+# after registration, approve the metadata-IP peer as platform and bind to agent, run, check model stub/no request
+s=s.replace('print("\\n## A2A agent card / task', '''    peers = admin_a.call("GET", "/admin/a2a-peers", 200).json()["items"]
+    meta = [p for p in peers if "169.254" in p["card_url"]][0]
+    show("  platform approve 169.254 peer", platform.call("POST", f"/admin/a2a-peers/{meta['id']}/approve"))
+    show("  bind peer to agent", admin_a.call("PUT", f"/admin/agents/{agent['id']}", json=dict(upd, is_enabled=True, peer_ids=[meta["id"]])))
+    print("\\n## A2A agent card / task''')
+open('probe.py','w').write(s)
+EOF
+cd /Users/zata/code/zata_code_template/.kc-worktrees/issue-58 && UV_CACHE_DIR=/tmp/uv-cache-issue58 .venv/bin/python /tmp/v58b/probe.py > /tmp/v58b/out/probe2.out 2>&1; echo EXIT=$?; sed -n '/SSRF/,/agent card/p' /tmp/v58b/out/probe2.out
+
+[agent tool] Bash: E=tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base; grep -n "peer\|tool_call\|A2A_ALLOWED\|allowed_outbound" $E/scripts/rv7_a2a.py | head -40; grep -n "tool_call\|a2a_call\|call_peer" $E/scripts/rv_stack.py | head
+
+[agent tool] Bash: cd /tmp/v58b && python3 - <<'EOF'
+s=open('probe.py').read()
+s=s.replace('''    print("\\n## A2A agent card / task''','''    r = a1.call("POST", "/agent-runs", json={"agent_id": agent["id"], "message": f"ASK_PEER:{meta['id']}"})
+    print("  ASK_PEER metadata run create:", r.status_code, r.text[:200])
+    if r.status_code == 202:
+        rr = stack.wait_run(a1, r.json()["id"])
+        print("  metadata-peer run final:", rr["status"], (rr.get("assistant_message") or "")[:200])
+        ev = a1.call("GET", f"/agent-runs/{rr['id']}/events", 200).json()
+        print("  events:", [(e["event_type"], str(e.get("payload"))[:120]) for e in ev["items"]])
+    print("\\n## A2A agent card / task''',1)
+open('probe.py','w').write(s)
+EOF
+cd /Users/zata/code/zata_code_template/.kc-worktrees/issue-58 && UV_CACHE_DIR=/tmp/uv-cache-issue58 .venv/bin/python /tmp/v58b/probe.py > /tmp/v58b/out/probe3.out 2>&1; echo EXIT=$?; grep -A8 "ASK_PEER" /tmp/v58b/out/probe3.out; tail -3 /tmp/v58b/out/rv2-neg.out
+rv-1 (neg RED, PG+MySQL PASS) and rv-2 negative control (RED as expected) confirmed; my own probes pass. Now running rv-4/rv-5 while rv-2 positive finishes.
+[agent tool] Bash: S=tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts; export UV_CACHE_DIR=/tmp/uv-cache-issue58; O=/tmp/v58b/out
+( .venv/bin/python $S/rv4_negative_control.py > $O/rv4-neg.out 2>&1; echo "EXIT=$?" >> $O/rv4-neg.out; .venv/bin/python $S/rv4_distribution_audit.py > $O/rv4-pos.out 2>&1; echo "EXIT=$?" >> $O/rv4-pos.out; .venv/bin/python $S/rv5_copy_template.py --negative-control > $O/rv5-neg.out 2>&1; echo "EXIT=$?" >> $O/rv5-neg.out; .venv/bin/python $S/rv5_copy_template.py > $O/rv5-pos.out 2>&1; echo "EXIT=$?" >> $O/rv5-pos.out )
+
+[agent tool] Bash: E=tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base; cat $E/rv-2-negative-terminal-probe.txt | head; grep -n "mutant\|MUTANT" $E/scripts/rv_ui.py | head -20
+
+
+[agent tool] Bash: git status --short | head; E=tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base; sed -n 420,440p $E/scripts/rv_ui.py; sed -n 525,545p $E/scripts/rv_ui.py
+
+[agent tool] Bash: sleep 240; tail -5 /tmp/v58b/out/rv2-pos.out; tail -3 /tmp/v58b/out/rv4-*.out /tmp/v58b/out/rv5-*.out 2>/dev/null
+Meanwhile I'll inspect the demo video.
+[agent tool] Bash: E=/tmp/v58b/evidence-backup; ffprobe -v error -show_entries format=duration:stream=width,height,codec_name $E/rv-2-demo-multi-organization-agent.mp4; stat -f '%Sm %z' $E/rv-2-demo-multi-organization-agent.mp4; mkdir -p /tmp/v58b/frames && cd /tmp/v58b/frames && ffmpeg -v error -y -i $E/rv-2-demo-multi-organization-agent.mp4 -vf "fps=1/5,scale=800:-1" f%02d.png && ls | wc -l
+
+
+[agent tool] Bash: cd /tmp/v58b/frames && for g in 0 1 2 3 4 5; do args=(); for i in 1 2 3 4 5 6; do n=$((g*6+i)); f=$(printf f%02d.png $n); [ -f $f ] && args+=(-i $f); done; c=$((${#args[@]}/2)); [ $c -eq 6 ] && ffmpeg -v error -y "${args[@]}" -filter_complex "xstack=inputs=6:layout=0_0|w0_0|w0+w1_0|0_h0|w0_h0|w0+w1_h0" grid$g.png; done; ls grid*
+
+[agent tool] Bash: tail -8 /tmp/v58b/out/rv2-pos.out; cat /Users/zata/code/zata_code_template/.kc-worktrees/issue-58/tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/rv-2-fast-terminal-states.txt
+
+[agent tool] Read: /tmp/v58b/frames/grid0.png
+
+[agent tool] Read: /tmp/v58b/frames/grid1.png
+
+[agent tool] Read: /tmp/v58b/frames/grid2.png
+
+[agent tool] Read: /tmp/v58b/frames/grid3.png
+
+[agent tool] Read: /tmp/v58b/frames/grid4.png
+
+[agent tool] Bash: cd /tmp/v58b/frames && ffmpeg -v error -y -i f31.png -i f32.png -i f33.png -i f34.png -filter_complex "xstack=inputs=4:layout=0_0|w0_0|0_h0|w0_h0" grid5.png && echo ok
+
+[agent tool] Read: /tmp/v58b/frames/grid5.png
+Demo video inspected: all 5 scripted steps present with on-screen mock captions. Checking rv-4/rv-5, then rv-3/rv-7/rv-6.
+[agent tool] Bash: tail -4 /tmp/v58b/out/rv4-*.out /tmp/v58b/out/rv5-*.out 2>/dev/null
+
+
+[agent tool] Bash: E=tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base; grep -n -i "cargox\|freshai\|ai-assistant\|shadcn\|PATTERN\|FORBIDDEN" $E/scripts/rv4_distribution_audit.py $E/scripts/rv4_negative_control.py | head -30; grep -n "copy\|Copy" /tmp/v58b/out/rv4-pos.out | head
+
+[agent tool] Bash: ls -d .venv/rv58-copy* 2>/dev/null; cat .env.run-state | sed 's/=.*/=<redacted>/' | head; git ls-files | grep -E "run-state|\.log$" | head
+
+[agent tool] Bash: sed -n 36,80p /tmp/v58b/out/rv4-pos.out | cut -c1-250
+
+[agent tool] Bash: S=tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts; export UV_CACHE_DIR=/tmp/uv-cache-issue58 UV_TOOL_DIR=/tmp/uv-tools-issue58; O=/tmp/v58b/out
+( .venv/bin/python $S/rv_ui.py --rv 3 --negative-control > $O/rv3-neg.out 2>&1; echo "EXIT=$?" >> $O/rv3-neg.out; .venv/bin/python $S/rv_ui.py --rv 3 > $O/rv3-pos.out 2>&1; echo "EXIT=$?" >> $O/rv3-pos.out; export UV_TOOL_DIR=/tmp/uv-tool-issue58 UV_TOOL_BIN_DIR=/tmp/uv-tool-bin-issue58; uv run --no-sync python $S/rv7_a2a.py --negative-control --mutant > $O/rv7-neg.out 2>&1; echo "EXIT=$?" >> $O/rv7-neg.out; uv run --no-sync python $S/rv7_a2a.py > $O/rv7-pos.out 2>&1; echo "EXIT=$?" >> $O/rv7-pos.out )
+
+[agent tool] Bash: E=tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base; sed -n 100,330p $E/scripts/rv6_compose.py | grep -v "^\s*$" | head -150
+rv-4 confirmed (neg RED, pos PASS). rv-3/rv-7 running; rv-5 nearly done; rv-6 (production containers) next.
+[agent tool] Bash: tail -4 /tmp/v58b/out/rv5-*.out; cd /Users/zata/code/zata_code_template/.kc-worktrees/issue-58 && sed -n 1,60p tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts/rv6_mirror_lock.py | grep -v '^\s*$' | head -40
+
+
+[agent tool] Bash: S=tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts; export UV_CACHE_DIR=/tmp/uv-cache-issue58 BUILDX_CONFIG=/tmp/rv58-buildx; O=/tmp/v58b/out
+( .venv/bin/python $S/rv6_compose.py --negative-control > $O/rv6-neg.out 2>&1; echo "EXIT=$?" >> $O/rv6-neg.out; .venv/bin/python $S/rv6_compose.py > $O/rv6-pos.out 2>&1; echo "EXIT=$?" >> $O/rv6-pos.out )
+
+[agent tool] Bash: E=tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base; sed -n 330,460p $E/scripts/rv6_compose.py | grep -n "assert\|report(" | head -40
+
+[agent tool] Bash: E=tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base; sed -n 260,330p $E/scripts/rv6_compose.py
+
+[agent tool] Bash: grep -n "MODEL_\|^  [a-z]\|build:\|args:\|NEXT_PUBLIC\|VITE_" docker-compose.yml | head -40; grep -rn "MODEL_API_KEY\|NEXT_PUBLIC_\|VITE_" frontend-public/Dockerfile frontend-admin/Dockerfile 2>/dev/null | head
+
+[agent tool] Bash: grep -n "copy target\|Copying template to\|/rv58-copy" /tmp/v58b/out/rv5-pos.out | head -5; ls -d .venv/rv58-copy*
+
+[agent tool] Bash: grep -n "^copy" -A25 justfile justfile.shared | head -45
+rv-6 (docker build) plus rv-3/rv-7 are running. Meanwhile scanning git-tracked files for secrets and source-brand residue.
+[agent tool] Bash: git ls-files | grep -v "^tasks/" | xargs grep -l -E "BEGIN (RSA|OPENSSH|EC|PRIVATE) KEY|sk-[A-Za-z0-9]{32,}|AKIA[0-9A-Z]{16}" 2>/dev/null | head; echo ---; git ls-files | grep -v "^tasks/\|^skills/\|^docs/" | xargs grep -il -E "cargox|freshai|ai-assistant" 2>/dev/null | head -20
+
+
+[agent tool] Bash: git ls-files | grep -v "^tasks/\|^skills/\|^docs/" | xargs grep -in -E "cargox|freshai|ai-assistant" 2>/dev/null | cut -c1-200 | head
+
+[agent tool] Bash: sed -n 24,75p tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts/rv4_distribution_audit.py; sed -n 195,215p tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts/rv4_distribution_audit.py
+
+[agent tool] ToolSearch
+
+[agent tool] Monitor: cd /tmp/v58b/out; for f in rv3-neg rv3-pos rv7-neg rv7-pos rv6-neg rv6-pos; do :; done; seen=""; while true; do for f in rv3-neg rv3-pos rv7-neg rv7-pos rv6-neg rv6-pos; do if [ -f $f.out ] && grep -q "^EXIT=" $f.out && ! echo "$seen" | grep -q " $f "; then echo "$f $(grep -E 'RV_RESULT|^EXIT' $f.out | tail -2 | tr '\n' ' ')"; seen="$seen $f "; fi; done; n=$(echo "$seen" | wc -w); [ $n -ge 6 ] && break; sleep 5; done
+
+[agent tool] Bash: E=tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base; head -c 3000 $E/rv-2-real-user-flow.txt; echo; grep -i "trace\|low-sens\|input" $E/rv-2-real-user-flow.txt | head
+
+[agent tool] Bash: E=tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base; grep -n -i "trace\|not.toContain\|input_message" $E/scripts/agent-run.auth.spec.ts | head -20
+Trace check confirmed (admin trace excludes the message body). Waiting on rv-3/rv-6/rv-7.
+[agent tool] Bash: until [ -f /tmp/v58b/out/rv6-pos.out ] && grep -q "^EXIT=" /tmp/v58b/out/rv6-pos.out; do sleep 5; done; tail -3 /tmp/v58b/out/rv6-neg.out /tmp/v58b/out/rv6-pos.out
+
+
+[agent tool] Bash: tail -5 /tmp/v58b/out/rv6-neg.out 2>/dev/null; ls /tmp/v58b/out
+Docker build for rv-6 in progress; rv-3 negative running. I'll wait for notifications.
+[agent tool] Bash: until [ -f /tmp/v58b/out/rv7-pos.out ] && grep -q "^EXIT=" /tmp/v58b/out/rv7-pos.out; do sleep 10; done; for f in rv3-neg rv3-pos rv7-neg rv7-pos; do echo "== $f"; grep -E "RV_RESULT|EXPECTED_FAIL|^EXIT" /tmp/v58b/out/$f.out | tail -3; done
+
+Waiting on the background runs.
+
+[agent tool] Bash: grep -n "public login response\|expected_fail" /tmp/v58b/out/rv6-neg.out | cut -c1-250
+rv-6 negative went RED as expected (login returned 404 behind the doubled `/api` prefix). Waiting for the rest.
+
+[agent tool] Bash: grep -n "response:\|RV_RESULT\|EXIT\|marker\|scan" /tmp/v58b/out/rv6-pos.out | cut -c1-220; docker images --format '{{.Repository}}:{{.Tag}} {{.CreatedSince}}' | grep rv58 | head
+The rv-6 secret scan only checks host build directories, so I'll scan the actual container images myself.
+[agent tool] Bash: M=$(.venv/bin/python -c "import sys;sys.path.insert(0,'tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts');import rv_stack;print(rv_stack.MODEL_API_KEY_MARKER)"); for img in rv58-575696-zata-codes-template-public rv58-575696-zata-codes-template-admin; do docker image inspect $img >/dev/null 2>&1 || { echo "no $img"; continue; }; rm -rf /tmp/v58b/img && mkdir -p /tmp/v58b/img; cid=$(docker create $img); docker export $cid | tar -x -C /tmp/v58b/img --exclude='proc' --exclude='sys' --exclude='dev' 2>/dev/null; docker rm $cid >/dev/null; echo "$img hits: $(grep -rl --binary-files=text "$M" /tmp/v58b/img 2>/dev/null | wc -l)  sk-hits: $(grep -rlE --binary-files=text 'MODEL_API_KEY=[^$ ]{8,}' /tmp/v58b/img 2>/dev/null | wc -l)"; done; docker images | grep rv58-575696
+
+Both production frontend images contain no model-key marker. Waiting on rv-3/rv-7.
+[agent tool] Monitor: cd /tmp/v58b/out; seen=""; while true; do for f in rv3-neg rv3-pos rv7-neg rv7-pos; do if [ -f $f.out ] && grep -q "^EXIT=" $f.out && ! echo "$seen" | grep -q " $f "; then echo "$f $(grep -E 'RV_RESULT|^EXIT' $f.out | tail -2 | tr '\n' ' ')"; seen="$seen $f "; fi; done; [ $(echo "$seen" | wc -w) -ge 4 ] && break; sleep 5; done
+
+Waiting.
+
+[agent tool] Bash: grep -v "^\s*$" /tmp/v58b/out/rv3-neg.out | tail -40 | cut -c1-250
+
+[agent tool] Monitor: cd /tmp/v58b/out; seen=""; while true; do for f in rv3-pos rv7-neg rv7-pos; do if [ -f $f.out ] && grep -q "^EXIT=" $f.out && ! echo "$seen" | grep -q " $f "; then echo "$f $(grep -E 'RV_RESULT|^EXIT' $f.out | tail -2 | tr '\n' ' ')"; seen="$seen $f "; fi; done; [ $(echo "$seen" | wc -w) -ge 3 ] && break; sleep 5; done
+Waiting.
+
+[agent tool] Bash: grep -v "^\s*$" tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/rv-3-real-user-flow.txt | tail -25 | cut -c1-250
+rv-3 positive passed. Waiting on rv-7.
+Still waiting on rv-7.
+
+[agent tool] Bash: grep -n -i "expected_fail\|200\|leak" /tmp/v58b/out/rv7-neg.out | head -8 | cut -c1-250
+rv-7 negative went RED as expected. Waiting on rv-7 positive.
+Waiting on rv-7 positive.
+
+[agent tool] Bash: grep -v "^\s*$" /tmp/v58b/out/rv7-pos.out | grep -iv "^\s*{" | tail -45 | cut -c1-230
+Now re-running the rv-3 negative control on a quiet machine.
+[agent tool] Bash: UV_CACHE_DIR=/tmp/uv-cache-issue58 UV_TOOL_DIR=/tmp/uv-tools-issue58 .venv/bin/python tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts/rv_ui.py --rv 3 --negative-control > /tmp/v58b/out/rv3-neg2.out 2>&1; echo EXIT=$?; grep -E "RV_RESULT|EXPECTED_FAIL|expected" /tmp/v58b/out/rv3-neg2.out | tail -4 | cut -c1-250
+
+All oracles reproduced. One more rv-2 positive run on a quiet machine, to sample the previously broken fast-terminal path a second time.
+[agent tool] Bash: UV_CACHE_DIR=/tmp/uv-cache-issue58 UV_TOOL_DIR=/tmp/uv-tools-issue58 .venv/bin/python tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts/rv_ui.py --rv 2 > /tmp/v58b/out/rv2-pos2.out 2>&1; echo EXIT=$?; grep RV_RESULT /tmp/v58b/out/rv2-pos2.out; cat tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/rv-2-fast-terminal-states.txt
+
+Restoring the builder's evidence files (my runs overwrote them) and checking for leftovers.
+[agent tool] Bash: E=tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base; rsync -a --delete --exclude scripts /tmp/v58b/evidence-backup/ $E/ && diff -rq --exclude scripts /tmp/v58b/evidence-backup $E && echo restored; git status --short; docker ps --format '{{.Names}}' | grep -i rv58
+
+
+[agent tool] Bash: diff -rq /tmp/v58b/evidence-backup/scripts tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts | grep -v __pycache__ | head
+
+[agent tool] Bash: cp -p /tmp/v58b/evidence-backup/scripts/.rv2-cancel-active.png tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts/ && git status --short && echo clean
+# Verifier report for issue #58 @ `4ef2121` — verdict: yellow
+
+The main flows work, every negative control went red, and my own adversarial probes found no break. The bug that made the previous verifier return red (fast runs never reaching their final state in the UI) is fixed. I'm not giving green because of the non-blocking gaps listed below.
+
+## The previous blocker: fixed
+- **What changed:** the polling effect in `frontend-public/app/(app)/app/agents/page.tsx` now restarts only when the Run ID or "still active" changes, not on every status update.
+- **Why that fixes it:** on a final event, the page now re-reads the Run before moving the event cursor. If that re-read fails, the cursor stays put and the next poll tries again, so the final event is never skipped.
+- **Negative control:** it puts the old code back and went red. The page stayed on "Status: running" while the API said `succeeded`.
+- **Positive runs:** I ran it twice at HEAD and both passed. Each run did one zero-delay success (UI showed succeeded and the reply) and one zero-delay failure (UI showed failed), both through the production Next build, the `/api` proxy, PostgreSQL and the Chromium container.
+
+## Oracle commands I ran myself
+| Item | Negative control | Positive run |
+|---|---|---|
+| rv-1 isolation between orgs | Red: HTTP 200 for org B reading org A's exact Run | PASS on PostgreSQL and MySQL |
+| rv-2 publish → run → reopen | Red (race brought back) | PASS ×2, including the fast success and fast failure |
+| rv-3 Skill versions | First try timed out while the rv-5/rv-6 Docker builds were running (a load problem, not a result). Re-run on a quiet machine: red as expected | PASS |
+| rv-4 distribution audit | Red | PASS |
+| rv-5 template copy | Red (backend entry file removed) | PASS: copied backend `/health` returns 200, sync runs |
+| rv-6 production containers | Red: login gets 404 with the doubled `/api` prefix | PASS: both frontends log in through `/api`, `/api/api/...` gives 404 |
+| rv-7 A2A both directions | Red: org B read org A's Task with HTTP 200, input exposed | PASS: official client cancel, org B gets 404, unbound peer rejected before any request, redirect not followed, disabled Agent or missing model gives 409 |
+
+The previous verifier never ran rv-6. I ran it, then took both frontend images it built apart myself. Neither contains the model-key marker or a `MODEL_API_KEY` value.
+
+## My own probes (separate stack, real backend and PostgreSQL)
+All of these were blocked:
+- **Same-org privacy:** another member of the same org gets 404 on member A1's run, events and assets, can't cancel it, and doesn't see it in their list.
+- **Conversation reuse:** neither that same-org member nor an org B member using a B Agent can append to A1's conversation (404).
+- **Unpublished or disabled Agent:** creating a run is refused (404 or 409), no run is saved, and the member directory shows `agent_disabled`.
+- **A2A access:** with no credential the Agent Card gives 401. With org B's credential, both the Card and `message:send` to org A's Agent give 404, the same response as a random ID. The token appears neither in the Agent Card nor in the backend log.
+- **Peer at 169.254.169.254:** I registered it, had the platform approve it, and bound it to an Agent. The run failed closed: it went to `run.failed` with no success event.
+- **Skill scripts:** bash, python and `#!` bodies are rejected with 422.
+
+## Demo video
+I pulled one frame every 5 seconds from the 169-second video and looked at all of them.
+- All 5 scripted steps are there: publish with the A2A Card link, the reply growing while status is still running, reopening the Run plus the admin trace, v1→v2 then compare then restore as v3, and the new run frozen at v3 while the old run still shows v1.
+- Every mock step says so in its on-screen caption.
+- The video was recorded at 01:34, before the HEAD fix at 02:07. The fix only touches polling, and the step-by-step claims hold in my own re-runs.
+
+## Non-blocking gaps (why yellow)
+1. **Peer registration accepts unsafe URLs.** Org admins can register `file:///etc/passwd`, `https://user:pw@…`, and private or link-local addresses, and the platform can approve them. They are only stopped when called. That stop does work: an allowlist, HTTPS only, public IPs only, and DNS pinning. But the approval screen gives a false sense of safety, and given the data-security priority I'd validate these at registration.
+2. **rv-6's own key scan checks the wrong place.** It scans the host's `frontend-admin/dist` and `frontend-public/.next`, not the images Docker built. My image scan closed this gap for this run only.
+3. **rv-2's negative control edits the real source file.** It rewrites `page.tsx` in the worktree during the build and restores it afterwards; the oracle says "isolated". The file was restored, but an interrupted run would leave the broken code in place.
+4. **rv-4's negative control injects something other than what the oracle says.** It plants a `shadcn-admin` file path, not a CargoX marker. CargoX is explicitly allowed in a comment in `sync_template.sh`. Tooling comments also mention freshai. None of these are brand assets.
+5. **The Skill filter is a pattern guess.** A ruby code block and text starting with zip-file bytes were both accepted. Skills are never executed, so the risk is low.
+6. **Leftovers on disk, not in git:** about 10+ `rv58-*` Docker images and several `.venv/rv58-copy*` folders from builder runs.
+
+## Cleanup
+My runs overwrote the builder's evidence files. I restored them from a backup taken before I started, and a diff against that backup shows no differences. `git status` is clean and no `rv58` containers are left running. My raw outputs are in `/tmp/v58b/out/`.
+
+<!-- kc:verifier-verdict risk=yellow -->

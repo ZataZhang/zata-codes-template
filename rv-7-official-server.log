@@ -1,0 +1,4 @@
+OFFICIAL_REQUEST GET /a2a/agents/remote
+OFFICIAL_REQUEST GET /a2a/agents/remote
+OFFICIAL_REQUEST POST /a2a/agents/remote/message:send
+OFFICIAL_REQUEST GET /redirect-card

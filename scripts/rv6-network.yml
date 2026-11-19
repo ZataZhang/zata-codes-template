@@ -1,0 +1,11 @@
+services:
+  zata-codes-template-backend:
+    build:
+      args:
+        UV_LOCK_FILE: tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts/uv.lock.rv6-mirror
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 10.239.58.0/24

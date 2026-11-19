@@ -1,0 +1,158 @@
+{
+  "version": 1,
+  "language": "zh-CN",
+  "items": [
+    {
+      "item_number": 1,
+      "item_name": "组织间 Agent、Run、事件、Skill 与资产隔离",
+      "command": "UV_CACHE_DIR=/tmp/uv-cache-issue58 .venv/bin/python tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts/rv1_org_isolation.py --db pg --db mysql",
+      "evidence_files": [
+        "rv-1-negative-control-pg.txt",
+        "rv-1-org-isolation-pg.txt",
+        "rv-1-org-isolation-mysql.txt"
+      ],
+      "output_summary": "移除临时源码副本中的 Run scope 过滤后，B Cookie 对 A 的精确 Run ID 返回 200 并触发预期红断言；修复树下 PostgreSQL 与 MySQL 均通过迁移前后 Run/Event 对账、A/B 资源与资产读取、成员调组织和新请求复读。",
+      "explanation": "检查经过真实登录 Cookie、服务端组织解析、正式 HTTP 路由、数据库迁移与持久化后的独立读取；负控证明同一资源 ID 的越权读取会使检查失败。",
+      "risks": "迁移验证使用本机隔离 PostgreSQL/MySQL 测试库，不使用生产业务数据；与最终树之间仅有 PRD 记录中注明的复制、通用测试样例和浏览器测试适配变化。",
+      "negative_control": "UV_CACHE_DIR=/tmp/uv-cache-issue58 .venv/bin/python tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts/rv1_org_isolation.py --db pg --mutant — 临时删除 scope 过滤，期望精确 A Run 返回 200 并触发红断言。",
+      "expected_fail": "负控进程返回非零，输出 cross-organization exposure，并记录 HTTP 200 与组织 A 的标记内容；命令显式校验该失败原因后再运行 PostgreSQL/MySQL 正向场景。"
+    },
+    {
+      "item_number": 2,
+      "item_name": "真实管理页面发布 Agent、成员运行与重开历史",
+      "command": "UV_CACHE_DIR=/tmp/uv-cache-issue58 UV_TOOL_DIR=/tmp/uv-tools-issue58 .venv/bin/python tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts/rv_ui.py --rv 2",
+      "evidence_files": [
+        "rv-2-negative-control.txt",
+        "rv-2-negative-terminal-probe.txt",
+        "rv-2-browser-handshake.txt",
+        "rv-2-progress.txt",
+        "rv-2-real-user-flow.txt",
+        "rv-2-incremental-reply.txt",
+        "rv-2-streaming-reply.png",
+        "rv-2-caption-trace.txt",
+        "rv-2-primary-demo.txt",
+        "rv-2-primary-demo-clips.json",
+        "rv-2-prototype.png",
+        "rv-2-agent-run.png",
+        "rv-2-demo-step-1-skill.png",
+        "rv-2-demo-step-2-publish.png",
+        "rv-2-demo-step-3-run.png",
+        "rv-2-demo-step-4-history.png",
+        "rv-2-demo-step-5-trace.png",
+        "rv-2-demo-multi-organization-agent.mp4",
+        "rv-2-fast-terminal-states.txt"
+      ],
+      "output_summary": "最终源码树 e8e09ccf2a19c8dc7f0b6645c8cb323ba8c88903：负控在临时生产构建中重现旧轮询顺序；新建 Run 的 fresh API 状态为 succeeded，但成员页超时后仍为 Status: running，Playwright 断言变红并记录 EXPECTED_FAIL。修复后真实 UI/API/数据库/Chromium 流程 2/2 通过：慢速 SSE 增量可见，快速成功与失败均在页面显示正确终态，并与新 API 读取一致；取消、重开历史和低敏管理轨迹通过。",
+      "explanation": "组织管理员从真实管理页创建并发布 Agent，成员从生产 Next 页面经同源 /api 代理提交 Run。流程覆盖慢速 SSE、快速成功、快速失败、取消、历史重开与管理轨迹；快速成功/失败要求页面先显示终态，再从新的正式 API 请求核对持久状态。负控仅在临时 Next 生产构建中把轮询改回旧顺序：事件游标先前移、run.started 先更新整个 activeRun，再等待终态详情，并让 effect 依赖整个 activeRun；真实页面因此丢失同批终态事件。",
+      "risks": "模型传输使用本地 OpenAI 兼容替身；真实付费模型和公网部署未验证。负控临时改动只用于隔离的生产构建，构建结束后恢复源文件；业务页面、代理、登录、Run/Event、数据库和新请求读取均真实。",
+      "negative_control": "UV_CACHE_DIR=/tmp/uv-cache-issue58 UV_TOOL_DIR=/tmp/uv-tools-issue58 .venv/bin/python tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts/rv_ui.py --rv 2 --negative-control --mutant — 在隔离生产构建中恢复旧轮询生命周期与游标顺序，再让首次轮询等到快速成功 Run 的 run.started 与 run.completed 同批返回。",
+      "expected_fail": "fresh API 读取为 succeeded，但真实成员页在 30 秒终态断言后仍显示 Status: running；Playwright 命令非零退出，rv-2-negative-terminal-probe.txt 记录两端状态差异，rv-2-negative-control.txt 记录 EXPECTED_FAIL。修复后的正向命令要求快速成功和快速失败均在 UI 显示对应终态并通过新 API 读取。"
+    },
+    {
+      "item_number": 3,
+      "item_name": "Skill 版本比较、恢复与 Run 快照",
+      "command": "UV_CACHE_DIR=/tmp/uv-cache-issue58 UV_TOOL_DIR=/tmp/uv-tools-issue58 .venv/bin/python tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts/rv_ui.py --rv 3",
+      "evidence_files": [
+        "rv-3-negative-control.txt",
+        "rv-3-real-user-flow.txt",
+        "rv-3-prototype.png",
+        "rv-3-skill-version.png"
+      ],
+      "output_summary": "最终源码树 e8e09ccf2a19c8dc7f0b6645c8cb323ba8c88903：历史响应负控改变 v1 正文并触发不可变版本断言；修复树下真实管理页追加 v2、比较 v1/v2，再以 v1 内容恢复为 v3；新旧 Run 分别冻结 v3/v1。",
+      "explanation": "版本变更、比较、恢复、数据库版本记录及 Run 快照都经过真实管理 UI/API 和持久化；负控篡改比较响应后，比较正文断言失败。",
+      "risks": "模型传输用本地替身；Skill API、版本事务、数据库、Run 快照和浏览器边界均为真实实现。",
+      "negative_control": "UV_CACHE_DIR=/tmp/uv-cache-issue58 UV_TOOL_DIR=/tmp/uv-tools-issue58 .venv/bin/python tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts/rv_ui.py --rv 3 --negative-control — 修改真实版本历史响应中的 v1 正文，期望不可变历史断言失败。",
+      "expected_fail": "旧 v1 不可变断言发现版本历史响应正文被改写并以非零退出；负控记录 expected failure，随后以未注入故障的流程验证 v1/v2/v3。"
+    },
+    {
+      "item_number": 4,
+      "item_name": "公开分发副本与来源资产审计",
+      "command": "UV_CACHE_DIR=/tmp/uv-cache-issue58 .venv/bin/python tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts/rv4_distribution_audit.py",
+      "evidence_files": [
+        "rv-4-negative-control.txt",
+        "rv-4-distribution-audit.txt"
+      ],
+      "output_summary": "负控把临时 CargoX 标记注入实际复制输出，审计器报告命中并转红；干净副本扫描 889 个文件，未发现禁止的来源产品文本、私有 dotenv、来源构建包或 Git 历史。",
+      "explanation": "审计作用于 just copy 生成的真实分发副本，并检查内容、媒体元数据、包/二进制和历史；注入标记证明同一审计会拒绝品牌污染。",
+      "risks": "两个明确列出的中性基础设施/通用测试提及属于审计白名单；审计结论针对本次模板复制产物，不是法律意见或公共发布授权。",
+      "negative_control": "UV_CACHE_DIR=/tmp/uv-cache-issue58 .venv/bin/python tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts/rv4_negative_control.py — 往实际复制输出注入 CargoX 标记，期望分发审计失败。",
+      "expected_fail": "审计器命中注入标记并非零退出；负控捕获其准确命中、写出 EXPECTED_FAIL 后成功结束，之后干净副本审计通过。"
+    },
+    {
+      "item_number": 5,
+      "item_name": "模板复制、启动与同步入口",
+      "command": "UV_CACHE_DIR=/tmp/uv-cache-issue58 .venv/bin/python tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts/rv5_copy_template.py",
+      "evidence_files": [
+        "rv-5-negative-control.txt",
+        "rv-5-template-copy.txt"
+      ],
+      "output_summary": "复制副本移除后端入口时，启动与 /health 检查按预期变红；完整副本完成数据库迁移、真实 clone/compare 同步列表，并从复制项目启动后端，/health 返回 200。",
+      "explanation": "检查实际 just copy 输出和真实后端进程，不用预设模拟项目；负控移除真实副本中的入口文件，证明复制产物启动检查能识别缺失文件。",
+      "risks": "GitHub 同步抓取两次遇到 early EOF；验证改用真实同步脚本指向本地 worktree upstream，不声称 GitHub 网络源已验证。同步列出 1 个 changed、0 个 new 项。",
+      "negative_control": "UV_CACHE_DIR=/tmp/uv-cache-issue58 .venv/bin/python tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts/rv5_copy_template.py --negative-control — 从隔离副本临时移走 src/backend/main.py，期望启动与 /health 断言失败。",
+      "expected_fail": "复制项目的后端启动失败且 /health 不可达；脚本记录 EXPECTED_FAIL，再还原文件并运行完整复制/启动/同步流程。"
+    },
+    {
+      "item_number": 6,
+      "item_name": "双前端与后端生产容器入口",
+      "command": "UV_CACHE_DIR=/tmp/uv-cache-issue58 BUILDX_CONFIG=/tmp/rv58-buildx .venv/bin/python tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts/rv6_compose.py",
+      "evidence_files": [
+        "rv-6-negative-control.txt",
+        "rv-6-production-compose.txt"
+      ],
+      "output_summary": "最终源码树 e8e09ccf2a19c8dc7f0b6645c8cb323ba8c88903：负控在真实生产 Compose 入口令 public 登录返回 404；正向三服务构建/启动通过，健康检查、public/admin 登录与 API 为 200，重复前缀为 404、A2A 未授权为 401，静态密钥标记扫描通过。临时镜像锁校验 158 个包的版本和全部分发哈希与仓库锁一致。",
+      "explanation": "命令实际构建并启动现有 docker compose 三服务，通过生产前端代理检查登录和 Agent API，并扫描构建产物及响应。构建只把验证用临时锁的下载 URL 切到可达镜像，执行前逐包校验版本和全部分发哈希与仓库 uv.lock 相同；负控仍在同一真实登录入口注入重复 /api 前缀。",
+      "risks": "验证限于本机 Docker Compose，不执行公网部署。PyPI 文件域在容器构建中超时；RV-6 使用证据脚本生成的临时镜像 URL 锁，逐包核验版本与分发哈希均和仓库 uv.lock 一致，仓库原锁及默认 Docker 构建来源不变。Dockerfile 缓存 uv 包并将并发下载限制为 4；静态密钥扫描使用非密钥测试标记。",
+      "negative_control": "UV_CACHE_DIR=/tmp/uv-cache-issue58 BUILDX_CONFIG=/tmp/rv58-buildx .venv/bin/python tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts/rv6_compose.py --negative-control — 将生产 API_BASE_URL 错配为附加 /api，期望 /api/auth/login 的 200 断言失败。",
+      "expected_fail": "双重前缀导致登录非 200，原本要求一次代理转发成功的断言明确失败；脚本记录 EXPECTED_FAIL 后清理容器，绿色流程随后验证标准前缀。"
+    },
+    {
+      "item_number": 7,
+      "item_name": "官方 A2A 1.0 双向互通与越权拒绝",
+      "command": "UV_CACHE_DIR=/tmp/uv-cache-issue58 UV_TOOL_DIR=/tmp/uv-tool-issue58 UV_TOOL_BIN_DIR=/tmp/uv-tool-bin-issue58 uv run --no-sync python tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts/rv7_a2a.py",
+      "evidence_files": [
+        "rv-7-negative-control.txt",
+        "rv-7-a2a-bidirectional.txt",
+        "rv-7-a2a-admin.png",
+        "rv-7-official-client.json",
+        "rv-7-official-server.log",
+        "rv-7-run-a2a-architecture.txt"
+      ],
+      "output_summary": "最终源码树 e8e09ccf2a19c8dc7f0b6645c8cb323ba8c88903：管理员真实页面登记并批准对端、创建 Agent 并持久化绑定；官方 a2a-sdk 1.0.0 客户端与独立服务端的入站/出站流程通过。B 凭据的变异负控读到 A 的精确 Task 和输入，正常路径对同一跨组织 Task 返回 404。",
+      "explanation": "证据贯穿管理 UI、正式 A2A REST、服务凭据解析、组织授权、Run/Event 提交与新请求读取。临时源码变异同时移除凭据 Agent 校验和 Task 的组织/Agent/owner scope 后，B 凭据读到 A 的精确 Task 与输入文本，证明隔离断言会变红。",
+      "risks": "A2A 客户端与服务端是本地独立官方 1.0 SDK 实现，不是公网第三方 Agent；公网对端行为未验证。真实管理 UI 用隔离 Linux Chromium 访问本机 Vite；未依赖因 macOS Mach-port 权限而崩溃的本地 Chromium。部署仍需按组织和精确 endpoint URL 配置 credential_bindings。",
+      "negative_control": "UV_CACHE_DIR=/tmp/uv-cache-issue58 UV_TOOL_DIR=/tmp/uv-tool-issue58 UV_TOOL_BIN_DIR=/tmp/uv-tool-bin-issue58 uv run --no-sync python tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts/rv7_a2a.py --negative-control --mutant — 临时源码副本放宽 A2A 凭据和 Task scope，再用 B 凭据读取 A 的精确 Task ID。",
+      "expected_fail": "变异后正式入口返回 HTTP 200 且包含 A 的输入文本，隔离断言检测到泄露并记录 EXPECTED_FAIL；原源码绿色流程对同一请求返回 404 且不包含任务内容。"
+    }
+  ],
+  "primary_demo": {
+    "file": "rv-2-demo-multi-organization-agent.mp4",
+    "steps": [
+      {
+        "caption": "主演示 1/5｜组织管理员发布已配置模型的 Agent；模型为 mock，未验证真实模型",
+        "result": "管理端显示已发布的 Agent 卡片与可访问的 A2A Agent Card 链接。",
+        "mock": false
+      },
+      {
+        "caption": "主演示 2/5｜运行未结束时回复已逐步增长（已收到 N 个字符），随后显示终态",
+        "result": "成员前台在状态仍为 running 时显示不断增长的回复，结束后显示成功终态与完整回复；该步模型为 mock。",
+        "mock": true
+      },
+      {
+        "caption": "主演示 3/5｜关闭页面后重新进入重开同一运行，并在管理端查看低敏轨迹",
+        "result": "新浏览器上下文重新打开同一 Run 并看到相同终态与回复；管理端轨迹只显示模型调用节点，不含用户消息正文。",
+        "mock": true
+      },
+      {
+        "caption": "主演示 4/5｜更新 Skill 追加 v2、比较 v1/v2、以 v1 内容恢复为 v3",
+        "result": "版本历史保持 v1→v2→v3 线性，比较视图同时显示两版正文，恢复后 v1 与 v2 记录不变。",
+        "mock": false
+      },
+      {
+        "caption": "主演示 5/5｜恢复后再运行冻结 v3，旧运行仍指向 v1",
+        "result": "新运行显示冻结的 v3，重开旧运行显示冻结的 v1，两次运行的版本快照并存。",
+        "mock": true
+      }
+    ]
+  }
+}

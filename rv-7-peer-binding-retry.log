@@ -1,0 +1,40 @@
+# rv-7 A2A bidirectional at 2026-11-18T05:44:25.273895+00:00
+identity: {"head": "1f221304e52a8cfb92854b2e076c15288aa0aa08", "working_tree_excluding_delivery_records": "bb466e196805668e0fd07d0bc743d6371307bf30"}
+official compatibility: a2a-sdk[all]==1.0.0
+
+RV_RESULT: FAIL rv-7: RuntimeError: admin UI workflow failed:
+Organization administrator UI: external peer submitted for approval.
+Platform administrator UI: registered peer approved through the review page.
+
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+locator.waitFor: Timeout 30000ms exceeded.
+Call log:
+[2m  - waiting for locator('[data-testid="managed-agent-0b35324638004d888cf3b2bda5f0ad11"]').getByText('RV7-UI-Peer-1794980674886-33a055', { exact: true }) to be visible[22m
+
+    at /Users/zata/code/zata_code_template/.kc-worktrees/issue-58/tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts/rv7_admin_ui.mjs:112:56 {
+  name: 'TimeoutError'
+}
+
+Node.js v24.22.3
+
+RV_RESULT: FAIL RuntimeError: admin UI workflow failed:
+Organization administrator UI: external peer submitted for approval.
+Platform administrator UI: registered peer approved through the review page.
+
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+locator.waitFor: Timeout 30000ms exceeded.
+Call log:
+[2m  - waiting for locator('[data-testid="managed-agent-0b35324638004d888cf3b2bda5f0ad11"]').getByText('RV7-UI-Peer-1794980674886-33a055', { exact: true }) to be visible[22m
+
+    at /Users/zata/code/zata_code_template/.kc-worktrees/issue-58/tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/scripts/rv7_admin_ui.mjs:112:56 {
+  name: 'TimeoutError'
+}
+
+Node.js v24.22.3
+

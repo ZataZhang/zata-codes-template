@@ -1,0 +1,27 @@
+# rv-7 Run and A2A architecture evidence
+
+Verified working tree at collection: f1aa5f44ab577eb84029d3595565a48d24e43700 (delivery records excluded)
+
+## Single Run/event and Skill write path
+
+- src/backend/infrastructure/persistence/models/run.py:21 — only RunModel.
+- src/backend/infrastructure/persistence/models/run.py:89 — only RunEventModel.
+- src/backend/infrastructure/persistence/repos/run_repo.py:108 — canonical create_run transaction.
+- src/backend/core/agent/runs.py:76 — AgentRunUseCase.create_run writes that canonical transaction.
+- src/backend/infrastructure/persistence/repos/agent_repo.py:290 — sole append_skill_revision implementation, called by SkillUseCase for create/update/restore.
+- No A2A Task ORM model exists; Task state is projected from Run/Event. Outbound remote_task_id is persisted in canonical tool.call.completed payloads.
+- Run assets are projected by the scoped /agent-runs/{run_id}/assets endpoint from canonical input.accepted.resources and artifact.created events, with no second asset state store.
+
+## A2A card and mapping
+
+- src/backend/api/a2a_router.py declares only HTTP+JSON protocolVersion 1.0, streaming=true, pushNotifications=false.
+- AgentCard uses the 1.0 httpAuthSecurityScheme and nested securityRequirements schemes map, verified by the official a2a-sdk 1.0.0 client.
+- src/backend/core/agent/runs.py records external_call.remote_task_id in canonical events; rv-7 parent Run c3152837d28848fcba958411febdf8de links remote Task 25b8fb05-986c-43a1-8972-bd22c6200447.
+
+## Gates executed
+
+- just lint --reuse: jscpd PASS; pylint duplicate-code PASS; architecture PASS; guideline consistency PASS; max-file-lines PASS.
+- just test: 549 passed, 1 skipped; local OIDC package 17 passed.
+- uv run alembic heads: 26e8967fcd01 (head), exactly one.
+- tests/playwright-e2e TypeScript noEmit: PASS.
+- Dependency direction remains api → core → engines → infrastructure, with composition as the only cross-layer assembler.

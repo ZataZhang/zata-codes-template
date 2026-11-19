@@ -1,0 +1,19 @@
+# rv-1 organization isolation (pg-mutant) at 2026-11-18T17:50:56.748399+00:00
+identity: {"head": "75459f4e64127183fd1ebf410903fe07873dcd72", "working_tree_excluding_delivery_records": "e8e09ccf2a19c8dc7f0b6645c8cb323ba8c88903"}
+MUTANT: get_scoped_run organization/owner filter removed in a temp copy of src/
+
+## migration with pre-existing data
+before upgrade: {'run': 1, 'run_event': 2, 'orphan_events': 0}
+migration log: organization backfill: run=1 rows -> default, unattributable=0
+after upgrade: {'run': 1, 'run_event': 2, 'orphan_events': 0, 'run_by_org': {'default': 1}}
+after downgrade b93aa5cf0228: {'run': 1, 'run_event': 2, 'orphan_events': 0}
+re-upgraded current revision: ['8b3c6eee34c1 (head)']
+
+## real backend on http://127.0.0.1:53768 (uvicorn backend.main:app)
+organizations created via API: 99121954a17a404fa000e58dd1109de2 099d5801286f45b0b5e17b6c723863da
+org A run: 1f4e0a7df1cb46b0a57f024f6ce50d00 succeeded | mover run: 65e6453d4d174e65b360133791bf02bc succeeded
+
+## organization B member -> organization A resources (exact IDs from A responses)
+  [LEAK] GET /agent-runs/{A run}: HTTP 200 leaked=['Agent-A-54fccb', 'ORG-A-PRIVATE-PAYLOAD-7f3c']
+
+RV_RESULT: FAIL rv-1 pg-mutant: AssertionError: cross-organization exposure: GET /agent-runs/{A run} -> 200

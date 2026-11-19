@@ -1,0 +1,3 @@
+Fast model responses through the production public page, same-origin API, backend, and PostgreSQL.
+success run d7cad5aec0844142ab0312e87df545c0: UI succeeded; fresh API succeeded; reply visible=true
+failure run 33311b9de2d943969a366833c519ee88: UI failed; fresh API failed

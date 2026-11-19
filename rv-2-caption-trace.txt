@@ -1,0 +1,503 @@
+2026-11-17T08:08:04.758Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":587.546875,"height":45} 主演示 1/5｜组织管理员发布已配置模型的 Agent；模型为 mock，未验证真实模型
+2026-11-17T08:08:13.489Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":462.859375,"height":45} 主演示 2/5｜运行未结束时回复已逐步增长（已收到 30 个字符）
+2026-11-17T08:08:19.343Z {"width":1440,"height":1200} {"x":24,"y":1110,"width":720,"height":66} 主演示 2/5｜成员看到同一运行 96eccb59cfb34141acbd7532a9648bf6 的最终回复；模型为 mock，未验证真实模型
+2026-11-17T08:08:25.634Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":646.3125,"height":45} 主演示 3/5｜关闭页面后重新进入，重开同一条历史运行；回复来自 mock，未验证真实模型
+2026-11-17T08:08:32.851Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":512.90625,"height":45} 主演示 3/5｜切到管理端查看同一运行的低敏轨迹，不包含用户消息正文
+2026-11-17T08:08:40.339Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":311.671875,"height":45} 主演示 4/5｜授权人员更新 Skill，追加 v2
+2026-11-17T08:08:44.879Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":291.671875,"height":45} 主演示 4/5｜比较 v1 与 v2 的正文差异
+2026-11-17T08:08:49.513Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":512.65625,"height":45} 主演示 4/5｜以 v1 内容恢复为新的当前版本 v3，v1 与 v2 记录保持不变
+2026-11-17T08:09:03.745Z {"width":1440,"height":1200} {"x":24,"y":1110,"width":720,"height":66} 主演示 5/5｜恢复后再运行 a99e86ee886f4139abdb2e0da3a7d899，新运行冻结 v3；模型为 mock，未验证真实模型
+2026-11-17T08:09:08.759Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":688.953125,"height":45} 主演示 5/5｜旧运行 96eccb59cfb34141acbd7532a9648bf6 仍指向 v1，两次运行的冻结版本并存
+2026-11-17T08:12:59.825Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-17T08:13:02.172Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-17T08:13:03.675Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-17T08:13:07.340Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-17T08:13:13.197Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":550.390625,"height":45} 主演示 3/5｜成员看到运行 394af65d1d3b437ea6621f82e4c01959 成功完成
+2026-11-17T08:13:14.866Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-17T08:13:16.055Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 5/5｜管理员查看同一运行的低敏轨迹
+2026-11-17T08:14:34.036Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":391.71875,"height":44} real user flow · append v2 and compare it with v1
+2026-11-17T08:14:37.965Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":511.828125,"height":44} real user flow · restore appended v3; v1 and v2 remain immutable
+2026-11-17T08:14:39.361Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":527.578125,"height":44} real user flow · the new Run freezes restored v3; old Run stays on v1
+2026-11-17T08:22:34.261Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-17T08:22:37.804Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-17T08:22:39.960Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-17T08:22:44.277Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-17T08:22:50.225Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":548.90625,"height":45} 主演示 3/5｜成员看到运行 6cb9e01b915e487c8af8ec3d645ef7b3 成功完成
+2026-11-17T08:22:52.100Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-17T08:22:53.293Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 5/5｜管理员查看同一运行的低敏轨迹
+2026-11-17T08:23:48.697Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":391.71875,"height":44} real user flow · append v2 and compare it with v1
+2026-11-17T08:23:50.591Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":511.828125,"height":44} real user flow · restore appended v3; v1 and v2 remain immutable
+2026-11-17T08:23:51.712Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":527.578125,"height":44} real user flow · the new Run freezes restored v3; old Run stays on v1
+2026-11-17T09:57:13.118Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-17T09:57:18.572Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-17T09:57:21.789Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-17T09:57:27.137Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-17T09:57:33.749Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":552.484375,"height":45} 主演示 3/5｜成员看到运行 b06aeda0e3664faca398a36fb8de6ebe 成功完成
+2026-11-17T09:57:37.575Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-17T09:57:39.895Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 5/5｜管理员查看同一运行的低敏轨迹
+2026-11-17T10:58:12.485Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":391.71875,"height":44} real user flow · append v2 and compare it with v1
+2026-11-17T11:03:27.305Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":511.828125,"height":44} real user flow · restore appended v3; v1 and v2 remain immutable
+2026-11-17T12:22:27.181Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-17T12:22:30.566Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-17T12:22:32.386Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-17T12:22:36.350Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-17T12:22:42.800Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":548.4375,"height":45} 主演示 3/5｜成员看到运行 5c9686186f334656a5b241d9f1ce5a86 成功完成
+2026-11-17T12:22:45.552Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-17T12:22:47.052Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 5/5｜管理员查看同一运行的低敏轨迹
+2026-11-17T12:24:15.179Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":391.71875,"height":44} real user flow · append v2 and compare it with v1
+2026-11-17T12:24:21.157Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":511.828125,"height":44} real user flow · restore appended v3; v1 and v2 remain immutable
+2026-11-17T12:24:22.939Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":527.578125,"height":44} real user flow · the new Run freezes restored v3; old Run stays on v1
+2026-11-17T12:27:06.898Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-17T12:27:10.337Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-17T12:27:12.602Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-17T12:27:17.998Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-17T12:27:25.192Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":553.9375,"height":45} 主演示 3/5｜成员看到运行 bfe3027820784ed0bda18f9d9b325aa9 成功完成
+2026-11-17T12:27:30.916Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-17T12:27:33.037Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 5/5｜管理员查看同一运行的低敏轨迹
+2026-11-17T12:28:45.727Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":391.71875,"height":44} real user flow · append v2 and compare it with v1
+2026-11-17T12:28:48.803Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":511.828125,"height":44} real user flow · restore appended v3; v1 and v2 remain immutable
+2026-11-17T12:28:52.418Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":527.578125,"height":44} real user flow · the new Run freezes restored v3; old Run stays on v1
+2026-11-17T12:40:40.019Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-17T12:40:42.559Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-17T12:40:44.203Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-17T12:40:48.033Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-17T12:40:53.965Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":550.21875,"height":45} 主演示 3/5｜成员看到运行 d31932c887c34483992cf0917b0212e2 成功完成
+2026-11-17T12:40:56.259Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-17T12:40:57.774Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 5/5｜管理员查看同一运行的低敏轨迹
+2026-11-17T12:41:54.190Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":391.71875,"height":44} real user flow · append v2 and compare it with v1
+2026-11-17T12:41:56.839Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":511.828125,"height":44} real user flow · restore appended v3; v1 and v2 remain immutable
+2026-11-17T12:41:58.079Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":527.578125,"height":44} real user flow · the new Run freezes restored v3; old Run stays on v1
+2026-11-17T12:46:42.325Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":587.546875,"height":45} 主演示 1/5｜组织管理员发布已配置模型的 Agent；模型为 mock，未验证真实模型
+2026-11-17T12:46:52.720Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":462.859375,"height":45} 主演示 2/5｜运行未结束时回复已逐步增长（已收到 30 个字符）
+2026-11-17T12:46:58.670Z {"width":1440,"height":1200} {"x":24,"y":1110,"width":720,"height":66} 主演示 2/5｜成员看到同一运行 3dc6193f28264a239c6027cd5131f762 的最终回复；模型为 mock，未验证真实模型
+2026-11-17T12:47:06.003Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":646.3125,"height":45} 主演示 3/5｜关闭页面后重新进入，重开同一条历史运行；回复来自 mock，未验证真实模型
+2026-11-17T12:47:21.641Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":512.90625,"height":45} 主演示 3/5｜切到管理端查看同一运行的低敏轨迹，不包含用户消息正文
+2026-11-17T12:47:30.651Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":311.671875,"height":45} 主演示 4/5｜授权人员更新 Skill，追加 v2
+2026-11-17T12:47:35.300Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":291.671875,"height":45} 主演示 4/5｜比较 v1 与 v2 的正文差异
+2026-11-17T12:47:40.001Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":512.65625,"height":45} 主演示 4/5｜以 v1 内容恢复为新的当前版本 v3，v1 与 v2 记录保持不变
+2026-11-17T12:47:54.825Z {"width":1440,"height":1200} {"x":24,"y":1110,"width":720,"height":66} 主演示 5/5｜恢复后再运行 31c42e555c0847a9afde70c92b666b8e，新运行冻结 v3；模型为 mock，未验证真实模型
+2026-11-17T12:47:59.882Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":687.609375,"height":45} 主演示 5/5｜旧运行 3dc6193f28264a239c6027cd5131f762 仍指向 v1，两次运行的冻结版本并存
+2026-11-17T12:54:32.612Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-17T12:54:35.352Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-17T12:54:37.130Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-17T12:55:40.330Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":391.71875,"height":44} real user flow · append v2 and compare it with v1
+2026-11-17T12:55:43.463Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":511.828125,"height":44} real user flow · restore appended v3; v1 and v2 remain immutable
+2026-11-17T12:59:28.991Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-17T12:59:31.270Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-17T12:59:32.875Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-17T12:59:36.737Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-17T12:59:42.708Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":555.03125,"height":45} 主演示 3/5｜成员看到运行 bd3da3b4338c48c58cdb6d127fae4d26 成功完成
+2026-11-17T12:59:45.035Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-17T12:59:46.410Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 5/5｜管理员查看同一运行的低敏轨迹
+2026-11-17T13:00:27.696Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":391.71875,"height":44} real user flow · append v2 and compare it with v1
+2026-11-17T13:00:30.299Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":511.828125,"height":44} real user flow · restore appended v3; v1 and v2 remain immutable
+2026-11-17T13:00:31.562Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":527.578125,"height":44} real user flow · the new Run freezes restored v3; old Run stays on v1
+2026-11-17T13:08:36.309Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-17T13:08:38.562Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-17T13:08:40.126Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-17T13:08:43.965Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-17T13:08:49.914Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":548.453125,"height":45} 主演示 3/5｜成员看到运行 2e292f99447c468f96e16917a3b85ebc 成功完成
+2026-11-17T13:08:52.182Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-17T13:08:53.610Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 5/5｜管理员查看同一运行的低敏轨迹
+2026-11-17T13:09:33.252Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":391.71875,"height":44} real user flow · append v2 and compare it with v1
+2026-11-17T13:09:35.745Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":511.828125,"height":44} real user flow · restore appended v3; v1 and v2 remain immutable
+2026-11-17T13:09:37.050Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":527.578125,"height":44} real user flow · the new Run freezes restored v3; old Run stays on v1
+2026-11-17T13:56:26.928Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-17T13:56:30.932Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-17T13:56:32.696Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-17T13:56:37.364Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-17T13:58:25.372Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":391.71875,"height":44} real user flow · append v2 and compare it with v1
+2026-11-17T13:58:28.200Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":511.828125,"height":44} real user flow · restore appended v3; v1 and v2 remain immutable
+2026-11-17T13:58:29.543Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":527.578125,"height":44} real user flow · the new Run freezes restored v3; old Run stays on v1
+2026-11-17T14:05:17.004Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-17T14:05:19.271Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-17T14:05:20.856Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-17T14:05:24.780Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-17T14:05:31.168Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":548.578125,"height":45} 主演示 3/5｜成员看到运行 12cae48ff0034ed4b148534511ae3c40 成功完成
+2026-11-17T14:05:33.883Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-17T14:05:35.372Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 5/5｜管理员查看同一运行的低敏轨迹
+2026-11-17T14:06:18.255Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":391.71875,"height":44} real user flow · append v2 and compare it with v1
+2026-11-17T14:06:24.231Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":511.828125,"height":44} real user flow · restore appended v3; v1 and v2 remain immutable
+2026-11-17T14:06:26.068Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":527.578125,"height":44} real user flow · the new Run freezes restored v3; old Run stays on v1
+2026-11-17T14:30:02.376Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-17T14:30:05.420Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-17T14:30:07.049Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-17T14:30:11.652Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-17T14:30:18.496Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":552.296875,"height":45} 主演示 3/5｜成员看到运行 44be3e984a734055b04f3b9d0fe5e686 成功完成
+2026-11-17T14:30:22.055Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-17T14:30:23.697Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 5/5｜管理员查看同一运行的低敏轨迹
+2026-11-17T14:34:09.465Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-17T14:34:12.740Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-17T14:34:15.054Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-17T14:34:23.626Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-17T14:34:31.788Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":554.953125,"height":45} 主演示 3/5｜成员看到运行 0c9ae274cb6b45dfa4d9d23ee7e53da7 成功完成
+2026-11-17T14:34:45.430Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-17T14:34:47.632Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 5/5｜管理员查看同一运行的低敏轨迹
+2026-11-17T14:36:14.562Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":391.71875,"height":44} real user flow · append v2 and compare it with v1
+2026-11-17T14:36:30.120Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":511.828125,"height":44} real user flow · restore appended v3; v1 and v2 remain immutable
+2026-11-17T14:36:34.639Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":527.578125,"height":44} real user flow · the new Run freezes restored v3; old Run stays on v1
+2026-11-17T14:43:46.963Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-17T14:43:50.469Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-17T14:43:52.547Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-17T14:43:56.713Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-17T14:44:02.985Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":558.328125,"height":45} 主演示 3/5｜成员看到运行 01498b2c2da04327a86583b3b9b39aa9 成功完成
+2026-11-17T14:44:06.355Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-17T14:44:07.954Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 5/5｜管理员查看同一运行的低敏轨迹
+2026-11-17T14:45:00.530Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":391.71875,"height":44} real user flow · append v2 and compare it with v1
+2026-11-17T14:45:08.309Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":511.828125,"height":44} real user flow · restore appended v3; v1 and v2 remain immutable
+2026-11-17T14:45:10.027Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":527.578125,"height":44} real user flow · the new Run freezes restored v3; old Run stays on v1
+2026-11-17T14:53:16.374Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-17T14:53:18.745Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-17T14:53:20.267Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-17T14:53:24.210Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-17T14:53:30.499Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":551.453125,"height":45} 主演示 3/5｜成员看到运行 eb52042f81a249d1a1603028d85f1111 成功完成
+2026-11-17T14:53:33.402Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-17T14:53:34.931Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 5/5｜管理员查看同一运行的低敏轨迹
+2026-11-17T14:54:26.969Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":391.71875,"height":44} real user flow · append v2 and compare it with v1
+2026-11-17T14:54:29.861Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":511.828125,"height":44} real user flow · restore appended v3; v1 and v2 remain immutable
+2026-11-17T14:54:31.119Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":527.578125,"height":44} real user flow · the new Run freezes restored v3; old Run stays on v1
+2026-11-17T15:02:16.219Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-17T15:02:19.031Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-17T15:02:20.932Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-17T15:03:09.479Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-17T15:03:11.708Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-17T15:03:13.271Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-17T15:03:17.221Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-17T15:03:23.527Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":548,"height":45} 主演示 3/5｜成员看到运行 8347f21a6e2a46678937cab0c1af164e 成功完成
+2026-11-17T15:03:25.975Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-17T15:03:27.433Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 5/5｜管理员查看同一运行的低敏轨迹
+2026-11-17T15:04:19.707Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":391.71875,"height":44} real user flow · append v2 and compare it with v1
+2026-11-17T15:04:22.380Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":511.828125,"height":44} real user flow · restore appended v3; v1 and v2 remain immutable
+2026-11-17T15:05:53.366Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":391.71875,"height":44} real user flow · append v2 and compare it with v1
+2026-11-17T15:05:56.131Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":511.828125,"height":44} real user flow · restore appended v3; v1 and v2 remain immutable
+2026-11-17T15:05:57.480Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":527.578125,"height":44} real user flow · the new Run freezes restored v3; old Run stays on v1
+2026-11-17T15:44:20.223Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-17T15:44:22.565Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-17T15:44:24.144Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-17T15:44:28.323Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-17T15:44:34.520Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":549.65625,"height":45} 主演示 3/5｜成员看到运行 82d8acc0fb774a0e9d1b55060c20b2fe 成功完成
+2026-11-17T15:44:39.119Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-17T15:44:42.910Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 5/5｜管理员查看同一运行的低敏轨迹
+2026-11-17T15:46:01.817Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":391.71875,"height":44} real user flow · append v2 and compare it with v1
+2026-11-17T15:47:38.765Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":511.828125,"height":44} real user flow · restore appended v3; v1 and v2 remain immutable
+2026-11-17T15:47:55.052Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":527.578125,"height":44} real user flow · the new Run freezes restored v3; old Run stays on v1
+2026-11-17T15:57:28.357Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-17T15:57:31.056Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-17T15:57:32.649Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-17T15:57:36.537Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-17T15:57:43.050Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":539.53125,"height":45} 主演示 3/5｜成员看到运行 ef441497c3c34bea9b31f7e1fc6f9bcc 成功完成
+2026-11-17T15:57:47.887Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-17T15:57:49.616Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 5/5｜管理员查看同一运行的低敏轨迹
+2026-11-17T15:58:44.202Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":391.71875,"height":44} real user flow · append v2 and compare it with v1
+2026-11-17T15:58:47.371Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":511.828125,"height":44} real user flow · restore appended v3; v1 and v2 remain immutable
+2026-11-17T15:58:48.651Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":527.578125,"height":44} real user flow · the new Run freezes restored v3; old Run stays on v1
+2026-11-18T06:01:06.289Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T06:01:22.069Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T06:01:30.775Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T06:01:41.766Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T06:01:49.464Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":553.921875,"height":45} 主演示 3/5｜成员看到运行 718a7ab20d32476ab734627cae77f9ae 成功完成
+2026-11-18T06:23:19.084Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T06:23:26.336Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T06:23:32.731Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T06:24:36.601Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T06:24:42.529Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T06:24:47.870Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T06:25:09.408Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T06:25:15.721Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":534.953125,"height":45} 主演示 3/5｜成员看到运行 f3f61ffaf72242e2bd7546774af2550f 成功完成
+2026-11-18T06:26:33.093Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-18T06:26:36.693Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 5/5｜管理员查看同一运行的低敏轨迹
+2026-11-18T06:28:16.356Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":391.71875,"height":44} real user flow · append v2 and compare it with v1
+2026-11-18T06:28:30.700Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":511.828125,"height":44} real user flow · restore appended v3; v1 and v2 remain immutable
+2026-11-18T06:29:29.615Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":391.71875,"height":44} real user flow · append v2 and compare it with v1
+2026-11-18T06:29:56.691Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":511.828125,"height":44} real user flow · restore appended v3; v1 and v2 remain immutable
+2026-11-18T06:30:01.103Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":527.578125,"height":44} real user flow · the new Run freezes restored v3; old Run stays on v1
+2026-11-18T07:19:55.960Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T07:20:00.155Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T07:20:05.921Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T07:21:03.918Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T07:21:08.819Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T07:21:14.609Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T07:21:30.642Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T07:21:35.949Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":550.21875,"height":45} 主演示 3/5｜成员看到运行 7c7641305cf34e41a5cac79074dab93b 成功完成
+2026-11-18T07:22:37.998Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-18T07:22:44.656Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 5/5｜管理员查看同一运行的低敏轨迹
+2026-11-18T07:24:18.697Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":391.71875,"height":44} real user flow · append v2 and compare it with v1
+2026-11-18T07:24:36.024Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":511.828125,"height":44} real user flow · restore appended v3; v1 and v2 remain immutable
+2026-11-18T07:25:49.211Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":391.71875,"height":44} real user flow · append v2 and compare it with v1
+2026-11-18T07:26:14.860Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":511.828125,"height":44} real user flow · restore appended v3; v1 and v2 remain immutable
+2026-11-18T07:26:22.183Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":527.578125,"height":44} real user flow · the new Run freezes restored v3; old Run stays on v1
+2026-11-18T07:35:48.486Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T07:35:59.347Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T07:36:11.644Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T07:37:06.840Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T07:37:21.783Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T07:37:36.479Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T07:37:52.103Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T07:38:05.058Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":555.640625,"height":45} 主演示 3/5｜成员看到运行 d0d26e13ee584c8482ac298eeb142679 成功完成
+2026-11-18T07:40:04.588Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-18T07:45:32.561Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T07:45:46.680Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T07:45:57.298Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T07:46:08.029Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T07:46:16.521Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":541.703125,"height":45} 主演示 3/5｜成员看到运行 e1c50a6941764d548f01deaddf13fff8 成功完成
+2026-11-18T07:46:34.821Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-18T07:50:57.745Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T07:51:08.137Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T07:51:21.474Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T07:51:32.648Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T07:51:42.671Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":560.25,"height":45} 主演示 3/5｜成员看到运行 3a01189dbd1b469b860cb74402915d5b 成功完成
+2026-11-18T07:52:07.058Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-18T07:52:17.335Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 5/5｜管理员查看同一运行的低敏轨迹
+2026-11-18T07:53:54.071Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":391.71875,"height":44} real user flow · append v2 and compare it with v1
+2026-11-18T07:54:15.654Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":511.828125,"height":44} real user flow · restore appended v3; v1 and v2 remain immutable
+2026-11-18T07:55:49.693Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":391.71875,"height":44} real user flow · append v2 and compare it with v1
+2026-11-18T07:56:19.328Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":511.828125,"height":44} real user flow · restore appended v3; v1 and v2 remain immutable
+2026-11-18T07:56:23.338Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":527.578125,"height":44} real user flow · the new Run freezes restored v3; old Run stays on v1
+2026-11-18T07:58:25.748Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T07:58:39.480Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T07:58:56.630Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T07:59:12.134Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T07:59:21.999Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":557.21875,"height":45} 主演示 3/5｜成员看到运行 19a550d8a1404ae0bbc91b9274c66be8 成功完成
+2026-11-18T08:00:15.685Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-18T08:00:29.570Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 5/5｜管理员查看同一运行的低敏轨迹
+2026-11-18T08:04:55.423Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T08:05:07.592Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T08:05:12.946Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T08:05:28.189Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T08:05:35.803Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":549.796875,"height":45} 主演示 3/5｜成员看到运行 7bd6fcd97f4b4d9a88b40c380bfd0e3e 成功完成
+2026-11-18T08:08:41.164Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-18T08:09:44.906Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":391.71875,"height":44} real user flow · append v2 and compare it with v1
+2026-11-18T08:10:34.762Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":511.828125,"height":44} real user flow · restore appended v3; v1 and v2 remain immutable
+2026-11-18T08:10:56.347Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":527.578125,"height":44} real user flow · the new Run freezes restored v3; old Run stays on v1
+2026-11-18T08:21:38.607Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T08:22:08.407Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T08:22:26.627Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T08:22:56.513Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T08:25:00.847Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T08:25:22.725Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T08:25:28.882Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T08:25:41.469Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T08:25:54.669Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":555.375,"height":45} 主演示 3/5｜成员看到运行 00240578871b4ae58637074609c4dd1c 成功完成
+2026-11-18T08:28:04.281Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-18T08:28:13.272Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 5/5｜管理员查看同一运行的低敏轨迹
+2026-11-18T08:36:09.522Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T08:36:38.143Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T08:36:54.174Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T08:42:08.213Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T08:42:37.329Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T08:42:47.651Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T08:43:11.567Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T08:43:28.855Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":554.703125,"height":45} 主演示 3/5｜成员看到运行 0b29a7d1ae2f4b4bb3652b185b33fa2e 成功完成
+2026-11-18T08:44:15.064Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-18T08:44:21.660Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 5/5｜管理员查看同一运行的低敏轨迹
+2026-11-18T08:46:58.584Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":391.71875,"height":44} real user flow · append v2 and compare it with v1
+2026-11-18T09:13:30.264Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":391.71875,"height":44} real user flow · append v2 and compare it with v1
+2026-11-18T09:22:41.423Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":527.578125,"height":44} real user flow · the new Run freezes restored v3; old Run stays on v1
+2026-11-18T14:15:11.173Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T14:15:13.821Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T14:15:18.505Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T14:15:42.383Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T14:15:51.287Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":525.6875,"height":45} 主演示 3/5｜成员看到运行 ffef24104f2849e5a9b1af4faf5f2fdf 成功完成
+2026-11-18T14:17:24.631Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-18T14:18:42.066Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 5/5｜管理员查看同一运行的低敏轨迹
+2026-11-18T14:26:23.168Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T14:26:26.186Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T14:26:29.754Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T14:27:40.946Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T14:31:13.303Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T14:31:15.808Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T14:31:18.802Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T14:31:40.000Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T14:35:37.758Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T14:35:40.277Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T14:35:42.315Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T14:36:09.823Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T14:36:29.917Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":538.640625,"height":45} 主演示 3/5｜成员看到运行 345e77c92cd64f14bff9af337c52cc66 成功完成
+2026-11-18T14:41:24.070Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T14:41:26.732Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T14:41:28.599Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T14:42:05.958Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T14:46:01.065Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T14:46:03.614Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T14:46:05.942Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T14:46:32.279Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T14:46:42.167Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":549.609375,"height":45} 主演示 3/5｜成员看到运行 7c9c06dcd56c49e8adc13696346961fd 成功完成
+2026-11-18T14:49:06.905Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T14:49:10.071Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T14:49:13.698Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T14:50:01.651Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T14:52:36.051Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T14:52:38.497Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T14:52:40.448Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T14:53:01.669Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T14:53:12.544Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":558.15625,"height":45} 主演示 3/5｜成员看到运行 926bd9b2ad934965b78105c27e94ee93 成功完成
+2026-11-18T14:56:56.493Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T14:59:25.890Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T14:59:29.307Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T14:59:31.353Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T14:59:54.336Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T15:00:03.624Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":555.84375,"height":45} 主演示 3/5｜成员看到运行 d053b132c0084913bb4d3c4ce62a212e 成功完成
+2026-11-18T15:04:21.911Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T15:07:32.204Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T15:07:35.671Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T15:07:37.704Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T15:08:08.541Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T15:08:13.779Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":541.015625,"height":45} 主演示 3/5｜成员看到运行 a6ef8828be4648cf95fc781fe424c82d 成功完成
+2026-11-18T15:11:48.737Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T15:11:51.984Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T15:11:55.903Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T15:12:26.090Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T15:12:40.516Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":558.359375,"height":45} 主演示 3/5｜成员看到运行 145d3c1c4bbd4159967b50b999da4574 成功完成
+2026-11-18T15:16:04.061Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T15:16:06.640Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T15:16:08.688Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T15:16:21.314Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T15:16:36.185Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":548.890625,"height":45} 主演示 3/5｜成员看到运行 8548fe21df7048df89671b14e8630b83 成功完成
+2026-11-18T15:17:45.854Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-18T15:17:54.430Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 5/5｜管理员查看同一运行的低敏轨迹
+2026-11-18T15:18:57.588Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T15:19:00.020Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T15:19:01.890Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T15:27:09.638Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T15:27:12.084Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T15:27:13.966Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T15:27:40.935Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T15:37:50.513Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T15:37:59.734Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T15:38:05.458Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T15:38:32.554Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T15:43:02.130Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T15:43:09.593Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T15:43:18.705Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T15:43:36.014Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T15:43:47.631Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":550.703125,"height":45} 主演示 3/5｜成员看到运行 0a23f7e8404f41509b241146a7d24652 成功完成
+2026-11-18T15:44:32.949Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-18T15:44:43.043Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 5/5｜管理员查看同一运行的低敏轨迹
+2026-11-18T15:45:48.917Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T15:45:52.256Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T15:45:57.815Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T15:54:27.463Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T15:54:55.145Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T15:55:13.420Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T15:55:41.087Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T15:56:01.742Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":542.609375,"height":45} 主演示 3/5｜成员看到运行 6d487efb364c473ea6c2b54b2c4ff1af 成功完成
+2026-11-18T16:06:31.472Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T16:06:37.814Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T16:06:47.031Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T16:06:53.035Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T16:07:04.915Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":538.5,"height":45} 主演示 3/5｜成员看到运行 d834fbce4f8844d78104cafff978c482 成功完成
+2026-11-18T16:07:07.547Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-18T16:07:11.179Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 5/5｜管理员查看同一运行的低敏轨迹
+2026-11-18T16:07:51.823Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T16:08:15.646Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T16:08:35.339Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T16:32:10.954Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T16:32:13.391Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T16:32:14.955Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T16:32:20.368Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T16:32:33.374Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":550.390625,"height":45} 主演示 3/5｜成员看到运行 467844a131064ef2932a7d6c9e83d9bf 成功完成
+2026-11-18T16:32:38.548Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-18T16:32:43.290Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 5/5｜管理员查看同一运行的低敏轨迹
+2026-11-18T16:42:08.580Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T16:42:26.254Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T16:42:27.876Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T16:42:33.450Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T16:42:45.932Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":551.375,"height":45} 主演示 3/5｜成员看到运行 b8427fb27fc948eebe6c53733b9933db 成功完成
+2026-11-18T16:42:48.856Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-18T16:42:52.436Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 5/5｜管理员查看同一运行的低敏轨迹
+2026-11-18T17:24:21.222Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T17:24:23.452Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T17:24:25.137Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T17:24:30.071Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T17:28:13.866Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T17:28:16.315Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T17:28:17.933Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T17:28:23.408Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T17:29:45.468Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T17:29:48.365Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T17:29:50.049Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T17:29:55.194Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T17:30:10.852Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":548.40625,"height":45} 主演示 3/5｜成员看到运行 ecbcae54f94d491089fd9c9cb851d537 成功完成
+2026-11-18T17:30:14.034Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-18T17:30:17.021Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 5/5｜管理员查看同一运行的低敏轨迹
+2026-11-18T17:32:30.144Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":587.546875,"height":45} 主演示 1/5｜组织管理员发布已配置模型的 Agent；模型为 mock，未验证真实模型
+2026-11-18T17:32:44.282Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":462.859375,"height":45} 主演示 2/5｜运行未结束时回复已逐步增长（已收到 30 个字符）
+2026-11-18T17:32:56.730Z {"width":1440,"height":1200} {"x":24,"y":1110,"width":720,"height":66} 主演示 2/5｜成员看到同一运行 1fc15353df354cbbbb4e944f820c856c 的最终回复；模型为 mock，未验证真实模型
+2026-11-18T17:33:04.692Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":646.3125,"height":45} 主演示 3/5｜关闭页面后重新进入，重开同一条历史运行；回复来自 mock，未验证真实模型
+2026-11-18T17:33:16.324Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":512.90625,"height":45} 主演示 3/5｜切到管理端查看同一运行的低敏轨迹，不包含用户消息正文
+2026-11-18T17:33:29.865Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":311.671875,"height":45} 主演示 4/5｜授权人员更新 Skill，追加 v2
+2026-11-18T17:33:34.986Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":291.671875,"height":45} 主演示 4/5｜比较 v1 与 v2 的正文差异
+2026-11-18T17:33:42.143Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":512.65625,"height":45} 主演示 4/5｜以 v1 内容恢复为新的当前版本 v3，v1 与 v2 记录保持不变
+2026-11-18T17:34:04.109Z {"width":1440,"height":1200} {"x":24,"y":1110,"width":720,"height":66} 主演示 5/5｜恢复后再运行 3902790287ab419ba3801a9182ba973c，新运行冻结 v3；模型为 mock，未验证真实模型
+2026-11-18T17:34:09.140Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":685.5625,"height":45} 主演示 5/5｜旧运行 1fc15353df354cbbbb4e944f820c856c 仍指向 v1，两次运行的冻结版本并存
+2026-11-18T17:36:47.933Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T17:36:50.340Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T17:36:52.106Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T17:36:57.630Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T17:38:33.664Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T17:38:36.056Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T17:38:37.664Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T17:38:43.185Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T17:40:18.455Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T17:40:21.100Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T17:40:22.945Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T17:40:28.808Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T17:41:51.256Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T17:41:53.606Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T17:41:55.189Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T17:42:00.344Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T17:42:14.155Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":551.984375,"height":45} 主演示 3/5｜成员看到运行 76c90614db924952a2a189bfc87b9e1c 成功完成
+2026-11-18T17:42:16.804Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-18T17:42:19.594Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 5/5｜管理员查看同一运行的低敏轨迹
+2026-11-18T17:44:21.769Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T17:44:24.083Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T17:44:25.703Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T17:44:30.646Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T17:44:44.570Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":556.515625,"height":45} 主演示 3/5｜成员看到运行 af15301ded1548b7a2e1a55d4618a9de 成功完成
+2026-11-18T17:44:47.217Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-18T17:44:49.632Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 5/5｜管理员查看同一运行的低敏轨迹
+2026-11-18T17:58:32.032Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T17:58:34.193Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T17:58:35.788Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T17:58:41.922Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T17:58:55.836Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":547.5625,"height":45} 主演示 3/5｜成员看到运行 051e82eba8fe4389a0fdd0fe870ec30a 成功完成
+2026-11-18T17:58:58.429Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-18T17:59:01.088Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 5/5｜管理员查看同一运行的低敏轨迹
+2026-11-18T18:08:53.354Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T18:08:55.732Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T18:08:57.320Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T18:09:02.196Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T18:09:16.666Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":546.375,"height":45} 主演示 3/5｜成员看到运行 7ffe58e637a242cbbc8f95552ae00aeb 成功完成
+2026-11-18T18:09:19.464Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-18T18:09:22.518Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 5/5｜管理员查看同一运行的低敏轨迹
+2026-11-18T18:51:53.645Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T18:51:55.519Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T18:51:56.915Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-18T18:52:01.588Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-18T18:52:14.959Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":557.90625,"height":45} 主演示 3/5｜成员看到运行 b86e1b627c1049cd8bad07b23a60529a 成功完成
+2026-11-18T18:52:17.019Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-18T18:52:19.098Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 5/5｜管理员查看同一运行的低敏轨迹
+2026-11-18T19:46:52.774Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-18T19:46:54.758Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-18T19:46:56.157Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-19T02:22:55.802Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-19T02:23:00.718Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-19T02:23:06.498Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-19T02:23:12.188Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-19T02:23:25.623Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":544.046875,"height":45} 主演示 3/5｜成员看到运行 a096ba52ca3e4ff9b0504aff00ab4cd3 成功完成
+2026-11-19T02:23:27.762Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-19T02:23:30.239Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 5/5｜管理员查看同一运行的低敏轨迹
+2026-11-19T03:02:20.258Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-19T03:02:22.329Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-19T03:02:24.079Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-19T03:02:29.270Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-19T03:02:42.709Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":550.53125,"height":45} 主演示 3/5｜成员看到运行 68b64cfb3f62435bb31a3122c8b01640 成功完成
+2026-11-19T03:02:44.837Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-19T03:02:47.302Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 5/5｜管理员查看同一运行的低敏轨迹
+2026-11-19T03:08:41.831Z {"width":1440,"height":1200} {"x":24,"y":1132,"width":380.609375,"height":44} real user flow · Step 1/4: create a versioned Skill
+2026-11-19T03:08:43.691Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":281.671875,"height":45} 主演示 1/5｜组织管理员创建 Skill v1
+2026-11-19T03:08:45.152Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":371.3125,"height":45} 主演示 2/5｜组织管理员发布并绑定 Skill 的 Agent
+2026-11-19T03:08:50.382Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":559.421875,"height":45} 增量回复可见：运行未结束时回复仍在增长（模型为 mock，未验证真实模型）
+2026-11-19T03:09:03.809Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":550.953125,"height":45} 主演示 3/5｜成员看到运行 3aa059b0f23041eeba452563484279ef 成功完成
+2026-11-19T03:09:05.847Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 4/5｜重新登录后重开同一条历史运行
+2026-11-19T03:09:08.035Z {"width":1440,"height":1200} {"x":24,"y":1131,"width":332.90625,"height":45} 主演示 5/5｜管理员查看同一运行的低敏轨迹
