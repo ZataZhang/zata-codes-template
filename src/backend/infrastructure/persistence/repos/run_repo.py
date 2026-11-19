@@ -294,20 +294,45 @@ class SqlAlchemyRunRepository:
             filter_conditions.append(RunModel.subject_type != query.excluded_subject_type)
         if query.status is not None:
             filter_conditions.append(RunModel.status == query.status.value)
+        if query.statuses is not None:
+            filter_conditions.append(
+                RunModel.status.in_([status.value for status in query.statuses])
+            )
         if query.created_after is not None:
             filter_conditions.append(RunModel.created_at >= query.created_after)
         if query.created_before is not None:
             filter_conditions.append(RunModel.created_at <= query.created_before)
+        status_timestamp = func.coalesce(
+            RunModel.finished_at, RunModel.started_at, RunModel.created_at
+        )
+        if query.status_timestamp_after is not None:
+            filter_conditions.append(status_timestamp >= query.status_timestamp_after)
+        page_conditions = list(filter_conditions)
+        if query.status_timestamp_cursor is not None:
+            if not query.status_timestamp_cursor_run_id:
+                raise ValueError("status_timestamp_cursor_run_id_required")
+            page_conditions.append(
+                or_(
+                    status_timestamp < query.status_timestamp_cursor,
+                    and_(
+                        status_timestamp == query.status_timestamp_cursor,
+                        RunModel.id < query.status_timestamp_cursor_run_id,
+                    ),
+                )
+            )
         with self._session_factory() as database_session:
             total_count = database_session.scalar(
                 select(func.count()).select_from(RunModel).where(*filter_conditions)
             )
+            ordered_query = select(RunModel).where(*page_conditions)
+            if query.order_by_status_timestamp:
+                ordered_query = ordered_query.order_by(status_timestamp.desc(), RunModel.id.desc())
+            else:
+                ordered_query = ordered_query.order_by(
+                    RunModel.created_at.desc(), RunModel.id.desc()
+                )
             run_models = database_session.scalars(
-                select(RunModel)
-                .where(*filter_conditions)
-                .order_by(RunModel.created_at.desc(), RunModel.id.desc())
-                .offset(query.offset)
-                .limit(query.limit)
+                ordered_query.offset(query.offset).limit(query.limit)
             ).all()
             return RunPage(
                 runs=tuple(_to_run(run_model, database_session) for run_model in run_models),

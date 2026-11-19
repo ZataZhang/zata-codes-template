@@ -72,19 +72,24 @@ export function Agents() {
   const [credentialResult, setCredentialResult] = useState('')
   const approvedPeers = peers.filter((peer) => peer.is_approved && peer.is_enabled)
 
-  /** 从 API 刷新当前组织的 Agent、Skill、A2A 目标和运行记录。 */
+  /** 从 API 刷新当前组织的 Agent、Skill、A2A 目标与运行记录，并同步错误横幅。 */
   const refresh = async () => {
-    const [agentItems, skillItems, peerItems, runItems] = await Promise.all([
-      listAgents(),
-      listSkills(),
-      listA2APeers(),
-      listOrganizationRuns(),
-    ])
-    setAgents(agentItems)
-    setSkills(skillItems)
-    setPeers(peerItems)
-    setRuns(runItems)
-    setSelectedSkillId((currentId) => currentId || skillItems[0]?.id || '')
+    try {
+      const [agentItems, skillItems, peerItems, runItems] = await Promise.all([
+        listAgents(),
+        listSkills(),
+        listA2APeers(),
+        listOrganizationRuns(),
+      ])
+      setAgents(agentItems)
+      setSkills(skillItems)
+      setPeers(peerItems)
+      setRuns(runItems)
+      setSelectedSkillId((currentId) => currentId || skillItems[0]?.id || '')
+      setError('')
+    } catch {
+      setError(String(t('agents.loadFailed')))
+    }
   }
 
   useEffect(() => {
@@ -102,6 +107,7 @@ export function Agents() {
         setPeers(peerItems)
         setRuns(runItems)
         setSelectedSkillId(skillItems[0]?.id ?? '')
+        setError('')
       })
       .catch(() => {
         if (!cancelled) setError(String(t('agents.loadFailed')))
@@ -119,7 +125,10 @@ export function Agents() {
     let cancelled = false
     listSkillVersions(selectedSkillId)
       .then((skillRevisions) => {
-        if (!cancelled) setRevisions(skillRevisions)
+        if (!cancelled) {
+          setRevisions(skillRevisions)
+          setError('')
+        }
       })
       .catch(() => {
         if (!cancelled) setError(String(t('agents.loadVersionsFailed')))

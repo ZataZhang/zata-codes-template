@@ -14,6 +14,11 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from backend.api import a2a_support
 from backend.api.a2a_errors import register_a2a_error_handlers
+from backend.api.a2a_router import (
+    _decode_task_page_token,
+    _encode_task_page_token,
+    _task_status_filter,
+)
 from backend.api.a2a_support import _read_text_message, _task_document, _task_events
 from backend.core.shared.models.run import (
     Run,
@@ -158,6 +163,33 @@ def test_task_and_stream_timestamps_use_utc_z_suffix() -> None:
 
     assert task_document["status"]["timestamp"] == "2026-11-19T03:30:00.000Z"
     assert stream_event["statusUpdate"]["status"]["timestamp"] == ("2026-11-19T03:30:00.000Z")
+
+
+def test_task_page_token_round_trips_opaque_utc_cursor() -> None:
+    """续页 token 保留微秒精度并规范没有时区的数据库时间。"""
+    queued_run = _run(RunStatus.QUEUED)
+    queued_run.created_at = datetime.fromisoformat("2026-11-19T03:30:00.123456")
+
+    page_token = _encode_task_page_token(queued_run)
+    cursor_timestamp, cursor_run_id = _decode_task_page_token(page_token)
+
+    assert not page_token.isdigit()
+    assert cursor_timestamp == datetime.fromisoformat("2026-11-19T03:30:00.123456+00:00")
+    assert cursor_run_id == queued_run.id
+    with pytest.raises(HTTPException, match="invalid_page_token"):
+        _decode_task_page_token("2")
+
+
+def test_task_status_filter_covers_all_run_states_mapped_to_task_states() -> None:
+    """A2A 状态过滤包含被合并映射的 Run 状态。"""
+    assert _task_status_filter("TASK_STATE_WORKING") == (
+        RunStatus.RUNNING,
+        RunStatus.CANCELLING,
+    )
+    assert _task_status_filter("TASK_STATE_FAILED") == (
+        RunStatus.FAILED,
+        RunStatus.INTERRUPTED,
+    )
 
 
 def test_running_task_snapshot_contains_already_streamed_artifact_text() -> None:

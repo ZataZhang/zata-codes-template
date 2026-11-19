@@ -54,6 +54,21 @@ class CreateAgentRunCommand:
     conversation_id: str | None = None
 
 
+@dataclass(frozen=True)
+class A2ARunListQuery:
+    """按授权凭据过滤并游标分页的 A2A Task 列表查询。"""
+
+    organization_id: str
+    agent_id: str
+    credential_id: str
+    page_size: int = 50
+    context_id: str | None = None
+    statuses: tuple[RunStatus, ...] | None = None
+    status_timestamp_after: datetime | None = None
+    cursor_timestamp: datetime | None = None
+    cursor_run_id: str | None = None
+
+
 class AgentRunUseCase:
     """通过 Canonical Run/Event 创建、执行与查询 Agent 消息。"""
 
@@ -533,27 +548,20 @@ class AgentRunUseCase:
         )
         return page.runs, page.total
 
-    def list_a2a_runs(
-        self,
-        *,
-        organization_id: str,
-        agent_id: str,
-        credential_id: str,
-        context_id: str | None = None,
-        status: RunStatus | None = None,
-        offset: int = 0,
-        limit: int = 50,
-    ) -> tuple[Sequence[Run], int]:
-        """仅列出同组织、同 Agent、同凭据创建的 A2A Tasks。"""
+    def list_a2a_runs(self, query: A2ARunListQuery) -> tuple[Sequence[Run], int]:
+        """按创建凭据与游标列出组织内 A2A Tasks。"""
         page = self._run_repository.query_runs_page(
             RunQuery(
-                organization_id=organization_id,
-                owner_id=f"a2a:{credential_id}",
-                subject_id=agent_id,
-                conversation_id=context_id,
-                status=status,
-                offset=offset,
-                limit=limit,
+                organization_id=query.organization_id,
+                owner_id=f"a2a:{query.credential_id}",
+                subject_id=query.agent_id,
+                conversation_id=query.context_id,
+                statuses=query.statuses,
+                limit=query.page_size + 1,
+                order_by_status_timestamp=True,
+                status_timestamp_after=query.status_timestamp_after,
+                status_timestamp_cursor=query.cursor_timestamp,
+                status_timestamp_cursor_run_id=query.cursor_run_id,
             )
         )
         return page.runs, page.total

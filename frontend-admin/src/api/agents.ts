@@ -185,7 +185,7 @@ export async function rotateA2APeerCredential(
   )
 }
 
-/** List the one-time token metadata for an Agent. */
+/** Issue a one-time A2A service token for an Agent; only the create response carries the secret. */
 export async function createA2ACredential(agentId: string, name: string) {
   return apiPost<{ id: string; token: string }>(
     `/admin/agents/${encodeURIComponent(agentId)}/a2a-credentials`,

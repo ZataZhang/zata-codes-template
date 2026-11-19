@@ -180,7 +180,7 @@ view *args:
 ## Local File Viewer
 
 `just view`（仅本模板仓库提供）与安装后的全局 `zview` 起一个只绑 `127.0.0.1` 的查看器（文件树 + 文件内容与文本编辑 + Markdown 任务清单直点切换 + 改动视图 + 按需加载的本地/远程 Git Log 图与提交 diff + 暂存 + 在系统中打开），
-逻辑在 `scripts/shared/view/`，该目录**不随 `just sync-template` 下发**：派生项目（如 freshai）
+逻辑在 `scripts/shared/view/`，该目录**不随 `just sync-template` 下发**：派生项目
 用全局 `zview` 一份即可，不必各带一份必须分别维护的副本。这里只记与工具链
 约定相关的部分。
 

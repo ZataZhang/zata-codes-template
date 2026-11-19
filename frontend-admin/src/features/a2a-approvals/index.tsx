@@ -18,6 +18,7 @@ export function A2AApprovals() {
   const [peers, setPeers] = useState<A2APeerApproval[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [approvingPeerId, setApprovingPeerId] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -36,14 +37,18 @@ export function A2AApprovals() {
     }
   }, [t])
 
-  /** 管理员确认组织与端点后批准外部 A2A 目标。 */
+  /** 管理员确认组织与端点后批准外部 A2A 目标；审批期间禁用按钮防止重复提交。 */
   const approve = async (peer: A2APeerApproval) => {
+    if (approvingPeerId) return
+    setApprovingPeerId(peer.id)
     try {
       await approveA2APeer(peer.id)
       setPeers((currentPeers) => currentPeers.filter((item) => item.id !== peer.id))
       toast.success(t('a2aApprovals.approved'))
     } catch {
       toast.error(t('a2aApprovals.approveFailed'))
+    } finally {
+      setApprovingPeerId('')
     }
   }
 
@@ -74,7 +79,11 @@ export function A2AApprovals() {
               <CardHeader>
                 <CardTitle className='flex flex-wrap items-center justify-between gap-3'>
                   <span>{peer.name}</span>
-                  <Button size='sm' onClick={() => void approve(peer)}>
+                  <Button
+                    size='sm'
+                    disabled={approvingPeerId !== ''}
+                    onClick={() => void approve(peer)}
+                  >
                     {t('a2aApprovals.approve')}
                   </Button>
                 </CardTitle>

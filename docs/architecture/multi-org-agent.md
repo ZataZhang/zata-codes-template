@@ -48,7 +48,7 @@ A2A 只用于独立 Agent 之间通信。它不代替内部模型接口或受控
 | POST | `/a2a/agents/{agent_id}/tasks/{task_id}:subscribe` | 订阅非终态 Run 事件 |
 | POST | `/a2a/agents/{agent_id}/tasks/{task_id}:cancel` | 取消同凭据可见的任务 |
 
-入站 Task ID 就是 Canonical Run ID。`messageId` 形成组织和凭据范围的稳定幂等键；重复发送相同请求返回已有 Run，不另建状态库。任务列表、读取、取消与订阅都按组织、Agent 和服务凭据 owner 过滤。
+入站 Task ID 就是 Canonical Run ID。`messageId` 形成组织和凭据范围的稳定幂等键；重复发送相同请求返回已有 Run，不另建状态库。任务列表、读取、取消与订阅都按组织、Agent 和服务凭据 owner 过滤。任务列表使用不透明的状态时间游标分页，按 Task 状态时间倒序，并支持 `statusTimestampAfter` 过滤；续页 token 不包含 offset。
 
 `returnImmediately=false` 的同步等待有 120 秒上限：超时后按 Run 当前状态返回 Task（未到终态即 `TASK_STATE_WORKING`），由对端改用读取或订阅继续跟踪，入站连接不会因单个 Run 永久挂起。
 

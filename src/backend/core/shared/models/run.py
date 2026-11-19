@@ -367,6 +367,11 @@ class RunQuery:
     conversation_id: str | None = None
     offset: int = 0
     limit: int = 50
+    statuses: tuple[RunStatus, ...] | None = None
+    order_by_status_timestamp: bool = False
+    status_timestamp_after: datetime | None = None
+    status_timestamp_cursor: datetime | None = None
+    status_timestamp_cursor_run_id: str | None = None
 
 
 @dataclass(frozen=True)

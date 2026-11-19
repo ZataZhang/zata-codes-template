@@ -88,6 +88,7 @@ AI 代理默认不会设置该变量，因此会被 hook 拦下——这是"指�
 |---|---|
 | `test_alembic_logging_isolation.py` | 进程内 alembic 迁移不得摧毁宿主进程 logging 配置（`fileConfig` 清空 root handler、禁用已有 logger，会让 `caplog` 断言静默恒为空） |
 | `test_alembic_migration_naming.py` | `alembic.ini` 的迁移脚本命名约定：`file_template` 与 slug 归一化（`docs/database/migrations.md`）；hook 行为部分见 `shared/test_check_schema_conventions.py` |
+| `test_agent_organization_and_route_scope.py` | 带 `owner_id` 的 ORM 业务表必须有 `organization_id`（豁免须写明原因）；每个 `APIRoute` 依赖树必须含鉴权依赖或列入带原因的公开名单；两者各带内置违规样例作负控（PRD `P1-FEAT-20260928-115856` FR-12） |
 | `test_compose_parity.py` | Docker Compose 仓库约定 |
 | `test_composition_boundaries.py` | composition root 公开入口，以及四层反向导入 composition 必须被架构检查拒绝 |
 | `test_database_connection_pool.py` | 非 SQLite 后端不得使用 `StaticPool`（共用单连接会让事务互相覆盖、静默丢数据） |
@@ -100,4 +101,4 @@ AI 代理默认不会设置该变量，因此会被 hook 拦下——这是"指�
 | `test_local_core_tier_budget.py` | 本地测试分层的配置契约：`tests/core_set.txt` 名单不超串行预算且文件不失踪、`justfile` 的 `--core-tier` 接线、conftest 读取工作区测试计划、CI 全量步骤产出 junit 且成本棘轮步骤带 `--enforce-seconds`、`test-budget.json` 上限自洽（`docs/ai-standards/testing.md`「测试分层与本地核心档」） |
 | `test_shared_database_guard.py` | 共享库外部写者守卫的库名判据（真实本地监听 + 真实 run-state）：库名不同放行、同库与旧格式拦截、`ALLOW_SHARED_DATABASE` 逃生口、项目可选的活跃运行探测钩子缺省不崩溃（`docs/ai-standards/testing.md`「与 dev server 共用数据库」） |
 | `test_runtime_dependency_declaration.py` | 模块级 import 必须由依赖声明覆盖：`src/backend/` 对齐裸 `uv sync`（`[project.dependencies]`），`tests/` 对齐 CI 的 `uv sync --all-extras --all-groups --frozen`（含 `[dependency-groups] dev` 与 extras） |
-| `test_runtime_port_state.py` | `.env.run-state` 主机端口单一来源与 Compose 映射 |
+| `test_runtime_port_state.py` | `.env.run-state` 主机端口单一来源与 Compose 映射；Next.js 代理须从 `next.config.ts` 或共享 URL helper 消费 `API_BASE_URL` |

@@ -42,6 +42,11 @@ def _format_a2a_timestamp(timestamp_value: datetime) -> str:
     return utc_timestamp.isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
+def _task_timestamp(run: Run) -> datetime:
+    """返回与 Task.status.timestamp 一致的状态时间。"""
+    return run.finished_at or run.started_at or run.created_at
+
+
 def _require_version(a2a_version: str | None) -> None:
     """只接受本 API 明确实现的 A2A 协议版本。"""
     if a2a_version != "1.0":
@@ -215,7 +220,7 @@ def _task_document(
         "contextId": run.conversation_id,
         "status": {
             "state": _task_state(run),
-            "timestamp": _format_a2a_timestamp(run.finished_at or run.started_at or run.created_at),
+            "timestamp": _format_a2a_timestamp(_task_timestamp(run)),
         },
     }
     if include_artifacts:

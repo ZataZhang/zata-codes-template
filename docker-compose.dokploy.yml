@@ -147,6 +147,10 @@ services:
       # pnpm-workspace.yaml 与 pnpm-lock.yaml 都在根目录。
       context: .
       dockerfile: frontend-public/Dockerfile
+      # Next.js standalone 在构建期固化 /api 与 /a2a 代理目标，
+      # 必须与下方运行时 API_BASE_URL 使用同一后端地址。
+      args:
+        API_BASE_URL: ${API_BASE_URL:-http://${COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME is required}-backend:8000}
     expose:
       - "3000"
     environment:

@@ -511,3 +511,115 @@ def test_blank_organization_scope_matches_no_runs(
     )
     assert valid_scope_page.total == 1
     assert blank_scope_page.total == 0
+
+
+def test_a2a_task_pages_use_status_timestamp_keyset(
+    entity_registry: TrackedEntityRegistry,
+) -> None:
+    """A2A Task 列表按状态时间倒序，并可使用复合游标连续读取。"""
+    repository = SqlAlchemyRunRepository(SessionLocal)
+    owner_id = f"a2a:{uuid4().hex}"
+    agent_id = f"agent_{uuid4().hex}"
+    candidate_runs: list[Run] = []
+    for _ in range(2):
+        run_id = f"run_{uuid4().hex}"
+        created_run = repository.create_run(
+            Run(
+                id=run_id,
+                owner_id=owner_id,
+                subject_id=agent_id,
+                subject_type=ORGANIZATION_AGENT_SUBJECT_TYPE,
+                subject_snapshot=RunSubjectSnapshot(
+                    subject_type=ORGANIZATION_AGENT_SUBJECT_TYPE,
+                    subject_id=agent_id,
+                    subject_name="A2A Pagination Agent",
+                    snapshot_checksum="c" * 64,
+                ),
+                subject_snapshot_checksum="c" * 64,
+                status=RunStatus.QUEUED,
+                last_event_seq=0,
+                created_at=_BASE_TIME,
+                organization_id=DEFAULT_ORGANIZATION_ID,
+                conversation_id="context-pagination",
+            ),
+            idempotency_key_hash=uuid4().hex,
+            request_checksum="r" * 64,
+            input_text="pagination fixture",
+        )
+        entity_registry.run_ids.append(created_run.id)
+        candidate_runs.append(created_run)
+
+    started_run = repository.append_event(
+        candidate_runs[0].id,
+        RunEventCandidate("run.started", {"started_at": _BASE_TIME.isoformat()}),
+    )
+    started_projection = repository.get_by_id(candidate_runs[0].id)
+    assert started_projection is not None and started_projection.started_at is not None
+
+    page_conditions = {
+        "organization_id": DEFAULT_ORGANIZATION_ID,
+        "owner_id": owner_id,
+        "subject_id": agent_id,
+        "conversation_id": "context-pagination",
+        "limit": 1,
+        "order_by_status_timestamp": True,
+    }
+    first_page = repository.query_runs_page(RunQuery(**page_conditions))
+    second_page = repository.query_runs_page(
+        RunQuery(
+            **page_conditions,
+            status_timestamp_cursor=started_projection.started_at,
+            status_timestamp_cursor_run_id=candidate_runs[0].id,
+        )
+    )
+    filtered_page = repository.query_runs_page(
+        RunQuery(
+            **page_conditions,
+            status_timestamp_after=started_projection.started_at,
+        )
+    )
+
+    assert first_page.total == second_page.total == 2
+    assert first_page.runs[0].id == candidate_runs[0].id
+    assert second_page.runs[0].id == candidate_runs[1].id
+    assert filtered_page.total == 1
+    assert filtered_page.runs[0].id == candidate_runs[0].id
+    assert started_run.event_type == "run.started"
+
+    failed_run_ids: list[str] = []
+    for terminal_event, payload in (
+        ("run.failed", {"error": {"code": "fixture_failure"}}),
+        (
+            "run.interrupted",
+            {"reason_code": "fixture_interrupted", "lease_expired_at": _BASE_TIME.isoformat()},
+        ),
+    ):
+        failed_run = _build_scope_validation_run(DEFAULT_ORGANIZATION_ID)
+        failed_run.owner_id = owner_id
+        failed_run.subject_id = agent_id
+        failed_run.subject_type = ORGANIZATION_AGENT_SUBJECT_TYPE
+        failed_run.subject_snapshot = RunSubjectSnapshot(
+            subject_type=ORGANIZATION_AGENT_SUBJECT_TYPE,
+            subject_id=agent_id,
+            subject_name="A2A Pagination Agent",
+            snapshot_checksum="c" * 64,
+        )
+        failed_run.conversation_id = "context-pagination"
+        created_failed_run = repository.create_run(
+            failed_run,
+            idempotency_key_hash=uuid4().hex,
+            request_checksum="r" * 64,
+            input_text="pagination fixture",
+        )
+        entity_registry.run_ids.append(created_failed_run.id)
+        repository.append_event(created_failed_run.id, RunEventCandidate(terminal_event, payload))
+        failed_run_ids.append(created_failed_run.id)
+
+    failed_status_page = repository.query_runs_page(
+        RunQuery(
+            **{**page_conditions, "limit": 10},
+            statuses=(RunStatus.FAILED, RunStatus.INTERRUPTED),
+        )
+    )
+    assert failed_status_page.total == 2
+    assert {run.id for run in failed_status_page.runs} == set(failed_run_ids)
