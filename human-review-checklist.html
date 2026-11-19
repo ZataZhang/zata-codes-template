@@ -44,7 +44,7 @@ code{background:#e2e8f0;padding:1px 5px;border-radius:4px;font-size:12.5px}
 <body data-review-key="issue-58-multi-org-agent" data-markdown-title="人工审查结果 · 多组织通用在线 Agent 底座（Issue #58）">
 <header>
   <h1>人工审查清单 · 多组织通用在线 Agent 底座<span class="tag">Issue #58</span><span class="tag">PRD P1-FEAT-20260928-115856-multi-organization-online-agent-base</span></h1>
-  <p>最终验证树 <code>33a6ed4205fae48c94da25940609fedc564e2e86</code>；RV-1–RV-7、七项负控、独立 verifier（PASS，risk=yellow）和 CI run <code>44462357584</code> 均通过。真实模型、公网第三方 Agent 与公网部署未验证。共 5 项决定；答案保存在本机浏览器（localStorage），最后一步生成可复制的 Markdown 回复给 agent。静态底稿：同目录 <code>human-review-checklist.md</code>。</p>
+  <p>PR <a href="https://github.com/ZataZhang/zata-codes-template/pull/62">#62</a> 于 2026-11-19 合并即接受以下 5 项决定；PRD 已回填，无需再提交答案。合并提交 <code>55174cbfb02bec30a4d5073ac0dcadd0a2763e16</code> 的排除交付记录源码树 <code>33a6ed4205fae48c94da25940609fedc564e2e86</code> 与 verifier 审查树一致。RV-1–RV-7、七项负控和独立 verifier（PASS，risk=yellow）均通过；最终 PR head 的 CI run <a href="https://github.com/ZataZhang/zata-codes-template/actions/runs/44467737473"><code>44467737473</code></a> 四个必需任务全绿。真实模型、公网第三方 Agent 与公网部署未验证。下方选项仅展示已接受决定，不可编辑；静态底稿：同目录 <code>human-review-checklist.md</code>。</p>
 </header>
 <main>
   <div class="progress" id="progress"></div>
@@ -117,8 +117,8 @@ code{background:#e2e8f0;padding:1px 5px;border-radius:4px;font-size:12.5px}
     <label class="field">补充说明（可选）<textarea></textarea></label>
   </section>
   <section class="card">
-    <h2>审查结果（复制下面这段回给 agent）</h2>
-    <p class="lead">合并方式：把结果粘进对话；PRD 已由 runner 归档于 <code>tasks/archive/P1-FEAT-20260928-115856-multi-organization-online-agent-base.md</code>，人工验收只更新归档记录。</p>
+    <h2>合并验收记录（可复制）</h2>
+    <p class="lead">PR #62 合并即接受 §9.2 五项决定；归档 PRD 已更新。此页只呈递已记录的验收，不要求回复。</p>
     <pre id="result"></pre>
     <nav><button class="ghost" id="prev2">上一步</button><button id="copy">复制 Markdown</button></nav>
   </section>
@@ -140,6 +140,9 @@ function readState() {
   }
 }
 const state = Object.assign({ step: 0, picks: {}, notes: {} }, readState());
+cards.slice(0, RESULT_INDEX).forEach(function (_card, index) {
+  state.picks[index] = '0';
+});
 if (typeof state.step !== 'number' || state.step < 0 || state.step > RESULT_INDEX) {
   state.step = 0;
 }
@@ -154,7 +157,15 @@ function cardIndexOf(element) {
 }
 function buildMarkdown() {
   const title = document.body.dataset.markdownTitle || document.title;
-  const lines = ['# ' + title, ''];
+  const lines = [
+    '# ' + title,
+    '',
+    '验收事件：PR #62 于 2026-11-19 合并即接受 §9.2 五项决定。',
+    'Merge commit：55174cbfb02bec30a4d5073ac0dcadd0a2763e16',
+    '排除交付记录后的源码树与 verifier 审查树：33a6ed4205fae48c94da25940609fedc564e2e86',
+    'PRD：tasks/archive/P1-FEAT-20260928-115856-multi-organization-online-agent-base.md',
+    ''
+  ];
   cards.forEach(function (card, index) {
     if (index === RESULT_INDEX) {
       return;
@@ -165,12 +176,8 @@ function buildMarkdown() {
     const span = checked ? checked.closest('label').querySelector('span') : null;
     const answer = span ? span.textContent.trim() : '（未选择）';
     lines.push(label + '：' + answer);
-    const note = String(state.notes[index] || '').trim();
-    if (note) {
-      lines.push('  补充：' + note);
-    }
   });
-  lines.push('', '审查时间：' + new Date().toLocaleString('zh-CN'));
+  lines.push('', '无需回复；已接受决定见 PRD §9.2。');
   return lines.join('\n');
 }
 function render() {
@@ -216,7 +223,13 @@ cards.forEach(function (card, index) {
       input.checked = true;
     }
   }
+  card.querySelectorAll('input[type=radio]').forEach(function (input) {
+    input.disabled = index < RESULT_INDEX;
+  });
   const notesBox = card.querySelector('textarea');
+  if (notesBox && index < RESULT_INDEX) {
+    notesBox.disabled = true;
+  }
   if (notesBox && state.notes[index] !== undefined) {
     notesBox.value = state.notes[index];
   }

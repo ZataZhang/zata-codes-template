@@ -1,8 +1,8 @@
 # 人工审查清单 · 多组织通用在线 Agent 底座
 
-共 5 项决定。请按顺序回答“同意”或“不同意并列出差异”。答案应回填 PRD §9.2 Human-Confirmed；此清单只是审查呈现面，不是第二事实源。PRD 已由 runner 归档：`tasks/archive/P1-FEAT-20260928-115856-multi-organization-online-agent-base.md`。
+共 5 项决定。PR #62 已于 2026-11-19 合并即接受，PRD §9.2 Human-Confirmed 已回填；此清单保留已接受决定的审查呈现，无需再回答。PRD 已归档：`tasks/archive/P1-FEAT-20260928-115856-multi-organization-online-agent-base.md`。
 
-最终验证身份：HEAD `1f0e635a47c8abdab1ed010226f128f3ea3317fa`，源码树 `33a6ed4205fae48c94da25940609fedc564e2e86`（排除交付记录、生成的 Playwright 文件与本机包缓存）。官方 `kc evidence check` RV-1–RV-7 全部通过；七项负控均在同一身份触发预期失败；独立 verifier **PASS（risk=yellow）**；GitHub CI run [44462357584](https://github.com/ZataZhang/zata-codes-template/actions/runs/44462357584) 四个必需任务全绿。剩余 5 项需由合并者确认；真实模型与公网外部 Agent 未验证，模型使用本地传输替身，A2A 使用官方 1.0 SDK 本地独立实现。
+验收记录：PR [#62](https://github.com/ZataZhang/zata-codes-template/pull/62) 于 2026-11-19 合并，merge commit `55174cbfb02bec30a4d5073ac0dcadd0a2763e16` 排除交付记录后的源码树 `33a6ed4205fae48c94da25940609fedc564e2e86` 与 verifier 验收树一致；PR 正文声明合并即接受，PRD §9.2 五项已回填。官方 `kc evidence check` RV-1–RV-7 全部通过；七项负控均在同一身份触发预期失败；独立 verifier **PASS（risk=yellow）**；最终 PR head 的 GitHub CI run [44467737473](https://github.com/ZataZhang/zata-codes-template/actions/runs/44467737473) 四个必需任务全绿。真实模型、公网外部 Agent 与公网部署未验证；模型使用本地传输替身，A2A 使用官方 1.0 SDK 本地独立实现。以下页面保留被接受决策的呈递记录，无需再提交答案。
 
 ## 第 1 项 · 数据是否固定属于创建它的组织？
 
