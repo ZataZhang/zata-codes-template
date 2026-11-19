@@ -38,9 +38,9 @@
 | `just frontend-public dev` | 委托 `just run frontend-public`，读取当前 run-state 端口 |
 | `just down` | 按当前 Git worktree 保存的端口停止本地开发服务 |
 | `just copy <new-dir>` | 派生新项目；生成英文 `README.md` 和简体中文版 `README.zh.md`，随机分配三个互不重叠的端口避免多副本端口冲突，并根据新项目名自动生成独立 PostgreSQL 数据库 |
-| `just worktree <branch>` | 仅能从 Git primary worktree 创建；自动分配端口、创建专用 PostgreSQL 空库并执行迁移，开发与 E2E 共用该 Worktree 的数据库 |
+| `just worktree <branch>` | 仅能从 Git primary worktree 创建；自动分配端口、创建专用 PostgreSQL 空库并执行迁移，开发与 E2E 共用该 Worktree 的数据库；没有 `just` 时按[PR 交付指南](../guides/ai-pr.md)使用 `git worktree add` |
 | `just worktree -o <worktree-name>` | 打开已有 worktree；名称接受分支全名、分支最后一段、PRD slug、PRD 文件名（可带 `.md`）与 `tasks/pending/....md` 路径，歧义时报错列候选、未命中时列可用 worktree |
-| `just worktree --prune [--dry-run\|--yes\|--force] [--base <branch>]` | 批量删除已并入 base 的本地分支及其 worktree；默认列计划并确认一次，gone 但有独有提交的分支需 `--force` |
+| `just worktree --prune [--dry-run\|--yes\|--force] [--base <branch>]` | 清理已并入 base 的分支及 worktree，也清理提交可从远端跟踪引用到达的本地别名；默认列计划并确认一次，gone 且无远端副本的独有提交需 `--force` |
 | `just test` | 运行本地测试；根 `justfile` 默认带 `--core-tier`，只跑核心档（名单 ∪ 改动与映射到的测试），全量用 `just test all` |
 | `just test all` | 全量测试（`-m ''`，含 slow / real_api / redis） |
 | `just test-changed` | 只跑与当前工作区改动相关的测试（不设预算、不写提交标记）；用于验掉 `just test` 结尾点名没跑的相关文件 |
@@ -58,7 +58,7 @@
 | `just ai fix [claude\|kimi]` | 用 AI 解决当前 git 冲突（rebase/merge/cherry-pick 等） |
 | `just ai commit [claude\|kimi]` | 先跑 `just test`，再由 AI 暂存相关文件并直接提交；只修复本次改动引起的测试失败 |
 | `just ai implement <prd-file> [claude\|kimi]` | 按 PRD 实现功能 |
-| `just ai pr <context.json> [auto\|only\|confirm] [wait-seconds]` | 当前对话提供原话/任务/验收上下文，创建或复用 Issue/PR；检测规则后合并并返回默认分支，待真实验证时保留 Draft |
+| `just ai pr <context.json> [auto\|only\|confirm] [wait-seconds]` | 当前对话提供原话/任务/验收上下文，创建或复用 Issue/PR；检测规则后合并，primary worktree 调用时返回默认分支，隔离 worktree 调用时留在工作分支 |
 | `just prd status [all\|pending\|archive] [--detail] [--table]` | PRD 状态看板：已归档且横幅为 `🧍 待人工验收` 的记录（含分支里已归档、尚待合并的）汇总成 `AWAITING HUMAN` 段并附等待时长，`tasks/pending` 里的记录列为 `PENDING` 逐条列出、其余归档记录按月折叠，展示验收清单勾选进度、影响树触达进度（FILES 列）、证据包状态与运行态（ACTIVITY 列）；默认逐条输出英文字段块（`PRIORITY` / `FILE` / `TITLE` / `ACCEPTANCE` 等），`--table` 切横行一条的宽表格，`--detail` 追加描述摘要行 |
 | `just prd start <prd-file> [--tool <名称>] [--branch <名称>]` | 领取 PRD 执行锁：他人新鲜锁拒绝开工（退出 1）并输出持锁者信息；过期锁自动接管并留档；同归属重复领锁幂等刷新 |
 | `just prd heartbeat <prd-file>` | 续期当前会话持有的执行锁；锁丢失或归属不符时警告并非零退出 |
@@ -67,10 +67,25 @@
 
 `just ai` 保留 AI CLI 的非零退出状态；执行失败时不再继续 push 或 Git 冲突恢复。自定义提示词按字面传递，通用工具参数应使用可执行文件名或路径（不接受 Shell 表达式或别名）。AI 成功退出仍不等于测试通过，需结合输出检查结果。
 
+### 本地分支清理
+
+完成分支任务或工作收尾时，主动检查并及时清理已合并或过期且不再包含待保留工作的本地分支。先刷新远端引用，并确认目标默认分支及关联 worktree 状态。
+
+- 先运行 `git fetch --all --prune` 刷新远端引用，再用 `just worktree --prune --dry-run --base <默认分支>` 预览已并入默认分支的分支，以及本地 tip 可从 remote-tracking ref 到达的本地别名；确认后执行清理。
+- 远端保留组只删除本地分支引用，不删除远端分支。为避免触碰仍在使用的工作，分支必须没有活动 upstream，且不能在任何 worktree 中检出；输出会列出包含本地 tip 的远端跟踪引用。
+- 没有 upstream 且 tip 没有远端跟踪副本的本地独有分支会显示为待人工核验，不纳入自动删除或 `--force` 组。
+- 上游分支仍存在时，默认清理命令可能看不到通过 squash/rebase merge 合并的本地分支。核验对应 PR/MR 已合并且改动已在默认分支后，若该分支有 worktree，先确认干净并移除，再用 `git branch -D <branch>` 删除本地分支；不要因此删除远端分支。
+- `just worktree --prune` 会保留 upstream 已删除、仍有独有提交、且没有其他远端跟踪引用包含本地 tip 的分支，因为仅凭 Git 提交图无法区分 squash merge 与未合并关闭。检查权威 PR/MR 状态并确认改动已进入默认分支后才可清理；未合并或状态不明则保留。
+- `--force` 会影响所有 upstream 已删除且仍有独有提交的候选。只有这些候选都已确认合并时才使用；否则逐个清理已确认的分支，并确保关联 worktree 干净且未检出该分支。
+- 不删除当前检出的分支、有未提交改动的 worktree 分支或仍有待保留提交的分支。删除远端分支必须有用户明确要求。
+
 ### 对话中的 PR 交付与数据留存
 
 用户在当前 Agent 对话里要求「帮我提 PR」时，先读[对话中的 PR 交付](../guides/ai-pr.md)，
-由当前 Agent 准备上下文文件再调用 `just ai pr`。相关原话与 AI 整理分开，需求来源和真实验收状态必须如实填写。
+实现改动的工作应从独立 worktree 开始，避免切换用户当前分支或覆盖其工作区；由当前 Agent 准备上下文文件，
+再从该 worktree 调用 `just ai pr`。相关原话与 AI 整理分开，需求来源和真实验收状态必须如实填写。
+没有 `just` 时，按 PR 指南用原生 `git worktree` 建立隔离目录；自动 PR 脚本仍要求 `just test`，不能把直接运行
+Python 脚本当作免除该依赖的方式。
 默认 `auto`，用户可选择仅创建或合并前确认；不因有权限就忽略未完成的真实验证。
 多轮修复复用同一 Issue/PR 并追加观察，合并后才发现失败则创建关联修复 PR。长期数据整理约定见
 [Agent 数据集构建](../guides/agent-dataset.md)。
@@ -169,6 +184,10 @@ view *args:
 用全局 `zview` 一份即可，不必各带一份必须分别维护的副本。这里只记与工具链
 约定相关的部分。
 
+每次启动或复用 Git 查看器时，入口会异步执行 `git fetch --all --prune`，同一实例目录 5 分钟内
+最多一次；`zview --no-fetch` / `just view --no-fetch` 可跳过。默认视图不等待网络；进入 Git Log
+会等正在进行的 fetch 完成，失败时明确提示并显示本地引用。
+
 `just view-install` 会把 `scripts/shared/view/zview` 链接到 `~/.local/bin/zview`。全局入口以
 目标目录作为工作区根：Git 子目录中的 Git 命令按该子树过滤；非 Git 目录走文件系统扫描，
 不在目标目录写入登记或日志。
@@ -230,6 +249,10 @@ view *args:
 `just run`（以及 `just run frontend`、`just run frontend-public`）会在前端服务进入后台进程组前，以非交互模式运行 `pnpm install --frozen-lockfile --prefer-offline`。模板根目录是统一 pnpm workspace，因此 `all` 模式只执行一次预检。该步骤既安装缺失依赖，也修复 pnpm 判定为过期的 `node_modules` 元数据；lockfile 与清单不一致时则在任何长驻服务启动前明确失败。依赖预检不得留给后台的 `pnpm dev` 隐式执行，否则 pnpm 的清理确认可能因无法读取 TTY 而暂停整个服务进程组。
 
 ## Docker Local Run
+
+> 本节仅适用于仍保留 `docker-compose.yml` / `just run docker` 的项目。派生项目若删除
+> 整套容器部署（例如只提供本机面板的产品），应同时删除本节与 `justfile` 里的 docker
+> 分支，避免文档继续承诺一个不存在的部署路径。
 
 `just run docker` **强制要求当前目录存在 `.env.local`**（缺失时直接报错退出），并按 `settings.py` 的方式分层加载环境：**先 `.env`、后 `.env.local` 覆盖**。
 

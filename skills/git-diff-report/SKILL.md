@@ -1,6 +1,6 @@
 ---
 name: git-diff-report
-description: "[Updated 2026-11-02] Render git changes into a self-contained HTML report with per-file summaries, a highlighted diff viewer, and optional feature-grouped core changes with inline SVG module and data-flow diagrams linked to core diffs. Use when the user asks to 展示当前改动, 看改了什么, 生成改动预览页, 功能图, SVG 改动图, 改动可视化, diff 报告, or wants a reviewable HTML overview of a working tree, branch diff, or staged changes."
+description: "[Updated 2026-11-16] Render git changes into a self-contained HTML report with per-file summaries, a searchable feature/path tree, a core/all diff switch, a restored overview with feature cards and inline SVG diagrams, and a highlighted diff viewer. Use when the user asks to 展示当前改动, 看改了什么, 生成改动预览页, 功能图, SVG 改动图, 改动可视化, diff 报告, or wants a reviewable HTML overview of a working tree, branch diff, or staged changes."
 user-invocable: true
 allowed-tools:
   - Read
@@ -14,14 +14,15 @@ allowed-tools:
 
 把「当前代码改了什么」变成一份可以直接看、可以直接发出去的 HTML 报告：
 
-- **可选功能链路导航**：摘要 JSON 提供 `feature_groups` 时，页面升级为「功能 → 功能图 → 核心 diff」三栏；跨层、带分支或需要表达数据走向的功能应提供定制内联 SVG，画出真实组件、决策分支和数据流，关联节点可直接跳到对应 diff。简单线性链路可用卡片式步骤流程图，不为装饰重复画图。图下可展开核心代码阅读路径，右侧默认只显示核心文件。外围 API、类型、文案等收进「配套改动」，可一键扩展到该功能的完整 diff；「全部改动」仍可回到路径树。借鉴 [Oil Git](https://github.com/oil-oil/oil-git) 的分层导航思路，不依赖或复制其代码；
-- **顶部**：摘要 JSON 提供 `overview` 或 `reading_path` 时，出现可折叠的「改动总览」面板——功能级叙述 + 建议阅读顺序 + 按角色分组的重点文件清单；正文里的文件路径 / `路径:行号` 自动变跳转链接，点了直达下方对应文件甚至那一行；
-- **左侧（默认模式）**：可折叠的改动文件树，每个文件带 `+N -M` 统计与一句话中文总结，点击跳转、滚动联动高亮；必读文件的文件名后跟一枚绿色「必读」徽标（与右侧文件头、底部重点文件清单同源，只标必读、不标「扫一眼」，避免逐行铺灰徽标）；
+- **可选功能代码树**：摘要 JSON 提供 `feature_groups` 时，页面使用左树 + 右 diff 两栏布局；左侧可切换「按功能 / 按路径」，功能组按目录展开并逐文件显示增删数与改动摘要，点文件后右侧聚焦单文件。右侧用清晰的「核心改动 / 全部文件」分段按钮切换范围，默认只显示核心 diff；「全部文件」展示当前功能组的完整改动。顶部改动总览先显示摘要与功能卡片，定制内联 SVG 收在可展开的「功能结构图」中，避免图过高时挤占代码阅读空间；点击节点会切换到相关功能和文件 diff。功能或文件的提问入口整理当前摘要上下文，供复制到 AI 对话。借鉴 [Oil Git](https://github.com/oil-oil/oil-git) 的分层导航思路，不依赖或复制其代码；
+- **全文件路径树**：左侧「按路径」保留仓库目录结构，逐文件显示文件名、增删数和两行改动摘要，可按功能名、完整路径或文件摘要筛选；按 `/` 可聚焦筛选框；
+- **顶部**：始终恢复可折叠的「改动总览」；有 `feature_groups` 时显示功能摘要卡片和定制 SVG，长篇范围说明、建议阅读顺序与重点文件清单收在次级折叠区。正文里的文件路径 / `路径:行号` 自动变跳转链接，点了直达下方对应文件甚至那一行；
+- **左侧改动树**：每个文件带 `+N -M` 统计与一句话中文总结，点击跳转、滚动联动高亮；文件树上方提供模式切换与搜索框；必读文件的文件名后跟一枚绿色「必读」徽标（与右侧文件头、底部重点文件清单同源，只标必读、不标「扫一眼」，避免逐行铺灰徽标）；
 - **左侧顶部**：有重命名（`git mv`）时自动出现「文件移动」汇总面板，逐条列出 `← 旧路径` / `→ 新路径` 与相似度，可点击跳转——纯搬迁类改动一眼能看清搬了什么；
 - **右侧**：全部文件的完整 diff，逐 hunk 展开（长文件只默认展开关键 hunk，超大 hunk 可按 `focus_ranges` 只展开聚焦区间，其余折成一行占位、点开即见），可一路下滑；逐行带新旧行号双列（增行只显示新侧号、删行只显示旧侧号、上下文行两侧都显示），长行折行不横滚，浅色主题的设计令牌与 `just view` 同源；每个文件标题栏可点击折叠，滚动时吸附在当前文件顶部并在文件内容结束时自然离开；重命名文件在 diff 顶部显示移动横幅，而不是原来那行低对比度的灰色元信息；
 - 单文件、无外部依赖（CSS/JS 全内联），可直接发给他人或用浏览器打开。
 
-渲染器维护左侧文件树与右侧 diff 的顺序一致：右侧区块必须按文件树递归展示的同一组索引输出。左右两栏是**两个独立滚动面**——右栏是 `.viewer-body`，左栏是 `.tree`（`aside` 只是 flex 外壳，本身 `overflow: hidden`），联动高亮要挂 `.viewer-body` 的 `scroll` 事件。自动高亮需要滚动当前文件时，只调整 `.tree` 的 `scrollTop`，不要对文件行调用 `scrollIntoView()`，否则浏览器可能连页面一起滚动；激活态也不要展开摘要造成侧栏行高突变。
+渲染器维护左侧文件树与右侧 diff 的顺序一致：右侧区块必须按文件树递归展示的同一组索引输出。左右两栏是**两个独立滚动面**——右栏是 `.viewer-body`，左栏是 `.tree`（`aside` 只是 flex 外壳，本身 `overflow: hidden`），联动高亮要挂 `.viewer-body` 的 `scroll` 事件。自动高亮需要滚动当前文件时，只调整 `.tree` 的 `scrollTop`，不要对文件行调用 `scrollIntoView()`，否则浏览器可能连页面一起滚动；激活态也不要展开摘要造成侧栏行高突变。文件筛选仅隐藏不匹配的树行与空目录，不修改 diff 区块或报告里的改动总数。
 
 报告只是**只读视图**：它不修改被检查的仓库，也不产生提交。
 
@@ -87,8 +88,8 @@ allowed-tools:
         "title": "评分请求到结构化结果",
         "nodes": [
           {"id": "request", "kind": "评分请求", "label": "提交类型化问题", "detail": "问题与候选选项", "column": 0, "row": 0, "step": 2},
-          {"id": "scorer", "kind": "决策模型", "label": "System One 评分", "detail": "返回答案与概率", "column": 0, "row": 1, "step": 2},
-          {"id": "result", "kind": "结果契约", "label": "结构化评分结果", "detail": "按题返回答案或错误", "column": 0, "row": 2, "step": 1}
+          {"id": "scorer", "kind": "决策模型", "label": "System One 评分", "detail": "返回答案与概率", "column": 1, "row": 0, "step": 2},
+          {"id": "result", "kind": "结果契约", "label": "结构化评分结果", "detail": "按题返回答案或错误", "column": 2, "row": 0, "step": 1}
         ],
         "edges": [
           {"from": "request", "to": "scorer", "label": "问题 + 选项"},
@@ -141,9 +142,9 @@ allowed-tools:
 - `files[*].summary` 必须**逐文件**说明这个文件具体改了什么及其作用；不要只复述功能清单，也不要用一份总括性摘要代替文件级说明。首次出现的缩写或状态词要说清对象与含义，例如写“GitHub PR 的 CI / 状态检查（checks）”，不要只写“读取 checks”。
 - **正文里的文件路径会自动变成跳转链接**：写到本次确实改动的路径（可带 `:行号`，如 `` `src/.../gate.py:317` ``），渲染后既可点。行号落在 diff 里才精确落行，否则自动降级成文件级跳转（不会产生死链）——所以放心写行号，但**写完要核一遍**，行号漂移会让落点偏移。
 - `reading_path`（**可选**）是「建议阅读顺序」：一条 3–5 步的最短理解路径，每步 `{label, refs}`，`refs` 是路径或 `路径:行号`。用来回答「从哪看起、看哪几处就够」，**比让读者自己从总览散文里反推省事得多**。作者给了 overview 或 reading_path 任一项，面板就出。
-- `feature_groups`（**可选**）将大规模改动按完整功能链路分组，启用三栏导航：左栏选功能，中栏先展示 `core_change` 与功能图，右栏默认只显示核心 diff；外围文件收在可展开的配套改动中。每组为 `{title, summary, core_change, steps}`，也可在组级提供 `core_files` / `files`。每步为 `{label, change, core_files, files}`。`core_files` 是承担主要行为的实现路径，必须是该组或该步骤 `files` 的子集；它决定默认可见 diff。没提供任何核心文件时，为兼容旧摘要，该组全部文件都会作为核心展示。
+- `feature_groups`（**可选**）将大规模改动按用户功能分组，启用左侧功能/路径树与右侧 diff 面板。树中每个文件显示摘要；右侧「核心改动 / 全部文件」切换默认核心 diff 与当前功能组完整 diff，点文件进入单文件视图，提供返回功能入口。提问按钮会整理当前功能或文件的路径与摘要供复制，不会在静态页面内调用模型。功能摘要卡片与可展开的 SVG 放在顶部「改动总览」；点击图中节点会定位到它关联的核心 diff。每组为 `{title, summary, core_change, steps}`，也可在组级提供 `core_files` / `files`。每步为 `{label, change, core_files, files}`。`core_files` 是承担主要行为的实现路径，必须是该组或该步骤 `files` 的子集；它决定默认可见 diff。没提供任何核心文件时，为兼容旧摘要，该组全部文件都会作为核心展示。
 
-  可选 `diagram` 字段可以提供定制 SVG：`{title, nodes, edges}`。当功能跨层、存在分支/回退或需要讲清组件关系时，应提供图；图要表达实际行为，不能只把步骤列表换成方框。节点为 `{id, kind, label, detail, column, row, step}`，`column` 从 0 开始且最多两列，`row` 从 0 开始；位置不能重复。连线为 `{from, to, label}`。给节点提供 1 起始的 `step` 序号时，渲染器会把该节点链接到对应步骤的第一个核心文件；详细阅读路径仍可从 SVG 下方展开。标签和说明按 SVG 文本转义与换行。图数据不完整或布局越界时会回退到卡片式步骤流程图。简单线性功能可以省略 `diagram`，使用步骤图回退。
+  可选 `diagram` 字段可以提供定制 SVG：`{title, nodes, edges}`。当功能跨层、存在分支/回退或需要讲清组件关系时，应提供图；图要表达实际行为，不能只把步骤列表换成方框。节点为 `{id, kind, label, detail, column, row, step}`，`column` 从 0 开始，最多 6 列；`row` 从 0 开始，最多 3 行；位置不能重复。优先让主流程沿左到右排成一行，分支放在相邻列的上方或下方，避免把主流程堆成竖列；SVG 保留设计坐标宽度，在窄屏内横向滚动。连线为 `{from, to, label}`。给节点提供 1 起始的 `step` 序号时，渲染器会把该节点链接到对应步骤的第一个核心文件；点击后先切换到所属功能并显示单文件 diff。标签和说明按 SVG 文本转义与换行。图数据不完整或布局越界时不会绘制 SVG；功能树与核心/全部切换仍可正常使用。简单线性功能可以省略 `diagram`，不额外画装饰图。
 
   点「显示全部相关代码」或展开配套改动即可临时查看外围文件；「全部改动」切回原路径树与全量 diff。文件路径必须与 `files` 对象中的改动路径完全一致。分组应描述用户能理解的能力或一次调用链，步骤按阅读顺序排列；交叉文件可以出现在多个组。没有被分组的改动会自动进入「其他改动」，不会从报告消失。改动少或天然可按目录理解时不要加它，以免增加导航层级。
 - `files[<path>]` 除 `summary` / `hunk_notes` 外还支持三个**可选**字段：`role`（角色，用于底部「重点文件清单」分组，缺省按路径推断）、`must_read`（bool，缺省由角色推断）、`key_hunks`（hunk 序号数组，决定长文件默认展开哪几个）。
@@ -175,9 +176,9 @@ python3 scripts/render_diff_report.py \
 
 生成后至少确认五点，别直接甩给用户：
 
-1. **无 JS 报错、图表和跳转正常**：能用 Playwright 时跑一次裸检查（下面的片段可直接用），并实际点击至少一个功能、一个核心文件和「全部改动」；确认图表节点跳到对应 diff，切换配套改动后外围文件可见。无 Playwright 时至少在浏览器目视检查这几个交互状态；不能用文件行 HTML 数量代替交互验证，因为路径树和功能图会重复链接文件。
+1. **无 JS 报错、图表和跳转正常**：能用 Playwright 时跑一次裸检查（下面的片段可直接用），并实际点击「核心改动 / 全部文件」、左侧「按功能 / 按路径」、一个文件及「返回功能」；按功能名或已知路径筛选，确认命中、空态和 diff 跳转正常，再清空筛选。确认 SVG 节点能打开关联的单文件 diff；提问抽屉能按当前功能/文件整理上下文。无 Playwright 时至少在浏览器目视检查这些交互状态；不能用文件行 HTML 数量代替交互验证，因为路径树和功能图会重复链接文件。
 2. **数量对齐**：`git diff <同参数> --stat` 的文件数应与报告 `N 个文件` 一致；不一致说明排除规则或 scope 选错了。
-3. **核心划分与功能覆盖**：提供 `feature_groups` 时，所有改动文件必须至少出现在一个组里；报告自动把遗漏项放入「其他改动」，应检查该组是否为空或内容合理。每组 `core_files` 必须确实代表主要行为，且属于该组的 `files`；SVG 功能图或回退步骤图、摘要和默认 diff 要能说明功能的核心结果，SVG 可点击节点需能跳到预期 diff。
+3. **核心划分与功能覆盖**：提供 `feature_groups` 时，所有改动文件必须至少出现在一个组里；报告自动把遗漏项放入「其他改动」，应检查该组是否为空或内容合理。每组 `core_files` 必须确实代表主要行为，且属于该组的 `files`；功能摘要卡片、文件树和默认核心 diff 要能说明功能结果，SVG 可点击节点需能跳到预期 diff。
 4. **移动数量对齐**：有重命名时，报告「文件移动」面板里的条数应与 `git diff <同参数> --name-status -M | grep -c '^R'` 一致；条数为 0 但确实搬过文件，通常是 `--exclude` 排掉了重命名的某一侧路径（见「已知边界」）。
 5. **总览链接无死链**：写了 `reading_path` 或带 `:行号` 的路径引用时，确认每个 `.ov-ref` 的 `href` 都能 `getElementById` 到。行号引用只有在 hunk 里才落行锚点，不在这范围会自动降级成文件级跳转——**若你发现落点降级了，多半是行号写错了，回去核对**。
 6. **移动面板落点正确**：有重命名时，每条「文件移动」条目的 `href="#f<N>"` 必须等于其 `→ 新路径` 对应树行的锚点 id（可 `grep -o 'href="#f[0-9]*" data-index="[0-9]*" title="<新路径>"'` 对照）。锚点用的是文件在 `files` 里的**原始索引**，不是树中的显示位置；两者只在显示顺序与原始顺序不一致时才不等，所以这一步别省。
@@ -201,6 +202,7 @@ await b.close();
 ## Script Reference
 
 `scripts/render_diff_report.py`（仅用标准库，可直接 `python3` 运行）、同目录的
+`scripts/file_tree_assets.py`（文件树筛选样式与交互）、
 `scripts/feature_navigation.py`（功能分组与核心代码路径渲染）、
 `scripts/feature_diagram.py`（内联 SVG 功能图渲染）及
 `scripts/feature_navigation_assets.py`（内联样式与交互）：

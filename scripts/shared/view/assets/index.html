@@ -17,6 +17,8 @@
       <span id="repo-name">本仓库</span>
     </span>
     <span class="chip mono" id="branch-chip">…</span>
+    <select class="chip mono branch-picker" id="branch-picker"
+            aria-label="选择工作区分支" title="切换到另一个已检出的 worktree" hidden></select>
 
     <!-- 历史提交的只读浏览：返回入口放在仓库名旁边，和「你在看哪条提交」同一处。 -->
     <button type="button" class="head-action is-commit-return" id="commit-diff-exit" hidden>返回工作区改动</button>
@@ -68,8 +70,8 @@
         <span id="tree-title"><b>文件树</b></span>
         <span class="tree-note" id="tree-note">加载中…</span>
         <button type="button" class="ignored-toggle" id="ignored-toggle"
-                aria-pressed="false" aria-label="显示被 Git 忽略的文件"
-                title="显示被 Git 忽略的文件；依赖和缓存目录仍隐藏" hidden>显示忽略</button>
+                aria-pressed="true" aria-label="隐藏被 Git 忽略的文件"
+                title="隐藏被 Git 忽略的文件；依赖和缓存目录仍隐藏" hidden>隐藏忽略</button>
         <!-- 栏宽开关：一个小图标按钮，点一下把左栏放宽到放得下完整文件名；加宽后箭头翻向
              左边表示「收回去」。两个箭头都在这里，由 CSS 按 aria-pressed 选一个显示。 -->
         <button type="button" class="tree-width-toggle" id="tree-width-toggle"
@@ -135,6 +137,8 @@
     <p class="image-zoom-caption" id="image-zoom-caption"></p>
   </div>
 
+  <div class="copy-toast" id="copy-toast" role="status" aria-live="polite" aria-atomic="true" hidden></div>
+
   <!-- 状态条 -->
   <footer class="surface statusbar">
     <span class="dot" id="status-dot"></span>
@@ -148,6 +152,7 @@
   </footer>
 </div>
 
+<script nonce="__LOCAL_VIEW_SCRIPT_NONCE__" src="/assets/worktree-picker.js"></script>
 <script nonce="__LOCAL_VIEW_SCRIPT_NONCE__" src="/assets/viewer.js"></script>
 </body>
 </html>

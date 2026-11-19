@@ -212,23 +212,27 @@ run_worktree_database_gc() {
 }
 
 classify_prunable_branches() {
-    # 把本地分支按「默认可删 / 需 --force / 受保护」三组分类。
+    # 把本地分支按「已合并 / 远端保留提交 / 需 --force / 受保护」分类。
     #
-    # 为什么要分三组：``git merge-base --is-ancestor`` 只能确认已合并的分支。
+    # 为什么要分组：``git merge-base --is-ancestor`` 只能确认已合并的分支。
     # squash merge 之后远端分支被删、本地提交却不在 base 的祖先链上，git 无法
     # 区分「squash 合过了」和「PR 直接关掉没合」；后者强删会丢工作，因此这组必须
     # 由人确认后再走 --force。
     #
     # 参数：1) base 分支名  2) 当前检出分支名
-    # 输出：全局数组 prune_candidates / force_candidates / protected_branches
+    # 输出：全局数组 prune_candidates / remote_copy_candidates / force_candidates / protected_branches
     local base_branch_name="$1"
     local current_branch_name="$2"
 
     local branch_name=""
     local branch_upstream=""
     local branch_track=""
+    local branch_oid=""
+    local remote_ref_candidate=""
+    local remote_ref=""
+    local mirror_candidate=""
 
-    while IFS=$'\t' read -r branch_name branch_upstream branch_track; do
+    while IFS=$'\x1f' read -r branch_name branch_upstream branch_track branch_oid; do
         [[ -n "$branch_name" ]] || continue
 
         # 受保护：base 本身、主干分支、当前检出分支都不能删。
@@ -250,10 +254,47 @@ classify_prunable_branches() {
             continue
         fi
 
+        # 有活动 upstream 的分支可能仍在协作中，即使它与某个远端 ref 同提交也保留。
+        # upstream 缺失或已删除时，若本地提交被远端跟踪 ref 原样保留，则仅清本地 ref。
+        if [[ -n "$branch_upstream" && "$branch_track" != "[gone]" ]]; then
+            continue
+        fi
+
+        remote_ref=""
+        while IFS= read -r remote_ref_candidate; do
+            [[ "$remote_ref_candidate" == */HEAD ]] && continue
+            remote_ref="$remote_ref_candidate"
+            break
+        done < <(
+            git for-each-ref \
+                --format='%(refname:short)' \
+                --contains="$branch_oid" \
+                refs/remotes
+        )
+
+        if [[ -n "$remote_ref" ]]; then
+            if git worktree list --porcelain | grep -Fx "branch refs/heads/$branch_name" >/dev/null; then
+                protected_branches+=("$branch_name|仍由 worktree 检出")
+            else
+                mirror_candidate="$branch_name"$'\t'"$remote_ref"$'\t'"$branch_oid"
+                remote_copy_candidates+=("$mirror_candidate")
+            fi
+            continue
+        fi
+
+        if [[ -z "$branch_upstream" ]]; then
+            protected_branches+=("$branch_name|无 upstream 且无远端副本，需人工核验")
+            continue
+        fi
+
         if [[ "$branch_track" == "[gone]" ]]; then
             force_candidates+=("$branch_name")
         fi
-    done < <(git for-each-ref --format='%(refname:short)%09%(upstream:short)%09%(upstream:track)' refs/heads)
+    done < <(
+        git for-each-ref \
+            --format='%(refname:short)%1f%(upstream:short)%1f%(upstream:track)%1f%(objectname)' \
+            refs/heads
+    )
 }
 
 prune_single_branch() {
@@ -276,7 +317,7 @@ prune_single_branch() {
 }
 
 run_worktree_prune() {
-    # 批量清理已并入 base 的本地分支及其 worktree。
+    # 批量清理已并入 base 的本地分支及其 worktree，也清理远端仍保留本地提交的分支别名。
     #
     # 参数：1) dry-run 2) 跳过确认 3) 纳入 gone-but-unmerged 组 4) base 分支覆盖值
     local prune_dry_run="$1"
@@ -315,6 +356,7 @@ run_worktree_prune() {
     echo
 
     local prune_candidates=()
+    local remote_copy_candidates=()
     local force_candidates=()
     local protected_branches=()
 
@@ -332,6 +374,20 @@ run_worktree_prune() {
             else
                 echo "   • $branch_name"
             fi
+        done
+        echo
+    fi
+
+    if [[ ${#remote_copy_candidates[@]} -gt 0 ]]; then
+        echo "待清理（本地提交可由远端跟踪引用到达，仅删除本地分支）："
+        echo "   提示：候选依据本地 remote-tracking refs；执行前先运行 git fetch --all --prune 刷新。"
+        local mirror_candidate=""
+        local mirror_branch=""
+        local mirror_remote_ref=""
+        local mirror_oid=""
+        for mirror_candidate in "${remote_copy_candidates[@]}"; do
+            IFS=$'\t' read -r mirror_branch mirror_remote_ref mirror_oid <<< "$mirror_candidate"
+            echo "   • $mirror_branch  (远端保留: $mirror_remote_ref 包含提交 ${mirror_oid:0:8})"
         done
         echo
     fi
@@ -355,7 +411,7 @@ run_worktree_prune() {
     fi
 
     local has_default_target="false"
-    if [[ ${#prune_candidates[@]} -gt 0 ]]; then
+    if [[ ${#prune_candidates[@]} -gt 0 || ${#remote_copy_candidates[@]} -gt 0 ]]; then
         has_default_target="true"
     fi
 
@@ -397,6 +453,36 @@ run_worktree_prune() {
     if [[ ${#prune_candidates[@]} -gt 0 ]]; then
         for branch_name in "${prune_candidates[@]}"; do
             if prune_single_branch "$branch_name" "-d" "$base_branch" "$repo_root" "$prune_script_path"; then
+                deleted_branches+=("$branch_name")
+            else
+                failed_branches+=("$branch_name")
+            fi
+        done
+    fi
+
+    if [[ ${#remote_copy_candidates[@]} -gt 0 ]]; then
+        local mirror_candidate=""
+        local mirror_remote_ref=""
+        local expected_mirror_oid=""
+        local actual_local_oid=""
+        for mirror_candidate in "${remote_copy_candidates[@]}"; do
+            IFS=$'\t' read -r branch_name mirror_remote_ref expected_mirror_oid <<< "$mirror_candidate"
+            if git worktree list --porcelain | grep -Fx "branch refs/heads/$branch_name" >/dev/null; then
+                echo "❌ $branch_name 已在 worktree 中检出，未删除；请重新预览。"
+                failed_branches+=("$branch_name")
+                continue
+            fi
+
+            actual_local_oid="$(git rev-parse --verify "refs/heads/$branch_name" 2>/dev/null || true)"
+            if [[ "$actual_local_oid" != "$expected_mirror_oid" ]] || \
+                ! git merge-base --is-ancestor "$expected_mirror_oid" "refs/remotes/$mirror_remote_ref" >/dev/null 2>&1; then
+                echo "❌ $branch_name 或远端引用 $mirror_remote_ref 已变化，未删除；请重新预览。"
+                failed_branches+=("$branch_name")
+                continue
+            fi
+
+            if git branch -D -- "$branch_name"; then
+                echo "✅ 已删除本地分支 $branch_name；远端引用 $mirror_remote_ref 保留。"
                 deleted_branches+=("$branch_name")
             else
                 failed_branches+=("$branch_name")

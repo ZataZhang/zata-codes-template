@@ -136,17 +136,21 @@ class DeliveryHarness:
     state_path: Path
     environment: dict[str, str]
 
-    def git(self, *arguments: str) -> str:
+    def git(self, *arguments: str, cwd: Path | None = None) -> str:
         """在隔离工作区执行真实 Git。
 
         Args:
             *arguments: Git 参数。
+            cwd: 可选的 Git worktree 路径，默认使用主工作区。
 
         Returns:
             标准输出。
         """
         return subprocess.check_output(
-            ["git", *arguments], cwd=self.root, env=self.environment, text=True
+            ["git", *arguments],
+            cwd=self.root if cwd is None else cwd,
+            env=self.environment,
+            text=True,
         ).strip()
 
     def state(self) -> dict:
@@ -165,21 +169,27 @@ class DeliveryHarness:
         """
         self.state_path.write_text(json.dumps({**self.state(), **settings}), encoding="utf-8")
 
-    def deliver(self, context: dict, policy: str = "auto") -> subprocess.CompletedProcess:
+    def deliver(
+        self,
+        context: dict,
+        policy: str = "auto",
+        cwd: Path | None = None,
+    ) -> subprocess.CompletedProcess:
         """通过真实 just ai pr 入口运行交付。
 
         Args:
             context: 当前调用方提供的上下文。
             policy: 合并策略。
+            cwd: 可选的 Git worktree 路径，默认使用主工作区。
 
         Returns:
             命令的退出码与输出。
         """
-        context_path = self.root / ".git" / "context.json"
+        context_path = self.state_path.parent / "context.json"
         context_path.write_text(json.dumps(context, ensure_ascii=False), encoding="utf-8")
         return subprocess.run(
             ["just", "ai", "pr", str(context_path), policy, "0"],
-            cwd=self.root,
+            cwd=self.root if cwd is None else cwd,
             env=self.environment,
             text=True,
             capture_output=True,

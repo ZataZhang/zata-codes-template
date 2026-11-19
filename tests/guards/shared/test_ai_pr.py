@@ -53,6 +53,45 @@ def test_auto_merge_returns_to_updated_default_and_preserves_input(tmp_path: Pat
     assert events[-1]["event"] == "returned_to_default"
 
 
+def test_auto_merge_from_linked_worktree_stays_there_and_preserves_primary(
+    tmp_path: Path,
+) -> None:
+    harness = make_harness(tmp_path)
+    primary_head_sha = harness.git("rev-parse", "HEAD")
+    primary_status = harness.git("status", "--porcelain")
+    primary_file_contents = (harness.root / "feature.txt").read_text(encoding="utf-8")
+    linked_worktree_path = tmp_path / "repo-worktrees" / "isolated-pr"
+    linked_worktree_path.parent.mkdir()
+    harness.git(
+        "worktree",
+        "add",
+        "-b",
+        "feature/isolated-pr",
+        str(linked_worktree_path),
+        "main",
+    )
+    (linked_worktree_path / "feature.txt").write_text("isolated change\n", encoding="utf-8")
+
+    completion = harness.deliver(delivery_context(), cwd=linked_worktree_path)
+
+    assert completion.returncode == 0, completion.stderr
+    assert harness.git("branch", "--show-current") == "main"
+    assert harness.git("rev-parse", "HEAD") == primary_head_sha
+    assert harness.git("status", "--porcelain") == primary_status
+    assert (harness.root / "feature.txt").read_text(encoding="utf-8") == primary_file_contents
+    assert (
+        harness.git("branch", "--show-current", cwd=linked_worktree_path) == "feature/isolated-pr"
+    )
+    assert "staying on feature/isolated-pr" in completion.stdout
+
+    journal_files = list((harness.root / ".git/ai-pr").glob("*/events.jsonl"))
+    events = [
+        json.loads(line) for line in journal_files[0].read_text(encoding="utf-8").splitlines()
+    ]
+    assert events[-1]["event"] == "stayed_in_worktree"
+    assert events[-1]["branch"] == "feature/isolated-pr"
+
+
 def test_multiple_rounds_reuse_issue_pr_and_keep_failed_observations(tmp_path: Path) -> None:
     harness = make_harness(tmp_path)
     assert harness.deliver(delivery_context("pending")).returncode == 0

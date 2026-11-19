@@ -185,169 +185,127 @@ def render_feature_navigation(
     summaries: dict[str, Any],
     count_changes: Callable[[dict[str, Any]], tuple[int, int]],
 ) -> tuple[str, str]:
-    """渲染左侧功能导航与中间的步骤、文件清单。"""
+    """渲染按功能组织的文件树，以及改动总览中的 SVG 图。"""
     if not groups:
         return "", ""
 
-    nav_buttons: list[str] = []
-    flow_cards: list[str] = []
+    feature_tree: list[str] = []
+    overview_diagrams: list[str] = []
     for group in groups:
-        selected = group.index == 0
-        selected_text = "true" if selected else "false"
-        hidden = "" if selected else " hidden"
-        nav_buttons.append(
-            f'<button class="feature-nav-button{" active" if selected else ""}" '
-            f'type="button" data-feature-index="{group.index}" '
-            f'aria-pressed="{selected_text}">'
-            f'<span class="feature-nav-number">{group.index + 1:02}</span>'
-            f'<span class="feature-nav-copy"><strong>{html.escape(group.title)}</strong>'
-            f'<span>核心 {len(group.core_file_indexes)} / 相关 '
-            f'{len(group.file_indexes)} 个文件</span>'
-            f'</span></button>'
-        )
-
-        step_html: list[str] = []
-        for step_index, step in enumerate(group.steps):
-            step_number = step_index + 1
-            core_file_html: list[str] = []
-            for file_index in step.core_file_indexes:
-                file_entry = files[file_index]
-                path = str(file_entry["path"])
-                summary = _summary_for_file(summaries, path)
-                core_file_html.append(
-                    _render_feature_file_link(
-                        file_index,
-                        path,
-                        summary,
-                        count_changes(file_entry),
-                    )
-                )
-            change_html = (
-                f'<p class="feature-step-change">{html.escape(step.change)}</p>'
-                if step.change
-                else ""
-            )
-            step_html.append(
-                f'<article class="feature-step" role="listitem"><div class="feature-step-node">'
-                f'<span class="feature-step-number">{step_number:02}</span>'
-                f'<div class="feature-step-content"><span class="feature-step-kicker">'
-                f'步骤 {step_number}</span><h3>{html.escape(step.label)}</h3>{change_html}'
-                f'<div class="feature-step-core-files">{"".join(core_file_html)}</div>'
-                f'</div></div></article>'
-            )
-            if step_index < len(group.steps) - 1:
-                step_html.append(
-                    '<div class="feature-flow-arrow" aria-hidden="true">'
-                    '<svg viewBox="0 0 24 24" focusable="false">'
-                    '<path d="M12 2v15m-6-6 6 6 6-6" /></svg></div>'
-                )
-
-        summary_html = (
-            f'<p class="feature-flow-summary">{html.escape(group.summary)}</p>'
-            if group.summary
-            else ""
-        )
-        core_change_html = (
-            f'<div class="core-change"><span>核心改动</span>'
-            f"<p>{html.escape(group.core_change)}</p></div>"
-            if group.core_change
-            else ""
-        )
-        support_indexes = tuple(
-            index for index in group.file_indexes if index not in group.core_file_indexes
-        )
-        support_count = len(support_indexes)
-        support_rows: list[str] = []
-        for file_index in support_indexes:
+        is_initial_group = group.index == 0
+        group_tree: dict[str, Any] = {"dirs": {}, "leaves": []}
+        for file_index in group.file_indexes:
             file_entry = files[file_index]
             path = str(file_entry["path"])
-            support_rows.append(
-                _render_feature_file_link(
-                    file_index,
-                    path,
-                    _summary_for_file(summaries, path),
-                    count_changes(file_entry),
-                )
+            path_parts = path.split("/")
+            node = group_tree
+            for part in path_parts[:-1]:
+                node = node["dirs"].setdefault(part, {"dirs": {}, "leaves": []})
+            added, removed = count_changes(file_entry)
+            file_summary = (summaries.get("files", {}).get(path) or {}).get("summary", "")
+            node["leaves"].append(
+                {
+                    "name": path_parts[-1],
+                    "index": file_index,
+                    "added": added,
+                    "removed": removed,
+                    "path": path,
+                    "core": file_index in group.core_file_indexes,
+                    "summary": file_summary if isinstance(file_summary, str) else "",
+                }
             )
-        support_html = (
-            f'<details class="feature-support"><summary>配套改动 · {support_count} 个文件</summary>'
-            f'{"".join(support_rows)}</details>'
-            if support_count
-            else ""
+
+        def render_group_tree(node: dict[str, Any], *, open_directories: bool) -> str:
+            rows: list[str] = []
+            for directory_name, child in sorted(node["dirs"].items()):
+                directory_label = directory_name
+                while not child["leaves"] and len(child["dirs"]) == 1:
+                    next_name, next_node = next(iter(child["dirs"].items()))
+                    directory_label = f"{directory_label}/{next_name}"
+                    child = next_node
+                child_html = render_group_tree(child, open_directories=open_directories)
+                child_count = count_tree_files(child)
+                opened = " open" if open_directories else ""
+                rows.append(
+                    f'<details class="node dir"{opened}>'
+                    f'<summary class="dir-row"><span class="dir-name">'
+                    f"{html.escape(directory_label)}</span>"
+                    f'<span class="dir-count">{child_count}</span></summary>'
+                    f'<div class="children">{child_html}</div></details>'
+                )
+            for leaf in sorted(node["leaves"], key=lambda entry: entry["name"]):
+                path = leaf["path"]
+                search_index = f"{path} {leaf['summary']}"
+                core_class = " core-file" if leaf["core"] else ""
+                summary_html = (
+                    f'<span class="file-summary">{html.escape(leaf["summary"])}</span>'
+                    if leaf["summary"]
+                    else ""
+                )
+                moved_from = ""
+                file_entry = files[leaf["index"]]
+                if file_entry.get("is_rename"):
+                    old_path = str(file_entry.get("old_path") or "")
+                    moved_from = (
+                        f'<span class="file-move-path">← {html.escape(old_path)}</span>'
+                        if old_path
+                        else ""
+                    )
+                must_read_badge = (
+                    '<span class="role-badge must tree-must">必读</span>'
+                    if (summaries.get("files", {}).get(path) or {}).get("must_read") is True
+                    else ""
+                )
+                rows.append(
+                    f'<a class="node file-row{core_class}" href="#f{leaf["index"]}" '
+                    f'data-index="{leaf["index"]}" data-feature-index="{group.index}" '
+                    f'data-search="{html.escape(search_index, quote=True)}" '
+                    f'title="{html.escape(path, quote=True)}">'
+                    f'<span class="file-name">{html.escape(leaf["name"])}{must_read_badge}</span>'
+                    f'<span class="file-hit"><span class="add-stat">+{leaf["added"]}</span>'
+                    f'<span class="del-stat">-{leaf["removed"]}</span></span>'
+                    f'{summary_html}{moved_from}</a>'
+                )
+            return "".join(rows)
+
+        def count_tree_files(node: dict[str, Any]) -> int:
+            return len(node["leaves"]) + sum(
+                count_tree_files(child) for child in node["dirs"].values()
+            )
+
+        group_added = sum(count_changes(files[index])[0] for index in group.file_indexes)
+        group_removed = sum(count_changes(files[index])[1] for index in group.file_indexes)
+        support_count = len(group.file_indexes) - len(group.core_file_indexes)
+        opened = " open" if is_initial_group else ""
+        feature_tree.append(
+            f'<details class="node dir feature-tree-group"{opened} '
+            f'data-feature-index="{group.index}" data-feature-title="'
+            f'{html.escape(group.title, quote=True)}" data-feature-summary="'
+            f'{html.escape(group.summary, quote=True)}" '
+            f'data-file-count="{len(group.file_indexes)}" '
+            f'data-core-count="{len(group.core_file_indexes)}" '
+            f'data-support-count="{support_count}" data-added="{group_added}" '
+            f'data-removed="{group_removed}">'
+            f'<summary class="feature-group-head"><span class="feature-group-copy">'
+            f"<strong>{html.escape(group.title)}</strong>"
+            f"<span>核心 {len(group.core_file_indexes)} · 相关 "
+            f"{len(group.file_indexes)} 个文件</span>"
+            f'</span><span class="group-count">{len(group.file_indexes)}</span></summary>'
+            '<div class="children">'
+            f"{render_group_tree(group_tree, open_directories=is_initial_group)}"
+            "</div></details>"
         )
-        core_label = f"只看核心代码（{len(group.core_file_indexes)}）"
-        all_label = f"显示全部相关代码（{len(group.file_indexes)}）"
-        toggle_html = (
-            f'<button class="feature-detail-toggle" type="button" '
-            f'data-feature-index="{group.index}" data-core-label="{core_label}" '
-            f'data-all-label="{all_label}">{all_label}</button>'
-            if support_count
-            else ""
-        )
-        step_count = len(group.steps)
+
         diagram_html = render_feature_diagram(
             group.diagram,
             tuple(step.core_file_indexes for step in group.steps),
             group.index,
         )
         if diagram_html:
-            core_path_html = (
-                '<details class="feature-core-paths">'
-                f'<summary>展开核心代码阅读路径 · {step_count} 步</summary>'
-                f'<div class="feature-core-step-list" role="list">{"".join(step_html)}</div>'
-                '</details>'
+            overview_diagrams.append(
+                f'<section class="ov-feature-diagram" data-feature-index="{group.index}">'
+                f"<h3>{html.escape(group.title)}</h3>{diagram_html}</section>"
             )
-        else:
-            diagram_html = (
-                '<figure class="feature-flow-chart" aria-label="核心改动流程图">'
-                '<figcaption class="feature-diagram-heading">'
-                '<strong>核心改动流程</strong>'
-                f'<span>{step_count} 个步骤 · 点击文件直达 diff</span></figcaption>'
-                f'<div class="feature-diagram-track" role="list">{"".join(step_html)}</div>'
-                '</figure>'
-            )
-            core_path_html = ""
-        flow_cards.append(
-            f'<article class="feature-flow-card" data-feature-index="{group.index}"{hidden}>'
-            f'<div class="feature-flow-heading"><span>功能链路 {group.index + 1:02}</span>'
-            f"<h2>{html.escape(group.title)}</h2>{summary_html}</div>"
-            f"{core_change_html}{diagram_html}{core_path_html}"
-            f"{support_html}{toggle_html}</article>"
-        )
-
-    nav_html = (
-        '<nav class="feature-nav surface" aria-label="按功能链路浏览">'
-        '<div class="feature-nav-heading"><strong>按功能看改动</strong>'
-        f'<span>{len(groups)} 条链路</span></div>{"".join(nav_buttons)}'
-        '<button class="feature-nav-button feature-nav-all" type="button" '
-        'data-feature-index="all" aria-pressed="false">'
-        '<span class="feature-nav-number">≡</span><span class="feature-nav-copy">'
-        '<strong>全部改动</strong><span>按文件路径浏览</span></span></button></nav>'
+    return '<div class="feature-tree">' + "".join(feature_tree) + "</div>", "".join(
+        overview_diagrams
     )
-    return nav_html, "".join(flow_cards)
-
-
-def _render_feature_file_link(
-    file_index: int,
-    path: str,
-    summary: str,
-    change_counts: tuple[int, int],
-) -> str:
-    """渲染步骤图或配套列表中的文件入口。"""
-    added, removed = change_counts
-    summary_html = (
-        f'<span class="feature-file-summary">{html.escape(summary)}</span>' if summary else ""
-    )
-    return (
-        f'<a class="feature-file-row file-row" href="#f{file_index}" '
-        f'data-index="{file_index}" title="{html.escape(path, quote=True)}">'
-        f'<span class="feature-file-path">{html.escape(path)}</span>'
-        f'<span class="feature-file-stats"><i class="add-stat">+{added}</i>'
-        f'<i class="del-stat">-{removed}</i></span>{summary_html}</a>'
-    )
-
-
-def _summary_for_file(summaries: dict[str, Any], path: str) -> str:
-    """读取文件摘要，并忽略格式不正确的非文本值。"""
-    raw_summary = (summaries.get("files", {}).get(path) or {}).get("summary", "")
-    return raw_summary if isinstance(raw_summary, str) else ""

@@ -53,7 +53,7 @@ AI 代理默认不会设置该变量，因此会被 hook 拦下——这是"指�
 
 | 文件 | 守护对象 |
 |---|---|
-| `shared/test_ai_pr.py` | `just ai pr` 的真实 CLI/Git 交付边界、同任务多轮修复、合并条件和默认分支恢复 |
+| `shared/test_ai_pr.py` | `just ai pr` 的真实 CLI/Git 交付边界、同任务多轮修复、合并条件、默认分支恢复，以及链接 worktree 合并后的主工作区隔离 |
 | `shared/test_ai_pr_observations.py` | 独立的本地检查、GitHub CI、真实入口报告与人工验收状态；简短本轮评论、同 head 观察、CI 更新和旧记录兼容 |
 | `shared/test_archive_tasks.py` | PRD 归档 hook（`hooks/shared/archive_tasks.py`） |
 | `shared/test_check_max_file_lines.py` | 单文件行数上限 hook（`hooks/shared/check_max_file_lines.py`） |
@@ -66,8 +66,9 @@ AI 代理默认不会设置该变量，因此会被 hook 拦下——这是"指�
 | `shared/test_duplication_check_utils.py` | duplication-check 共享 git helper（`hooks/shared/duplication_check_utils.py`） |
 | `shared/test_gc_worktree_databases.py` | Worktree 数据库 GC 脚本（`scripts/shared/worktree/gc_worktree_databases.py`） |
 | `shared/test_migration_foreign_key_index_drop_order.py` | 迁移文件里"索引/唯一约束删除先于同表外键约束删除"的顺序缺陷（MySQL 1553 风险，仅 MySQL 方言适用，`docs/ai-standards/alembic.md`），静态 AST 检查，只覆盖表存活（列级手术）场景；仓库尚无任何迁移时跳过 |
-| `shared/test_view_history_merge_state.py` | zview 分支合并状态（`scripts/shared/view/history.py`）：squash 合入必须与未合并区分（逐补丁 + 整体补丁双重判据）、必须能指出合入到默认分支的哪个提交、`rev-list --left-right` 的领先/落后方向不得读反、无默认分支时不猜基准、提交行上的引用标签也要带状态 |
+| `shared/test_view_history_merge_state.py` | zview 分支合并状态（`scripts/shared/view/history.py`）：历史首屏不执行 shortstat 或补丁比对；squash 合入必须与未合并区分（逐补丁 + 整体补丁双重判据）、必须能指出合入到默认分支的哪个提交、`rev-list --left-right` 的领先/落后方向不得读反、无默认分支时不猜基准、提交行上的引用标签也要带状态 |
 | `shared/test_open_worktree.py` | `just worktree -o` 的名称解析（`scripts/shared/worktree/open.sh`）：PRD slug / 文件名 / `tasks/pending` 路径与分支末段等价、精确分支优先、歧义报错列候选、不回退旧约定目录、未命中列可用 worktree |
+| `shared/test_prune_worktree_branches.py` | `just worktree --prune` 清理规则（`scripts/shared/worktree/merge.sh`）：已并入 base 的分支及干净 worktree、远端跟踪 ref 包含本地 tip 时只删本地别名、活动 upstream / 已检出 worktree 保护、无 upstream 且无远端副本的独有分支待人工核验、upstream gone 且无远端副本时需 `--force`、dry-run 零副作用与交互确认 |
 | `shared/test_prd_impact_tree.py` | 影响树触达进度（`scripts/shared/just/prd_impact_tree.py` 与看板 FILES 列）：触达判据必须是「本次分支改动过」而非「文件存在」、未提交与未 `git add` 的改动都要计入、目录节点下任一文件被改即算触达、可判定性只认 git 真实路径（大小写严格、不吃 gitignore 残留）、无法判定的节点排除出分母并用 `?n` 披露、裸文件名不得回退仓库根、FILES 列永不转绿 |
 | `shared/test_prd_lock.py` | PRD 执行锁脚本（`scripts/shared/just/prd_lock.py`）：锁落主仓库、并发领锁唯一、过期接管留档、worktree 活性佐证的存活判定 |
 | `shared/prd_status_fixtures.py` | **测试辅助模块，非测试文件**（pytest 不收集）：看板两份守卫测试共用的真实 git 仓库 fixture 构造（主仓库、linked worktree、锁、归档 PRD、回拨提交时间）与单元格渲染辅助，只在此维护一份 |
@@ -78,7 +79,7 @@ AI 代理默认不会设置该变量，因此会被 hook 拦下——这是"指�
 | `shared/test_run_jscpd_duplication_check.py` | jscpd 增量重复检查 hook 逻辑（`hooks/shared/run_jscpd_duplication_check.py`） |
 | `shared/test_setup_copied_database.py` | Worktree 专用数据库派生与建库脚本契约（严格模式不静默回退共享库、日志不吐凭据） |
 | `shared/test_sync_template.py` | template sync 脚本（`scripts/shared/template/sync_template.sh`），含 upstream-owned 清单及共享 PR 指南与项目文档的归属契约 |
-| `shared/test_view_server.py` | 本机文件与改动查看器（`scripts/shared/view/`）：路径越界与符号链接逃逸必须被拒且不回声绝对路径、写方法与白名单外路由被拒、暂存与系统打开都要求 JSON 对象体、`/api/open` 只将仓库内已解析路径作为单个 argv 参数交给平台打开器且越界/不存在不触发命令、服务只绑回环、正文与本地文件逐行一致且每行标签平衡、超限与二进制只返回标记、改动文件集合与增删统计与终端 `git diff` 逐项一致、基线取值不得流进 git 选项解析、陈旧登记接管、`--stop` 与空闲回收后端口与登记都被清理、登记清理不误伤他人记录、Markdown 预览里的相对引用被改写成能真正取回字节的地址且带 scheme / 纯片段 / 越界的原样保留、普通 `mv` 造出的重命名（工作区删除 + 未跟踪新文件）靠仓库外的一次性索引配出且只出一条 `R`、真实索引与临时目录都不受其影响 |
+| `shared/test_view_server.py` | 本机文件与改动查看器（`scripts/shared/view/`）：路径越界与符号链接逃逸必须被拒且不回声绝对路径、写方法与白名单外路由被拒、暂存与系统打开都要求 JSON 对象体、`/api/open` 只将仓库内已解析路径作为单个 argv 参数交给平台打开器且越界/不存在不触发命令、服务只绑回环、历史列表 HTTP 首屏先于 diff 统计和分支状态返回，补充接口仍返回正确数据与参数拒绝、正文与本地文件逐行一致且每行标签平衡、超限与二进制只返回标记、改动文件集合与增删统计与终端 `git diff` 逐项一致、基线取值不得流进 git 选项解析、陈旧登记接管、`--stop` 与空闲回收后端口与登记都被清理、登记清理不误伤他人记录、Markdown 预览里的相对引用被改写成能真正取回字节的地址且带 scheme / 纯片段 / 越界的原样保留、普通 `mv` 造出的重命名（工作区删除 + 未跟踪新文件）靠仓库外的一次性索引配出且只出一条 `R`、真实索引与临时目录都不受其影响 |
 | `shared/test_whats_new_manifest.py` | what's-new manifest 构建脚本（`scripts/build/build_whats_new_manifest.py`） |
 
 ### 根目录（项目自有，不随 sync 分发）

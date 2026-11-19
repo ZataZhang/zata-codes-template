@@ -100,6 +100,10 @@ class PullRequestDelivery:
         self.arguments = arguments
         self.context = DeliveryContext.read(Path(arguments.context))
         self.root = Path(self._run(["git", "rev-parse", "--show-toplevel"]))
+        worktree_list_lines = self._git("worktree", "list", "--porcelain").splitlines()
+        if not worktree_list_lines or not worktree_list_lines[0].startswith("worktree "):
+            raise DeliveryError("Could not identify the primary Git worktree.")
+        self.primary_worktree_path = Path(worktree_list_lines[0].partition(" ")[2])
         self.repository = json.loads(self._run(["gh", "repo", "view", "--json", _REPO_FIELDS]))
         self.repo_name = self.repository["nameWithOwner"]
         self.default_branch = self.repository["defaultBranchRef"]["name"]
@@ -504,6 +508,15 @@ class PullRequestDelivery:
             )
         self._git("fetch", remote_name, self.default_branch)
         base_ref = f"refs/remotes/{remote_name}/{self.default_branch}"
+        if self.root.resolve() != self.primary_worktree_path.resolve():
+            work_branch_name = self._git("branch", "--show-current")
+            self.journal.append("stayed_in_worktree", branch=work_branch_name)
+            print(
+                f"PR merged; staying on {work_branch_name} in the isolated worktree. "
+                "The primary worktree checkout was left unchanged."
+            )
+            return
+
         local_default = subprocess.run(
             ["git", "show-ref", "--verify", "--quiet", f"refs/heads/{self.default_branch}"],
             cwd=self.root,

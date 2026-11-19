@@ -6,21 +6,25 @@
 层次规则（由外到内）：
     <module>/api/ → <module>/core/ → <module>/engines/ → <module>/infrastructure/
 
-Composition root 规则：
+Composition root 规则（可选）：
     <module>/composition/ 可以依赖全部四层；
     四层模块均不得反向 import <module>/composition。
 
 依赖规则（只允许向内依赖）：
     - <module>/api/              可以依赖: <module>/core
-    - <module>/core/             可以依赖: （仅 <module>/core 内部的 shared/interfaces）
+    - <module>/core/             可以依赖: <module>/engines, <module>/infrastructure
     - <module>/engines/          可以依赖: <module>/core, <module>/infrastructure
     - <module>/infrastructure/   可以依赖: （仅外部第三方包）
 
 禁止的方向：
     - <module>/infrastructure/ 不得 import <module>/core, <module>/engines, <module>/api
-    - <module>/core/           不得 import <module>/engines, <module>/infrastructure, <module>/api
+    - <module>/core/           不得 import <module>/api, <module>/composition
     - <module>/api/            不得 import <module>/infrastructure, <module>/engines（直接依赖）
     - 任意层                  不得反向依赖外层
+
+core 允许静态依赖 engines / infrastructure：这既支持模板自带的 composition root，
+也支持没有 composition root 的项目在 core/ 内保留装配 facade。静态导入让检查器、
+IDE 与类型检查都能看到依赖；不要用 importlib 等动态加载规避本检查。
 """
 
 import ast
@@ -38,7 +42,7 @@ LAYER_ORDER: list[str] = ["infrastructure", "engines", "core", "api"]
 
 FORBIDDEN_IMPORTS: dict[str, list[str]] = {
     "infrastructure": ["core", "engines", "api", "composition"],
-    "core": ["engines", "infrastructure", "api", "composition"],
+    "core": ["api", "composition"],
     "api": ["infrastructure", "engines", "composition"],
     "engines": ["api", "composition"],
 }

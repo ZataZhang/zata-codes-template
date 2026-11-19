@@ -86,6 +86,9 @@ tasks/evidence/**
 
 # KedaCode runner state (repo-local memory/skills/state after the rename)
 .kedacode/
+
+# KedaCode TOML write lock (zero-byte, next to .kedacode.toml)
+*.toml.lock
 # <<< iar <<<
 
 # Agent tooling state (local)

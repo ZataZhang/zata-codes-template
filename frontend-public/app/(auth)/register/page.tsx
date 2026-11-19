@@ -7,7 +7,7 @@ import { useTranslations } from "next-intl"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { Loader2, UserPlus } from "lucide-react"
+import { UserPlus } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
@@ -282,13 +282,9 @@ export default function RegisterPage() {
               <Button
                 data-testid="register-submit"
                 type="submit"
-                disabled={isLoading}
+                loading={isLoading}
               >
-                {isLoading ? (
-                  <Loader2 className="mr-2 size-4 animate-spin" />
-                ) : (
-                  <UserPlus className="mr-2 size-4" />
-                )}
+                {!isLoading && <UserPlus className="mr-2 size-4" />}
                 {t("registerSubmit")}
               </Button>
             </form>

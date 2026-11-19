@@ -143,7 +143,7 @@ PRD slug、PRD 文件名（可带 `.md`）与 `tasks/pending/....md` 路径—�
 改用分支全名即可；完全找不到时会把当前可打开的 worktree 列出来，便于区分名字写错与
 worktree 尚未创建。
 
-批量清理已经并进 base 的本地分支及其 worktree：
+批量清理已并进 base 的本地分支及 worktree，也可清理提交已由远端跟踪引用完整保留的本地分支别名：
 
 ```bash
 just worktree --prune --dry-run    # 只列计划，不做任何变更
@@ -153,14 +153,15 @@ just worktree --prune --force      # 额外纳入「远端已删但本地仍有�
 just worktree --prune --base develop
 ```
 
-判据全部离线成立，只读本地引用，不联网：
+判据全部离线成立，只读本地引用，不联网；运行前先用 `git fetch --all --prune` 刷新远端跟踪引用：
 
-- **默认可删**：分支已经是 base 的祖先（`git merge-base --is-ancestor <branch> <base>` 成立）。
-- **需 `--force`**：上游远端分支已被删除（`%(upstream:track)` 为 `[gone]`），但本地仍有独有提交。
+- **默认可删**：分支已经是 base 的祖先（`git merge-base --is-ancestor <branch> <base>` 成立）；或本地 tip 是某个远端跟踪引用的祖先、该分支没有活动 upstream，且没有 worktree 检出它。后一种只删除本地分支引用，远端引用保留。
+- **需 `--force`**：上游远端分支已被删除（`%(upstream:track)` 为 `[gone]`），但本地仍有独有提交，且没有其他远端跟踪引用包含本地 tip。
   这通常是 squash merge 之后远端分支被删，但 git 无法把它和「PR 直接关掉、代码没合进去」
   区分开，所以默认只列出，由你核对后再加 `--force`——注意 `--force` 是强制删除，
   会一并丢掉未合并的提交。
-- **永不触碰**：base 分支、`main` / `master`、当前检出的分支。
+- **待人工核验**：分支没有 upstream，也没有远端跟踪引用保留其本地 tip 时只列出并保留；它不会被默认清理或 `--force` 纳入。
+- **永不触碰**：base 分支、`main` / `master`、当前检出的分支；有远端副本但仍由其他 worktree 检出的本地分支也保留。
 
 base 取 `--base`；未传时读 `KODA_WORKTREE_BASE_BRANCH`，再退回 `main`。该模式只清理本地分支
 与关联 worktree——远端分支和 worktree 孤儿数据库仍由 `just worktree --doctor [--gc]` 负责。

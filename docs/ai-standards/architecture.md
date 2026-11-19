@@ -47,9 +47,9 @@ src/<module>/api/ -> src/<module>/core/ -> src/<module>/engines/ -> src/<module>
 禁止违反以下规则：
 
 - `src/<module>/infrastructure/` 不得导入 `src/<module>/core/`、`src/<module>/engines/`、`src/<module>/api/`
-- `src/<module>/core/` 不得导入 `src/<module>/engines/`、`src/<module>/infrastructure/`、`src/<module>/api/`
+- `src/<module>/core/` 不得导入 `src/<module>/api/`；可以静态依赖 `src/<module>/engines/` 与 `src/<module>/infrastructure/`
 - `src/<module>/api/` 不得直接导入 `src/<module>/infrastructure/` 或 `src/<module>/engines/`
-- 跨层依赖必须通过 `src/<module>/core/shared/interfaces/` 中的抽象接口
+- 行为契约优先通过 `src/<module>/core/shared/interfaces/` 中的抽象接口表达；`core/` 的装配 facade 可以直接依赖下层实现，但不得承载新业务规则
 
 新增模块若采用相同的四层结构，同样受 `hooks/shared/check_architecture.py` 约束。
 
@@ -64,12 +64,13 @@ src/<module>/api/ -> src/<module>/core/ -> src/<module>/engines/ -> src/<module>
 
 ## Composition Root
 
-- `src/backend/composition/` 是真实后端 composition root，允许依赖全部四层，
-  但只负责对象创建、配置转换、启动数据准备和依赖连接
-- `src/backend/composition/app_factory.py` 是 FastAPI 应用汇总入口
-- `src/backend/main.py` 是兼容与进程启动薄入口
-- 根目录 `main.py` 只是兼容包装器
-- `api/core/engines/infrastructure` 均不得反向导入
+- 推荐把对象创建、配置转换、启动数据准备和依赖连接集中在
+  `src/<module>/composition/`；模板自带 `src/backend/composition/`，
+  `app_factory.py` 汇总路由、中间件与各领域组件
+- 没有 composition root 的项目，可以在 `core/` 内保留装配 facade（如
+  `*_factory.py`），静态导入 `engines/` / `infrastructure/`；检查器允许该路径
+- `src/backend/main.py` 是兼容与进程启动薄入口；根目录 `main.py` 只是兼容包装器
+- 无论采用哪种装配方式，`api/core/engines/infrastructure` 均不得反向导入
   `backend.composition`，该规则由架构 hook 强制检查
 
 ## Frontend Boundary

@@ -26,7 +26,7 @@
 | `docs/ai-standards/documentation.md` | 改动公共函数签名、配置项、业务流程、API 提示或用户可见文案；新增长期文档页；更新 `mkdocs.yml` 导航 | 纯内部重构且无对外行为或文档变化 |
 | `docs/ai-standards/frontend-design.md` | 新增或修改前端界面的布局、视觉、主题、组件或交互；制作需贴合产品的原型 | 不涉及界面的后端、文档或构建改动 |
 | `docs/ai-standards/testing.md` | **任何代码变更开始前**；制定验证策略、收集证据或声称完成前必须重新核对；写 PRD 的 Realistic Validation Plan；**遇到测试失败或打算修改 `tests/guards/` 守卫测试时** | 仅改注释、纯文档排版或无可执行行为变化的纯配置 |
-| `docs/ai-standards/tooling.md` | 选择运行命令；用户要求提 PR（按其中路由读取交付与数据留存指南）；改 `justfile` / `pre-commit` / `mkdocs` / Docker 配置；处理 PRD 归档流程；处理 lint flag 或重复检测 hooks；撰写提交信息 | 在已熟悉常用 `just` 命令、且本次不动工具链配置、不涉及 PR 交付时 |
+| `docs/ai-standards/tooling.md` | 选择运行命令；用户要求提 PR（按其中路由读取交付与数据留存指南）；改 `justfile` / `pre-commit` / `mkdocs` / Docker 配置；处理 PRD 归档流程；处理 lint flag 或重复检测 hooks；撰写提交信息；清理本地 Git 分支 | 在已熟悉常用 `just` 命令、且本次不动工具链配置、不涉及 PR 交付时 |
 | `docs/ai-standards/alembic.md` | 新增、重命名或修改 Alembic migration；检查迁移链或 `down_revision` | 不涉及 `alembic/versions/` 时 |
 
 `tests/playwright-e2e/` 是独立 TypeScript/Node 包，遵循该目录自己的 `README.md`，不强制套用 Python 规范。
@@ -48,6 +48,7 @@
 - 变量命名必须具有来源、类型或状态语义，避免 `data`、`item`、`res`
 - 新增或修改代码前先搜索现有实现；禁止复制粘贴后微调，参数超过 4 个时收敛到对象
 - 除非用户明确要求，否则不要自动执行 `git add`、`git commit`、`git push` 等 Git 变更操作
+- 收尾时检查并及时清理已合并或过期且没有待保留改动的本地分支；squash/rebase merge 需核验 PR/MR 合并状态，不能只看提交祖先关系；有未合并工作或状态不明时保留。不要自动删除远端分支，详见 `docs/ai-standards/tooling.md` 的「本地分支清理」
 - 提交信息统一用英文并遵循 Conventional Commits（`type(scope): subject`，标题 ≤ 72 字符，正文解释 why），详见 `docs/ai-standards/tooling.md` 的 Commit Messages 小节
 - 单代码文件非空行不超过 1000 行；`just lint` 会对此发出警告
 - 随手想法先落 `tasks/inbox/`：只在**想法边界**捕获（用户明确要求，或话题收敛到可开 PRD 的状态），条目 = 用户原话逐字**引用** + 标注为 `AI 派生` 的背景块，**只追加**到 `tasks/inbox/ideas.md`（禁止改写已有条目）；AI 维护 `tasks/inbox/summary.md` 做总结；想法成熟后用 PRD 流程升级到 `tasks/pending/`。详见 `docs/guides/idea-inbox.md`

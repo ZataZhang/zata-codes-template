@@ -19,9 +19,11 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 VIEW_DIRECTORY = PROJECT_ROOT / "scripts" / "shared" / "view"
@@ -72,7 +74,7 @@ def _initialize_repository(repository_root: Path, default_branch_name: str = "ma
 
 def _build_merge_states_by_name(repository_root: Path) -> dict[str, dict[str, object]]:
     """读取一次历史应答，把分支状态按分支名归集。"""
-    history_payload = history.build_git_history_payload(repository_root, offset=0, limit=50).payload
+    history_payload = history.build_git_history_branch_refs_payload(repository_root).payload
     return {
         str(branch_ref["name"]): dict(branch_ref) for branch_ref in history_payload["branch_refs"]
     }
@@ -140,7 +142,7 @@ def test_base_branch_is_marked_and_exposed_in_payload(tmp_path: Path) -> None:
     repository_root.mkdir()
     _initialize_repository(repository_root)
 
-    history_payload = history.build_git_history_payload(repository_root, offset=0, limit=50).payload
+    history_payload = history.build_git_history_branch_refs_payload(repository_root).payload
     branch_refs_by_name = {
         str(branch_ref["name"]): branch_ref for branch_ref in history_payload["branch_refs"]
     }
@@ -158,17 +160,30 @@ def test_commit_rows_carry_merge_state_for_ref_badges(tmp_path: Path) -> None:
     _run_git(repository_root, "branch", "feature/merged", "HEAD~1")
 
     history_payload = history.build_git_history_payload(repository_root, offset=0, limit=50).payload
-    commit_row_refs = [
-        ref_label
+    branch_payload = history.build_git_history_branch_refs_payload(repository_root).payload
+    feature_branch_hash = _run_git(
+        repository_root, "rev-parse", "refs/heads/feature/merged"
+    ).strip()
+    feature_commit_row = next(
+        history_row
         for history_row in history_payload["rows"]
-        if history_row["kind"] == "commit"
-        for ref_label in history_row["refs"]
+        if history_row["kind"] == "commit" and history_row["hash"] == feature_branch_hash
+    )
+    initial_feature_ref = next(
+        ref_label
+        for ref_label in feature_commit_row["refs"]
+        if ref_label["name"] == "feature/merged"
+    )
+    merged_ref_labels = [
+        ref_label
+        for ref_label in branch_payload["refs_by_commit"][feature_branch_hash]
         if ref_label["name"] == "feature/merged"
     ]
 
-    assert commit_row_refs
+    assert initial_feature_ref["merge_state"] == history.MERGE_STATE_UNKNOWN
+    assert merged_ref_labels
     assert all(
-        ref_label["merge_state"] == history.MERGE_STATE_MERGED for ref_label in commit_row_refs
+        ref_label["merge_state"] == history.MERGE_STATE_MERGED for ref_label in merged_ref_labels
     )
 
 
@@ -179,7 +194,7 @@ def test_repository_without_default_branch_reports_unknown(tmp_path: Path) -> No
     _initialize_repository(repository_root, default_branch_name="trunk")
     _run_git(repository_root, "branch", "feature/ahead")
 
-    history_payload = history.build_git_history_payload(repository_root, offset=0, limit=50).payload
+    history_payload = history.build_git_history_branch_refs_payload(repository_root).payload
 
     assert history_payload["base_branch"] == ""
     assert all(
@@ -232,3 +247,46 @@ def test_partially_applied_branch_is_not_reported_as_replayed(tmp_path: Path) ->
     branch_merge_state = _build_merge_states_by_name(repository_root)["feature/partial"]
 
     assert branch_merge_state["merge_state"] == history.MERGE_STATE_DIVERGED
+
+
+def test_commit_rows_carry_author_time_and_diff_stats(tmp_path: Path) -> None:
+    """作者和时间随首屏返回，改动统计由独立接口补齐。"""
+    repository_root = tmp_path / "repository"
+    repository_root.mkdir()
+    _initialize_repository(repository_root)
+    _write_and_commit(repository_root, "notes.txt", "first\nsecond\n", "feat: add second line")
+
+    with (
+        patch.object(
+            history,
+            "_read_history_diff_stats",
+            side_effect=AssertionError("首屏不应计算 diff 统计"),
+        ),
+        patch.object(
+            history,
+            "_annotate_branch_merge_states",
+            side_effect=AssertionError("首屏不应比较分支补丁"),
+        ),
+    ):
+        history_payload = history.build_git_history_payload(
+            repository_root, offset=0, limit=50
+        ).payload
+    commit_rows = [row for row in history_payload["rows"] if row["kind"] == "commit"]
+
+    # 行内作者与提交详情里的 author_name 是同一个来源，避免两处显示不一致。
+    assert commit_rows
+    assert {row["author"] for row in commit_rows} == {"zview test"}
+    # 测试邮箱不是 GitHub noreply 地址，头像只能走生成图案。
+    assert {row["github_username"] for row in commit_rows} == {""}
+    # 列表时间精确到秒，读者不必点开详情才知道是哪天几点提交的。
+    assert all(
+        re.fullmatch(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", row["date"]) for row in commit_rows
+    )
+    assert all(history_row["stats"] is None for history_row in commit_rows)
+
+    # 改动规模取自异步 shortstat：这次提交给 notes.txt 补了一行，文件数必须是 1。
+    stats_payload = history.build_git_history_stats_payload(
+        repository_root, offset=0, limit=50
+    ).payload
+    newest_commit_stats = stats_payload["stats_by_commit"][commit_rows[0]["hash"]]
+    assert newest_commit_stats == {"files": 1, "insertions": 1, "deletions": 0}
