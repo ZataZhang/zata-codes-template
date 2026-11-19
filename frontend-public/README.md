@@ -25,7 +25,7 @@ pnpm dev
 
 开发服务器启动后访问 `http://localhost:3000`。
 
-直接运行 `pnpm dev` 时，后端默认在 `http://localhost:8000`，前端通过 Next.js rewrites 代理 `/api/*` 到后端。通过根目录 `just run` 启动时，会注入当前 `.env.run-state` 中的后端端口。
+直接运行 `pnpm dev` 时，后端默认在 `http://localhost:8000`，前端通过 Next.js rewrites 将普通 `/api/*` 请求转发到后端。Agent Run 的 `/api/agent-runs/{runId}/events/stream` 由 App Router Route Handler 同源转发 SSE 响应流，避免通用 rewrite 缓冲增量事件。通过根目录 `just run` 启动时，会注入当前 `.env.run-state` 中的后端端口。
 
 ## 构建生产产物
 

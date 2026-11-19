@@ -22,7 +22,7 @@ Run 创建事务写入唯一 Canonical `Run` 和初始 `RunEvent`。执行器使
 
 执行器以 `stream: true` 请求端点，边读取 SSE 分片边把文本交给 Run 用例；片段按小批次写入同一条 Canonical `message.delta` 事件链，不另建流式缓存或第二套消息存储。端点忽略 `stream` 时，执行器把完整回复作为同一事件链的增量补写，前端只有一条展示路径。
 
-成员页面打开 `GET /api/agent-runs/{run_id}/events/stream?after_seq=` 建立同源 SSE 流：`message.delta` 直接拼接到正在增长的回复，`run.started` / `run.cancelling` 更新展示状态，流关闭后重新读取持久化 Run 并刷新历史。断线后按最后处理的事件序号重连；服务端每秒校验当前会话、owner 与组织范围，Run 终止或授权失效时关闭流。运行中可从前台取消当前 Run。Admin 和 Public 入口限流都按 HTTP 请求计数，活动 SSE 流各占一个并发请求额度；服务端每秒读取事件一次。同一时刻只允许一个流消费当前 Run，迟到的持久化详情不能让终态回退为活动状态。`run.completed` / `run.failed` / `run.cancelled` / `run.interrupted` 都作为终态处理。管理轨迹与 A2A 入站复用同一条事件链：诊断投影把 `message.delta` 归入 Run 根节点，不向管理员泄露消息正文；A2A 流式响应把每个增量映射为 `artifactUpdate` 追加片段，并在完成或中断时发送终态 `statusUpdate`。
+成员页面打开 `GET /api/agent-runs/{run_id}/events/stream?after_seq=` 建立同源 SSE 流。公开前端由专用 Route Handler 直通转发响应体，避免通用 Next rewrite 缓冲事件；`message.delta` 到达后立即拼接到正在增长的回复，`run.started` / `run.cancelling` 更新展示状态，流关闭后重新读取持久化 Run 并刷新历史。断线后按最后处理的事件序号重连；服务端每秒校验当前会话、owner 与组织范围，Run 终止或授权失效时关闭流。运行中可从前台取消当前 Run。Admin 和 Public 入口限流都按 HTTP 请求计数，活动 SSE 流各占一个并发请求额度；服务端每秒读取事件一次。同一时刻只允许一个流消费当前 Run，迟到的持久化详情不能让终态回退为活动状态。`run.completed` / `run.failed` / `run.cancelled` / `run.interrupted` 都作为终态处理。管理轨迹与 A2A 入站复用同一条事件链：诊断投影把 `message.delta` 归入 Run 根节点，不向管理员泄露消息正文；A2A 流式响应把每个增量映射为 `artifactUpdate` 追加片段，并在完成或中断时发送终态 `statusUpdate`。
 
 ## Skill 版本
 

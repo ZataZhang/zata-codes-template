@@ -2,13 +2,11 @@ import path from "node:path"
 
 import type { NextConfig } from "next"
 import createNextIntlPlugin from "next-intl/plugin"
+import { backendBaseUrl } from "./lib/backend-url"
 
 // 把 i18n/request.ts 注册为 next-intl 的请求配置入口：插件在服务端渲染时
 // 调用它解析 locale 与文案，客户端则由根布局注入的 Provider 提供。
 const withNextIntl = createNextIntlPlugin("./i18n/request.ts")
-
-const backendUrl =
-  process.env.BACKEND_URL || process.env.API_BASE_URL || "http://localhost:8000"
 
 const nextConfig: NextConfig = {
   // 生产镜像的 runtime stage 只拷 .next/standalone，不装依赖；不开这个开关
@@ -21,16 +19,19 @@ const nextConfig: NextConfig = {
   devIndicators: false,
   allowedDevOrigins: ["127.0.0.1"],
   async rewrites() {
-    return [
-      {
-        source: "/api/:path*",
-        destination: `${backendUrl}/:path*`,
-      },
-      {
-        source: "/a2a/:path*",
-        destination: `${backendUrl}/a2a/:path*`,
-      },
-    ]
+    return {
+      // 兜底重写让本地 Route Handler（包括 SSE 流路由）先匹配。
+      fallback: [
+        {
+          source: "/api/:path*",
+          destination: `${backendBaseUrl}/:path*`,
+        },
+        {
+          source: "/a2a/:path*",
+          destination: `${backendBaseUrl}/a2a/:path*`,
+        },
+      ],
+    }
   },
 }
 

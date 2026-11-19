@@ -86,7 +86,7 @@ flowchart TD
     end
 
 FE_ADMIN_API -->|"同源 /api/*\n(Nginx 反代)"| Apps
-FE_PUBLIC_API -->|"同源 /api/*\n(Next rewrite)"| Apps
+FE_PUBLIC_API -->|"同源 /api/*\n(Next Route Handler 流转发 + fallback rewrite)"| Apps
 ExternalA2A["外部 A2A 1.0 客户端"] -->|"/a2a/*\n独立协议入口"| Apps
 
     subgraph Backend["Python 后端"]
@@ -155,7 +155,7 @@ ExternalA2A["外部 A2A 1.0 客户端"] -->|"/a2a/*\n独立协议入口"| Apps
 前端与后端之间**仅通过 `/api/*` HTTP 接口通信**：
 
 - `frontend-admin/` 开发时由 Vite 将 `/api/*` 重写一次后转发；生产时由 Nginx 代理。Vite 的 A2A 代理只匹配 `^/a2a/` 协议路径，避免拦截管理页 `/a2a-approvals/`。
-- `frontend-public/` 开发时由 Next rewrite 转发 `/api/*`；生产时同样使用同源 rewrite。
+- `frontend-public/` 普通 `/api/*` 请求由 Next fallback rewrite 转发；Agent Run SSE 由 App Router Route Handler 透传响应流，确保增量事件及时到达浏览器。
 - 两个前端将独立的 `/a2a/*` 路径转发到后端，供协议客户端使用；浏览器 API 客户端仍使用单一 `/api` baseURL。
 
 两侧无任何代码直接依赖。
