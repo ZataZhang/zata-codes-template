@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from dataclasses import replace
 from datetime import UTC, datetime
 
 import pytest
@@ -140,6 +141,23 @@ def test_task_document_uses_task_states_artifacts_and_history_length() -> None:
     assert len(full_task["history"]) == 2
     assert "artifacts" not in compact_task
     assert "history" not in compact_task
+
+
+def test_task_and_stream_timestamps_use_utc_z_suffix() -> None:
+    """Task 与状态事件都序列化为 UTC Z 时间戳，并规范数据库的无时区值。"""
+    completed_run = _run()
+    completed_run.finished_at = datetime.fromisoformat("2026-11-19T11:30:00+08:00")
+    task_document = _task_document(completed_run, [])
+
+    naive_recorded_at = datetime.fromisoformat("2026-11-19T03:30:00")
+    started_event = replace(
+        _event(1, "run.started", {"started_at": "2026-11-19T03:30:00Z"}),
+        recorded_at=naive_recorded_at,
+    )
+    stream_event = _task_events(_run(RunStatus.RUNNING), [started_event])[0]
+
+    assert task_document["status"]["timestamp"] == "2026-11-19T03:30:00.000Z"
+    assert stream_event["statusUpdate"]["status"]["timestamp"] == ("2026-11-19T03:30:00.000Z")
 
 
 def test_running_task_snapshot_contains_already_streamed_artifact_text() -> None:

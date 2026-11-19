@@ -21,10 +21,12 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 
 from backend.core.run_tracing import trace_use_cases
+from backend.core.shared.models.organization import DEFAULT_ORGANIZATION_ID
 from backend.core.shared.models.run import (
     ORGANIZATION_AGENT_SUBJECT_TYPE,
     Run,
     RunEventCandidate,
+    RunQuery,
     RunStatus,
     RunSubjectSnapshot,
     derive_root_span_id,
@@ -105,6 +107,7 @@ def _seed_run_with_tracing_events(
             status=RunStatus.QUEUED,
             last_event_seq=0,
             created_at=_BASE_TIME,
+            organization_id=DEFAULT_ORGANIZATION_ID,
         ),
         idempotency_key_hash=uuid4().hex,
         request_checksum="r" * 64,
@@ -447,3 +450,64 @@ def _assert_admin_trace_contract(
     assert public_client.get("/admin/run-traces", params={"run_id": run_id}).status_code == 401
     assert public_client.get(f"/admin/run-traces/{run_id}").status_code == 401
     assert admin_client.get("/admin/run-traces/run_missing").status_code == 404
+
+
+def _build_scope_validation_run(organization_id: str | None) -> Run:
+    """构造仅用于组织归属边界校验的最小 Run 聚合。"""
+    subject_id = f"subject_scope_{uuid4().hex}"
+    return Run(
+        id=f"run_{uuid4().hex}",
+        owner_id=f"owner_scope_{uuid4().hex}",
+        subject_id=subject_id,
+        subject_type="internal",
+        subject_snapshot=RunSubjectSnapshot(
+            subject_type="internal",
+            subject_id=subject_id,
+            subject_name="Scope Validation Subject",
+            snapshot_checksum="c" * 64,
+        ),
+        subject_snapshot_checksum="c" * 64,
+        status=RunStatus.QUEUED,
+        last_event_seq=0,
+        created_at=_BASE_TIME,
+        organization_id=organization_id,
+    )
+
+
+def test_repository_refuses_run_without_organization() -> None:
+    """无归属 Run 不得被静默写成默认组织记录。"""
+    repository = SqlAlchemyRunRepository(SessionLocal)
+    unattributed_run = _build_scope_validation_run(None)
+
+    with pytest.raises(ValueError, match="run_organization_required"):
+        repository.create_run(
+            unattributed_run,
+            idempotency_key_hash=uuid4().hex,
+            request_checksum="r" * 64,
+            input_text="must not be persisted",
+        )
+    assert repository.get_by_id(unattributed_run.id) is None
+
+
+def test_blank_organization_scope_matches_no_runs(
+    entity_registry: TrackedEntityRegistry,
+) -> None:
+    """空组织是无效 scope：必须查不到任何行，而不是放开成全组织查询。"""
+    repository = SqlAlchemyRunRepository(SessionLocal)
+    attributed_run = _build_scope_validation_run(DEFAULT_ORGANIZATION_ID)
+    created_run = repository.create_run(
+        attributed_run,
+        idempotency_key_hash=uuid4().hex,
+        request_checksum="r" * 64,
+        input_text="org scoped run",
+    )
+    entity_registry.run_ids.append(created_run.id)
+
+    valid_scope_page = repository.query_runs_page(
+        RunQuery(run_id=created_run.id, organization_id=DEFAULT_ORGANIZATION_ID)
+    )
+    blank_scope_page = repository.query_runs_page(
+        RunQuery(run_id=created_run.id, organization_id="")
+    )
+    assert valid_scope_page.total == 1
+    assert blank_scope_page.total == 0

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -30,6 +31,15 @@ _TERMINAL_STATES = {
 # SendMessage 同步等待的上限：超时后按 A2A 语义返回非终态 Task，由对端改用轮询或订阅。
 _WAIT_FOR_RUN_TIMEOUT_SECONDS = 120.0
 _WAIT_FOR_RUN_POLL_INTERVAL_SECONDS = 0.25
+
+
+def _format_a2a_timestamp(timestamp_value: datetime) -> str:
+    """将数据库时间格式化为 A2A 要求的 UTC RFC 3339 时间戳。"""
+    if timestamp_value.tzinfo is None or timestamp_value.utcoffset() is None:
+        utc_timestamp = timestamp_value.replace(tzinfo=UTC)
+    else:
+        utc_timestamp = timestamp_value.astimezone(UTC)
+    return utc_timestamp.isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 def _require_version(a2a_version: str | None) -> None:
@@ -205,7 +215,7 @@ def _task_document(
         "contextId": run.conversation_id,
         "status": {
             "state": _task_state(run),
-            "timestamp": (run.finished_at or run.started_at or run.created_at).isoformat(),
+            "timestamp": _format_a2a_timestamp(run.finished_at or run.started_at or run.created_at),
         },
     }
     if include_artifacts:
@@ -266,7 +276,7 @@ def _task_events(
                         "contextId": run.conversation_id,
                         "status": {
                             "state": current_run_state,
-                            "timestamp": run_event.recorded_at.isoformat(),
+                            "timestamp": _format_a2a_timestamp(run_event.recorded_at),
                         },
                     },
                 }

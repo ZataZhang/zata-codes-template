@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import socket
 from datetime import UTC, datetime
 
@@ -111,6 +112,25 @@ def test_global_allowlisted_address_passes_url_policy(monkeypatch) -> None:
         lambda *args, **kwargs: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 443))],
     )
     HttpA2AClient._validate_url("https://agent.example/a2a")
+
+
+def test_dual_stack_addresses_pin_in_family_stable_order() -> None:
+    """双栈对端混排 A/AAAA 记录时，固定地址表仍须可比对且不得因排序抛错。"""
+    mixed_family_addresses = frozenset(
+        {ipaddress.ip_address("127.0.0.1"), ipaddress.ip_address("::1")}
+    )
+    assert HttpA2AClient._pinned_address_strings(mixed_family_addresses) == (
+        "127.0.0.1",
+        "::1",
+    )
+    # 集合的迭代顺序随构造顺序变化，固定表必须仍然稳定，否则 Card 与 endpoint 永远比不中。
+    reversed_insertion_order = frozenset(
+        {ipaddress.ip_address("::1"), ipaddress.ip_address("127.0.0.1")}
+    )
+    assert HttpA2AClient._pinned_address_strings(reversed_insertion_order) == (
+        "127.0.0.1",
+        "::1",
+    )
 
 
 def test_cross_organization_peer_is_rejected_before_http_construction(monkeypatch) -> None:

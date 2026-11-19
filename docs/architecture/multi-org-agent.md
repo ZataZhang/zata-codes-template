@@ -50,13 +50,15 @@ A2A 只用于独立 Agent 之间通信。它不代替内部模型接口或受控
 
 入站 Task ID 就是 Canonical Run ID。`messageId` 形成组织和凭据范围的稳定幂等键；重复发送相同请求返回已有 Run，不另建状态库。任务列表、读取、取消与订阅都按组织、Agent 和服务凭据 owner 过滤。
 
-A2A 路径上的 HTTP 错误使用 A2A 1.0 REST binding 的 `google.rpc.Status` JSON 结构（`error.code`、`error.status`、`error.message`、`error.details`）。A2A 专属错误在 `details` 中返回 `google.rpc.ErrorInfo`；输入校验返回不含原始输入值的 `google.rpc.BadRequest` 字段说明。认证与资源不可见响应保持通用措辞，不泄露组织、Agent 或任务是否存在。非 A2A API 继续使用原有错误格式。
+`returnImmediately=false` 的同步等待有 120 秒上限：超时后按 Run 当前状态返回 Task（未到终态即 `TASK_STATE_WORKING`），由对端改用读取或订阅继续跟踪，入站连接不会因单个 Run 永久挂起。
+
+A2A Task 与状态事件中的时间戳统一序列化为 UTC RFC 3339 字符串，以 `Z` 结尾。A2A 路径上的 HTTP 错误使用 A2A 1.0 REST binding 的 `google.rpc.Status` JSON 结构（`error.code`、`error.status`、`error.message`、`error.details`）。A2A 专属错误在 `details` 中返回 `google.rpc.ErrorInfo`；输入校验返回不含原始输入值的 `google.rpc.BadRequest` 字段说明。认证与资源不可见响应保持通用措辞，不泄露组织、Agent 或任务是否存在。非 A2A API 继续使用原有错误格式。
 
 ### 出站
 
 组织管理员登记 A2A 对端，平台管理员审查并批准地址策略后，组织管理员还需在创建 Agent 时选择它允许调用的已批准对端；Run 创建时冻结这份对端 ID 清单。登记时拒绝 URL 内嵌凭据、查询参数和跨源 Card/REST 地址，防止审批接口把凭据回显到浏览器；出站调用前会对已有记录再次执行同一校验。执行开始时，允许列表与当前 Agent 绑定和对端启用/审批状态取交集，排队 Run 不会继承创建后新增的授权；A2A 客户端发请求前还会再次校验对端状态。空绑定表示该 Agent 不允许出站 A2A 调用。调用方不能在用户消息中提供 URL。目录按组织保存 Card URL、REST URL 与密钥别名；Bearer token 使用服务端 AES-GCM 密钥加密，密钥只从 `.env` / `.env.local` 注入。
 
-客户端验证 A2A 版本、HTTP+JSON REST binding、Card 与 endpoint 同源、精确主机 allowlist、DNS 公网地址和无重定向策略。凭据只发送到登记对端，不转发到 Card 宣告的其他 host。出站调用开始、成功或失败时立即写入 Canonical Run 工具事件；成功事件包含远端 Task ID、peer ID、结果 checksum 与字符长度。这样后续模型调用失败时，已完成的远端 Task 仍留在父 Run 轨迹中；事件不保存远端消息正文或凭据。
+客户端验证 A2A 版本、HTTP+JSON REST binding、Card 与 endpoint 同源、精确主机 allowlist、DNS 公网地址和无重定向策略。校验通过的解析结果会固定到实际连接（双栈主机按地址族稳定排序后逐个尝试），HTTP 客户端不再二次解析，避免校验与连接之间发生 DNS 重绑定；DNS 解析在线程池执行，不阻塞事件循环。单轮最多执行 2 个已批准对端调用，超出时以 `model_tool_call_limit_exceeded` 显式失败，不回传缺少配对的 tool 消息，避免部分成功后被模型端按协议错误拒绝。凭据只发送到登记对端，不转发到 Card 宣告的其他 host。出站调用开始、成功或失败时立即写入 Canonical Run 工具事件；成功事件包含远端 Task ID、peer ID、结果 checksum 与字符长度。这样后续模型调用失败时，已完成的远端 Task 仍留在父 Run 轨迹中；事件不保存远端消息正文或凭据。
 
 卡片 origin 必须由部署配置 `A2A_PUBLIC_BASE_URL` 明确声明。该值只允许一个 `http(s)` origin，不读取未验证的请求 `Host`。生产应使用 HTTPS 公网域名；本地 HTTP 仅在显式打开 `A2A_ALLOW_LOOPBACK_FOR_DEV=true` 时可用。
 

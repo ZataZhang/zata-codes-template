@@ -115,6 +115,22 @@ export default function AgentsPage() {
     let cancelled = false
     let activeStreamController: AbortController | null = null
     /**
+     * 重新读取持久化 Run 并合并状态，返回是否应停止消费事件。SSE 正常结束和订阅
+     * 失败都必须走这个入口，否则流式通道故障时页面会停在运行中，看不见已提交的终态。
+     */
+    const refreshRunState = async (): Promise<boolean> => {
+      const refreshedRun = await getAgentRun(runId)
+      if (cancelled) return true
+      setActiveRun((previous) => {
+        if (!previous || previous.id !== runId) return previous
+        return mergeRunStateWithoutRegression(previous, refreshedRun)
+      })
+      if (POLLABLE_RUN_STATUSES.has(refreshedRun.status)) return false
+      setLiveReply("")
+      await reloadHistory()
+      return true
+    }
+    /**
      * 读取新增的 Canonical Event：`message.delta` 立即拼接到实时回复，
      * 流关闭后重新读取持久化 Run 并刷新历史。断线后从最后处理的事件序号
      * 重连，避免重复消费或漏掉已提交事件。
@@ -150,17 +166,7 @@ export default function AgentsPage() {
             streamController.signal
           )
           if (cancelled) return
-          const refreshedRun = await getAgentRun(runId)
-          if (cancelled) return
-          setActiveRun((previous) => {
-            if (!previous || previous.id !== runId) return previous
-            return mergeRunStateWithoutRegression(previous, refreshedRun)
-          })
-          if (!POLLABLE_RUN_STATUSES.has(refreshedRun.status)) {
-            setLiveReply("")
-            await reloadHistory()
-            return
-          }
+          if (await refreshRunState()) return
         } catch (streamError) {
           if (cancelled) return
           if (
@@ -172,6 +178,12 @@ export default function AgentsPage() {
             return
           }
           setError(t("refreshFailed"))
+          // 订阅失败不等于运行失败：终态仍要取自持久化 Run，否则页面会停在运行中。
+          try {
+            if (await refreshRunState()) return
+          } catch {
+            // 持久化读取也失败时保留提示，等下一轮重连后重新判断。
+          }
         } finally {
           if (activeStreamController === streamController) {
             activeStreamController = null

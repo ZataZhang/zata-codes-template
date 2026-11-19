@@ -24,7 +24,6 @@ from backend.core.shared.interfaces.agent_types import (
 )
 from backend.core.shared.interfaces.organization_repository import OrganizationRepository
 from backend.core.shared.interfaces.run_repository import RunRepository
-from backend.core.shared.models.organization import DEFAULT_ORGANIZATION_ID
 from backend.core.shared.models.run import (
     ORGANIZATION_AGENT_SUBJECT_TYPE,
     TERMINAL_RUN_STATUSES,
@@ -664,7 +663,10 @@ class AgentRunUseCase:
 
     def _approved_peers_for_run(self, run: Run) -> Sequence[A2APeer]:
         """按 Run 冻结的 Agent 绑定读取已批准对端，空绑定表示不授权出站调用。"""
-        organization_id = run.organization_id or DEFAULT_ORGANIZATION_ID
+        organization_id = run.organization_id
+        if not organization_id:
+            # 无归属的 Run 不得借用默认组织的对端目录与凭据。
+            return ()
         if run.execution_snapshot is None:
             return ()
         snapshot_peer_ids = run.execution_snapshot.get("allowed_peer_ids")

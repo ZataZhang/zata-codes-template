@@ -25,6 +25,9 @@ from backend.infrastructure.config.settings import (
     load_primary_model_settings,
 )
 
+# 单轮最多执行的受控工具调用数；超出时整次运行显式失败，不做部分成功。
+_MAX_TOOL_CALLS_PER_TURN = 2
+
 
 class OpenAICompatibleAgentExecutor(AgentExecutor):
     """适配配置的主模型端点，仅暴露受控 A2A 函数。"""
@@ -137,9 +140,14 @@ class OpenAICompatibleAgentExecutor(AgentExecutor):
                     reply_separator_emitted = True
                 await on_delta(delta_text)
 
+            if len(tool_calls) > _MAX_TOOL_CALLS_PER_TURN:
+                # 只回答前几个 tool_call 会让下一轮请求里 assistant.tool_calls 失去配对，
+                # 模型端按协议错误拒绝并掩盖真实原因，因此整次运行显式失败。
+                raise RuntimeError("model_tool_call_limit_exceeded")
+
             message_history.append(assistant_message)
             peer_by_id = {peer.id: peer for peer in peers}
-            for tool_call_index, tool_call in enumerate(tool_calls[:2]):
+            for tool_call_index, tool_call in enumerate(tool_calls):
                 function_document = (
                     tool_call.get("function") if isinstance(tool_call, dict) else None
                 )
@@ -159,7 +167,8 @@ class OpenAICompatibleAgentExecutor(AgentExecutor):
                 peer_message = str(tool_arguments.get("message", "")).strip()
                 if peer is None or not peer_message or len(peer_message) > 8_000:
                     raise RuntimeError("model_requested_unapproved_peer")
-                tool_call_id = uuid.uuid4().hex
+                # 事件轨迹与回传给模型的 tool 消息必须使用同一个 id，否则配对失败。
+                tool_call_id = str(tool_call.get("id") or "") or uuid.uuid4().hex
                 if on_external_call is not None:
                     on_external_call(
                         AgentExternalCallEvent(
@@ -216,7 +225,7 @@ class OpenAICompatibleAgentExecutor(AgentExecutor):
                 message_history.append(
                     {
                         "role": "tool",
-                        "tool_call_id": str(tool_call.get("id", "")),
+                        "tool_call_id": tool_call_id,
                         "content": peer_response.content,
                     }
                 )

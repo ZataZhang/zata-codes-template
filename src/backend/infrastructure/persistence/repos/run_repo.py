@@ -129,6 +129,10 @@ class SqlAlchemyRunRepository:
         self, run: Run, *, idempotency_key_hash: str, request_checksum: str, input_text: str
     ) -> Run:
         """在一个事务创建 Run 与前两条事件。"""
+        if not run.organization_id:
+            # 归属为空的 Run 无法归因；写成默认组织会让它对默认组织管理员可见，
+            # 违反「归属为空 = 对任何人不可见」的约定，因此在这里拒绝落库。
+            raise ValueError("run_organization_required")
         with self._session_factory.begin() as database_session:
             run_model = RunModel(
                 id=run.id,
@@ -138,7 +142,7 @@ class SqlAlchemyRunRepository:
                 subject_snapshot=asdict(run.subject_snapshot),
                 subject_snapshot_checksum=run.subject_snapshot_checksum,
                 owner_id=run.owner_id,
-                organization_id=run.organization_id or "default",
+                organization_id=run.organization_id,
                 conversation_id=run.conversation_id,
                 execution_snapshot=run.execution_snapshot,
                 status=run.status.value,
@@ -276,9 +280,11 @@ class SqlAlchemyRunRepository:
         filter_conditions = []
         if query.run_id:
             filter_conditions.append(RunModel.id == query.run_id)
-        if query.organization_id:
+        # None 表示调用方（平台级诊断）刻意不限定该维度；空串表示没有有效归属，
+        # 必须匹配不到任何行，而不是放开成全组织/全 owner 查询。
+        if query.organization_id is not None:
             filter_conditions.append(RunModel.organization_id == query.organization_id)
-        if query.owner_id:
+        if query.owner_id is not None:
             filter_conditions.append(RunModel.owner_id == query.owner_id)
         if query.conversation_id:
             filter_conditions.append(RunModel.conversation_id == query.conversation_id)
