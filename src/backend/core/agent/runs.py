@@ -27,6 +27,7 @@ from backend.core.shared.interfaces.run_repository import RunRepository
 from backend.core.shared.models.organization import DEFAULT_ORGANIZATION_ID
 from backend.core.shared.models.run import (
     ORGANIZATION_AGENT_SUBJECT_TYPE,
+    TERMINAL_RUN_STATUSES,
     Run,
     RunEvent,
     RunEventCandidate,
@@ -37,6 +38,9 @@ from backend.core.shared.models.run import (
     derive_span_id,
     derive_trace_id,
 )
+
+RUN_EXECUTOR_LEASE_DURATION_SECONDS = 30
+RUN_EXECUTOR_HEARTBEAT_INTERVAL_SECONDS = 10
 
 
 @dataclass(frozen=True)
@@ -229,7 +233,7 @@ class AgentRunUseCase:
         if not self._run_repository.claim(
             run_id,
             self._executor_instance_id,
-            datetime.now(UTC) + timedelta(seconds=30),
+            datetime.now(UTC) + timedelta(seconds=RUN_EXECUTOR_LEASE_DURATION_SECONDS),
         ):
             return
         run = self._run_repository.get_by_id(run_id)
@@ -249,7 +253,8 @@ class AgentRunUseCase:
         model_call_id = uuid.uuid4().hex
         model_name = str(snapshot_document["model_name"])
         model_span_id = derive_span_id(run.id, "model", model_call_id)
-        heartbeat_task = asyncio.create_task(self._maintain_execution_lease(run.id))
+        execution_task = asyncio.current_task()
+        heartbeat_task = asyncio.create_task(self._maintain_execution_lease(run.id, execution_task))
         try:
             self._run_repository.append_event(
                 run.id,
@@ -393,16 +398,19 @@ class AgentRunUseCase:
                 ),
             )
         except asyncio.CancelledError:
+            current_run = self._run_repository.get_by_id(run.id)
+            if (
+                current_run is not None
+                and current_run.status is RunStatus.CANCELLING
+                and current_run.executor_instance_id == self._executor_instance_id
+            ):
+                self._confirm_run_cancelled(run.id)
             raise
         except Exception:
             current_run = self._run_repository.get_by_id(run.id)
-            if current_run is None or current_run.status in {
-                RunStatus.CANCELLING,
-                RunStatus.CANCELLED,
-                RunStatus.FAILED,
-                RunStatus.SUCCEEDED,
-                RunStatus.INTERRUPTED,
-            }:
+            if current_run is None or current_run.status in (
+                TERMINAL_RUN_STATUSES | {RunStatus.CANCELLING}
+            ):
                 return
             try:
                 self._run_repository.append_event(
@@ -432,15 +440,48 @@ class AgentRunUseCase:
             except asyncio.CancelledError:
                 pass
 
-    async def _maintain_execution_lease(self, run_id: str) -> None:
-        """为当前实例续租，避免长模型请求被另一实例误判为失联。"""
+    async def _maintain_execution_lease(
+        self, run_id: str, execution_task: asyncio.Task[None] | None
+    ) -> None:
+        """为当前实例续租并在租户请求取消时停止本地执行任务。
+
+        Args:
+            run_id (str): 当前持有租约的 Run ID。
+            execution_task (asyncio.Task[None] | None): 持有租约的实际执行任务。
+        """
         while True:
-            await asyncio.sleep(10)
-            lease_expires_at = datetime.now(UTC) + timedelta(seconds=30)
+            await asyncio.sleep(RUN_EXECUTOR_HEARTBEAT_INTERVAL_SECONDS)
+            lease_expires_at = datetime.now(UTC) + timedelta(
+                seconds=RUN_EXECUTOR_LEASE_DURATION_SECONDS
+            )
             if not self._run_repository.heartbeat(
                 run_id, self._executor_instance_id, lease_expires_at
             ):
+                current_run = self._run_repository.get_by_id(run_id)
+                if (
+                    (current_run is None or current_run.status not in TERMINAL_RUN_STATUSES)
+                    and execution_task is not None
+                    and not execution_task.done()
+                ):
+                    execution_task.cancel()
                 return
+
+    def _confirm_run_cancelled(self, run_id: str) -> Run | None:
+        """仅在 Run 仍处于 cancelling 时追加执行器已停止事件。"""
+        current_run = self._run_repository.get_by_id(run_id)
+        if current_run is None or current_run.status is not RunStatus.CANCELLING:
+            return current_run
+        try:
+            self._run_repository.append_event(
+                run_id,
+                RunEventCandidate("run.cancelled", {"external_stop_confirmed": True}),
+            )
+        except ValueError:
+            latest_run = self._run_repository.get_by_id(run_id)
+            if latest_run is None or latest_run.status is not RunStatus.CANCELLED:
+                raise
+            return latest_run
+        return self._run_repository.get_by_id(run_id)
 
     def get_scoped_run(
         self, *, run_id: str, organization_id: str, owner_id: str | None = None
@@ -579,20 +620,23 @@ class AgentRunUseCase:
         scoped_run = self.get_scoped_run(
             run_id=run_id, organization_id=organization_id, owner_id=owner_id
         )
-        if scoped_run.status in {
-            RunStatus.SUCCEEDED,
-            RunStatus.FAILED,
-            RunStatus.CANCELLED,
-            RunStatus.INTERRUPTED,
-        }:
+        if scoped_run.status in TERMINAL_RUN_STATUSES:
             return scoped_run
-        self._run_repository.append_event(
-            scoped_run.id,
-            RunEventCandidate(
-                "run.cancelling",
-                {"requested_by": owner_id, "requested_at": datetime.now(UTC).isoformat()},
-            ),
-        )
+        if scoped_run.status is not RunStatus.CANCELLING:
+            try:
+                self._run_repository.append_event(
+                    scoped_run.id,
+                    RunEventCandidate(
+                        "run.cancelling",
+                        {"requested_by": owner_id, "requested_at": datetime.now(UTC).isoformat()},
+                    ),
+                )
+            except ValueError:
+                latest_run = self._run_repository.get_by_id(scoped_run.id)
+                if latest_run is None or latest_run.status not in (
+                    TERMINAL_RUN_STATUSES | {RunStatus.CANCELLING}
+                ):
+                    raise
         active_task = self._active_tasks.get(scoped_run.id)
         if active_task is not None and not active_task.done():
             active_task.cancel()
@@ -601,11 +645,19 @@ class AgentRunUseCase:
             except asyncio.CancelledError:
                 pass
         current_run = self._run_repository.get_by_id(scoped_run.id)
-        if current_run is not None and current_run.status is RunStatus.CANCELLING:
-            self._run_repository.append_event(
-                scoped_run.id,
-                RunEventCandidate("run.cancelled", {"external_stop_confirmed": True}),
+        if (
+            current_run is not None
+            and current_run.status is RunStatus.CANCELLING
+            and (
+                current_run.executor_instance_id is None
+                or (
+                    active_task is not None
+                    and active_task.done()
+                    and current_run.executor_instance_id == self._executor_instance_id
+                )
             )
+        ):
+            self._confirm_run_cancelled(scoped_run.id)
         return self.get_scoped_run(
             run_id=scoped_run.id, organization_id=organization_id, owner_id=owner_id
         )

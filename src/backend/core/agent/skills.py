@@ -201,7 +201,26 @@ _SAFE_REFERENCE_FENCE_LANGUAGES = frozenset(
 
 _SHEBANG_PATTERN = re.compile(r"(?m)^\s*#!")
 
-_RUNNABLE_COMMAND_PATTERN = re.compile(r"(?im)^\s*(?:os\.system\(|subprocess\.|eval\(|exec\()")
+_EXECUTABLE_CONTENT_LINE_PATTERNS = (
+    re.compile(r"(?m)^\s*(?:from\s+[\w.]+\s+import\b|import\s+[\w.]+(?:\s+as\s+\w+)?\s*$)"),
+    re.compile(r"(?m)^\s*(?:async\s+)?def\s+[A-Za-z_]\w*\s*\("),
+    re.compile(r"(?m)^\s*class\s+[A-Za-z_]\w*(?:\s*\([^)]*\))?\s*:"),
+    re.compile(
+        r"(?m)^\s*(?:[A-Za-z_]\w*\s*=\s*)?"
+        r"(?:print|open|eval|exec|os\.system|subprocess\.\w+)\s*\("
+    ),
+    re.compile(
+        r"(?m)^\s*(?:function\s+[A-Za-z_$][\w$]*\s*\(|"
+        r"(?:const|let|var)\s+[\w$]+\s*=|"
+        r"console\.(?:log|error|warn)\s*\()"
+    ),
+    re.compile(
+        r"(?m)^\s*(?:\$\s*)?(?:sudo\s+)?"
+        r"(?:rm|curl|wget|python(?:3(?:\.\d+)?)?|node|npm|npx|pip(?:3)?|uv|docker|"
+        r"chmod|chown|bash|sh|apt(?:-get)?|brew|mkdir|touch|cp|mv|tar|echo|printf)\b"
+        r"(?:\s|$)"
+    ),
+)
 
 
 def validate_skill_body(body: str) -> str:
@@ -248,7 +267,7 @@ def validate_skill_body(body: str) -> str:
         )
         or any(
             pattern.search(normalized_body)
-            for pattern in (_SHEBANG_PATTERN, _RUNNABLE_COMMAND_PATTERN)
+            for pattern in (_SHEBANG_PATTERN, *_EXECUTABLE_CONTENT_LINE_PATTERNS)
         )
     ):
         raise ValueError("skill_executable_content_not_allowed")

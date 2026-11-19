@@ -407,7 +407,7 @@ class SqlAlchemyRunRepository:
             return True
 
     def heartbeat(self, run_id: str, instance_id: str, lease_expires_at: datetime) -> bool:
-        """续租当前执行实例。
+        """续租当前执行实例；Run 进入 cancelling 或终态后停止续租。
 
         读取必须和 ``append_event`` 抢同一把行锁。不加锁时这里读到的可能是终态提交
         前的旧版本：判定"还没终态"之后再把租约写回去，就会覆盖掉终态写清空的
@@ -420,7 +420,7 @@ class SqlAlchemyRunRepository:
             if (
                 run_model is None
                 or run_model.executor_instance_id != instance_id
-                or RunStatus(run_model.status) in TERMINAL_RUN_STATUSES
+                or RunStatus(run_model.status) in (TERMINAL_RUN_STATUSES | {RunStatus.CANCELLING})
             ):
                 return False
             run_model.lease_expires_at = lease_expires_at

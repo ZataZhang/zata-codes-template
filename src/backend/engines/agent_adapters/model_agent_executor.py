@@ -116,6 +116,27 @@ class OpenAICompatibleAgentExecutor(AgentExecutor):
         if tool_calls:
             if not isinstance(tool_calls, list):
                 raise RuntimeError("model_tool_response_invalid")
+            initial_reply_content = assistant_message.get("content")
+            initial_reply_text = (
+                initial_reply_content if isinstance(initial_reply_content, str) else ""
+            )
+            initial_reply_streamed = content_streamed
+            initial_reply_emitted = initial_reply_streamed
+            reply_separator_emitted = False
+
+            async def stream_final_reply_delta(delta_text: str) -> None:
+                """把工具调用前后的可见文本保持在同一回复顺序中。"""
+                nonlocal initial_reply_emitted, reply_separator_emitted
+                if on_delta is None:
+                    return
+                if initial_reply_text and not initial_reply_emitted:
+                    await on_delta(initial_reply_text)
+                    initial_reply_emitted = True
+                if initial_reply_text and not reply_separator_emitted:
+                    await on_delta("\n\n")
+                    reply_separator_emitted = True
+                await on_delta(delta_text)
+
             message_history.append(assistant_message)
             peer_by_id = {peer.id: peer for peer in peers}
             for tool_call_index, tool_call in enumerate(tool_calls[:2]):
@@ -204,12 +225,36 @@ class OpenAICompatibleAgentExecutor(AgentExecutor):
                 model_name=model_name,
                 messages=message_history,
                 tools=None,
-                on_delta=on_delta,
+                on_delta=stream_final_reply_delta if on_delta is not None else None,
             )
+            final_completion_streamed = content_streamed
             assistant_message = self._read_assistant_message(completion_response)
         final_content = assistant_message.get("content")
         if not isinstance(final_content, str):
             raise RuntimeError("model_response_content_missing")
+        if tool_calls:
+            final_assistant_text = final_content
+            if initial_reply_text and final_content:
+                final_content = f"{initial_reply_text}\n\n{final_content}"
+            elif initial_reply_text:
+                final_content = initial_reply_text
+            manually_emitted_final_text = False
+            if on_delta is not None:
+                if initial_reply_text and not initial_reply_emitted:
+                    await on_delta(initial_reply_text)
+                    initial_reply_emitted = True
+                if initial_reply_text and final_assistant_text and not reply_separator_emitted:
+                    await on_delta("\n\n")
+                    reply_separator_emitted = True
+                if final_assistant_text and not final_completion_streamed:
+                    await on_delta(final_assistant_text)
+                    manually_emitted_final_text = True
+            content_streamed = (
+                initial_reply_streamed
+                or final_completion_streamed
+                or initial_reply_emitted
+                or manually_emitted_final_text
+            )
         return AgentExecutionResult(
             content=final_content,
             model_name=model_name,

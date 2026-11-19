@@ -62,7 +62,7 @@ class RunRepository(Protocol):
         ...
 
     def heartbeat(self, run_id: str, instance_id: str, lease_expires_at: datetime) -> bool:
-        """续租当前执行实例。"""
+        """续租当前执行实例；Run 进入 cancelling 或终态后返回 False。"""
         ...
 
     def list_expired(self, now: datetime) -> Sequence[Run]:

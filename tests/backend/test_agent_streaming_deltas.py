@@ -321,3 +321,108 @@ def test_external_call_is_reported_before_followup_model_failure(
     assert completed_call.remote_task_id == "remote-task-1"
     assert completed_call.result_checksum == hashlib.sha256(b"remote answer").hexdigest()
     assert completed_call.result_length == len("remote answer")
+
+
+def test_tool_call_text_matches_the_persisted_final_reply(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """工具调用前后的流式文本与 Canonical 完成消息保持一致。"""
+    server = _StreamingModelServer(streaming=False)
+
+    class SuccessfulA2AClient:
+        async def send_message(
+            self, *, organization_id: str, peer_id: str, message: str, idempotency_key: str
+        ) -> A2AResponse:
+            assert (organization_id, peer_id, message) == ("org-1", "peer-1", "remote prompt")
+            assert idempotency_key.endswith(":a2a:0")
+            return A2AResponse(task_id="remote-task-1", content="remote answer")
+
+    try:
+        executor = _build_executor(server, monkeypatch)
+        executor._a2a_client = SuccessfulA2AClient()
+        completion_count = 0
+        received_fragments: list[str] = []
+
+        async def collect(delta_text: str) -> None:
+            received_fragments.append(delta_text)
+
+        async def scripted_completion(**kwargs: Any) -> tuple[dict[str, object], bool]:
+            nonlocal completion_count
+            completion_count += 1
+            delta_callback = kwargs.get("on_delta")
+            assert callable(delta_callback)
+            if completion_count == 1:
+                await delta_callback("Checking with the approved agent.")
+                return (
+                    {
+                        "choices": [
+                            {
+                                "message": {
+                                    "role": "assistant",
+                                    "content": "Checking with the approved agent.",
+                                    "tool_calls": [
+                                        {
+                                            "id": "model-tool-call-1",
+                                            "function": {
+                                                "name": "call_a2a_peer",
+                                                "arguments": json.dumps(
+                                                    {
+                                                        "peer_id": "peer-1",
+                                                        "message": "remote prompt",
+                                                    }
+                                                ),
+                                            },
+                                        }
+                                    ],
+                                }
+                            }
+                        ]
+                    },
+                    True,
+                )
+            await delta_callback("The answer is 42.")
+            return (
+                {
+                    "choices": [
+                        {
+                            "message": {
+                                "role": "assistant",
+                                "content": "The answer is 42.",
+                            }
+                        }
+                    ]
+                },
+                True,
+            )
+
+        monkeypatch.setattr(executor, "_create_completion", scripted_completion)
+        now = datetime.now(UTC)
+        peer = A2APeer(
+            id="peer-1",
+            organization_id="org-1",
+            created_by="admin-1",
+            name="Remote Agent",
+            card_url="https://peer.example/card",
+            endpoint_url="https://peer.example/a2a",
+            is_approved=True,
+            is_enabled=True,
+            approved_by="platform-admin-1",
+            created_at=now,
+            updated_at=now,
+        )
+
+        execution_result = asyncio.run(
+            executor.execute(
+                snapshot={"organization_id": "org-1", "run_id": "run-1"},
+                message="delegate this",
+                peers=(peer,),
+                callbacks=AgentExecutionCallbacks(on_delta=collect),
+            )
+        )
+    finally:
+        server.close()
+
+    assert completion_count == 2
+    assert "".join(received_fragments) == execution_result.content
+    assert execution_result.content == "Checking with the approved agent.\n\nThe answer is 42."
+    assert execution_result.content_streamed is True
