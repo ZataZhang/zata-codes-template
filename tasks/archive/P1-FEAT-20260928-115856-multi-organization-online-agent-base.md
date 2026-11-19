@@ -5,7 +5,7 @@
 > ✅ **交付前置**：无待完成依赖，可立即开工。组织表、普通用户归属与平台/组织两级管理员已由 `P1-FEAT-20261112-142923-organizations-and-two-tier-admins` 交付；本 PRD 可复用该组织范围与角色模型。
 > 结构化声明见 §8 Delivery Dependencies，**那里是唯一事实源**。
 
-> 🧍 **验收状态**：待人工验收 — 执行侧验收证据绑定最终源码树，7 项 RV 命令由 KedaCode 在该树复跑 7/7 通过，独立 verifier 对相同 HEAD/tree 给出 PASS（risk=yellow），GitHub CI 必需任务全绿；只剩 5 项 Human-Confirmed 待随 PR 合并接受并完成合并后树核对。限制与非阻塞风险见 Final Reconciliation。
+> ✅ **验收状态**：已验收 — PR #62 于 2026-11-19 合并；合并提交 `55174cbfb02bec30a4d5073ac0dcadd0a2763e16` 排除交付记录后的源码树与独立 verifier 验收树 `33a6ed4205fae48c94da25940609fedc564e2e86` 一致。PR 正文声明合并即接受 §9.2 五项决定，现已完成回填。限制与非阻塞风险见 Final Reconciliation。
 > 本行是 §9 Acceptance Checklist 的投影，**那里是唯一事实源**。
 
 > 本 PRD 分为 Part A 人审层和 Part B 执行器层。Part A 用于确认目标行为和关键取舍；Part B 记录实现路径与验证证据。
@@ -512,11 +512,11 @@ rv-3 真实实现（`real user flow`，1440×1200）：
 
 ### Human-Confirmed (来自 Part A 风险地图)
 
-- [ ] 确认 §2 的业务数据组织范围决定（组织与管理员本身由上游 PRD 验收）；证据为 `rv-1` 两组织负控、迁移前后数据对账和独立 verifier 结论。
-- [ ] 确认 §2 的稳定 Agent/单一 Run 事实源与失败闭合决定；证据为 `rv-2` 真实页面、历史和轨迹呈递。
-- [ ] 确认 §2 的 Skill 线性版本与恢复决定；证据为 `rv-3` 差异、版本链和两个 Run 快照呈递。
-- [ ] 确认 §2 的 A2A 双向互通与受控对端决定；证据为 `rv-7` 双向协议、跨组织和受限地址负控及 Run/Task 对账。
-- [ ] 审阅 §9.1 的真实前台与管理后台图、原型对照及披露差异；证据为最终可打开的人审呈递页或 PR 证据评论。
+- [x] 确认 §2 的业务数据组织范围决定（组织与管理员本身由上游 PRD 验收）；证据为 `rv-1` 两组织负控、迁移前后数据对账和独立 verifier 结论。PR #62 合并即接受。
+- [x] 确认 §2 的稳定 Agent/单一 Run 事实源与失败闭合决定；证据为 `rv-2` 真实页面、历史和轨迹呈递。PR #62 合并即接受。
+- [x] 确认 §2 的 Skill 线性版本与恢复决定；证据为 `rv-3` 差异、版本链和两个 Run 快照呈递。PR #62 合并即接受。
+- [x] 确认 §2 的 A2A 双向互通与受控对端决定；证据为 `rv-7` 双向协议、跨组织和受限地址负控及 Run/Task 对账。PR #62 合并即接受。
+- [x] 审阅 §9.1 的真实前台与管理后台图、原型对照及披露差异；证据为最终人审呈递页与 PR 证据评论。PR #62 合并即接受。
 
 ### Architecture Acceptance
 
@@ -551,7 +551,7 @@ rv-3 真实实现（`real user flow`，1440×1200）：
 
 ### Delivery Readiness
 
-- [~] §10 全部要求完成，无未解决发布和隔离阻塞；若有 PR，正文唯一关联本 PRD 并明确“合并即验收”，证据评论呈递 §9.1；合并后核对最终 tree 才能回填与归档 — runner-owned gate: PR、独立 verifier、归档与合并后回填。
+- [x] §10 全部要求完成，无未解决发布和隔离阻塞；PR #62 唯一关联本 PRD，正文明确“合并即验收”，稳定证据评论呈递 §9.1；合并后核对最终 tree 并回填本 PRD。CI run `44467737473` 在最终 PR head 全绿，合并树与 verifier 树一致。
 
 ## 10. Functional Requirements
 
@@ -610,7 +610,7 @@ rv-3 真实实现（`real user flow`，1440×1200）：
   - 当前最终验证 HEAD/tree 为 `1f0e635a47c8abdab1ed010226f128f3ea3317fa` / `33a6ed4205fae48c94da25940609fedc564e2e86`（delivery records、生成的 Playwright 文件和本机包缓存均排除）。RV-1 至 RV-7 的官方 `kc evidence check` 在该树 7/7 通过；七项负控在同一身份触发预期失败；独立 verifier 对同一 HEAD/tree 给出 PASS（risk=yellow），无未解决产品 BLOCKER。RV-2 主演示也在同一树按五步脚本真实浏览器录制，六段总长 169.48 秒；字幕抽帧检查通过，每步字幕可见 5–18 秒。SHA-256：`cbf7b94e858cf79cf0a9445abe9941dbde558acfd54b67fbdd5746b33477b6b8`。
   - 成员可见的增量回复改为真实 SSE 流式写入 `message.delta` 并由成员页轮询事件端点渲染；独立 verifier 在上一棵树上标记的 BLOCKER 由此闭环，RV-2 的增量断言会让旧实现变红。
 - Validation blocker: 无未解决的验证阻塞。历史 verifier 在 `e7b3d5d60` 上发现的成员增量回复 BLOCKER 已修复；本轮最终树上 RV 7/7、七项负控与独立 verifier PASS 对应。此前的 `REVIEW_INCIDENT / INCONCLUSIVE` 是执行器故障，不是产品 verdict，历史记录仍见 Issue #58 失败评论（https://github.com/ZataZhang/zata-codes-template/issues/58#issuecomment-6897865207）；当前有效 PASS 已关闭该门禁。
-- Validation follow-up: PR #62（https://github.com/ZataZhang/zata-codes-template/pull/62）已按用户授权进入合并收尾；合并后以 merge commit 计算排除交付记录的 tree，确认等于 `33a6ed4205fae48c94da25940609fedc564e2e86`，再回填 5 项 Human-Confirmed 和 `✅ 已验收` 横幅。
+- Validation follow-up: 已完成。PR #62（https://github.com/ZataZhang/zata-codes-template/pull/62）于 2026-11-19 合并，merge commit `55174cbfb02bec30a4d5073ac0dcadd0a2763e16` 排除交付记录、生成的 Playwright 文件与本机包缓存后的源码树为 `33a6ed4205fae48c94da25940609fedc564e2e86`，与 verifier 验收树一致；按 PR 正文的合并接受声明回填了 §9.2 五项 Human-Confirmed，并更新验收横幅。
 
 ## Change Log
 
@@ -757,3 +757,11 @@ rv-3 真实实现（`real user flow`，1440×1200）：
 - Reason: verifier verdict 和每项关键证据必须绑定最终源码树；人审页面、manifest 和 PR 需要呈递同一结果，才能支持用户授权的合并验收。
 - Impact: 仅更新最终验证 provenance、风险与审查呈递，不改变功能、组织边界、协议或验收 oracle。真实付费模型、公网第三方 Agent 和公网部署仍未验证；RV-5 使用本地 worktree upstream。五项 Human-Confirmed 继续保持未勾选，待合并后树核对。
 - Review: `just test` 540 passed、1 skipped；本地 OIDC 17 passed；`just lint --reuse`、`just lint --full`、严格 MkDocs 与 `git diff --check` 通过；CI run `44462357584` 的 Frontend Build、Playwright E2E (no-auth)、PostgreSQL、MySQL 全部通过。最终 verifier 另指出私有 peer 地址可登记但出站前会被策略拒绝、RV-2 负控在强制终止时可能遗留变异，以及本机有未列入 manifest 的历史调试文件；均已记录为非阻塞边界，当前证据包不把调试文件作为最终证据。
+
+### 按 PR 合并声明记录验收
+- Type: acceptance
+- Before: PR #62 已通过独立 verifier、真实入口验证和 CI，但归档 PRD 仍显示 `🧍 待人工验收`，五项 Human-Confirmed 未勾选，合并后树核对待完成。
+- After: PR #62 于 2026-11-19 合并，merge commit 为 `55174cbfb02bec30a4d5073ac0dcadd0a2763e16`；按相同排除规则计算的合并源码树 `33a6ed4205fae48c94da25940609fedc564e2e86` 与独立 verifier 验收树完全一致。PR 正文声明合并即接受 §9.2 五项决定，现已回填五项并将横幅更新为 `✅ 已验收`；§9 Delivery Readiness 已完成。
+- Reason: 用户明确要求提交并直接合并，且 PR 正文预先明确合并是接受事件；PR 合并后的树等价性核对确认被接受的源码与独立审查对象相同。
+- Impact: 只记录合并产生的人类验收事件与 merge provenance，不改变实现、验证树或范围。真实付费模型、公网第三方 Agent 和公网部署仍未验证。
+- Review: PR #62 为 `MERGED`；最终 PR head 的 CI run `44467737473` 中 Frontend Build、Playwright E2E (no-auth)、PostgreSQL、MySQL 全部通过；本地 `just test` 540 passed、1 skipped，OIDC 17 passed。Issue #58 已关闭并清除过期的 `agent/blocked`、`status/backlog` 标签。
