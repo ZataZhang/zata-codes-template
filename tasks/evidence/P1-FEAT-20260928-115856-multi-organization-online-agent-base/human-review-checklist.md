@@ -2,7 +2,7 @@
 
 共 5 项决定。请按顺序回答“同意”或“不同意并列出差异”。答案应回填 PRD §9.2 Human-Confirmed；此清单只是审查呈现面，不是第二事实源。PRD 已由 runner 归档：`tasks/archive/P1-FEAT-20260928-115856-multi-organization-online-agent-base.md`。
 
-已交叉核对：所有 rv-1–rv-7 真实入口证据通过，独立 verifier 与 runner 交付门禁另行处理。真实模型与公网外部 Agent 未验证；模型使用本地传输替身，A2A 使用官方 1.0 SDK 本地独立实现。
+最终验证身份：HEAD `1f0e635a47c8abdab1ed010226f128f3ea3317fa`，源码树 `33a6ed4205fae48c94da25940609fedc564e2e86`（排除交付记录、生成的 Playwright 文件与本机包缓存）。官方 `kc evidence check` RV-1–RV-7 全部通过；七项负控均在同一身份触发预期失败；独立 verifier **PASS（risk=yellow）**；GitHub CI run [44462357584](https://github.com/ZataZhang/zata-codes-template/actions/runs/44462357584) 四个必需任务全绿。剩余 5 项需由合并者确认；真实模型与公网外部 Agent 未验证，模型使用本地传输替身，A2A 使用官方 1.0 SDK 本地独立实现。
 
 ## 第 1 项 · 数据是否固定属于创建它的组织？
 
@@ -32,7 +32,7 @@ PRD §9.2 Human-Confirmed 第 2 条原文：
 
 <video controls preload="metadata" width="100%" src="rv-2-demo-multi-organization-agent.mp4">主演示录像：rv-2-demo-multi-organization-agent.mp4</video>
 
-本地录像（169 秒），按 PRD 五步脚本：发布 Agent → 运行中可见增量回复 → 重开历史与管理轨迹 → Skill 更新/比较/恢复为 v3 → 恢复后再运行冻结 v3、旧运行仍为 v1；每步中文字幕可见 ≥5 秒，模型步骤注明 mock、未验证真实模型。字幕原文见 `rv-2-caption-trace.txt`：`open "tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/rv-2-demo-multi-organization-agent.mp4"`
+本地录像（169.48 秒），按 PRD 五步脚本：发布 Agent → 运行中可见增量回复 → 重开历史与管理轨迹 → Skill 更新/比较/恢复为 v3 → 恢复后再运行冻结 v3、旧运行仍为 v1；逐帧检查的六段字幕可见 5–18 秒，画面互不相同。模型步骤注明 mock、未验证真实模型。SHA-256：`cbf7b94e858cf79cf0a9445abe9941dbde558acfd54b67fbdd5746b33477b6b8`。字幕原文见 `rv-2-caption-trace.txt`：`open "tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base/rv-2-demo-multi-organization-agent.mp4"`
 
 ![rv-2 真实 Agent Run](rv-2-agent-run.png)
 

@@ -5,7 +5,7 @@
 > ✅ **交付前置**：无待完成依赖，可立即开工。组织表、普通用户归属与平台/组织两级管理员已由 `P1-FEAT-20261112-142923-organizations-and-two-tier-admins` 交付；本 PRD 可复用该组织范围与角色模型。
 > 结构化声明见 §8 Delivery Dependencies，**那里是唯一事实源**。
 
-> 🧍 **验收状态**：待人工验收 — 执行侧全部验收项已在最终树取得证据，7 项 RV 命令经 KedaCode 复跑 7/7 通过；只剩 5 项 Human-Confirmed 待人工确认。独立 verifier 因执行器故障未返回有效 verdict，属 runner-owned 门禁，记录见 Final Reconciliation。
+> 🧍 **验收状态**：待人工验收 — 执行侧验收证据绑定最终源码树，7 项 RV 命令由 KedaCode 在该树复跑 7/7 通过，独立 verifier 对相同 HEAD/tree 给出 PASS（risk=yellow），GitHub CI 必需任务全绿；只剩 5 项 Human-Confirmed 待随 PR 合并接受并完成合并后树核对。限制与非阻塞风险见 Final Reconciliation。
 > 本行是 §9 Acceptance Checklist 的投影，**那里是唯一事实源**。
 
 > 本 PRD 分为 Part A 人审层和 Part B 执行器层。Part A 用于确认目标行为和关键取舍；Part B 记录实现路径与验证证据。
@@ -536,7 +536,7 @@ rv-3 真实实现（`real user flow`，1440×1200）：
 
 - [x] `rv-2` 与 `rv-3` 的真实页面流程通过；`rv-2-real-user-flow.txt` 与 `rv-3-real-user-flow.txt` 证明正式 API 请求，截图标注 `real user flow`，并与相同状态的目标原型并排呈递。
 - [x] 管理界面能查看 Agent 的 A2A 发布状态、卡片地址和本组织获授权对端；`rv-3-skill-version.png` 的真实管理页面操作与 `rv-7-a2a-bidirectional.txt` 的后续 A2A 入站/出站结果一致。
-- [x] 运行状态、事件、Skill 版本和历史在新会话/新请求中仍一致；证据报告列出关键 ID 来源、事务边界、禁止旁路、独立读取和最终 Git tree `afe83d98ac0026fd15794ccd9794b5385a9bd20c`。
+- [x] 运行状态、事件、Skill 版本和历史在新会话/新请求中仍一致；证据报告列出关键 ID 来源、事务边界、禁止旁路、独立读取和最终 Git tree `33a6ed4205fae48c94da25940609fedc564e2e86`。
 
 ### Dependency And Documentation Acceptance
 
@@ -547,7 +547,7 @@ rv-3 真实实现（`real user flow`，1440×1200）：
 ### Validation Acceptance
 
 - [x] `just test`、相关前端构建、`just e2e` 真实入口、A2A 独立实现互通和 `uv run mkdocs build --strict` 结果入证据包；真实模型/外部 Agent 连接无凭据，已在证据报告明确标为未验证及阻塞条件。
-- [~] 每项关键证据绑定最终 Git tree；入口、存储、权限或 UI 改动后重收相关 `rv-id`，独立 verifier 给出有效 `PASS`，无未解决 `BLOCKER` 或 `REVIEW_INCIDENT / INCONCLUSIVE` — runner-owned gate: 独立 verifier 与最终 tree 审查。
+- [x] 每项关键证据绑定最终 Git tree；入口、存储、权限或 UI 改动后重收相关 `rv-id`，独立 verifier 给出有效 `PASS`，无未解决 `BLOCKER` 或 `REVIEW_INCIDENT / INCONCLUSIVE` — runner-owned gate: 独立 verifier 与最终 tree 审查。证据和 verdict 均对应 `1f0e635a47c8abdab1ed010226f128f3ea3317fa` / `33a6ed4205fae48c94da25940609fedc564e2e86`。
 
 ### Delivery Readiness
 
@@ -602,15 +602,15 @@ rv-3 真实实现（`real user flow`，1440×1200）：
 - Interpretation: confirmed against final behavior — 双组织隔离、持久 Run、Skill 线性版本、失败闭合、双向 A2A、中性复制与三服务入口均与行为样例一致。
 - Public behavior and contracts: confirmed — `/agents`、`/agent-runs`、管理 API、A2A 1.0 REST、Run 资产与冻结 Skill 版本均由真实 API/UI 证据覆盖；浏览器只经一次 `/api` 代理，A2A 使用独立路径。
 - Related PRD status: confirmed — 组织与两级管理员上游 PRD 已归档交付，本 PRD 未改变其角色模型；未复制其他 pending PRD 的范围。
-- Requirements and risks: FR-1–FR-12 均有实现与证据；真实模型和公网外部 Agent 未验证，GitHub 同步抓取失败已披露；无关的既有管理员并发测试失败未隐藏，独立 verifier 与 runner 交付门禁待完成。
+- Requirements and risks: FR-1–FR-12 均有实现与证据；真实付费模型、公网外部 Agent 和公网部署未验证；GitHub 同步抓取失败后以本地 worktree upstream 验证同步脚本，未声称 GitHub 网络源通过。`just test-changed` 曾有一个不在改动文件内的管理员并发测试失败；不声称它是既有问题，也不以此豁免本轮 `just test` 或 CI。
 - Reconciled differences:
   - 新增 Skill 幂等重试迁移与 Run 冻结版本展示，属于 FR-4/FR-5 的明确实现，不改变用户可见需求。
   - Run 资产仅从 Canonical Event 投影，不增加资产表；A2A Task 不增加状态表。
   - Next.js 后端代理改为构建期配置，嵌套模板复制不触碰父仓库，均为原部署/分发契约的必要修复。
-  - 当前最终验证树为 `afe83d98ac0026fd15794ccd9794b5385a9bd20c`（delivery records、生成的 Playwright 文件和本机包缓存均排除）。RV-1 至 RV-7 均由 `kc evidence check` 在该树重跑并通过；RV-2 主演示也在同一树按五步脚本独立录制，时长 75.52 秒，附字幕轨迹与逐步检查结果。该结果只证明登记命令可复跑，不替代独立 verifier verdict。
+  - 当前最终验证 HEAD/tree 为 `1f0e635a47c8abdab1ed010226f128f3ea3317fa` / `33a6ed4205fae48c94da25940609fedc564e2e86`（delivery records、生成的 Playwright 文件和本机包缓存均排除）。RV-1 至 RV-7 的官方 `kc evidence check` 在该树 7/7 通过；七项负控在同一身份触发预期失败；独立 verifier 对同一 HEAD/tree 给出 PASS（risk=yellow），无未解决产品 BLOCKER。RV-2 主演示也在同一树按五步脚本真实浏览器录制，六段总长 169.48 秒；字幕抽帧检查通过，每步字幕可见 5–18 秒。SHA-256：`cbf7b94e858cf79cf0a9445abe9941dbde558acfd54b67fbdd5746b33477b6b8`。
   - 成员可见的增量回复改为真实 SSE 流式写入 `message.delta` 并由成员页轮询事件端点渲染；独立 verifier 在上一棵树上标记的 BLOCKER 由此闭环，RV-2 的增量断言会让旧实现变红。
-- Validation blocker: 独立 verifier 在 `e7b3d5d60` 上返回 RED 的唯一 BLOCKER 是成员界面缺少增量回复，本轮已按 finding 修复并在 `94f1e118` 重采 RV-2 证据；此前还有一次 `REVIEW_INCIDENT / INCONCLUSIVE`（executor 故障，无有效 verdict）记录在 Issue #58 的失败记录（https://github.com/ZataZhang/zata-codes-template/issues/58#issuecomment-6897865207）显示独立 verifier 对 codex、kimi、claude 的调用均未返回可解析 verdict，最终诊断为 Claude 个人额度耗尽；没有产品层面的 verifier finding，也不得记作 `PASS`。
-- Validation follow-up: 在 Issue #58（https://github.com/ZataZhang/zata-codes-template/issues/58）上通过正常 KedaCode 验证流程重跑独立 verifier；PR #62（https://github.com/ZataZhang/zata-codes-template/pull/62）保持 Draft，直到有效 verifier `PASS` 且最终 head/tree 证据一致后再请求人工审阅。
+- Validation blocker: 无未解决的验证阻塞。历史 verifier 在 `e7b3d5d60` 上发现的成员增量回复 BLOCKER 已修复；本轮最终树上 RV 7/7、七项负控与独立 verifier PASS 对应。此前的 `REVIEW_INCIDENT / INCONCLUSIVE` 是执行器故障，不是产品 verdict，历史记录仍见 Issue #58 失败评论（https://github.com/ZataZhang/zata-codes-template/issues/58#issuecomment-6897865207）；当前有效 PASS 已关闭该门禁。
+- Validation follow-up: PR #62（https://github.com/ZataZhang/zata-codes-template/pull/62）已按用户授权进入合并收尾；合并后以 merge commit 计算排除交付记录的 tree，确认等于 `33a6ed4205fae48c94da25940609fedc564e2e86`，再回填 5 项 Human-Confirmed 和 `✅ 已验收` 横幅。
 
 ## Change Log
 
@@ -749,3 +749,11 @@ rv-3 真实实现（`real user flow`，1440×1200）：
 - Reason: 关键决策 1 规定归属为空即无法归属、对任何人不可见；验收要点要求「失败必须显式返回」且跨组织凭据不得获知任务存在性；验收要点 1 要求成员看到最终回复；实施注意要求出站防 SSRF 且不接受运行时任意 URL。双栈崩溃与前台终态缺口会让 Issue #58 的对外互通与在线闭环在真实环境下不成立。
 - Impact: 收紧而不放宽边界：无归属 Run 由「可见」变为「拒绝落库」，空串 scope 由「放开全部」变为「查不到」，超上限工具调用由「部分成功」变为「显式失败」。A2A 错误响应体形态是协议可见变化，需由 rv-7 在交付树确认官方客户端仍可解析。本轮未处理的审查发现如实保留：出站响应体无字节上限、执行缺少总时长看门狗（心跳会在挂死期间续租）、多 worker 下同步事件写入可能让租约过期的 Run 被误判 INTERRUPTED、SSE 每客户端每秒一轮查询、两个前端都未按重试复用幂等键、`list_owner_runs` 与 `get_by_idempotency` 仍是仅按 owner 的端口方法。
 - Review: 交付树 `just test` 通过（571 passed、1 skipped，本地 OIDC 17 passed）；`uv run ruff check` 与 `ruff format --check` 对改动文件通过；`frontend-public` 的 `pnpm typecheck` 通过，`pnpm lint` 仅剩 `components/language-switcher.tsx` 一条本分支未触碰、main 上同样存在的历史错误；`uv run mkdocs build --strict` 通过；`evidence.json` 结构校验通过并把 rv-2/3/6/7 的来源树标注更正为证据文件自身记录的 `a7a1c85d984b9a80e0629fad29cdf488a22448ba`，同时在受影响项的 `risks` 写明采集树与交付树的差异。RV 逐项真实入口复采属 runner-owned 门禁，本轮不代勾选任何验收项，五项 Human-Confirmed 保持未勾选。
+
+### 最终验证树取得独立 verifier PASS
+- Type: validation
+- Before: Final Reconciliation、verification plan、evidence manifest 与人审页面仍引用旧验证树或把 verifier 标为待完成；RV-2 主演示呈递也没有最新时长、摘要和校验值。
+- After: 所有交付记录和呈递统一引用 HEAD `1f0e635a47c8abdab1ed010226f128f3ea3317fa` / 排除交付记录后的 tree `33a6ed4205fae48c94da25940609fedc564e2e86`。KedaCode 复跑 RV-1–RV-7 为 7/7，七项负控同树触发预期失败，独立 verifier 对相同身份返回 `PASS — risk=yellow`，无未解决产品 BLOCKER；GitHub CI run `44462357584` 四个必需任务全绿。主演示在同树重录，169.48 秒，六段字幕画面检查通过，视频 SHA-256 为 `cbf7b94e858cf79cf0a9445abe9941dbde558acfd54b67fbdd5746b33477b6b8`。
+- Reason: verifier verdict 和每项关键证据必须绑定最终源码树；人审页面、manifest 和 PR 需要呈递同一结果，才能支持用户授权的合并验收。
+- Impact: 仅更新最终验证 provenance、风险与审查呈递，不改变功能、组织边界、协议或验收 oracle。真实付费模型、公网第三方 Agent 和公网部署仍未验证；RV-5 使用本地 worktree upstream。五项 Human-Confirmed 继续保持未勾选，待合并后树核对。
+- Review: `just test` 540 passed、1 skipped；本地 OIDC 17 passed；`just lint --reuse`、`just lint --full`、严格 MkDocs 与 `git diff --check` 通过；CI run `44462357584` 的 Frontend Build、Playwright E2E (no-auth)、PostgreSQL、MySQL 全部通过。最终 verifier 另指出私有 peer 地址可登记但出站前会被策略拒绝、RV-2 负控在强制终止时可能遗留变异，以及本机有未列入 manifest 的历史调试文件；均已记录为非阻塞边界，当前证据包不把调试文件作为最终证据。

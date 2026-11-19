@@ -1,5 +1,15 @@
 ## 人审导航 / Human Review Navigation
 
+### Current delivery status (2026-11-19)
+
+- Verified HEAD: `1f0e635a47c8abdab1ed010226f128f3ea3317fa`; verified source tree with delivery records, generated Playwright files, and local package cache excluded: `33a6ed4205fae48c94da25940609fedc564e2e86`.
+- The official `kc evidence check` completed 7/7 with no failures or timeouts. All seven negative controls on that identity produced their expected failures. Independent verifier verdict: **PASS, risk=yellow**, with no unresolved product blocker; see [the verifier report](P1-FEAT-20260928-115856-multi-organization-online-agent-base.verifier-report.md). GitHub CI run [44462357584](https://github.com/ZataZhang/zata-codes-template/actions/runs/44462357584) passed all four required jobs; `just test` passed (540 passed, 1 skipped; local OIDC package 17 passed).
+- The separate real-browser primary demo was recorded on this identity: 169.48 seconds, six clips for the five scripted steps; caption frame inspection passed with each caption visible for 5–18 seconds. SHA-256: `cbf7b94e858cf79cf0a9445abe9941dbde558acfd54b67fbdd5746b33477b6b8`.
+- Limits: the model transport is a local OpenAI-compatible fixture; no live paid model, public third-party Agent, or public deployment is claimed. RV-5 used the local worktree as its sync upstream after GitHub fetches ended early. The independent verifier noted a non-blocking approval UX risk: private peer addresses can be registered, but outbound policy rejects private DNS results before HTTP.
+- The five Human-Confirmed decisions remain open until the authorized PR merge and merged-tree reconciliation. The report's dated sections below preserve historical snapshots and are superseded where their status differs from this section.
+
+### Historical verification snapshots
+
 Historical verified implementation tree: `afe83d98ac0026fd15794ccd9794b5385a9bd20c` (PRD/evidence delivery records, generated Playwright files, and local package cache excluded). Baseline HEAD: `66f6c4d024fac115e1f31606accdb92992ad44ca`. KedaCode re-executed all seven manifest commands against that tree with `kc evidence check`; all 7 passed, 0 failed, and 0 timed out. The tree identity helper removes excluded committed paths from its temporary index before applying source changes. RV-2's separate primary-demo run was also recaptured on that tree and used temporary Playwright staging files that are not part of the verified tree. The 2026-11-18 continuation below records later migration and Admin UI changes; historical RV-7 PASS evidence does not cover those changes.
 
 Latest recovery re-execution (2026-11-18): RV-2, RV-3, and RV-6 negative controls and positive commands all completed on source tree `41486d970b6d44610c2343ae09a8f6ffd36bafe8`, HEAD `39a3024c200437f6ed9ad3bc8ffb3ce0e09d2076`. RV-2 and RV-3 use the real browser/UI/API/database path with a local model transport fixture; RV-6 builds and starts the production Compose stack. The RV-6 build uses a temporary alternate lock whose 158 package versions and all distribution hashes were checked against `uv.lock`; only download URLs differ. These KedaCode re-executions are not an independent verifier verdict, and no Human-Confirmed item was changed.
@@ -10,11 +20,11 @@ Final recovery rerun (HEAD `c233281de8f7537f4444bc3054a31397e327a537`): first, e
 
 The primary demo was re-recorded and now follows the PRD's five-step script exactly, including the previously missing Skill update/compare/restore and the second Run with frozen versions; `rv-2-caption-trace.txt` lists every on-screen caption with its bounding box, and `scripts/inspect_primary_demo.py` (its output is appended to `rv-2-primary-demo.txt`) confirms each step's caption stays visible for at least five seconds and that the steps are visually distinct.
 
-The KedaCode command re-execution is not an independent verifier verdict. A fresh verifier verdict on this tree is still required; the earlier `REVIEW_INCIDENT / INCONCLUSIVE` runs never produced a valid verdict.
+At the time of this historical snapshot, the KedaCode re-execution was not an independent verifier verdict and a fresh verdict was still required. That gate was later closed by the PASS recorded in Current delivery status.
 
 Re-execution was repeated at this tree after the repair: `kc evidence check --evidence tasks/evidence/P1-FEAT-20260928-115856-multi-organization-online-agent-base --worktree .` reported **7/7 passed**. One earlier attempt lost rv-6 because the image build could not reach `fonts.googleapis.com` (`Failed to fetch 'Geist' from Google Fonts`); the same registered rv-6 command passed on an identical tree, so the production frontend build still needs outbound access to Google Fonts at build time — an external dependency, not a defect introduced here.
 
-Issue: [GitHub Issue #58](https://github.com/ZataZhang/zata-codes-template/issues/58). [Draft PR #62](https://github.com/ZataZhang/zata-codes-template/pull/62) remains open at the earlier WIP head `857691169b7bb66846cba12e23b0ea9c542ae1c6`; its last PostgreSQL and MySQL CI checks failed. The validated local head has not yet been published, so PR checks must be refreshed after the verifier gate is resolved. The listed presentations were cross-checked against their corresponding evidence reports.
+Historical publication snapshot: [GitHub Issue #58](https://github.com/ZataZhang/zata-codes-template/issues/58) and [PR #62](https://github.com/ZataZhang/zata-codes-template/pull/62). At that snapshot the PR still pointed to an earlier WIP head and its database CI jobs had failed; the current head and CI status are recorded above. The listed presentations were cross-checked against their corresponding evidence reports.
 
 | Outcome | Presentation and open command | Expected value |
 |---|---|---|
@@ -178,7 +188,7 @@ The comparison checks v1/v2/v3 ordering, v1/v2 comparison text, restored-current
 - Real public external Agent connectivity is **not verified**; A2A interoperability used the independent official local SDK client/server, which is the PRD’s permitted substitute.
 - GitHub-hosted sync fetching failed twice; local-upstream sync behavior is proven instead. No external credential is required to finish the local gates.
 - The production public frontend build fetches Google Fonts (`next/font`) at image-build time; one rv-6 attempt failed on that network call and the successful re-run is what is recorded. A build host without outbound access to `fonts.googleapis.com` will fail rv-6 for environmental reasons.
-- Independent verifier verdict and runner-owned PR/archive gates are pending. Human-Confirmed items remain open by design.
+- At the time of this historical report snapshot, the independent verifier verdict and runner-owned PR/archive gates were pending. Current status is recorded at the top of this report. Human-Confirmed items remain open by design until merge reconciliation.
 
 ## Pre-PR review repair (2026-11-17)
 
@@ -287,3 +297,13 @@ Source tree for this review repair: `17229bc4e836efa304b7cba997a0c84e94d136eb`; 
 - Same-tree RV-7 negative control detected the expected cross-organization task disclosure after a temporary mutant bypassed the access checks (`EXPECTED_FAIL`). Raw output: `rv-7-negative-control.txt`.
 - `UV_CACHE_DIR=/tmp/uv-cache-issue58 just test`: 570 passed, 1 skipped; local OIDC package: 17 passed. `just lint --reuse`, `just lint --full`, `uv run mkdocs build`, and `git diff --check` passed on the repaired tree.
 - These results cover the A2A repair tree; the runner-owned independent verifier and final review gates still require a fresh verdict. No PRD acceptance checkbox or Human-Confirmed item was changed.
+
+## 2026-11-19 final-tree verification and independent review
+
+- Final source identity: HEAD `1f0e635a47c8abdab1ed010226f128f3ea3317fa`, verified tree `33a6ed4205fae48c94da25940609fedc564e2e86` (delivery records, generated Playwright files, and local package cache excluded).
+- Official `kc evidence check` on that identity: **7/7 passed**, zero failures and timeouts. All seven negative controls were rerun on the same identity and produced their expected failures. The independent verifier's verdict is **PASS — risk=yellow**, with no unresolved product-level blocker; see [verifier-report.md](verifier-report.md).
+- RV-2 primary demo: real-browser recording 2/2 passed; six clips cover the five scripted steps, total 169.48 seconds. `inspect_primary_demo.py` passed; captions were distinct and visible for 5–18 seconds. Video SHA-256: `cbf7b94e858cf79cf0a9445abe9941dbde558acfd54b67fbdd5746b33477b6b8`.
+- Required local gate `just test`: 540 passed, 1 skipped; local OIDC package 17 passed. `just lint --reuse`, `just lint --full`, strict MkDocs build and `git diff --check` passed. GitHub CI run [44462357584](https://github.com/ZataZhang/zata-codes-template/actions/runs/44462357584) passed Frontend Build, Playwright E2E (no-auth), PostgreSQL, and MySQL.
+- Remaining disclosed limits: model calls use a local OpenAI-compatible fixture; public third-party Agent connectivity and public deployment were not tested. RV-5 used the local worktree as sync upstream after GitHub fetches ended early. The verifier noted a non-blocking approval UX issue: private peer addresses can be registered, but outbound policy rejects private DNS results before HTTP.
+- The verifier also noted RV-2 negative-control cleanup relies on `finally`; forced termination could leave its temporary source mutation behind. The recorded run completed, the final source identity matches the verified tree, and the working source file is restored. Historical debug artifacts are not used as current evidence.
+- Five Human-Confirmed decisions remain open until the declared PR merge and merged-tree reconciliation. The earlier dated sections preserve prior attempts and are superseded by this final status.
