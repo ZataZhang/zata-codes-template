@@ -84,22 +84,83 @@ button, input, select { font: inherit; color: inherit; }
 
 /* 1. 顶部工具条 */
 .topbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 9px 12px; }
-.repo { display: inline-flex; align-items: center; gap: 7px; font-weight: 650; }
-.repo-mark {
-  display: block; width: 24px; height: 24px; flex: none; border-radius: 7px;
+.repo {
+  display: inline-flex; align-items: center; gap: 8px; max-width: min(48vw, 280px);
+  padding: 3px 10px 3px 4px; border: 1px solid var(--border); border-radius: 9px;
+  background: linear-gradient(180deg, white, var(--background));
+  box-shadow: 0 1px 2px #17213a0c; font-weight: 650; cursor: pointer;
+}
+.repo:disabled { border-color: transparent; background: transparent; box-shadow: none; cursor: default; }
+.repo:not(:disabled):hover { border-color: var(--repo-tint-color); }
+.repo:focus-visible, .project-option:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.repo-mark { display: block; width: 24px; height: 24px; flex: none; border-radius: 7px; }
+#repo-name, .project-option strong, .project-option small {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.project-chevron {
+  width: 6px; height: 6px; flex: none; margin: -3px 1px 0 3px;
+  border: solid var(--muted-foreground); border-width: 0 1.5px 1.5px 0; transform: rotate(45deg);
+}
+.repo:disabled .project-chevron { display: none; }
+.repo:has(+ :popover-open) .project-chevron { transform: rotate(225deg); margin-top: 3px; }
+#project-menu {
+  position: fixed; inset: auto; margin: 0; width: min(340px, calc(100vw - 42px));
+  max-height: 60vh; padding: 6px; overflow: auto; color: var(--foreground);
+  background: white; border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: 0 12px 32px #19223821, 0 2px 6px #1922380c;
+}
+.project-menu-title { padding: 4px 9px 7px; font-size: 11px; font-weight: 600; color: var(--muted-foreground); }
+.project-option {
+  position: relative; display: grid; width: 100%; text-align: left; gap: 1px;
+  padding: 7px 32px 7px 10px; border: 0; border-radius: 7px; background: transparent; cursor: pointer;
+}
+.project-option small { font: 11px/1.6 var(--mono); color: var(--muted-foreground); }
+.project-option:hover { background: var(--secondary); }
+.project-option[aria-current] { background: var(--card); }
+.project-option[aria-current]::after {
+  content: ""; position: absolute; right: 13px; top: 40%; width: 5px; height: 9px;
+  border: solid var(--primary); border-width: 0 1.6px 1.6px 0; transform: rotate(45deg);
 }
 .chip {
   border-radius: 999px; background: var(--secondary); color: var(--muted-foreground);
   padding: 2px 8px; font-size: 11.5px; font-weight: 600;
 }
 .chip.mono { font-family: var(--mono); }
-.branch-picker {
-  max-width: min(42vw, 360px); min-height: 22px; border: 0; padding: 2px 24px 2px 8px;
-  cursor: pointer;
+.branch-control {
+  position: relative; display: inline-flex; align-items: center; min-width: 0;
+  max-width: min(42vw, 320px); color: var(--primary); font: 600 12px/1.4 var(--mono);
 }
+.branch-control:has(#branch-chip[hidden]):has(select[hidden]) { display: none; }
+.branch-mark { position: absolute; left: 9px; color: var(--muted-foreground); pointer-events: none; }
+#branch-chip { padding: 3px 7px 3px 30px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.branch-picker {
+  appearance: none; field-sizing: content; max-width: 100%; height: 32px;
+  padding: 0 27px 0 31px; border: 1px solid var(--border); border-radius: 9px;
+  background: var(--background); cursor: pointer; text-overflow: ellipsis;
+}
+.branch-picker:hover { border-color: var(--repo-tint-color); }
 .branch-picker:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .branch-picker:disabled { cursor: wait; opacity: 0.7; }
-.branch-picker[hidden] { display: none; }
+.branch-chevron {
+  position: absolute; right: 11px; width: 6px; height: 6px; margin-top: -3px;
+  border: solid var(--muted-foreground); border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg); pointer-events: none;
+}
+.branch-picker[hidden] + .branch-chevron { display: none; }
+@supports (appearance: base-select) {
+  .branch-picker, .branch-picker::picker(select) { appearance: base-select; }
+  .branch-picker { align-items: center; }
+  .branch-picker::picker-icon { display: none; }
+  .branch-picker::picker(select) {
+    margin-top: 6px; min-width: min(200px, 80vw); max-width: 90vw; max-height: 55vh; padding: 5px;
+    background: white; border: 1px solid var(--border); border-radius: 10px;
+    box-shadow: 0 10px 24px #19223821;
+  }
+  .branch-picker option { padding: 6px 9px; border-radius: 6px; overflow-wrap: anywhere; }
+  .branch-picker option:checked { background: var(--card); font-weight: 650; }
+  .branch-picker option:hover, .branch-picker option:focus-visible { background: var(--secondary); }
+  .branch-picker:open + .branch-chevron { transform: rotate(225deg); margin-top: 3px; }
+}
 
 .segmented {
   display: inline-flex; gap: 2px; border: 1px solid var(--border);
@@ -931,5 +992,3 @@ body.is-resizing-history, body.is-resizing-history * { cursor: col-resize !impor
   }
   .history-code-pane { border-top: 1px solid var(--border); border-left: 0; }
 }
-
-#project-picker { max-width: 25vw; font: inherit; color: inherit; background: transparent; border: 0; cursor: pointer; }

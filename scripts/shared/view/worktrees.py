@@ -12,9 +12,11 @@ import re
 import subprocess
 import sys
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from urllib.parse import urlsplit
 
+import projects
 import workspace
 import workspace_read
 
@@ -30,6 +32,45 @@ class _WorktreeRecord:
     head_revision: str
     branch_ref: str
     is_current: bool
+
+
+@lru_cache(maxsize=256)
+def project_scope_path(view_root: Path) -> Path:
+    """将查看目录映射到主工作树的对应目录，用作项目选择器的身份。
+
+    Args:
+        view_root: 当前实例实际提供文件服务的目录。
+
+    Returns:
+        主工作树内的对应路径；普通目录保留原路径。
+    """
+    try:
+        _, relative_scope, records = _read_worktree_records(view_root)
+    except (OSError, RuntimeError, ValueError, workspace.WorkspaceCommandError):
+        return view_root
+    return records[0].root_path / relative_scope if records else view_root
+
+
+def project_choices(current_port: int) -> list[dict]:
+    """按工作树归属合并菜单项，优先保留本页端口，其次选择主工作树。
+
+    Args:
+        current_port: 提供当前页面的实例端口。
+
+    Returns:
+        每个项目查看范围的一条可导航记录。
+    """
+    choices = {}
+    for service in projects.active_projects():
+        root = Path(service["root"])
+        scope = project_scope_path(root)
+        rank = (service["port"] != current_port, root != scope, str(root), service["port"])
+        if scope not in choices or rank < choices[scope][0]:
+            choices[scope] = (
+                rank,
+                {**service, "root": str(scope), "name": scope.name or str(scope)},
+            )
+    return [choices[scope][1] for scope in sorted(choices)]
 
 
 def build_worktree_options_payload(repository_root: Path) -> workspace_read.WorkspacePayload:

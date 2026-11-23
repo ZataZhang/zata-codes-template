@@ -12,14 +12,27 @@
 <div class="app">
   <!-- 顶部工具条 -->
   <header class="surface topbar">
-    <span class="repo">
+    <button type="button" class="repo" id="project-picker" popovertarget="project-menu"
+            title="切换项目" disabled>
       <img class="repo-mark" src="/assets/zview-mark.svg" alt="" width="24" height="24">
       <span id="repo-name">本仓库</span>
-      <select id="project-picker" aria-label="切换项目" title="切换项目" hidden></select>
+      <span class="project-chevron" aria-hidden="true"></span>
+    </button>
+    <nav id="project-menu" popover aria-label="切换项目">
+      <div class="project-menu-title">切换项目</div>
+      <div id="project-options"></div>
+    </nav>
+    <span class="branch-control">
+      <svg class="branch-mark" width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+           stroke-width="1.4" aria-hidden="true">
+        <circle cx="4" cy="3" r="1.6"/><circle cx="4" cy="13" r="1.6"/><circle cx="12" cy="4" r="1.6"/>
+        <path d="M4 4.6v6.8M12 5.6c0 3-2.2 4.4-5 4.4H4"/>
+      </svg>
+      <span class="mono" id="branch-chip">…</span>
+      <select class="mono branch-picker" id="branch-picker"
+              aria-label="选择工作区分支" title="切换到另一个已检出的 worktree" hidden></select>
+      <span class="branch-chevron" aria-hidden="true"></span>
     </span>
-    <span class="chip mono" id="branch-chip">…</span>
-    <select class="chip mono branch-picker" id="branch-picker"
-            aria-label="选择工作区分支" title="切换到另一个已检出的 worktree" hidden></select>
 
     <!-- 历史提交的只读浏览：返回入口放在仓库名旁边，和「你在看哪条提交」同一处。 -->
     <button type="button" class="head-action is-commit-return" id="commit-diff-exit" hidden>返回工作区改动</button>

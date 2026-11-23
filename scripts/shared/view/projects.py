@@ -101,7 +101,7 @@ class BrowserTabs:
             if action == "focus":
                 return {}
             self.condition.wait_for(lambda: tab in self.pending or tab not in self.tabs, timeout=12)
-            return {"command": self.pending.get(tab), "projects": active_projects()}
+            return {"command": self.pending.get(tab)}
 
     def _deliver(self, tab: str, url: object) -> dict:
         if tab not in self.tabs or tab in self.pending or not isinstance(url, str):

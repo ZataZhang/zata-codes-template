@@ -123,11 +123,11 @@ class ViewerHTTPServer(ThreadingHTTPServer):
             configuration (ServerConfiguration): 本次启动配置。
             request_handler_class (type[BaseHTTPRequestHandler]): 请求处理器类。
         """
-        self.tabs = projects.BrowserTabs()
         self.configuration = configuration
         self._activity_lock = threading.Lock()
         self._last_request_monotonic = time.monotonic()
         super().__init__((VIEWER_HOST, configuration.port), request_handler_class)
+        self.tabs = projects.BrowserTabs()
 
     @property
     def repository_root(self) -> Path:
@@ -241,15 +241,20 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
         elif route_path.startswith(_ASSET_ROUTE_PREFIX):
             self._serve_static_asset(route_path.removeprefix(_ASSET_ROUTE_PREFIX))
         elif route_path == "/api/info":
-            self._serve_workspace_payload(
-                workspace.build_info_payload(
-                    repository_root, git_available=self.server.git_available
-                )
+            workspace_info = workspace.build_info_payload(
+                repository_root, git_available=self.server.git_available
             )
+            if self.server.git_available:
+                workspace_info.payload["repo_name"] = worktrees.project_scope_path(
+                    repository_root
+                ).name
+            self._serve_workspace_payload(workspace_info)
         elif route_path == "/api/project-tabs":
             self._send_json_payload(200, {"tabs": self.server.tabs.recent()})
         elif route_path == "/api/projects":
-            self._send_json_payload(200, {"projects": projects.active_projects()})
+            self._send_json_payload(
+                200, {"projects": worktrees.project_choices(self.server.server_port)}
+            )
         elif route_path == "/api/worktrees":
             if not self.server.git_available:
                 self._send_json_payload(
@@ -391,7 +396,10 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
             if failure_payload:
                 self._send_json_payload(failure_payload.status_code, failure_payload.payload)
             else:
-                self._send_json_payload(200, self.server.tabs.handle(request_body))
+                response = self.server.tabs.handle(request_body)
+                if "command" in response:
+                    response["projects"] = worktrees.project_choices(self.server.server_port)
+                self._send_json_payload(200, response)
             return
         if requested_route_path == _FILE_TOGGLE_TASK_ROUTE_PATH:
             task_toggle_request, failure_payload = self._read_write_request_body()

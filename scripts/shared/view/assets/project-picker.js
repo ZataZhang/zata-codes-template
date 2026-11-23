@@ -7,31 +7,55 @@
     const post = (action, fields = {}) => requestJson("/api/project-tabs", {
       method: "POST", body: { action, tab, ...fields },
     });
+    const menu = document.getElementById("project-menu");
+    const options = document.getElementById("project-options");
+    menu.onbeforetoggle = (event) => {
+      if (event.newState === "open") {
+        const bounds = picker.getBoundingClientRect();
+        menu.style.left = `${bounds.left}px`;
+        menu.style.top = `${bounds.bottom + 6}px`;
+      }
+    };
+    menu.onkeydown = (event) => {
+      event.stopPropagation();
+      if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+      event.preventDefault();
+      const rows = [...options.children];
+      const current = rows.indexOf(document.activeElement);
+      const next = event.key === "Home" ? 0 : event.key === "End" ? rows.length - 1
+        : (current + (event.key === "ArrowDown" ? 1 : -1) + rows.length) % rows.length;
+      rows[next]?.focus();
+    };
     let renderedProjects;
     const render = (projects) => {
       const signature = JSON.stringify(projects);
       if (signature === renderedProjects) return;
       renderedProjects = signature;
-      const names = projects.map((project) => project.name);
-      picker.replaceChildren(...projects.map((project) => {
-        const label = names.indexOf(project.name) === names.lastIndexOf(project.name)
-          ? project.name : project.root;
-        const option = new Option(label, String(project.port));
-        option.title = project.root;
-        return option;
+      picker.disabled = projects.length < 2;
+      if (picker.disabled) menu.hidePopover();
+      options.replaceChildren(...projects.map((project) => {
+        const row = document.createElement("button");
+        row.type = "button";
+        row.className = "project-option";
+        const current = String(project.port) === location.port;
+        if (current) row.setAttribute("aria-current", "true");
+        const name = document.createElement("strong");
+        name.textContent = project.name;
+        const path = document.createElement("small");
+        path.textContent = project.root;
+        row.title = project.root;
+        row.append(name, path);
+        row.onclick = () => {
+          menu.hidePopover();
+          if (current) return;
+          if (busy()) {
+            elements.statusHint.textContent = "操作进行中，请稍后切换项目。";
+            return;
+          }
+          location.assign(`http://127.0.0.1:${project.port}/`);
+        };
+        return row;
       }));
-      picker.value = location.port;
-      picker.hidden = projects.length < 2;
-      elements.repoName.hidden = !picker.hidden;
-    };
-    picker.onchange = () => {
-      const port = picker.value;
-      picker.value = location.port;
-      if (busy()) {
-        elements.statusHint.textContent = "操作进行中，请稍后切换项目。";
-        return;
-      }
-      location.assign(`http://127.0.0.1:${port}/`);
     };
     const focus = () => { void post("focus").catch(() => {}); };
     window.addEventListener("focus", focus);
