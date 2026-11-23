@@ -931,3 +931,5 @@ body.is-resizing-history, body.is-resizing-history * { cursor: col-resize !impor
   }
   .history-code-pane { border-top: 1px solid var(--border); border-left: 0; }
 }
+
+#project-picker { max-width: 25vw; font: inherit; color: inherit; background: transparent; border: 0; cursor: pointer; }

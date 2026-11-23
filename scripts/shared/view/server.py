@@ -37,6 +37,7 @@ from urllib.parse import parse_qs, unquote, urlsplit
 
 import file_edit
 import instance
+import projects
 import rendering
 import workspace
 import workspace_read
@@ -53,6 +54,7 @@ _STATIC_CONTENT_TYPES_BY_FILENAME = {
     "viewer.css": "text/css; charset=utf-8",
     "zview-mark.svg": "image/svg+xml",
     "history-view.js": "application/javascript; charset=utf-8",
+    "project-picker.js": "application/javascript; charset=utf-8",
     "worktree-picker.js": "application/javascript; charset=utf-8",
     "viewer.js": "application/javascript; charset=utf-8",
     # 第三方产物（mermaid 的官方压缩包），只在页面真的遇到 mermaid 围栏时才按需取。
@@ -121,6 +123,7 @@ class ViewerHTTPServer(ThreadingHTTPServer):
             configuration (ServerConfiguration): 本次启动配置。
             request_handler_class (type[BaseHTTPRequestHandler]): 请求处理器类。
         """
+        self.tabs = projects.BrowserTabs()
         self.configuration = configuration
         self._activity_lock = threading.Lock()
         self._last_request_monotonic = time.monotonic()
@@ -183,7 +186,8 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802 - http.server 靠 do_<METHOD> 这个名字分发
         """唯一的读取入口：先刷新空闲计时，再按路由白名单分发。"""
-        self.server.mark_request_served()
+        if urlsplit(self.path).path != "/api/project-tabs":
+            self.server.mark_request_served()
         try:
             self._dispatch_read_request()
         except workspace.WorkspaceCommandError as read_error:
@@ -242,6 +246,10 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
                     repository_root, git_available=self.server.git_available
                 )
             )
+        elif route_path == "/api/project-tabs":
+            self._send_json_payload(200, {"tabs": self.server.tabs.recent()})
+        elif route_path == "/api/projects":
+            self._send_json_payload(200, {"projects": projects.active_projects()})
         elif route_path == "/api/worktrees":
             if not self.server.git_available:
                 self._send_json_payload(
@@ -378,6 +386,13 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
         ``POST /api/open`` 接受仓库内文件路径，或 ``/api/worktrees`` 返回的工作区标识。路径会先在
         服务端校验，工作区标识会重新与 Git 登记列表匹配，参数不会作为 shell 命令执行。
         """
+        if requested_route_path == "/api/project-tabs":
+            request_body, failure_payload = self._read_write_request_body()
+            if failure_payload:
+                self._send_json_payload(failure_payload.status_code, failure_payload.payload)
+            else:
+                self._send_json_payload(200, self.server.tabs.handle(request_body))
+            return
         if requested_route_path == _FILE_TOGGLE_TASK_ROUTE_PATH:
             task_toggle_request, failure_payload = self._read_write_request_body()
             if failure_payload is not None:
@@ -709,6 +724,7 @@ def run_server(configuration: ServerConfiguration) -> int:
         )
         return 1
 
+    project_record = projects.register(viewer_server.server_port, configuration.repository_root)
     _register_termination_signal_handlers(viewer_server)
     _start_highlight_prewarm_thread()
     _start_idle_reaper_thread(viewer_server)
@@ -723,6 +739,7 @@ def run_server(configuration: ServerConfiguration) -> int:
     try:
         viewer_server.serve_forever(poll_interval=_SERVE_POLL_INTERVAL_SECONDS)
     finally:
+        project_record.unlink(missing_ok=True)
         viewer_server.server_close()
         instance.clear_instance_record(
             configuration.repository_root,

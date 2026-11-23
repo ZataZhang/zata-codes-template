@@ -2925,5 +2925,10 @@
     }
   });
 
+  void window.connectZviewProjects({
+    requestJson, elements, hasUnsavedFileEdits,
+    busy: () => viewState.isSavingFile || viewState.isTogglingMarkdownTask ||
+      viewState.isStaging || viewState.isOpeningWorktree || viewState.isLoadingEditableSource,
+  });
   void initializeViewer();
 })();

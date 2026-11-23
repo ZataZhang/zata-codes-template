@@ -705,8 +705,39 @@ def _open_viewer_in_browser(url: str, *, report: str, no_open: bool) -> int:
     """
     print(f"{report}\n打开：{url}")
     if not no_open:
-        _hand_off_url_to_system_opener(url)
+        import projects
+
+        if projects.hand_off(url):
+            print("已有查看器标签页已接收请求。")
+            if sys.platform == "darwin":
+                _activate_mac_browser()
+        else:
+            _hand_off_url_to_system_opener(url)
     return 0
+
+
+def _activate_mac_browser() -> None:
+    """通过 Launch Services 找到默认浏览器并激活其已有进程。"""
+    import subprocess
+
+    # 只激活应用，不再次投递 URL。通过 AppKit 调用无需控制浏览器的自动化权限。
+    activation_script = """
+        ObjC.import("AppKit");
+        const workspace = $.NSWorkspace.sharedWorkspace;
+        const handler = workspace.URLForApplicationToOpenURL($.NSURL.URLWithString("http://127.0.0.1/"));
+        const bundleId = $.NSBundle.bundleWithURL(handler).bundleIdentifier;
+        const running = $.NSRunningApplication.runningApplicationsWithBundleIdentifier(bundleId);
+        const options = $.NSApplicationActivateIgnoringOtherApps;
+        if (running.count && !running.objectAtIndex(0).activateWithOptions(options)) {
+            throw Error("无法将浏览器带到前台");
+        }
+    """
+    subprocess.Popen(
+        ["/usr/bin/osascript", "-l", "JavaScript", "-e", activation_script],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        start_new_session=True,
+    )
 
 
 def _hand_off_url_to_system_opener(url: str) -> None:
