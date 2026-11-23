@@ -188,7 +188,8 @@ view *args:
 最多一次；`zview --no-fetch` / `just view --no-fetch` 可跳过。默认视图不等待网络；进入 Git Log
 会等正在进行的 fetch 完成，失败时明确提示并显示本地引用。
 
-`just view-install` 会把 `scripts/shared/view/zview` 链接到 `~/.local/bin/zview`。全局入口以
+`just view-install` 会把 `scripts/shared/view/zview` 链接到 `~/.local/bin/zview`（Windows 上改为
+生成转发到 `launch.py` 的 `~/.local/bin/zview.cmd`）。全局入口以
 目标目录作为工作区根：Git 子目录中的 Git 命令按该子树过滤；非 Git 目录走文件系统扫描，
 不在目标目录写入登记或日志。
 
