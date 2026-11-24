@@ -439,7 +439,7 @@ uv run pre-commit run --all-files
 
 ### `just test` 的超时兜底
 
-`just test` 里的两个重活——`just lint --full` 前置和 `uv run pytest`——都经 `scripts/shared/just/with_timeout.py` 执行。它与 `timeout(1)` 的区别是**按进程组收尸**：无论超时还是正常退出，都会确认被包装命令的整个进程组已清空，有残留就 SIGTERM → 宽限 → SIGKILL。之所以自带一个而不直接用 `timeout`，是因为 macOS 既没有 `timeout` 也没有 `gtimeout`，写进共享 recipe 会出现"CI 正常、本地全挂"。
+`just test` 通过 `uv run --no-sync python` 启动 `scripts/shared/just/with_timeout.py`，让依赖同步仍在 `just lint --full` 和 `uv run pytest` 的超时预算内。脚本在顶层命令超时或正常退出后都回收进程树。POSIX 上对独立进程组发送 SIGTERM，宽限期后用 SIGKILL。Windows 上在派生命令前加入 Job Object，关闭 Job 的最后一个句柄时由系统终止残留进程。
 
 这么做是因为 `just test` 的真实死法不是跑得慢，而是**顶层进程退出后 lint / pytest 子树还活着**——曾出现手敲的三次 `just test` 在 14 小时后仍常驻内存，只杀顶层进程对这种情况完全无效。
 
@@ -447,7 +447,7 @@ uv run pre-commit run --all-files
 |---|---|---|
 | `JUST_LINT_TIMEOUT_SECONDS` | `1800` | `just test` 内的 `just lint --full` 前置 |
 | `JUST_TEST_TIMEOUT_SECONDS` | `3600` | `just test` 内的 `uv run pytest` |
-| `WITH_TIMEOUT_GRACE` | `10` | SIGTERM 到 SIGKILL 的宽限秒数 |
+| `WITH_TIMEOUT_GRACE` | `10` | POSIX 上 SIGTERM 到 SIGKILL 的宽限秒数 |
 
 默认值只用来把"挂死"和"跑得慢"区分开，取值刻意宽松，健康的运行不可能碰到；测试套件特别慢的项目在自己的 `.env` 或 shell 里调高即可。**超时触发时 `just test` 以退出码 124 结束**（沿用 GNU `timeout` 约定），这表示被回收而非测试失败，排查时应先看是什么卡住了。
 
