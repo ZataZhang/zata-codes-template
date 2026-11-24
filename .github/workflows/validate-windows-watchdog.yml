@@ -1,0 +1,71 @@
+name: Verify Windows test watchdog
+
+on:
+  push:
+    branches: [validation/windows-test-watchdog]
+
+permissions:
+  contents: read
+
+jobs:
+  windows-git-bash:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    env:
+      PYTHONUTF8: "1"
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Keep shell scripts in LF format
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: extractions/setup-just@v3
+        with:
+          just-version: "1.53.0"
+      - uses: astral-sh/setup-uv@v4
+      - name: Run the real shared test recipe in an isolated template project
+        env:
+          CI: ""
+        run: |
+          set -euo pipefail
+          fixture="$(mktemp -d)"
+          mkdir -p "$fixture/scripts" "$fixture/hooks" "$fixture/tests/guards/shared"
+          cp -r scripts/shared "$fixture/scripts/"
+          cp -r hooks/shared "$fixture/hooks/"
+          cp justfile.shared .pre-commit-config.yaml ruff.toml "$fixture/"
+          cp tests/guards/shared/test_with_timeout.py "$fixture/tests/guards/shared/"
+          cd "$fixture"
+          cat > justfile <<'JUST'
+          import 'justfile.shared'
+          export JUST_LOCAL_TEST_TARGET := "tests/guards/shared/test_with_timeout.py"
+          JUST
+          cat > pyproject.toml <<'TOML'
+          [project]
+          name = "win-watchdog-fixture"
+          version = "0.0.0"
+          requires-python = ">=3.13"
+          dependencies = ["pre-commit==4.5.1", "pytest==9.0.2"]
+          TOML
+          git init -q
+          git add .
+          git -c user.name="CI" -c user.email="ci@example.invalid" commit -qm "Initialize validation project"
+          uv run --no-sync python -c 'import sys; assert sys.platform == "win32"'
+          stub_dir="$(mktemp -d)"
+          cat > "$stub_dir/python3" <<'STUB'
+          #!/bin/sh
+          touch "${0%/*}/python3-called"
+          exit 49
+          STUB
+          chmod +x "$stub_dir/python3"
+          export PATH="$stub_dir:$PATH"
+          just test
+          test ! -e "$stub_dir/python3-called"
+          test -s "$(git rev-parse --path-format=absolute --git-path .last_tested_commit)"
+          just test | tee "$stub_dir/warm-test.log"
+          grep -F 'skipping tests.' "$stub_dir/warm-test.log"
