@@ -1,20 +1,14 @@
-"""Run a command under a wall-clock timeout and reap its whole process group.
+"""运行带超时的命令，退出时回收整棵进程树。
 
-Unlike ``timeout(1)`` this helper always verifies that the command's process
-group is empty before returning, on both the timeout path and the normal-exit
-path. That is the behaviour ``just test`` needs: its real failure mode is the
-top-level process exiting while a lint or pytest subtree stays alive forever.
-
-It is also why this is a Python script rather than ``timeout``: macOS ships
-neither ``timeout`` nor ``gtimeout``, so a bare ``timeout`` call in a shared
-recipe would silently work on CI and break on every developer laptop.
+POSIX 使用独立进程组，Windows 使用 Job Object。即使顶层 lint 或 pytest 命令
+已经退出，也会清理它留下的后代进程。
 
 用法::
 
-    python3 scripts/shared/just/with_timeout.py <秒数> <命令> [参数...]
+    uv run python scripts/shared/just/with_timeout.py <秒数> <命令> [参数...]
 
 环境变量：
-    WITH_TIMEOUT_GRACE   SIGTERM 到 SIGKILL 的宽限秒数（默认 10）
+    WITH_TIMEOUT_GRACE   POSIX 上 SIGTERM 到 SIGKILL 的宽限秒数（默认 10）
     WITH_TIMEOUT_QUIET   设为 1 时不打印回收日志
 
 退出码：透传被包装命令的退出码；超时则为 124（沿用 GNU timeout 约定）。
@@ -44,8 +38,7 @@ FORWARDED_SIGNALS = tuple(
     )
     if signal_number is not None
 )
-#: Windows 没有进程组原语（os.killpg / os.getpgrp）；此时只回收直接子进程，
-#: 并让本脚本在 Windows 上仍可被 import 与收集。
+#: Windows 通过 Job Object 清理进程树，不使用 POSIX 进程组原语。
 SUPPORTS_PROCESS_GROUPS = hasattr(os, "killpg") and hasattr(os, "getpgrp")
 
 
@@ -173,16 +166,27 @@ def _install_signal_forwarding(process_group_id: int) -> dict[int, object]:
 
 
 def run(timeout_seconds: float, command: list[str], grace_seconds: float) -> int:
-    """Run a command with a timeout, then guarantee its process group is empty.
+    """运行带超时的命令，并在返回前清理其进程树。
 
     Args:
-        timeout_seconds: Wall-clock budget before the command is torn down.
-        command: Argument vector to execute.
-        grace_seconds: Seconds between SIGTERM and SIGKILL when reaping.
+        timeout_seconds: 命令超时秒数。
+        command: 要执行的命令及参数。
+        grace_seconds: POSIX 上 SIGTERM 到 SIGKILL 的宽限秒数。
 
     Returns:
-        int: The command's exit code, or 124 when the timeout fired.
+        命令退出码，超时时为 124。
     """
+    if sys.platform == "win32":
+        from with_timeout_windows import run_in_job
+
+        try:
+            return run_in_job(timeout_seconds, command)
+        except subprocess.TimeoutExpired:
+            log(f"Command timed out after {timeout_seconds:g}s.")
+            return TIMEOUT_EXIT_CODE
+        except KeyboardInterrupt:
+            return 128 + signal.SIGINT
+
     try:
         # start_new_session 让子进程成为新 session 的组长（pgid == 其 pid），整棵
         # 子树因此落在一个可被精确回收的组里，不会误伤同终端的其它进程。
@@ -213,7 +217,7 @@ def run(timeout_seconds: float, command: list[str], grace_seconds: float) -> int
     reap_group(child_group_id, grace_seconds, "命令已退出")
 
     if not SUPPORTS_PROCESS_GROUPS and child.poll() is None:
-        # Windows：没有进程组可回收，超时后至少确保直接子进程被终止。
+        # 其他缺少进程组支持的平台保留直接子进程回收。
         child.kill()
         child.wait()
 
@@ -249,4 +253,8 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv))
+    exit_code = main(sys.argv)
+    if sys.platform == "win32" and exit_code >= 2**31:
+        # Python 的 SystemExit 接收有符号整数，Windows 进程状态是 32 位无符号值。
+        exit_code -= 2**32
+    sys.exit(exit_code)

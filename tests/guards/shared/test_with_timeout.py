@@ -10,8 +10,7 @@
 1. **0 / 1 / 自身进程组永不可被整组发信号。** 这不是防御性冗余：曾有 watchdog
    把 ``MagicMock.__index__``（默认返回 1）当成进程组，真的对 1 号组发了 SIGKILL
    把 runner 自己打没。去掉这层守卫会重演同一事故。
-2. **命令正常退出后仍要清空进程组。** `just test` 的真实死法就是顶层退出、
-   lint/pytest 子树留着，只杀顶层等于没杀。
+2. **命令正常退出或超时后都要清理后代进程。** Windows 上同样保证这条约定。
 """
 
 from __future__ import annotations
@@ -19,6 +18,8 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
+
+import pytest
 
 # with_timeout.py 不是包的一部分，import 前需把它所在目录放到 sys.path。
 _JUST_SCRIPTS_PATH = Path(__file__).resolve().parents[3] / "scripts" / "shared" / "just"
@@ -31,7 +32,21 @@ _GRACE_SECONDS = 5.0
 
 
 def _pid_alive(pid: int) -> bool:
-    """用 signal 0 判断单个进程是否存活。"""
+    """只观察进程状态，允许 Windows 等待 Job 终止生效。"""
+    if sys.platform == "win32":
+        import _winapi
+
+        try:
+            process_handle = _winapi.OpenProcess(_winapi.SYNCHRONIZE, False, pid)
+        except OSError as error:
+            if error.winerror == 87:  # ERROR_INVALID_PARAMETER：指定 PID 已不存在。
+                return False
+            raise
+        try:
+            return _winapi.WaitForSingleObject(process_handle, 3000) == _winapi.WAIT_TIMEOUT
+        finally:
+            _winapi.CloseHandle(process_handle)
+
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
@@ -47,11 +62,13 @@ def test_refuses_to_signal_reserved_process_groups() -> None:
     assert with_timeout.is_signalable_group(1) is False
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows 使用 Job Object")
 def test_refuses_to_signal_own_process_group() -> None:
     """对自己所在的进程组发信号等于自杀，必须被拒绝。"""
     assert with_timeout.is_signalable_group(os.getpgrp()) is False
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows 使用 Job Object")
 def test_accepts_a_foreign_process_group() -> None:
     """正常的子进程组（组 id == 子进程 pid）应当放行，守卫不能误伤真实场景。"""
     foreign_group_id = os.getpgrp() + 10_000
@@ -73,20 +90,25 @@ def test_returns_timeout_exit_code_when_command_hangs() -> None:
     assert exit_code == with_timeout.TIMEOUT_EXIT_CODE
 
 
-def test_reaps_subtree_left_behind_after_normal_exit(tmp_path: Path) -> None:
-    """顶层命令正常退出但留下子进程时，整组仍必须被清空。"""
+@pytest.mark.parametrize("root_times_out", [False, True], ids=["normal-exit", "timeout"])
+def test_reaps_subtree_left_behind(tmp_path: Path, root_times_out: bool) -> None:
+    """顶层自然退出或超时时，均回收仍在运行的后代。"""
     pid_file = tmp_path / "orphan.pid"
-    spawn_then_exit = (
-        "import pathlib, subprocess, sys;"
-        "orphan = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)']);"
+    spawn_descendant = (
+        "import pathlib, subprocess, sys, time;"
+        "orphan = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(20)']);"
         f"pathlib.Path({str(pid_file)!r}).write_text(str(orphan.pid), encoding='utf-8')"
     )
+    command_source = spawn_descendant + "; time.sleep(20)" if root_times_out else spawn_descendant
+    timeout_seconds = 3.0 if root_times_out else 30.0
+    exit_code = with_timeout.run(
+        timeout_seconds, [sys.executable, "-c", command_source], _GRACE_SECONDS
+    )
 
-    exit_code = with_timeout.run(30.0, [sys.executable, "-c", spawn_then_exit], _GRACE_SECONDS)
-
-    assert exit_code == 0
+    expected_exit_code = with_timeout.TIMEOUT_EXIT_CODE if root_times_out else 0
+    assert exit_code == expected_exit_code
     orphan_pid = int(pid_file.read_text(encoding="utf-8"))
-    assert not _pid_alive(orphan_pid), f"子进程 {orphan_pid} 在顶层退出后仍存活，回收失效"
+    assert not _pid_alive(orphan_pid), f"顶层命令结束后，子进程 {orphan_pid} 仍存活"
 
 
 def test_reports_missing_command_without_raising() -> None:

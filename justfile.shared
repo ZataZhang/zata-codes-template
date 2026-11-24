@@ -1387,12 +1387,12 @@ test type="local": _check-completion
     # `just test` has no watchdog of its own, and its real failure mode is the
     # top-level process exiting while a lint or pytest subtree stays alive: three
     # hand-run `just test` trees were once still resident 14 hours later. Both
-    # heavy steps therefore run under with_timeout.py, which tears the whole
-    # process group down instead of only the top process. These budgets exist to
+    # heavy steps therefore run under with_timeout.py, which reaps the whole
+    # process tree. Keep dependency sync inside the timeout. These budgets
     # tell a hang apart from slow work, so they are deliberately generous — a
     # healthy run never reaches them. Projects with a slower suite raise
     # JUST_TEST_TIMEOUT_SECONDS in their own .env or shell.
-    with_timeout=(python3 ./scripts/shared/just/with_timeout.py)
+    with_timeout=(uv run --no-sync python ./scripts/shared/just/with_timeout.py)
     lint_timeout_seconds="${JUST_LINT_TIMEOUT_SECONDS:-1800}"
     pytest_timeout_seconds="${JUST_TEST_TIMEOUT_SECONDS:-3600}"
 
