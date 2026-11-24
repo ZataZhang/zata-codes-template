@@ -14,7 +14,10 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
-from backend.infrastructure.config.startup import build_startup_environment
+from backend.infrastructure.config.startup import (
+    build_startup_environment,
+    find_sensitive_startup_keys,
+)
 
 
 def test_startup_environment_preserves_strings_and_json_types() -> None:
@@ -55,6 +58,29 @@ def test_startup_environment_rejects_invalid_documents(invalid_document: dict[st
             invalid_document, credential_names=("READER_USER", "READER_PASSWORD")
         )
     assert "secret" not in str(config_error.value)
+
+
+def test_sensitive_startup_keys_cover_secret_names_and_credential_urls() -> None:
+    """按键名后缀和内嵌凭据的 URL 识别疑似密钥，普通配置不误报。"""
+    assert find_sensitive_startup_keys(
+        {
+            "DB_PASSWORD": "x",
+            "MODEL_API_KEY": "x",
+            "USER_OIDC_CLIENT_SECRET": "x",
+            "SERVICE_TOKEN": "x",
+            "DATABASE_URL": "postgresql://app:pw@db.internal:5432/app",
+            "REDIS_URL": "redis://redis.internal:6379/0",
+            "PASSWORD_MIN_LENGTH": "12",
+            "TOKEN_TTL_SECONDS": "3600",
+            "APP_NAME": "demo",
+        }
+    ) == [
+        "DATABASE_URL",
+        "DB_PASSWORD",
+        "MODEL_API_KEY",
+        "SERVICE_TOKEN",
+        "USER_OIDC_CLIENT_SECRET",
+    ]
 
 
 @pytest.fixture
@@ -208,6 +234,9 @@ def test_settings_and_database_use_remote_config_before_initialization(
         {"feature_enabled": True},
     ]
     assert len(state["requests"]) == 1
+    # 远端文档含 POSTGRES_PASSWORD：只告警键名，不回显值，也不阻断启动
+    assert "疑似密钥的键：POSTGRES_PASSWORD" in completed.stderr
+    assert "remote-secret" not in completed.stderr
 
 
 @pytest.mark.parametrize(

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import re
 from concurrent.futures import ThreadPoolExecutor
@@ -12,6 +13,15 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .settings import ConfigProviderSettings
+
+logger = logging.getLogger(__name__)
+
+# 键名最后一段命中这些词时视为疑似密钥，例如 DB_PASSWORD、MODEL_API_KEY、CLIENT_SECRET
+SENSITIVE_KEY_SUFFIXES = frozenset(
+    {"PASSWORD", "PASSWD", "SECRET", "TOKEN", "KEY", "CREDENTIAL", "CREDENTIALS"}
+)
+# 形如 scheme://user:password@host 的值内嵌了凭据，例如带密码的 DATABASE_URL
+URL_WITH_CREDENTIALS_PATTERN = re.compile(r"://[^/\s@:]+:[^/\s@]+@")
 
 
 def build_startup_environment(
@@ -56,6 +66,26 @@ def build_startup_environment(
     return startup_environment
 
 
+def find_sensitive_startup_keys(startup_environment: dict[str, str]) -> list[str]:
+    """找出 Nacos 启动配置中疑似密钥的键名。
+
+    Nacos 读取账号能看到配置正文，密钥应改由部署环境或 OpenBao 注入；
+    这里只做提醒，不阻断启动，也不返回任何配置值。
+
+    Args:
+        startup_environment: ``build_startup_environment`` 返回的环境变量字典。
+
+    Returns:
+        按字母排序的疑似密钥键名列表。
+    """
+    return sorted(
+        config_key
+        for config_key, config_value in startup_environment.items()
+        if config_key.rsplit("_", 1)[-1] in SENSITIVE_KEY_SUFFIXES
+        or URL_WITH_CREDENTIALS_PATTERN.search(config_value)
+    )
+
+
 def load_startup_configuration(
     settings: ConfigProviderSettings, *, config_file_path: Path
 ) -> dict[str, object]:
@@ -94,6 +124,12 @@ def load_startup_configuration(
         config_snapshot,
         credential_names=(settings.nacos_username_env, settings.nacos_password_env),
     )
+    sensitive_config_keys = find_sensitive_startup_keys(startup_environment)
+    if sensitive_config_keys:
+        logger.warning(
+            "Nacos 启动配置包含疑似密钥的键：%s；建议改由部署环境或 OpenBao 注入。",
+            ", ".join(sensitive_config_keys),
+        )
     for config_key, config_value in startup_environment.items():
         os.environ.setdefault(config_key, config_value)
     runtime_snapshot = config_snapshot.get("runtime_config", {})

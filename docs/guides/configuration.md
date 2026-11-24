@@ -129,8 +129,11 @@ Data ID 后缀不决定解析格式；沿用现有 ID 时无需改连接配置�
 未启用 Nacos 时仍从本地 TOML 的 `[runtime_config]` 读取。旧的纯运行时 JSON 文档需要将业务键
 移入 `runtime_config`，顶层只放大写环境变量名。
 
-数据库、API Key 等敏感配置建议继续通过部署环境或密钥管理系统提供；
+数据库、API Key 等敏感配置应通过部署环境或密钥管理系统提供，做法见下节「密钥与 OpenBao」；
 如果存入 Nacos，拥有该配置读取权限的账号可以获取其值。Nacos 连接账号应使用应用只读账号。
+Nacos 文档中出现疑似密钥的键时，启动日志会记录一条警告，只列键名、不输出值，也不阻断启动：
+键名最后一段为 `PASSWORD`、`PASSWD`、`SECRET`、`TOKEN`、`KEY`、`CREDENTIAL(S)`，
+或值是内嵌账号密码的 URL（如 `postgresql://user:pass@host/db`）。
 加载器复用现有 provider 的认证、读取、文档解析和关闭逻辑，不在日志中输出配置正文。
 本地 `.env.local` / 容器环境的同名项会覆盖 Nacos，因此线上不要保留不必要的旧覆盖项。
 
@@ -141,6 +144,56 @@ Data ID 后缀不决定解析格式；沿用现有 ID 时无需改连接配置�
 和 `NACOS_PASSWORD` 应使用专门的应用账号，并只授予目标 Namespace / Group / Data ID 的读取
 权限；它们与 Nacos 服务容器自身的 `NACOS_AUTH_TOKEN`、identity key/value 是不同凭据。
 
+
+## 密钥与 OpenBao
+
+Nacos 保存普通配置，密钥由 OpenBao 保管。两者都以**同名环境变量**进入应用，应用代码不需要区分来源：
+进程环境变量优先于 Nacos，因此 OpenBao 注入的值会覆盖 Nacos 中的同名项。
+
+| 放 Nacos | 放 OpenBao |
+| --- | --- |
+| `APP_NAME`、`DB_HOST`、`DB_PORT`、开关、阈值、公开地址 | `NACOS_PASSWORD`、`POSTGRES_PASSWORD`、`MODEL_API_KEY`、`*_CLIENT_SECRET`、对象存储密钥 |
+| 不含账号密码的 `REDIS_URL` | 内嵌账号密码的 `DATABASE_URL`、`REDIS_URL`（整条 URL 作为一个密钥） |
+
+判断标准：值泄露后需要立即更换的放 OpenBao。连接 Nacos 的 `NACOS_PASSWORD` 也放 OpenBao，
+这样部署环境中只剩不敏感的 Nacos 地址、Namespace、Group 和 Data ID。
+
+### 通过 Dokploy Secrets Providers 注入
+
+Dokploy v0.30.0 起支持在部署时从 OpenBao 读取密钥。值不存入 Dokploy 数据库，界面上只显示引用。
+`docker-compose.dokploy.yml` 的后端通过 `env_file: .env` 读取 Environment 面板，无需修改 Compose。
+
+1. 在 OpenBao 的 KV v2 中按 `<环境>/<应用>/<用途>` 写入密钥，例如 `prod/my-app/runtime`。
+2. 为 Dokploy 签发只读 token：策略只授予该应用路径的 `read`（界面自动补全另需 metadata 路径的 `list`），
+   并用 `token_bound_cidrs` 限定 Dokploy 服务器的 IP，设置有效期并定期更换。
+3. Dokploy → Settings → Secrets → Add Provider，选择 HashiCorp Vault / OpenBao，填写名称（如 `prod-openbao`）、
+   OpenBao 地址、上一步的 token 和 KV Mount，测试连接后分配给项目。
+4. 在应用的 Environment 面板中，不敏感项直接填写，密钥只写引用：
+
+```dotenv
+NACOS_SERVER_ADDR=https://nacos.example.com
+NACOS_USERNAME=my-app-reader
+NACOS_NAMESPACE_ID=prod
+NACOS_GROUP=MY_APP
+NACOS_DATA_ID=my-app-runtime.json
+
+NACOS_PASSWORD=${{vault.prod-openbao.prod/my-app/nacos:password}}
+DATABASE_URL=${{vault.prod-openbao.prod/my-app/runtime:DATABASE_URL}}
+MODEL_API_KEY=${{vault.prod-openbao.prod/my-app/runtime:MODEL_API_KEY}}
+```
+
+引用格式为 `${{vault.<Provider 名称>.<KV 路径>:<字段>}}`。引用的密钥不存在时部署失败，不会注入空值。
+[Dokploy Secrets Providers](https://docs.dokploy.com/docs/core/secrets-providers)
+
+注意事项：
+
+- **轮换需重新部署**：OpenBao 中的值更新后，在 Dokploy 重新部署才会生效；Nacos 配置变更按上节说明重启进程。
+- **网络边界**：Dokploy 服务器需能访问 OpenBao；不要为此把 OpenBao 暴露到公网，应走私网或 WireGuard 等受控通道。
+- **落盘与可见范围**：Compose 部署时 Environment 面板会写成服务器上的 `.env`，取出的值是否落盘以实际部署为准；
+  能在服务器执行 `docker inspect` 或管理 Dokploy 的人可以看到注入的值，应按 OpenBao 管理员的标准保护这些入口。
+- **最小权限**：每个应用使用独立的 OpenBao 路径、Dokploy Provider token 和 Nacos 只读账号，不共用。
+
+本地开发继续使用 `.env.local`，不需要连接 OpenBao。
 
 ## 主模型配置
 

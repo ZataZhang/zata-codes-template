@@ -58,7 +58,7 @@ nav:
       - 测试规范: ai-standards/testing.md
       - 工具与命令: ai-standards/tooling.md
   - 使用指南:
-      - 配置加载顺序与 Nacos: guides/configuration.md
+      - 配置加载顺序、Nacos 与 OpenBao: guides/configuration.md
       - OIDC 企业账号登录: guides/oidc.md
       - API 与部署安全基线: guides/security.md
       - Model Context Protocol: guides/mcp.md
