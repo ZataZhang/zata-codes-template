@@ -257,11 +257,12 @@ def build_info_payload(repository_root: Path, *, git_available: bool = True) -> 
         git_available (bool): 目标目录是否属于 Git 工作区。
 
     Returns:
-        WorkspacePayload: 含仓库名、当前分支与渲染上限的应答。
+        WorkspacePayload: 含查看根绝对路径、仓库名、当前分支与渲染上限的应答。
     """
     return WorkspacePayload(
         status_code=200,
         payload={
+            "view_root_path": str(repository_root),
             "repo_name": repository_root.name,
             "branch": _read_current_branch_name(repository_root) if git_available else "",
             "git_available": git_available,

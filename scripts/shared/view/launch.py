@@ -60,8 +60,8 @@ class LaunchRequest(NamedTuple):
     本模块每次 ``just view`` 都要在 150ms 的复用命中预算里被 import 一次。
 
     Attributes:
-        requested_path (str): ``just view`` 的直达路径，或 ``zview`` 的目标目录；空串表示
-            仓库根或当前目录。
+        requested_paths (tuple[str, ...]): ``just view`` 的直达路径，或 ``zview`` 要直接打开的
+            文件路径；全局目录模式下为空。
         view (str): 初始视图，``files`` 或 ``diff``；默认 ``diff``。
         requested_port (int | None): 显式 ``--port``；未给时为 ``None``。
         idle_timeout_seconds (float): 空闲回收时限；非正数表示关闭自动回收。
@@ -72,9 +72,10 @@ class LaunchRequest(NamedTuple):
         git_available (bool): 目标目录是否位于 Git 仓库中。
         git_prefix (str): 目标目录在所属 Git 仓库中的相对路径前缀。
         no_fetch (bool): 是否跳过启动时的后台远端引用同步。
+        explicit_diff (bool): 是否显式指定了改动视图。
     """
 
-    requested_path: str
+    requested_paths: tuple[str, ...]
     view: str
     requested_port: int | None
     idle_timeout_seconds: float
@@ -85,6 +86,7 @@ class LaunchRequest(NamedTuple):
     git_available: bool = True
     git_prefix: str = ""
     no_fetch: bool = False
+    explicit_diff: bool = False
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -174,10 +176,10 @@ def _parse_arguments(argv: list[str] | None) -> LaunchRequest:
         help=argparse.SUPPRESS,
     )
     argument_parser.add_argument(
-        "path",
-        nargs="?",
-        default="",
-        help="目标目录（zview）或打开后直达的文件、目录（just view）",
+        "paths",
+        nargs="*",
+        metavar="路径",
+        help="zview 的目标目录或要直接打开的文件；just view 最多接受一个路径",
     )
     view_selection_group = argument_parser.add_mutually_exclusive_group()
     view_selection_group.add_argument(
@@ -218,9 +220,13 @@ def _parse_arguments(argv: list[str] | None) -> LaunchRequest:
         help="回收当前查看目标的常驻查看器实例，不打开界面",
     )
     parsed_arguments = argument_parser.parse_args(argument_values)
+    if parsed_arguments.stop and len(parsed_arguments.paths) > 1:
+        argument_parser.error("--stop 最多接受一个目录")
+    if not parsed_arguments.global_mode and len(parsed_arguments.paths) > 1:
+        argument_parser.error("just view 最多接受一个路径")
 
     return LaunchRequest(
-        requested_path=parsed_arguments.path,
+        requested_paths=tuple(parsed_arguments.paths),
         view=FILES_VIEW if parsed_arguments.files else DIFF_VIEW,
         requested_port=parsed_arguments.port,
         idle_timeout_seconds=(
@@ -233,11 +239,12 @@ def _parse_arguments(argv: list[str] | None) -> LaunchRequest:
         no_fetch=parsed_arguments.no_fetch,
         stop=parsed_arguments.stop,
         global_mode=parsed_arguments.global_mode,
+        explicit_diff=parsed_arguments.diff,
     )
 
 
 def _resolve_global_target(launch_request: LaunchRequest) -> tuple[Path, LaunchRequest]:
-    """解析 `zview` 的目标目录、Git 子目录前缀与用户缓存位置。
+    """解析 `zview` 的目标目录或直达文件，并确定 Git 子目录前缀与用户缓存位置。
 
     Args:
         launch_request (LaunchRequest): 命令行解析结果。
@@ -246,15 +253,55 @@ def _resolve_global_target(launch_request: LaunchRequest) -> tuple[Path, LaunchR
         tuple[Path, LaunchRequest]: 作为查看根目录的目标路径及补齐 Git 状态后的请求。
 
     Raises:
-        ViewerLaunchError: 目标路径不存在、不是目录或无法解析。
+        ViewerLaunchError: 目标路径不存在、参数混用目录与文件或无法解析。
     """
-    requested_directory = Path(launch_request.requested_path or Path.cwd()).expanduser()
-    if not requested_directory.is_absolute():
-        requested_directory = Path.cwd() / requested_directory
+    requested_paths = tuple(
+        Path(requested_path).expanduser() for requested_path in launch_request.requested_paths
+    )
+    absolute_requested_paths = tuple(
+        requested_path if requested_path.is_absolute() else Path.cwd() / requested_path
+        for requested_path in requested_paths
+    )
     try:
-        target_directory = requested_directory.resolve(strict=True)
+        resolved_requested_paths = tuple(
+            dict.fromkeys(
+                requested_path.resolve(strict=True) for requested_path in absolute_requested_paths
+            )
+        )
     except (OSError, RuntimeError) as path_error:
-        raise ViewerLaunchError(f"目标目录无法访问：{requested_directory}") from path_error
+        inaccessible_path = getattr(path_error, "filename", None) or path_error
+        raise ViewerLaunchError(f"目标路径无法访问：{inaccessible_path}") from path_error
+
+    if (
+        launch_request.stop
+        and resolved_requested_paths
+        and not (len(resolved_requested_paths) == 1 and resolved_requested_paths[0].is_dir())
+    ):
+        raise ViewerLaunchError("--stop 的目标必须是一个目录。")
+
+    if not resolved_requested_paths:
+        target_directory = Path.cwd().resolve()
+        direct_file_paths: tuple[str, ...] = ()
+    elif len(resolved_requested_paths) == 1 and resolved_requested_paths[0].is_dir():
+        target_directory = resolved_requested_paths[0]
+        direct_file_paths = ()
+    elif all(requested_path.is_file() for requested_path in resolved_requested_paths):
+        if launch_request.explicit_diff:
+            raise ViewerLaunchError("直接打开文件时不能使用 --diff，请移除 --diff。")
+        parent_directories = tuple(
+            requested_path.parent for requested_path in resolved_requested_paths
+        )
+        try:
+            target_directory = Path(os.path.commonpath(parent_directories)).resolve(strict=True)
+        except (OSError, RuntimeError, ValueError) as path_error:
+            raise ViewerLaunchError("这些文件没有共同的可访问目录。") from path_error
+        direct_file_paths = tuple(
+            requested_path.relative_to(target_directory).as_posix()
+            for requested_path in resolved_requested_paths
+        )
+    else:
+        raise ViewerLaunchError("请提供一个目录，或一个/多个现有文件；不能混合目录与文件。")
+
     if not target_directory.is_dir():
         raise ViewerLaunchError(f"目标路径不是文件夹：{target_directory}")
 
@@ -297,9 +344,9 @@ def _resolve_global_target(launch_request: LaunchRequest) -> tuple[Path, LaunchR
     else:
         os.environ.pop(instance.GIT_PREFIX_ENVIRONMENT_VARIABLE, None)
 
-    selected_view = launch_request.view if git_available else FILES_VIEW
+    selected_view = FILES_VIEW if direct_file_paths or not git_available else launch_request.view
     return target_directory, launch_request._replace(
-        requested_path="",
+        requested_paths=direct_file_paths,
         view=selected_view,
         git_available=git_available,
         git_prefix=git_prefix,
@@ -674,10 +721,11 @@ def _probe_info_endpoint(port: int) -> bool:
 
 
 def _build_viewer_url(*, port: int, launch_request: LaunchRequest) -> str:
-    """拼出界面 URL，把本次调用的初始视图与直达路径带过去。
+    """拼出界面 URL，把本次调用的初始视图与一个或多个直达路径带过去。
 
     改动视图的分区（已暂存 / 未暂存 / 未跟踪）不由命令行指定：界面一律三段全列，直达路径
     的归属在列表加载完之后解析（见 ``assets/viewer.js`` 的 ``resolveSectionForPath``）。
+    文件视图允许重复 ``path`` 查询参数，供查看器初始化多个文件标签。
 
     Args:
         port (int): 服务端口。
@@ -686,9 +734,10 @@ def _build_viewer_url(*, port: int, launch_request: LaunchRequest) -> str:
     Returns:
         str: 指向本机回环实例的 URL。
     """
-    query_fields = {"view": launch_request.view}
-    if launch_request.requested_path:
-        query_fields["path"] = launch_request.requested_path
+    query_fields = [("view", launch_request.view)]
+    query_fields.extend(
+        ("path", requested_path) for requested_path in launch_request.requested_paths
+    )
     return f"http://{instance.LOOPBACK_HOST}:{port}/?{urlencode(query_fields)}"
 
 

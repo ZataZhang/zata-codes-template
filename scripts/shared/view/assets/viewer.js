@@ -108,6 +108,8 @@
     treeBody: document.getElementById("tree-body"),
     bodyGrid: document.querySelector(".body-grid"),
     viewerPath: document.getElementById("viewer-path"),
+    absoluteViewerPath: document.getElementById("viewer-absolute-path"),
+    openFileTabs: document.getElementById("open-file-tabs"),
     copyPathButton: document.getElementById("copy-path"),
     openInSystemButton: document.getElementById("open-in-system"),
     editFileButton: document.getElementById("edit-file"),
@@ -153,6 +155,10 @@
     isTreeWide: false,
     filterText: "",
     filePaths: [],
+    /** 当前查看器的绝对根目录，由 /api/info 提供。 */
+    viewRootPath: "",
+    /** 文件视图里已打开的文件路径；顺序与标签显示顺序一致。 */
+    openedFilePaths: [],
     /** 当前目标是否连接到 Git；普通目录只开放文件视图。 */
     gitAvailable: true,
     ignoredFilePaths: new Set(),
@@ -254,10 +260,11 @@
 
   /**
    * 应用服务端返回的工作区信息，并按是否有 Git 同步可用视图。
-   * @param {{repo_name: string, branch: string, git_available?: boolean}} workspaceInfo 工作区信息。
+   * @param {{view_root_path?: string, repo_name: string, branch: string, git_available?: boolean}} workspaceInfo 工作区信息。
    */
   function applyWorkspaceInfo(workspaceInfo) {
     viewState.gitAvailable = workspaceInfo.git_available !== false;
+    viewState.viewRootPath = workspaceInfo.view_root_path || "";
     if (!viewState.gitAvailable) {
       viewState.view = FILES_VIEW;
       viewState.historicalCommitContext = null;
@@ -413,7 +420,9 @@
     ) {
       viewState.view = requestedView;
     }
-    viewState.selectedPath = searchParameters.get("path") || "";
+    const requestedFilePaths = [...new Set(searchParameters.getAll("path").filter(Boolean))];
+    viewState.selectedPath = requestedFilePaths[0] || "";
+    viewState.openedFilePaths = requestedView === FILES_VIEW ? requestedFilePaths : [];
   }
 
   /** 正计时定时器的句柄；页面退出「服务已退出」态后就停掉它。 */
@@ -983,6 +992,92 @@
     elements.ignoredToggle.hidden =
       !viewState.gitAvailable || isDiffView || isHistoryView;
     renderIgnoredFilesToggle();
+    renderOpenFileTabs();
+  }
+
+  /**
+   * 渲染文件视图中已打开文件的切换标签。
+   */
+  function renderOpenFileTabs() {
+    const visibleFilePaths = viewState.openedFilePaths;
+    elements.openFileTabs.hidden = viewState.view !== FILES_VIEW || visibleFilePaths.length < 2;
+    if (elements.openFileTabs.hidden) {
+      elements.openFileTabs.replaceChildren();
+      return;
+    }
+
+    const fileTabNodes = visibleFilePaths.map((filePath) => {
+      const fileTabNode = document.createElement("div");
+      fileTabNode.className = "open-file-tab";
+
+      const fileTabTrigger = document.createElement("button");
+      fileTabTrigger.type = "button";
+      fileTabTrigger.className = "open-file-tab-trigger";
+      fileTabTrigger.setAttribute("aria-current", String(filePath === viewState.selectedPath));
+      const absoluteFilePath = buildAbsoluteFilePath(filePath);
+      const fileName = filePath.split("/").at(-1) || filePath;
+      fileTabTrigger.setAttribute("aria-label", `${fileName} · ${absoluteFilePath}`);
+      fileTabTrigger.title = absoluteFilePath;
+      fileTabTrigger.textContent = filePath;
+      fileTabTrigger.addEventListener("click", () => {
+        void selectPath(filePath);
+      });
+
+      const closeFileTabButton = document.createElement("button");
+      closeFileTabButton.type = "button";
+      closeFileTabButton.className = "open-file-tab-close";
+      closeFileTabButton.setAttribute("aria-label", `关闭 ${absoluteFilePath}`);
+      closeFileTabButton.title = `关闭 ${absoluteFilePath}（⌥W / Alt+W）`;
+      closeFileTabButton.textContent = "×";
+      closeFileTabButton.addEventListener("click", () => {
+        closeOpenFileTab(filePath);
+      });
+
+      fileTabNode.append(fileTabTrigger, closeFileTabButton);
+      return fileTabNode;
+    });
+    elements.openFileTabs.replaceChildren(...fileTabNodes);
+  }
+
+  /**
+   * 关闭一个已打开的文件标签；关闭当前标签时切到相邻文件。
+   * @param {string} filePath 要关闭的仓库相对路径。
+   */
+  function closeOpenFileTab(filePath) {
+    const closedFileTabIndex = viewState.openedFilePaths.indexOf(filePath);
+    if (closedFileTabIndex < 0) {
+      return;
+    }
+    const isClosingSelectedFile = viewState.selectedPath === filePath;
+    if (isClosingSelectedFile && !confirmDiscardFileEdits({ restoreContent: false })) {
+      return;
+    }
+
+    viewState.openedFilePaths = viewState.openedFilePaths.filter(
+      (openedFilePath) => openedFilePath !== filePath
+    );
+    const nextSelectedPath = isClosingSelectedFile
+      ? viewState.openedFilePaths[
+          Math.min(closedFileTabIndex, viewState.openedFilePaths.length - 1)
+        ] || ""
+      : viewState.selectedPath;
+    if (isClosingSelectedFile) {
+      viewState.selectedPath = nextSelectedPath;
+      viewState.lastFileViewPath = nextSelectedPath;
+      viewState.selectedSection = "";
+    }
+    renderOpenFileTabs();
+    if (!isClosingSelectedFile) {
+      return;
+    }
+
+    resetFilePreview();
+    if (nextSelectedPath) {
+      void selectPath(nextSelectedPath);
+      return;
+    }
+    renderTree();
+    renderPlaceholder();
   }
 
   /**
@@ -1027,12 +1122,32 @@
     const isHistoricalCommitDiff =
       viewState.view === DIFF_VIEW && Boolean(viewState.historicalCommitContext);
     elements.viewerPath.textContent = repositoryPath || "—";
+    const absoluteFilePath = buildAbsoluteFilePath(repositoryPath);
+    elements.viewerPath.title = absoluteFilePath;
+    elements.absoluteViewerPath.textContent = absoluteFilePath;
+    elements.absoluteViewerPath.title = absoluteFilePath;
+    elements.absoluteViewerPath.hidden = !absoluteFilePath;
     elements.copyPathButton.hidden = !repositoryPath;
     elements.copyPathButton.dataset.copied = "false";
     elements.openInSystemButton.hidden = !repositoryPath || isHistoricalCommitDiff;
     elements.openFileButton.hidden =
       !repositoryPath || viewState.view !== DIFF_VIEW || isHistoricalCommitDiff;
     renderFileEditControls();
+  }
+
+  /**
+   * 把查看根与仓库相对路径拼成当前平台的绝对路径。
+   * @param {string} repositoryPath 仓库相对路径。
+   * @returns {string} 文件绝对路径；查看器根路径缺失时返回相对路径。
+   */
+  function buildAbsoluteFilePath(repositoryPath) {
+    if (!repositoryPath || !viewState.viewRootPath) {
+      return repositoryPath;
+    }
+    const pathSeparator = viewState.viewRootPath.includes("\\") ? "\\" : "/";
+    const normalizedRootPath = viewState.viewRootPath.replace(/[\\/]+$/, "");
+    const normalizedRelativePath = repositoryPath.replace(/[\\/]/g, pathSeparator);
+    return `${normalizedRootPath}${pathSeparator}${normalizedRelativePath}`;
   }
 
   /**
@@ -2029,11 +2144,15 @@
       return;
     }
     viewState.selectedPath = repositoryPath;
+    if (viewState.view === FILES_VIEW && !viewState.openedFilePaths.includes(repositoryPath)) {
+      viewState.openedFilePaths = [...viewState.openedFilePaths, repositoryPath];
+    }
     viewState.selectedSection =
       viewState.view === DIFF_VIEW
         ? sectionName || resolveSectionForPath(repositoryPath)
         : "";
     renderTree();
+    renderOpenFileTabs();
     await guardAgainstServiceExit(async () => {
       if (viewState.view === DIFF_VIEW) {
         await loadDiffForPath(repositoryPath, viewState.selectedSection);
@@ -2050,6 +2169,9 @@
   async function loadFileContent(repositoryPath) {
     resetFilePreview();
     const fileResponse = await requestJson(`/api/file?path=${encodeURIComponent(repositoryPath)}`);
+    if (viewState.view !== FILES_VIEW || repositoryPath !== viewState.selectedPath) {
+      return;
+    }
     setViewerPath(repositoryPath);
     if (fileResponse.status !== 200) {
       renderNotice(buildNotice({ isFailure: true, title: "无法读取", paragraphs: [fileResponse.body.error] }), repositoryPath);
@@ -2879,6 +3001,28 @@
       if (keyboardEvent.key === "Escape") {
         elements.filterInput.blur();
       }
+      return;
+    }
+    const keyEventTargetElement =
+      keyboardEvent.target instanceof Element ? keyboardEvent.target : null;
+    const hasFocusedTextControl = Boolean(
+      keyEventTargetElement?.closest("input, textarea, select, [contenteditable='true']")
+    );
+    const isCloseFileTabShortcut =
+      keyboardEvent.code === "KeyW" &&
+      keyboardEvent.altKey &&
+      !keyboardEvent.ctrlKey &&
+      !keyboardEvent.metaKey &&
+      !keyboardEvent.shiftKey;
+    if (
+      isCloseFileTabShortcut &&
+      !hasFocusedTextControl &&
+      viewState.view === FILES_VIEW &&
+      viewState.selectedPath &&
+      viewState.openedFilePaths.includes(viewState.selectedPath)
+    ) {
+      keyboardEvent.preventDefault();
+      closeOpenFileTab(viewState.selectedPath);
       return;
     }
     // 改动条目选中后，空格直接执行头部「查看文件」的同一跳转。仅在正文/当前改动行上接管，

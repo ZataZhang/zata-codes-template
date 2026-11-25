@@ -105,7 +105,10 @@
 
     <main class="surface viewer">
       <div class="viewer-head">
-        <span class="viewer-path" id="viewer-path">—</span>
+        <div class="viewer-path-details">
+          <span class="viewer-path" id="viewer-path">—</span>
+          <span class="viewer-absolute-path" id="viewer-absolute-path" hidden></span>
+        </div>
         <button type="button" id="copy-path" class="copy-path" aria-label="复制文件路径" title="复制文件路径" hidden>
           <svg class="icon-copy" viewBox="0 0 24 24" aria-hidden="true">
             <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
@@ -141,6 +144,7 @@
 
         <span class="viewer-meta" id="viewer-meta"></span>
       </div>
+      <nav class="open-file-tabs" id="open-file-tabs" aria-label="已打开的文件" hidden></nav>
       <div class="viewer-body" id="viewer-body"></div>
     </main>
   </div>

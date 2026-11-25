@@ -347,7 +347,41 @@ button, input, select { font: inherit; color: inherit; }
   display: flex; align-items: center; gap: 10px;
   border-bottom: 1px solid var(--border); padding: 9px 14px; font-size: 12.5px;
 }
+.viewer-path-details {
+  display: flex; min-width: 0; flex: 1; flex-direction: column; justify-content: center; gap: 1px;
+}
 .viewer-path { overflow: hidden; font-family: var(--mono); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.viewer-absolute-path {
+  overflow: hidden; color: var(--muted-foreground); font: 10px/1.35 var(--mono);
+  text-overflow: ellipsis; white-space: nowrap;
+}
+.viewer-absolute-path[hidden] { display: none; }
+.open-file-tabs {
+  display: flex; min-width: 0; flex: none; gap: 5px; overflow-x: auto;
+  border-bottom: 1px solid var(--border); padding: 5px 10px; background: var(--background);
+}
+.open-file-tabs[hidden] { display: none; }
+.open-file-tab {
+  display: flex; min-width: 0; max-width: 280px; flex: none; align-items: center;
+  border: 1px solid var(--border); border-radius: 7px; background: var(--card);
+}
+.open-file-tab-trigger {
+  min-width: 0; max-width: 245px; overflow: hidden; border: 0; border-radius: 6px 0 0 6px;
+  background: transparent; padding: 4px 7px 4px 9px; color: var(--muted-foreground);
+  font: 11.5px/1.4 var(--mono); text-overflow: ellipsis; white-space: nowrap; cursor: pointer;
+}
+.open-file-tab-trigger[aria-current='true'] {
+  background: var(--secondary); color: var(--foreground); font-weight: 650;
+}
+.open-file-tab-trigger:focus-visible, .open-file-tab-close:focus-visible {
+  position: relative; z-index: 1; outline: 2px solid var(--ring); outline-offset: -2px;
+}
+.open-file-tab-close {
+  display: inline-flex; width: 24px; height: 26px; flex: none; align-items: center; justify-content: center;
+  border: 0; border-radius: 0 6px 6px 0; background: transparent;
+  color: var(--muted-foreground); font-size: 16px; line-height: 1; cursor: pointer;
+}
+.open-file-tab-close:hover { background: var(--secondary); color: var(--foreground); }
 /* 复制路径 / 在系统中打开：贴着路径放的两个图标按钮，不参与撑宽，`[hidden]` 要显式压过 display */
 .copy-path, .open-system {
   display: inline-flex; flex: none; align-items: center; justify-content: center;
