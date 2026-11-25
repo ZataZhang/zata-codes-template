@@ -3,6 +3,9 @@
   /** 注册当前标签页，使用每次加载生成的标识以区分复制出来的页面。 */
   async function connectProjectPicker({ requestJson, busy, hasUnsavedFileEdits, elements }) {
     const tab = crypto.randomUUID();
+    const viewerUrl = new URL(location.href);
+    viewerUrl.searchParams.set("zview-tab", tab);
+    history.replaceState(history.state, "", viewerUrl);
     const picker = document.getElementById("project-picker");
     const post = (action, fields = {}) => requestJson("/api/project-tabs", {
       method: "POST", body: { action, tab, ...fields },
@@ -81,7 +84,9 @@
         if (hasUnsavedFileEdits() || busy()) {
           elements.statusHint.textContent = "已收到项目打开请求，可在左上角切换项目。";
         } else {
-          location.assign(command.url);
+          const destination = new URL(command.url);
+          destination.searchParams.set("zview-request", command.id);
+          location.assign(destination);
           return;
         }
       }

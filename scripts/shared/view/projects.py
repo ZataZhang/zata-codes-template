@@ -124,7 +124,7 @@ class BrowserTabs:
         try:
             self.condition.notify_all()
             self.condition.wait_for(lambda: command["accepted"], timeout=1.2)
-            return {"accepted": command["accepted"]}
+            return {"accepted": command["accepted"], "id": command["id"]}
         finally:
             del self.pending[tab]
             if not command["accepted"]:
@@ -148,14 +148,15 @@ def _contact(port: int, body: dict | None = None) -> dict:
         connection.close()
 
 
-def hand_off(url: str) -> bool:
-    """依最近使用顺序投递 URL，页面确认后停止尝试。"""
+def hand_off(url: str) -> tuple[str, str] | None:
+    """依最近使用顺序投递 URL，返回确认请求的标签页和请求标识。"""
     candidates = []
     for project in active_projects():
         port = project["port"]
         for tab, focused in _contact(port).get("tabs", {}).items():
             candidates.append((focused, port, tab))
     for _, port, tab in sorted(candidates, reverse=True):
-        if _contact(port, {"action": "deliver", "tab": tab, "url": url}).get("accepted"):
-            return True
-    return False
+        delivery = _contact(port, {"action": "deliver", "tab": tab, "url": url})
+        if delivery.get("accepted"):
+            return tab, delivery.get("id", "")
+    return None

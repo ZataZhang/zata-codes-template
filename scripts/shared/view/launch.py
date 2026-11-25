@@ -756,33 +756,60 @@ def _open_viewer_in_browser(url: str, *, report: str, no_open: bool) -> int:
     if not no_open:
         import projects
 
-        if projects.hand_off(url):
+        accepted_request = projects.hand_off(url)
+        if accepted_request:
             print("已有查看器标签页已接收请求。")
             if sys.platform == "darwin":
-                _activate_mac_browser()
+                _activate_mac_browser(*accepted_request)
         else:
             _hand_off_url_to_system_opener(url)
     return 0
 
 
-def _activate_mac_browser() -> None:
-    """通过 Launch Services 找到默认浏览器并激活其已有进程。"""
+def _activate_mac_browser(tab_id: str, request_id: str) -> None:
+    """在系统默认浏览器中选中接收请求的标签页。"""
     import subprocess
 
-    # 只激活应用，不再次投递 URL。通过 AppKit 调用无需控制浏览器的自动化权限。
+    # 页面导航前后分别用标签页标识和请求标识匹配，避免选中同项目的其他副本。
     activation_script = """
-        ObjC.import("AppKit");
-        const workspace = $.NSWorkspace.sharedWorkspace;
-        const handler = workspace.URLForApplicationToOpenURL($.NSURL.URLWithString("http://127.0.0.1/"));
-        const bundleId = $.NSBundle.bundleWithURL(handler).bundleIdentifier;
-        const running = $.NSRunningApplication.runningApplicationsWithBundleIdentifier(bundleId);
-        const options = $.NSApplicationActivateIgnoringOtherApps;
-        if (running.count && !running.objectAtIndex(0).activateWithOptions(options)) {
-            throw Error("无法将浏览器带到前台");
+        function run([tabId, requestId]) {
+            ObjC.import("AppKit");
+            const workspace = $.NSWorkspace.sharedWorkspace;
+            const handler = workspace.URLForApplicationToOpenURL($.NSURL.URLWithString("http://127.0.0.1/"));
+            const bundleId = $.NSBundle.bundleWithURL(handler).bundleIdentifier;
+            const running = $.NSRunningApplication
+                .runningApplicationsWithBundleIdentifier(bundleId);
+            if (!running.count) return;
+
+            const browser = Application(ObjC.unwrap(bundleId));
+            try {
+                for (const browserWindow of browser.windows()) {
+                    const tabUrls = browserWindow.tabs.url();
+                    const index = tabUrls.findIndex(url => {
+                        if (!/^http:\\/\\/127[.]0[.]0[.]1:[0-9]+\\/\\?/.test(url)) return false;
+                        const params = url.split("#", 1)[0].split("?")[1].split("&");
+                        return params.includes("zview-tab=" + tabId)
+                            || (requestId && params.includes("zview-request=" + requestId));
+                    });
+                    if (index < 0) continue;
+                    if (ObjC.unwrap(bundleId) === "com.apple.Safari") {
+                        if (browserWindow.miniaturized()) browserWindow.miniaturized = false;
+                        browserWindow.currentTab = browserWindow.tabs[index];
+                    } else {
+                        if (browserWindow.minimized()) browserWindow.minimized = false;
+                        browserWindow.activeTabIndex = index + 1;
+                    }
+                    browserWindow.index = 1;
+                    break;
+                }
+            } catch (error) {
+                // 浏览器不支持脚本控制或 macOS 未授权时，仍可激活应用。
+            }
+            running.objectAtIndex(0).activateWithOptions($.NSApplicationActivateIgnoringOtherApps);
         }
     """
     subprocess.Popen(
-        ["/usr/bin/osascript", "-l", "JavaScript", "-e", activation_script],
+        ["/usr/bin/osascript", "-l", "JavaScript", "-e", activation_script, tab_id, request_id],
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         start_new_session=True,
