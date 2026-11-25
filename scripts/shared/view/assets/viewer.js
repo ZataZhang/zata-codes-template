@@ -2206,7 +2206,7 @@
     viewState.loadedFile = fileBody;
     viewState.previewDescriptor = fileBody.preview || null;
     // Markdown 默认进预览：文档先看渲染结果，源码是一次显式切换。其它文本文件默认源码。
-    if (viewState.previewDescriptor && viewState.previewDescriptor.mode === "markdown") {
+    if (viewState.previewDescriptor && ["markdown", "external"].includes(viewState.previewDescriptor.mode)) {
       viewState.renderMode = PREVIEW_MODE;
     }
     renderPreviewControls(viewState.previewDescriptor);
@@ -2494,7 +2494,7 @@
   function renderPreviewControls(previewDescriptor) {
     const previewMode = previewDescriptor ? previewDescriptor.mode : "";
     const isEditing = viewState.isEditingFile || viewState.isLoadingEditableSource;
-    elements.previewSwitch.hidden = isEditing || previewMode !== "markdown";
+    elements.previewSwitch.hidden = isEditing || !["markdown", "external"].includes(previewMode);
     elements.tabSource.disabled = viewState.isTogglingMarkdownTask;
     elements.tabPreview.disabled = viewState.isTogglingMarkdownTask;
     elements.openExternal.hidden = isEditing || previewMode !== "external";
@@ -2516,12 +2516,31 @@
     elements.viewerMeta.textContent = `${fileBody.language} · ${fileBody.line_count} 行 · ${fileBody.size_label}`;
     renderFileEditControls();
     if (viewState.renderMode === PREVIEW_MODE) {
+      if (viewState.previewDescriptor?.mode === "external") {
+        if (fileBody.path.toLowerCase().endsWith(".svg")) {
+          renderImagePreview({ ...fileBody, url: viewState.previewDescriptor.url });
+          elements.statusHint.textContent = "文件视图 · SVG 预览";
+          return;
+        }
+        const previewNode = document.createElement("iframe");
+        previewNode.className = "document-preview";
+        previewNode.title = fileBody.path;
+        previewNode.setAttribute("sandbox", "");
+        previewNode.src = viewState.previewDescriptor.url;
+        elements.viewerBody.replaceChildren(previewNode);
+        elements.statusHint.textContent = "文件视图 · 隔离文档预览（脚本禁用）";
+        return;
+      }
       await renderMarkdownPreview();
       return;
     }
     elements.statusHint.textContent = fileBody.highlighted
       ? "文件视图 · 服务端语法高亮"
       : "文件视图 · 未安装语法高亮依赖，已降级为纯文本";
+    if (fileBody.source_unavailable) {
+      renderNotice(buildNotice({ title: "Source exceeds 256 KiB", paragraphs: ["Preview is available. Open in your editor to read the source."] }), fileBody.path);
+      return;
+    }
     renderCodeLines(fileBody.lines);
   }
 

@@ -1026,3 +1026,6 @@ body.is-resizing-history, body.is-resizing-history * { cursor: col-resize !impor
   }
   .history-code-pane { border-top: 1px solid var(--border); border-left: 0; }
 }
+
+/* 文档独立滚动。 */
+.document-preview { display: block; width: 100%; height: 100%; min-height: 70vh; border: 0; background: white; }

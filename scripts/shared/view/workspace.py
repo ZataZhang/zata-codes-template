@@ -138,6 +138,7 @@ _SCRATCH_INDEX_DIRECTORY_PREFIX = "view-scratch-index-"
 _DIFF_NO_INDEX_EXIT_CODES = frozenset({0, 1})
 
 #: 文件正文的渲染上限；超过即返回明确标记而不是正文。
+MAX_PREVIEW_BYTES = 16 * 1024 * 1024
 MAX_FILE_BYTES = 256 * 1024
 MAX_FILE_BYTES_LABEL = "256 KiB"
 
@@ -414,6 +415,26 @@ def build_file_payload(repository_root: Path, requested_path: str) -> WorkspaceP
                 "size_label": format_size_label(file_byte_count),
             },
         )
+    preview_descriptor = resolve_preview_descriptor(normalized_relative_path)
+    if (
+        preview_descriptor
+        and preview_descriptor["mode"] == "external"
+        and MAX_FILE_BYTES < file_byte_count <= MAX_PREVIEW_BYTES
+    ):
+        return WorkspacePayload(
+            status_code=200,
+            payload={
+                "path": normalized_relative_path,
+                "kind": "text",
+                "preview": preview_descriptor,
+                "size_label": format_size_label(file_byte_count),
+                "language": "",
+                "line_count": 0,
+                "highlighted": False,
+                "lines": [],
+                "source_unavailable": True,
+            },
+        )
     if file_byte_count > MAX_FILE_BYTES:
         return WorkspacePayload(
             status_code=200,
@@ -475,7 +496,7 @@ def resolve_preview_descriptor(relative_path: str) -> dict[str, str] | None:
     file_suffix = Path(relative_path).suffix.lower()
     if file_suffix in _MARKDOWN_SUFFIXES:
         return {"mode": "markdown"}
-    if file_suffix in _HTML_SUFFIXES:
+    if file_suffix in _HTML_SUFFIXES or file_suffix == ".svg":
         return {"mode": "external", "url": build_raw_file_url(relative_path)}
     return None
 

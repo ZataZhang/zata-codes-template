@@ -695,7 +695,7 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
                 "default-src 'self' data: blob:; script-src 'none'; "
                 "style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; "
                 "font-src 'self' data:; object-src 'none'; base-uri 'none'; "
-                "form-action 'none'; frame-ancestors 'none'",
+                "form-action 'none'; frame-ancestors 'self'",
             )
         # 与其它读取路径一致：本地开发工具不缓存，改了文件就应该立刻看到。
         self.send_header("Cache-Control", "no-store")
