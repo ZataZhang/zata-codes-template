@@ -63,6 +63,7 @@ nav:
       - API 与部署安全基线: guides/security.md
       - Model Context Protocol: guides/mcp.md
       - 前端 i18n（中英文双语）: guides/i18n.md
+      - 发送前附件预览: guides/local-attachment-preview.md
       - 部署指南（容器、API 与 A2A）: guides/deployment.md
       - 可观测性: guides/observability.md
       - Run 执行轨迹: guides/run-tracing.md
